@@ -68,22 +68,22 @@ private:
 };
 
 /// Convinience wrapper for _pi_offload_entry_struct.
-class PiOffloadEntry {
+class MockOffloadEntry {
 public:
   using NativeType = _pi_offload_entry_struct;
 
-  PiOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
+  MockOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
   }
 
-  PiOffloadEntry(const PiOffloadEntry &Src) {
+  MockOffloadEntry(const MockOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
     updateNativeType();
   }
-  PiOffloadEntry &operator=(const PiOffloadEntry &Src) {
+  MockOffloadEntry &operator=(const MockOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
@@ -227,7 +227,7 @@ public:
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
+          PiArray<MockOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -238,7 +238,7 @@ public:
   MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
-          PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
+          PiArray<MockOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
       : MockDeviceImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
                 Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
                 std::move(Binary), std::move(OffloadEntries),
@@ -273,7 +273,7 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  PiArray<PiOffloadEntry> MOffloadEntries;
+  PiArray<MockOffloadEntry> MOffloadEntries;
   PiPropertySet MPropertySet;
 };
 
@@ -423,12 +423,12 @@ inline void addESIMDFlag(PiPropertySet &Props) {
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline PiArray<PiOffloadEntry>
+inline PiArray<MockOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  PiArray<PiOffloadEntry> Entries;
+  PiArray<MockOffloadEntry> Entries;
 
   for (const auto &Name : KernelNames) {
-    PiOffloadEntry E{Name, {}, 0};
+    MockOffloadEntry E{Name, {}, 0};
     Entries.push_back(std::move(E));
   }
   return Entries;
@@ -542,7 +542,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  PiArray<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

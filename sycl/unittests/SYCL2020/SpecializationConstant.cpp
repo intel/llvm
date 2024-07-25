@@ -49,7 +49,7 @@ static sycl::unittest::MockDeviceImage generateImageWithSpecConsts() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  PiArray<MockOffloadEntry> Entries =
       makeEmptyKernels({"SpecializationConstant_TestKernel"});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format

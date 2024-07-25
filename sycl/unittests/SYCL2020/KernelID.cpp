@@ -55,7 +55,7 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(Kernels);
+  PiArray<MockOffloadEntry> Entries = makeEmptyKernels(Kernels);
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

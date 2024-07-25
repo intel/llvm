@@ -85,7 +85,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  PiArray<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -108,7 +108,7 @@ static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
+  PiArray<MockOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

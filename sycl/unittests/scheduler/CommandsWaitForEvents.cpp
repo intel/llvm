@@ -107,7 +107,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  PiArray<MockOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format

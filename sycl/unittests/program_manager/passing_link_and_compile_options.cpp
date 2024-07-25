@@ -72,7 +72,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  PiArray<MockOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format

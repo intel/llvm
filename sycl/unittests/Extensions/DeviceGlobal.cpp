@@ -75,7 +75,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  PiArray<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
@@ -106,7 +106,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  PiArray<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
