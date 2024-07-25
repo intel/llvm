@@ -175,3 +175,9 @@
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
 // NVPTX_DEF_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
 
+/// check for -sycl-embed-ir transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver \
+// RUN:          -fsycl-embed-ir %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_EMBED_IR %s
+// CHECK_EMBED_IR: clang-linker-wrapper{{.*}} "-sycl-embed-ir"
