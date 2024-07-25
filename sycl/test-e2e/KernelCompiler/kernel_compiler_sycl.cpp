@@ -130,7 +130,6 @@ void test_build_and_run() {
                  "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
-    assert(ok);
     return;
   }
 

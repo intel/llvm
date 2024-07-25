@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/detail/helpers.hpp"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -276,11 +277,17 @@ event handler::finalize() {
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_begin, nullptr);
 #endif
+        const detail::RTDeviceBinaryImage *BinImage = nullptr;
+        if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+          std::tie(BinImage, std::ignore) =
+              detail::retrieveKernelBinary(MQueue, MKernelName.c_str());
+          assert(BinImage && "Failed to obtain a binary image.");
+        }
         enqueueImpKernel(MQueue, impl->MNDRDesc, impl->MArgs,
                          KernelBundleImpPtr, MKernel, MKernelName.c_str(),
                          RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
                          impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch);
+                         impl->MKernelUsesClusterLaunch, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
