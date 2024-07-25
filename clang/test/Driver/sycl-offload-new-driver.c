@@ -175,3 +175,10 @@
 // RUN:   | FileCheck -check-prefix NVPTX_DEF_ARCH %s
 // NVPTX_DEF_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=nvptx64-nvidia-cuda,arch=sm_50,kind=sycl"
 
+/// Verify the filename being passed to the packager does not contain commas
+/// that are used in -device settings.
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix COMMA_FILE %s
+// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl"
+
