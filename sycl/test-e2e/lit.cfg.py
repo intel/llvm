@@ -162,7 +162,7 @@ if lit_config.params.get("gpu-intel-pvc-vg", False):
     )  # PVC-VG implies the support of FP16 matrix
     config.available_features.add(
         "matrix-tf32"
-    )  # PVC-VG implies the support of TF32 matrix    
+    )  # PVC-VG implies the support of TF32 matrix
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -499,12 +499,15 @@ if "cuda:gpu" in config.sycl_devices:
                             r"^\d+\.\d+$", version
                         ):  # Match version pattern like 12.3
                             cuda_versions.append(version)
-                latest_cuda_version = max(
-                    cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
-                )
-                os.environ["CUDA_PATH"] = os.path.join(
-                    cuda_root, f"cuda-{latest_cuda_version}"
-                )
+                if cuda_versions:
+                    latest_cuda_version = max(
+                        cuda_versions, key=lambda v: [int(i) for i in v.split(".")]
+                    )
+                    os.environ["CUDA_PATH"] = os.path.join(
+                        cuda_root, f"cuda-{latest_cuda_version}"
+                    )
+                elif os.path.exists(os.path.join(cuda_root, "cuda")):
+                    os.environ["CUDA_PATH"] = os.path.join(cuda_root, "cuda")
 
     if "CUDA_PATH" not in os.environ:
         lit_config.error("Cannot run tests for CUDA without valid CUDA_PATH.")
