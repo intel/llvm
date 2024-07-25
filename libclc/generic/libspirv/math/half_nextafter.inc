@@ -25,7 +25,7 @@ _CLC_OVERLOAD _CLC_DEF half __spirv_ocl_nextafter(half x, half y) {
     return y;
   // Parity
   if (x == y)
-    return x;
+    return y;
 
   short *a = (short *)&x;
   short *b = (short *)&y;
