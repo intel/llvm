@@ -110,10 +110,13 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 
   auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
   if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
+    const char *LogOptions = "level:info;output:stdout;flush:info";
 #ifdef _WIN32
-    _putenv_s("UR_LOG_TRACING", "level:info;output:stdout;flush:info");
+    _putenv_s("UR_LOG_TRACING", LogOptions);
+    _putenv_s("UR_LOG_LOADER", LogOptions);
 #else
-    setenv("UR_LOG_TRACING", "level:info;output:stdout;flush:info", 1);
+    setenv("UR_LOG_TRACING", LogOptions, 1);
+    setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
   }
 
