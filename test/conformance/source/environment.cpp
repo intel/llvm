@@ -100,67 +100,73 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     adapters.resize(adapter_count);
     urAdapterGet(adapter_count, adapters.data(), nullptr);
 
-    uint32_t count = 0;
-    if (urPlatformGet(adapters.data(), adapter_count, 0, nullptr, &count)) {
-        error = "urPlatformGet() failed to get number of platforms.";
-        return;
-    }
+    // Search through the adapters individually so we can store the one we end
+    // up choosing.
+    for (auto a : adapters) {
+        uint32_t count = 0;
+        if (urPlatformGet(&a, 1, 0, nullptr, &count)) {
+            error = "urPlatformGet() failed to get number of platforms.";
+            return;
+        }
 
-    if (count == 0) {
-        error = "Failed to find any platforms.";
-        return;
-    }
+        if (count == 0) {
+            error = "Failed to find any platforms.";
+            return;
+        }
 
-    std::vector<ur_platform_handle_t> platforms(count);
-    if (urPlatformGet(adapters.data(), adapter_count, count, platforms.data(),
-                      nullptr)) {
-        error = "urPlatformGet failed to get platforms.";
-        return;
-    }
+        std::vector<ur_platform_handle_t> platforms(count);
+        if (urPlatformGet(&a, 1, count, platforms.data(), nullptr)) {
+            error = "urPlatformGet failed to get platforms.";
+            return;
+        }
 
-    if (platform_options.platform_name.empty()) {
+        if (platform_options.platform_name.empty()) {
 
-        if (platforms.size() == 1 || platform_options.platforms_count == 1) {
-            platform = platforms[0];
+            if (platforms.size() == 1 ||
+                platform_options.platforms_count == 1) {
+                platform = platforms[0];
+                adapter = a;
+            } else {
+                std::stringstream ss_error;
+                ss_error << "Select a single platform from below using the "
+                            "--platform=NAME "
+                            "command-line option:"
+                         << platforms << std::endl
+                         << "or set --platforms_count=1.";
+                error = ss_error.str();
+                return;
+            }
         } else {
-            std::stringstream ss_error;
-            ss_error << "Select a single platform from below using the "
-                        "--platform=NAME "
-                        "command-line option:"
-                     << platforms << std::endl
-                     << "or set --platforms_count=1.";
-            error = ss_error.str();
-            return;
-        }
-    } else {
-        for (auto candidate : platforms) {
-            size_t size;
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0, nullptr,
-                                  &size)) {
-                error = "urPlatformGetInfoFailed";
+            for (auto candidate : platforms) {
+                size_t size;
+                if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0,
+                                      nullptr, &size)) {
+                    error = "urPlatformGetInfoFailed";
+                    return;
+                }
+                std::vector<char> platform_name(size);
+                if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size,
+                                      platform_name.data(), nullptr)) {
+                    error = "urPlatformGetInfo() failed";
+                    return;
+                }
+                if (platform_options.platform_name == platform_name.data()) {
+                    platform = candidate;
+                    adapter = a;
+                    break;
+                }
+            }
+            if (!platform) {
+                std::stringstream ss_error;
+                ss_error << "Platform \"" << platform_options.platform_name
+                         << "\" not found. Select a single platform from below "
+                            "using the "
+                            "--platform=NAME command-line options:"
+                         << platforms << std::endl
+                         << "or set --platforms_count=1.";
+                error = ss_error.str();
                 return;
             }
-            std::vector<char> platform_name(size);
-            if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size,
-                                  platform_name.data(), nullptr)) {
-                error = "urPlatformGetInfo() failed";
-                return;
-            }
-            if (platform_options.platform_name == platform_name.data()) {
-                platform = candidate;
-                break;
-            }
-        }
-        if (!platform) {
-            std::stringstream ss_error;
-            ss_error << "Platform \"" << platform_options.platform_name
-                     << "\" not found. Select a single platform from below "
-                        "using the "
-                        "--platform=NAME command-line options:"
-                     << platforms << std::endl
-                     << "or set --platforms_count=1.";
-            error = ss_error.str();
-            return;
         }
     }
 }

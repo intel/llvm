@@ -138,6 +138,21 @@ struct SourceInfo {
 
 enum class DeviceType : uint64_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
+inline const char *ToString(DeviceType Type) {
+    switch (Type) {
+    case DeviceType::UNKNOWN:
+        return "UNKNOWN";
+    case DeviceType::CPU:
+        return "CPU";
+    case DeviceType::GPU_PVC:
+        return "PVC";
+    case DeviceType::GPU_DG2:
+        return "DG2";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 bool IsInASanContext();
 
 uptr MmapNoReserve(uptr Addr, uptr Size);

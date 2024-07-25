@@ -513,6 +513,7 @@ details:
     - "Creates runtime kernel handle from native driver kernel handle."
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
+    - "The implementation may require a valid program handle to return the native kernel handle"
 params:
     - type: $x_native_handle_t
       name: hNativeKernel
@@ -523,7 +524,7 @@ params:
       desc: "[in] handle of the context object"
     - type: $x_program_handle_t
       name: hProgram
-      desc: "[in] handle of the program associated with the kernel"
+      desc: "[in][optional] handle of the program associated with the kernel"
     - type: "const $x_kernel_native_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to native kernel properties struct"
@@ -534,6 +535,8 @@ params:
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If the adapter has no underlying equivalent handle."
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE:
+        - "If `hProgram == NULL` and the implementation requires a valid program."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get the suggested local work size for a kernel."
