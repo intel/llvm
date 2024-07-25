@@ -71,13 +71,14 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   // Execute interop func
   pfnNativeEnqueue(Queue, data);
 
+  if (!isInOrderQueue()) {
+    queueFinish();
+    UR_CALL(Queue->Context->getAvailableCommandList(
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
+  }
+
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, false));
-
-  if (!isInOrderQueue()) {
-    queueFinish();
-  }
-
   return UR_RESULT_SUCCESS;
 }
