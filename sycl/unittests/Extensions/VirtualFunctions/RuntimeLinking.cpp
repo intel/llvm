@@ -48,7 +48,7 @@ static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
   sycl::unittest::MockPropertySet PropSet;
-  sycl::unittest::PiArray<sycl::unittest::MockProperty> Props;
+  sycl::unittest::Array<sycl::unittest::MockProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
                             /* null terminator */ 1);
@@ -68,7 +68,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::PiArray<sycl::unittest::MockOffloadEntry> Entries =
+  sycl::unittest::Array<sycl::unittest::MockOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::MockDeviceImage Img{

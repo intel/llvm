@@ -106,18 +106,18 @@ private:
   NativeType MNative;
 };
 
-/// Generic array of PI entries.
-template <typename T> class PiArray {
+/// Generic array of mock entries.
+template <typename T> class Array {
 public:
-  explicit PiArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
+  explicit Array(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
     updateEntries();
   }
 
-  PiArray(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
+  Array(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
     updateEntries();
   }
 
-  PiArray() = default;
+  Array() = default;
 
   void push_back(const T &Entry) {
     MMockEntries.push_back(Entry);
@@ -158,9 +158,9 @@ private:
 };
 
 #ifdef __cpp_deduction_guides
-template <typename T> PiArray(std::vector<T>) -> PiArray<T>;
+template <typename T> Array(std::vector<T>) -> Array<T>;
 
-template <typename T> PiArray(std::initializer_list<T>) -> PiArray<T>;
+template <typename T> Array(std::initializer_list<T>) -> Array<T>;
 #endif // __cpp_deduction_guides
 
 /// Convenience wrapper for pi_device_binary_property_set.
@@ -185,14 +185,14 @@ public:
     // libraries are needed to be loaded.
     MockProperty DeviceLibReqMask("", Data, PI_PROPERTY_TYPE_UINT32);
     insert(__SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK,
-           PiArray{DeviceLibReqMask});
+           Array{DeviceLibReqMask});
   }
 
   /// Adds a new array of properties to the set.
   ///
   /// \param Name is a property array name. See pi.h for list of known names.
   /// \param Props is an array of property values.
-  void insert(const std::string &Name, PiArray<MockProperty> Props) {
+  void insert(const std::string &Name, Array<MockProperty> Props) {
     MNames.push_back(Name);
     MMockProperties.push_back(std::move(Props));
     MProperties.push_back(_pi_device_binary_property_set_struct{
@@ -214,7 +214,7 @@ public:
 
 private:
   std::vector<std::string> MNames;
-  std::vector<PiArray<MockProperty>> MMockProperties;
+  std::vector<Array<MockProperty>> MMockProperties;
   std::vector<_pi_device_binary_property_set_struct> MProperties;
 };
 
@@ -227,7 +227,7 @@ public:
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          PiArray<MockOffloadEntry> OffloadEntries, MockPropertySet PropertySet)
+          Array<MockOffloadEntry> OffloadEntries, MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -238,7 +238,7 @@ public:
   MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
-          PiArray<MockOffloadEntry> OffloadEntries, MockPropertySet PropertySet)
+          Array<MockOffloadEntry> OffloadEntries, MockPropertySet PropertySet)
       : MockDeviceImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
                 Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
                 std::move(Binary), std::move(OffloadEntries),
@@ -273,7 +273,7 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  PiArray<MockOffloadEntry> MOffloadEntries;
+  Array<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
 };
 
@@ -390,7 +390,7 @@ inline MockProperty makeSpecConstant(std::vector<char> &ValData,
 /// Utility function to mark kernel as the one using assert
 inline void setKernelUsesAssert(const std::vector<std::string> &Names,
                                 MockPropertySet &Set) {
-  PiArray<MockProperty> Value;
+  Array<MockProperty> Value;
   for (const std::string &N : Names)
     Value.push_back({N, {0, 0, 0, 0}, PI_PROPERTY_TYPE_UINT32});
   Set.insert(__SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
@@ -399,13 +399,13 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
-inline void addSpecConstants(PiArray<MockProperty> SpecConstants,
+inline void addSpecConstants(Array<MockProperty> SpecConstants,
                              std::vector<char> ValData, MockPropertySet &Props) {
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   MockProperty Prop{"all", std::move(ValData), PI_PROPERTY_TYPE_BYTE_ARRAY};
 
-  PiArray<MockProperty> DefaultValues{std::move(Prop)};
+  Array<MockProperty> DefaultValues{std::move(Prop)};
 
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
                std::move(DefaultValues));
@@ -417,15 +417,15 @@ inline void addESIMDFlag(MockPropertySet &Props) {
   ValData[0] = 1;
   MockProperty Prop{"isEsimdImage", ValData, PI_PROPERTY_TYPE_UINT32};
 
-  PiArray<MockProperty> Value{std::move(Prop)};
+  Array<MockProperty> Value{std::move(Prop)};
 
   Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline PiArray<MockOffloadEntry>
+inline Array<MockOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  PiArray<MockOffloadEntry> Entries;
+  Array<MockOffloadEntry> Entries;
 
   for (const auto &Name : KernelNames) {
     MockOffloadEntry E{Name, {}, 0};
@@ -529,7 +529,7 @@ inline void
 addDeviceRequirementsProps(MockPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
                            const std::vector<int> &ReqdWGSize = {}) {
-  PiArray<MockProperty> Value{makeAspectsProp(Aspects)};
+  Array<MockProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
   Props.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
@@ -542,7 +542,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

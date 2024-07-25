@@ -39,11 +39,11 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES,
-                 PiArray<MockProperty>{std::move(HostPipeInfo)});
+                 Array<MockProperty>{std::move(HostPipeInfo)});
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
   MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
