@@ -52,6 +52,11 @@ template <
     typename = std::enable_if_t<
         ext::oneapi::experimental::detail::is_range_or_nd_range_v<RangeT>>>
 class launch_config {
+  static_assert(ext::oneapi::experimental::detail::
+                    NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+                "launch_config does not allow properties with compile-time "
+                "kernel effects.");
+
 public:
   launch_config(RangeT Range, PropertiesT Properties = {})
       : MRange{Range}, MProperties{Properties} {}
@@ -193,9 +198,6 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void parallel_for(handler &CGH,
                   launch_config<range<Dimensions>, Properties> Config,
                   const kernel &KernelObj, ArgsT &&...Args) {
-  static_assert(detail::NoPropertyHasCompileTimeKernelEffect<Properties>::value,
-                "This kernel enqueue function does not allow properties with "
-                "compile-time kernel effects.");
   ext::oneapi::experimental::detail::LaunchConfigAccess<range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
@@ -273,10 +275,6 @@ template <int Dimensions, typename Properties, typename... ArgsT>
 void nd_launch(handler &CGH,
                launch_config<nd_range<Dimensions>, Properties> Config,
                const kernel &KernelObj, ArgsT &&...Args) {
-  static_assert(detail::NoPropertyHasCompileTimeKernelEffect<Properties>::value,
-                "This kernel enqueue function does not allow properties with "
-                "compile-time kernel effects.");
-
   ext::oneapi::experimental::detail::LaunchConfigAccess<nd_range<Dimensions>,
                                                         Properties>
       ConfigAccess(Config);
