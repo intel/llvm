@@ -39,7 +39,6 @@
 #include <sycl/nd_range.hpp>                            // for nd_range
 #include <sycl/property_list.hpp>                       // for property_list
 #include <sycl/range.hpp>                               // for range
-#include <ur_api.h>                                     // for ur_usm_advice_...
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function

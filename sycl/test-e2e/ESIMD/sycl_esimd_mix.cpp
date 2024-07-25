@@ -122,7 +122,7 @@ int main(void) {
 // Some backends will call urProgramBuild and some will call 
 // urProgramBuildExp depending on urProgramBuildExp support.
 
-// CHECK-LABEL: ---> urProgramBuild{{.*}}(
+// CHECK-LABEL: ---> urProgramBuild{{(Exp)?}}(
 // CHECK-NOT: -vc-codegen
 // CHECK-WITH-VAR: -g
 // CHECK-NOT: -vc-codegen
@@ -134,7 +134,7 @@ int main(void) {
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> urProgramBuild{{.*}}(
+// CHECK-LABEL: ---> urProgramBuild{{(Exp)?}}(
 // CHECK-NO-VAR: -vc-codegen
 // CHECK-WITH-VAR: -g -vc-codegen
 // CHECK: {{.*}}-> UR_RESULT_SUCCESS
