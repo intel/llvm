@@ -26,4 +26,4 @@ target_compile_definitions(test-adapter-hip PRIVATE
     ${HIP_COMPILE_DEFINITIONS}
 )
 
-target_link_libraries(test-adapter-hip PRIVATE rocmdrv)
+target_link_libraries(test-adapter-hip PRIVATE rocmdrv ${PROJECT_NAME}::umf)
