@@ -100,7 +100,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/ianayl/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 7c4f45ff0d249816d56aa36a908bb6f949d20961)
+  set(UNIFIED_RUNTIME_TAG 548cb9f321b2be777c0433120ca39ac1ddd667ea)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
