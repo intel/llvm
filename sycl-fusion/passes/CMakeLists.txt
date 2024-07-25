@@ -68,6 +68,7 @@ add_llvm_library(SYCLKernelFusionPasses
   TransformUtils
   Passes
   TargetParser
+  SYCLLowerIR
 )
 
 target_compile_options(SYCLKernelFusionPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
