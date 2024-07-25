@@ -1125,6 +1125,18 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::warn_drv_opt_requires_opt)
         << SYCLHostCompilerOptions->getSpelling().split('=').first
         << "-fsycl-host-compiler";
+  Arg *SYCLUseBuiltinsForIntegration =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_use_builtins_for_integration);
+  // -fsycl-use-builtins-for-integration cannot be used without
+  // -fsycl or -fsycl-device-only
+  if (SYCLUseBuiltinsForIntegration && !HasValidSYCLRuntime)
+    Diag(clang::diag::err_drv_sycl_opt_requires_opt)
+        << "-fsycl-use-builtins-for-integration";
+  // -fsycl-use-builtins-for-integration cannot be used with
+  // -fsycl-host-compiler
+  if (SYCLHostCompiler && SYCLUseBuiltinsForIntegration)
+    Diag(clang::diag::err_drv_option_conflict)
+        << SYCLHostCompiler->getSpelling() << SYCLUseBuiltinsForIntegration->getSpelling();
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)

@@ -392,6 +392,9 @@ def err_drv_fsycl_with_pch : Error<
   "precompiled header generation is not supported with '-fsycl'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
+def err_drv_sycl_opt_requires_opt : Error<
+  "'%0' should be used only in conjunction with a SYCL option "
+  "such as '-fsycl' or '-fsycl-device-only'">;
 def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
 def err_drv_sycl_thinlto_split_off: Error<
