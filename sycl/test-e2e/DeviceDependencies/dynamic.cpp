@@ -4,10 +4,10 @@
 // RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/b.cpp -I %S/Inputs -o %T/libdevice_b.so
 // RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/c.cpp -I %S/Inputs -o %T/libdevice_c.so
 // RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/d.cpp -I %S/Inputs -o %T/libdevice_d.so
-// RUN: %{build} -L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -I %S/Inputs -o %t.out -Wl,-rpath=%T
+// RUN: %{build} -fsycl-allow-device-dependencies -L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -I %S/Inputs -o %t.out -Wl,-rpath=%T
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include "a.hpp"
 #include <iostream>
 

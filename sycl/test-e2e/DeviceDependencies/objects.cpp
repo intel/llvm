@@ -7,7 +7,7 @@
 // RUN: %{build} -fsycl-allow-device-dependencies %t_a.o %t_b.o %t_c.o %t_d.o -I %S/Inputs -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include "a.hpp"
 #include <iostream>
 
