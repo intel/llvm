@@ -6,7 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     # Date: 08 May 2024
     # Fix warning from switch
-    set(LLVMGenXIntrinsics_GIT_TAG b2565a03eb3cac07f5e8000fde971f95dc782c75)
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
