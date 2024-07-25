@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux
 // RUN: %{build} %device_asan_flags -O0 -g -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O1 -g -o %t.out
