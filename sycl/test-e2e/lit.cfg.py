@@ -178,12 +178,14 @@ if lit_config.params.get("matrix-xmx8", False):
 if lit_config.params.get("matrix-fp16", False):
     config.available_features.add("matrix-fp16")
 
+
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
-        with open(config.igc_tag_file, 'r') as tag_file:
+        with open(config.igc_tag_file, "r") as tag_file:
             contents = tag_file.read()
-            if 'igc-dev' in contents:
-                config.available_features.add('igc-dev')
+            if "igc-dev" in contents:
+                config.available_features.add("igc-dev")
+
 
 # Call the function to perform the check and add the feature
 check_igc_tag_and_add_feature()
