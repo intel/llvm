@@ -311,7 +311,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                          MD.isSpecConstantDefault());
 
   std::string NewSuff = Suff.str();
-  if (Target != "") {
+  if (!Target.empty()) {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
     NewSuff += "_";
@@ -663,7 +663,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
   // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
   // Target will be empty and we will not want to perform any filtering, so
   // we return true here.
-  if (Target == "")
+  if (Target.empty())
     return true;
 
   // TODO: If a target not found in the device config file is passed,
