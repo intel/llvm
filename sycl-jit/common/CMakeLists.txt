@@ -5,7 +5,7 @@ add_llvm_library(sycl-jit-common
    Support
 )
 
-target_compile_options(sycl-jit-common PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(sycl-jit-common PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM headers as system headers to ignore warnigns in them. This
 # classification remains intact even if the same path is added as a normal

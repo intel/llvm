@@ -711,7 +711,7 @@ public:
 //
 // NVPTXTargetFusionInfo
 //
-#ifdef FUSION_JIT_SUPPORT_PTX
+#ifdef JIT_SUPPORT_PTX
 class NVPTXTargetFusionInfo final : public NVPTXAMDGCNTargetFusionInfoBase {
 public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
@@ -813,12 +813,12 @@ public:
                                          FusedNDRange);
   }
 };
-#endif // FUSION_JIT_SUPPORT_PTX
+#endif // JIT_SUPPORT_PTX
 
 //
 // AMDGCNTargetFusionInfo
 //
-#ifdef FUSION_JIT_SUPPORT_AMDGCN
+#ifdef JIT_SUPPORT_AMDGCN
 class AMDGCNTargetFusionInfo final : public NVPTXAMDGCNTargetFusionInfoBase {
   using Base = NVPTXAMDGCNTargetFusionInfoBase;
 
@@ -1104,18 +1104,18 @@ public:
 
 TargetFusionInfo::TargetFusionInfo(llvm::Module *Mod) {
   llvm::Triple Tri(Mod->getTargetTriple());
-#ifdef FUSION_JIT_SUPPORT_PTX
+#ifdef JIT_SUPPORT_PTX
   if (Tri.isNVPTX()) {
     Impl = std::make_shared<NVPTXTargetFusionInfo>(Mod);
     return;
   }
-#endif // FUSION_JIT_SUPPORT_PTX
-#ifdef FUSION_JIT_SUPPORT_AMDGCN
+#endif // JIT_SUPPORT_PTX
+#ifdef JIT_SUPPORT_AMDGCN
   if (Tri.isAMDGCN()) {
     Impl = std::make_shared<AMDGCNTargetFusionInfo>(Mod);
     return;
   }
-#endif // FUSION_JIT_SUPPORT_AMDGCN
+#endif // JIT_SUPPORT_AMDGCN
   if (Tri.isSPIRV() || Tri.isSPIR()) {
     Impl = std::make_shared<SPIRVTargetFusionInfo>(Mod);
     return;

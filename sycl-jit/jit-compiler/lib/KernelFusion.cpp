@@ -52,18 +52,18 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   case BinaryFormat::SPIRV:
     return true;
   case BinaryFormat::PTX: {
-#ifdef FUSION_JIT_SUPPORT_PTX
+#ifdef JIT_SUPPORT_PTX
     return true;
-#else  // FUSION_JIT_SUPPORT_PTX
+#else  // JIT_SUPPORT_PTX
     return false;
-#endif // FUSION_JIT_SUPPORT_PTX
+#endif // JIT_SUPPORT_PTX
   }
   case BinaryFormat::AMDGCN: {
-#ifdef FUSION_JIT_SUPPORT_AMDGCN
+#ifdef JIT_SUPPORT_AMDGCN
     return true;
-#else  // FUSION_JIT_SUPPORT_AMDGCN
+#else  // JIT_SUPPORT_AMDGCN
     return false;
-#endif // FUSION_JIT_SUPPORT_AMDGCN
+#endif // JIT_SUPPORT_AMDGCN
   }
   default:
     return false;

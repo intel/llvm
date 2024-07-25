@@ -31,7 +31,7 @@ add_llvm_library(sycl-jit
    ${LLVM_TARGETS_TO_BUILD}
 )
 
-target_compile_options(sycl-jit PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
 # This classification remains intact even if the same paths are added as normal
@@ -63,11 +63,11 @@ target_link_libraries(sycl-jit
 add_dependencies(sycl-jit sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(sycl-jit PRIVATE FUSION_JIT_SUPPORT_PTX)
+  target_compile_definitions(sycl-jit PRIVATE JIT_SUPPORT_PTX)
 endif()
 
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(sycl-jit PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
+  target_compile_definitions(sycl-jit PRIVATE JIT_SUPPORT_AMDGCN)
 endif()
 
 if(NOT MSVC AND NOT APPLE)

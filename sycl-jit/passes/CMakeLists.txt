@@ -15,7 +15,7 @@ add_llvm_library(SYCLKernelJIT MODULE
   intrinsics_gen
 )
 
-target_compile_options(SYCLKernelJIT PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(SYCLKernelJIT PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM headers as system headers to ignore warnigns in them. This
 # classification remains intact even if the same path is added as a normal
@@ -39,11 +39,11 @@ target_link_libraries(SYCLKernelJIT
 add_dependencies(SYCLKernelJIT sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(SYCLKernelJIT PRIVATE FUSION_JIT_SUPPORT_PTX)
+  target_compile_definitions(SYCLKernelJIT PRIVATE JIT_SUPPORT_PTX)
 endif()
 
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(SYCLKernelJIT PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
+  target_compile_definitions(SYCLKernelJIT PRIVATE JIT_SUPPORT_AMDGCN)
 endif()
 
 # Static library for linking with the jit_compiler
@@ -70,7 +70,7 @@ add_llvm_library(SYCLKernelJITPasses
   TargetParser
 )
 
-target_compile_options(SYCLKernelJITPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(SYCLKernelJITPasses PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM headers as system headers to ignore warnigns in them. This
 # classification remains intact even if the same path is added as a normal
@@ -94,9 +94,9 @@ target_link_libraries(SYCLKernelJITPasses
 add_dependencies(SYCLKernelJITPasses sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(SYCLKernelJITPasses PRIVATE FUSION_JIT_SUPPORT_PTX)
+  target_compile_definitions(SYCLKernelJITPasses PRIVATE JIT_SUPPORT_PTX)
 endif()
 
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  target_compile_definitions(SYCLKernelJITPasses PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
+  target_compile_definitions(SYCLKernelJITPasses PRIVATE JIT_SUPPORT_AMDGCN)
 endif()

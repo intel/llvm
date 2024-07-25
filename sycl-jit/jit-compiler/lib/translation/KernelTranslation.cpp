@@ -230,13 +230,13 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
 llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
     SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
     const std::string &TargetCPU, const std::string &TargetFeatures) {
-#ifndef FUSION_JIT_SUPPORT_PTX
+#ifndef JIT_SUPPORT_PTX
   (void)KernelInfo;
   (void)Mod;
   (void)JITCtx;
   return createStringError(inconvertibleErrorCode(),
                            "PTX translation not supported in this build");
-#else  // FUSION_JIT_SUPPORT_PTX
+#else  // JIT_SUPPORT_PTX
   LLVMInitializeNVPTXTargetInfo();
   LLVMInitializeNVPTXTarget();
   LLVMInitializeNVPTXAsmPrinter();
@@ -305,19 +305,19 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
   }
 
   return &JITCtx.emplaceKernelBinary(std::move(PTXASM), BinaryFormat::PTX);
-#endif // FUSION_JIT_SUPPORT_PTX
+#endif // JIT_SUPPORT_PTX
 }
 
 llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
     SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
     const std::string &TargetCPU, const std::string &TargetFeatures) {
-#ifndef FUSION_JIT_SUPPORT_AMDGCN
+#ifndef JIT_SUPPORT_AMDGCN
   (void)KernelInfo;
   (void)Mod;
   (void)JITCtx;
   return createStringError(inconvertibleErrorCode(),
                            "AMDGPU translation not supported in this build");
-#else  // FUSION_JIT_SUPPORT_AMDGCN
+#else  // JIT_SUPPORT_AMDGCN
 
   LLVMInitializeAMDGPUTargetInfo();
   LLVMInitializeAMDGPUTarget();
@@ -381,5 +381,5 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
   }
 
   return &JITCtx.emplaceKernelBinary(std::move(AMDObj), BinaryFormat::AMDGCN);
-#endif // FUSION_JIT_SUPPORT_AMDGCN
+#endif // JIT_SUPPORT_AMDGCN
 }
