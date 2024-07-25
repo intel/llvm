@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
-#include <detail/compiler.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <sycl/detail/defines_elementary.hpp>
@@ -185,8 +185,7 @@ public:
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     PiProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK,
-           PiArray{DeviceLibReqMask});
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, PiArray{DeviceLibReqMask});
   }
 
   /// Adds a new array of properties to the set.
@@ -240,10 +239,10 @@ public:
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : PiImage(SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
-                Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
-                std::move(Binary), std::move(OffloadEntries),
-                std::move(PropertySet)) {}
+      : PiImage(SYCL_DEVICE_BINARY_VERSION,
+                SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format, DeviceTargetSpec,
+                CompileOptions, LinkOptions, {}, std::move(Binary),
+                std::move(OffloadEntries), std::move(PropertySet)) {}
 
   sycl_device_binary_struct convertToNativeType() {
     return sycl_device_binary_struct{
@@ -533,8 +532,7 @@ addDeviceRequirementsProps(PiPropertySet &Props,
   PiArray<PiProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
-  Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
-               std::move(Value));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS, std::move(Value));
 }
 
 inline PiImage

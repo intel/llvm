@@ -9,9 +9,9 @@
 
 #include "ur_api.h"
 #include <cstdarg>
+#include <detail/compiler.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
-#include <detail/compiler.hpp>
 #include <ur/ur.hpp>
 
 // Map of UR error codes to PI error codes

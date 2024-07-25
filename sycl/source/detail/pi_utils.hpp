@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/pi.hpp>
-#include <detail/compiler.hpp>
 
 #include <optional>
 
@@ -75,7 +75,7 @@ using PiDeviceBinaryType = ::sycl_device_binary_type;
 /// SYCL_DEVICE_BINARY_TYPE_NONE if unsuccessful.
 PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
                                         size_t ImgSize);
-}
+} // namespace pi
 
 } // namespace detail
 } // namespace _V1

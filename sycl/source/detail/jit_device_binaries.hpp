@@ -8,18 +8,19 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
+#include <sycl/detail/pi.hpp>
+
 #include <cstring>
 #include <memory>
-#include <sycl/detail/pi.hpp>
-#include <detail/compiler.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// Representation of _sycl_offload_entry_struct for creation of JIT device binaries at
-/// runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Representation of _sycl_offload_entry_struct for creation of JIT device
+/// binaries at runtime. Owns the necessary data and provides raw pointers for
+/// the PI struct.
 class OffloadEntryContainer {
 public:
   OffloadEntryContainer(const std::string &Name, void *Addr, size_t Size,
@@ -70,9 +71,9 @@ private:
   uint32_t PropType;
 };
 
-/// Representation of _sycl_device_binary_property_set_struct for creation of JIT
-/// device binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the PI struct.
+/// Representation of _sycl_device_binary_property_set_struct for creation of
+/// JIT device binaries at runtime. Owns the necessary data and provides raw
+/// pointers for the PI struct.
 class PropertySetContainer {
 public:
   PropertySetContainer(const std::string &Name);
