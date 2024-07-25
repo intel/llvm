@@ -3,6 +3,7 @@ add_llvm_library(SYCLKernelFusion MODULE
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
+  kernel-fusion/SYCLSpecConstMaterializer.cpp
   kernel-info/SYCLKernelInfo.cpp
   internalization/Internalization.cpp
   syclcp/SYCLCP.cpp
@@ -50,6 +51,7 @@ add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
+  kernel-fusion/SYCLSpecConstMaterializer.cpp
   kernel-info/SYCLKernelInfo.cpp
   internalization/Internalization.cpp
   syclcp/SYCLCP.cpp

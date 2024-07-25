@@ -40,6 +40,11 @@ public:
   std::unique_ptr<detail::CG>
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
+  sycl::detail::pi::PiKernel
+  materializeSpecConstants(QueueImplPtr Queue,
+                           const RTDeviceBinaryImage *BinImage,
+                           const std::string &KernelName,
+                           const std::vector<unsigned char> &SpecConstBlob);
 
   bool isAvailable() { return Available; }
 
@@ -75,9 +80,12 @@ private:
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   // Handles to the entry points of the lazily loaded JIT library.
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
+  using MaterializeSpecConstFuncT =
+      decltype(::jit_compiler::materializeSpecConstants) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
+  MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
