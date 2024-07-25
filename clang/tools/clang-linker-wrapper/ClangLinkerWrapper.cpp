@@ -412,8 +412,8 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 }
 
 // ptxas binary
-Expected<StringRef>
-ptxas(StringRef InputFile, const ArgList &Args, StringRef Arch) {
+Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
+                          StringRef Arch) {
   llvm::TimeTraceScope TimeScope("NVPTX ptxas");
   // NVPTX uses the ptxas program to process assembly files.
   Expected<std::string> PtxasPath =
@@ -1281,7 +1281,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 } // namespace sycl
 
 namespace generic {
-Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args, bool IsSYCLKind = false) {
+Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                          bool IsSYCLKind = false) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -2132,20 +2133,23 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
-          auto VirtualArch =
-              StringRef(clang::CudaArchToVirtualArchString(clang::StringToCudaArch(Arch)));
-          auto PtxasOutputOrErr = nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
+          auto VirtualArch = StringRef(clang::CudaArchToVirtualArchString(
+              clang::StringToCudaArch(Arch)));
+          auto PtxasOutputOrErr =
+              nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
             return PtxasOutputOrErr.takeError();
           BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
           BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
-          auto BundledFileOrErr = nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+          auto BundledFileOrErr =
+              nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
         } else if (Triple.isAMDGCN()) {
           BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
-          auto BundledFileOrErr = amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
+          auto BundledFileOrErr =
+              amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
           SplitModules[I].ModuleFilePath = *BundledFileOrErr;
