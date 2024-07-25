@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit, cm-compiler
 
-// RUN: %{build} -DRUN_KERNELS %level_zero_options -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %level_zero_options -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks ext::intel feature class online_compiler for Level-Zero.

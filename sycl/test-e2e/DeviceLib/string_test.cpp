@@ -1,5 +1,5 @@
 // UNSUPPORTED: hip
-// RUN: %{build} -Wno-error=deprecated-declarations -fno-builtin -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t.out
 // RUN: %{run} %t.out
 //
 // RUN: %{build} -Wno-error=unused-command-line-argument -Wno-error=deprecated-declarations -fno-builtin -fsycl-device-lib-jit-link -o %t.out
