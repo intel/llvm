@@ -49,12 +49,12 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{BinaryType, // Format
-              DeviceTargetSpec,
-              "", // Compile options
-              "", // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+                      DeviceTargetSpec,
+                      "", // Compile options
+                      "", // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
   const void *BinaryPtr = Img.getBinaryPtr();
   TrackedImages.insert(BinaryPtr);
 

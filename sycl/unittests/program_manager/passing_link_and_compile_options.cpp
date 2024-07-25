@@ -75,13 +75,14 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   Array<MockOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
-  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                           // Compile options
-              _lnkOptions,                            // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      _cmplOptions,                           // Compile options
+      _lnkOptions,                            // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
   return Img;
 }
 

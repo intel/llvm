@@ -54,7 +54,8 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  MockProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  MockProperty SC1 =
+      makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
 
   MockPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
@@ -64,13 +65,14 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   Array<MockOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                     // Compile options
+      "",                                     // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
 
   return Img;
 }

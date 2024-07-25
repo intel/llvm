@@ -78,13 +78,14 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   Array<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                     // Compile options
+      "",                                     // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
 
   return Img;
 }
@@ -109,13 +110,14 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   Array<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                     // Compile options
+      "",                                     // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
 
   return Img;
 }

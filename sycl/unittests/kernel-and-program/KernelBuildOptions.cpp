@@ -87,13 +87,14 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
 
   Array<MockOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
-  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "-compile-img",                         // Compile options
-              "-link-img",                            // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{
+      PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "-compile-img",                         // Compile options
+      "-link-img",                            // Link options
+      std::move(Bin),
+      std::move(Entries),
+      std::move(PropSet)};
 
   return Img;
 }

@@ -72,7 +72,8 @@ class MockOffloadEntry {
 public:
   using NativeType = _pi_offload_entry_struct;
 
-  MockOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
+  MockOffloadEntry(const std::string &Name, std::vector<char> Data,
+                   int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
   }
@@ -236,13 +237,16 @@ public:
 
   /// Constructs a SYCL device image of the latest version.
   MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
-          const std::string &CompileOptions, const std::string &LinkOptions,
-          std::vector<unsigned char> Binary,
-          Array<MockOffloadEntry> OffloadEntries, MockPropertySet PropertySet)
-      : MockDeviceImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
-                Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
-                std::move(Binary), std::move(OffloadEntries),
-                std::move(PropertySet)) {}
+                  const std::string &CompileOptions,
+                  const std::string &LinkOptions,
+                  std::vector<unsigned char> Binary,
+                  Array<MockOffloadEntry> OffloadEntries,
+                  MockPropertySet PropertySet)
+      : MockDeviceImage(PI_DEVICE_BINARY_VERSION,
+                        PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
+                        DeviceTargetSpec, CompileOptions, LinkOptions, {},
+                        std::move(Binary), std::move(OffloadEntries),
+                        std::move(PropertySet)) {}
 
   pi_device_binary_struct convertToNativeType() {
     return pi_device_binary_struct{
@@ -400,7 +404,8 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 ///
 /// This function overrides the default spec constant values.
 inline void addSpecConstants(Array<MockProperty> SpecConstants,
-                             std::vector<char> ValData, MockPropertySet &Props) {
+                             std::vector<char> ValData,
+                             MockPropertySet &Props) {
   Props.insert(__SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   MockProperty Prop{"all", std::move(ValData), PI_PROPERTY_TYPE_BYTE_ARRAY};
