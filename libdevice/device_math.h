@@ -65,10 +65,10 @@ DEVICE_EXTERN_C
 double __devicelib_cospi(double x);
 
 DEVICE_EXTERN_C
-float __devicelib_scalblnf(float x, long y);
+float __devicelib_scalblnf(float x, long int y);
 
 DEVICE_EXTERN_C
-double __devicelib_scalbln(double x, long y);
+double __devicelib_scalbln(double x, long int y);
 
 DEVICE_EXTERN_C
 float __devicelib_fmaxf(float x, float y);
