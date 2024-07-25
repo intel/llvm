@@ -65,6 +65,7 @@ jobs:
       with:
         files: |
           source/adapters/${{inputs.str_name}}/**
+          source/loader/**
 
   e2e-build-hw:
     # We want to run the job only if there are changes in the specific adapter
