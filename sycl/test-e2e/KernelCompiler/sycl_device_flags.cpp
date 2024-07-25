@@ -12,10 +12,9 @@
 // IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
-// RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out
-// RUN: grep -e '-doubleGRF' %t.dump/OCL_asmaf99e2d4667ef6d3_options.txt
-// RUN grep -e '-Xfinalizer "-printregusage"'
-// ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
+// RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out
+// RUN: find %T.dump/ -name "*_options.txt" -not -name "*_internal_options.txt" -type f -exec grep -e '-doubleGRF' {} +
+// RUN: find %T.dump/ -name "*_options.txt" -not -name "*_internal_options.txt" -type f -exec grep -e '-Xfinalizer "-printregusage"' {} +
 
 // clang-format off
 /*
