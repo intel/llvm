@@ -214,6 +214,7 @@ void SYCLSpecConstMaterializer::populateUses(Argument *A) {
 }
 
 void SYCLSpecConstMaterializer::reportAndReset() {
+#ifndef NDEBUG
   if (LoadsToTypes.empty()) {
     LLVM_DEBUG(dbgs() << "Did not find any loads from spec const buffer.\n");
   } else {
@@ -229,6 +230,7 @@ void SYCLSpecConstMaterializer::reportAndReset() {
     }
   }
   LLVM_DEBUG(dbgs() << "\n\n");
+#endif
 
   // Reset the state.
   TypesAndOffsets.clear();

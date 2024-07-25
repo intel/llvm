@@ -157,7 +157,9 @@ isDeviceBinaryTypeSupported(const context &C,
   return true;
 }
 
-static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
+// getFormatStr is used for debug-printing, so it may be unused.
+[[maybe_unused]] static const char *
+getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
   switch (Format) {
   case PI_DEVICE_BINARY_TYPE_NONE:
     return "none";
