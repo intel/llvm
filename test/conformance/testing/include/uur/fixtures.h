@@ -35,9 +35,11 @@ namespace uur {
 struct urPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
+        adapter = uur::PlatformEnvironment::instance->adapter;
     }
 
     ur_platform_handle_t platform = nullptr;
+    ur_adapter_handle_t adapter = nullptr;
 };
 
 inline std::pair<bool, std::vector<ur_device_handle_t>>

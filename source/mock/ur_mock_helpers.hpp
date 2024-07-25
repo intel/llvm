@@ -15,6 +15,7 @@
 #include "ur_api.h"
 
 #include <atomic>
+#include <cassert>
 #include <cstddef>
 #include <string>
 #include <unordered_map>
@@ -36,6 +37,16 @@ struct dummy_handle_t_ {
     std::vector<unsigned char> MStorage;
     unsigned char *MData = nullptr;
     size_t MSize;
+
+    template <typename T> T getDataAs() {
+        assert(MStorage.size() >= sizeof(T));
+        return *reinterpret_cast<T *>(MStorage.data());
+    }
+
+    template <typename T> T setDataAs(T Val) {
+        assert(MStorage.size() >= sizeof(T));
+        return *reinterpret_cast<T *>(MStorage.data()) = Val;
+    }
 };
 
 using dummy_handle_t = dummy_handle_t_ *;
