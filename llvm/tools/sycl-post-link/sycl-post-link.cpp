@@ -404,6 +404,48 @@ StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
   return MD.isESIMD() ? "_esimd" : "";
 }
 
+bool isTargetCompatibleWithModule(const std::string &Target,
+                                  module_split::ModuleDesc &IrMD);
+
+void addTableRow(util::SimpleTable &Table,
+                 const IrPropSymFilenameTriple &RowData);
+
+// @param OutTables List of tables (one for each target) to output results
+// @param MD Module descriptor to save
+// @param IRFilename filename of already available IR component. If not empty,
+//   IR component saving is skipped, and this file name is recorded as such in
+//   the result.
+void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+  IrPropSymFilenameTriple BaseTriple;
+  StringRef Suffix = getModuleSuffix(MD);
+  if (!IRFilename.empty()) {
+    // don't save IR, just record the filename
+    BaseTriple.Ir = IRFilename.str();
+  } else {
+    MD.cleanup();
+    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+  }
+  if (DoSymGen) {
+    // save the names of the entry points - the symbol table
+    BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
+  }
+
+  for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
+    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
+      continue;
+    auto CopyTriple = BaseTriple;
+    if (DoPropGen) {
+      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitExportedSymbols, EmitImportedSymbols,
+                                   DeviceGlobals};
+      CopyTriple.Prop =
+          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+    }
+    addTableRow(*Table, CopyTriple);
+  }
+}
+
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
                               module_split::ModuleDesc &&MD2) {
   std::vector<std::string> Names;
@@ -696,42 +738,6 @@ bool isTargetCompatibleWithModule(const std::string &Target,
     return false;
 
   return true;
-}
-
-// @param OutTables List of tables (one for each target) to output results
-// @param MD Module descriptor to save
-// @param IRFilename filename of already available IR component. If not empty,
-//   IR component saving is skipped, and this file name is recorded as such in
-//   the result.
-void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
-  IrPropSymFilenameTriple BaseTriple;
-  StringRef Suffix = getModuleSuffix(MD);
-  if (!IRFilename.empty()) {
-    // don't save IR, just record the filename
-    BaseTriple.Ir = IRFilename.str();
-  } else {
-    MD.cleanup();
-    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
-  }
-  if (DoSymGen) {
-    // save the names of the entry points - the symbol table
-    BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
-  }
-
-  for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
-    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
-      continue;
-    auto CopyTriple = BaseTriple;
-    if (DoPropGen) {
-      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                                   EmitExportedSymbols, EmitImportedSymbols,
-                                   DeviceGlobals};
-      CopyTriple.Prop =
-          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
-    }
-    addTableRow(*Table, CopyTriple);
-  }
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
