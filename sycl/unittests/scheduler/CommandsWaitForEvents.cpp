@@ -103,7 +103,7 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 

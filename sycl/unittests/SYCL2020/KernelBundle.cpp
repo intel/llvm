@@ -31,7 +31,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      const std::vector<sycl::aspect> &Aspects = {}) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   if (!Aspects.empty())
     addDeviceRequirementsProps(PropSet, Aspects);
 

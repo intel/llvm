@@ -54,9 +54,9 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  MockProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data

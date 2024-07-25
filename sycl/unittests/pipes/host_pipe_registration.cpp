@@ -35,11 +35,11 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
                                    "test_host_pipe_unique_id");
 
-  PiPropertySet PropSet;
-  PiProperty HostPipeInfo =
+  MockPropertySet PropSet;
+  MockProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES,
-                 PiArray<PiProperty>{std::move(HostPipeInfo)});
+                 PiArray<MockProperty>{std::move(HostPipeInfo)});
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 

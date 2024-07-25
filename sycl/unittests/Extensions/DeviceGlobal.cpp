@@ -67,11 +67,11 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   sycl::detail::device_global_map::add(&DeviceGlobal, DeviceGlobalName);
 
   // Insert remaining device global info into the binary.
-  PiPropertySet PropSet;
-  PiProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 PiArray<PiProperty>{std::move(DevGlobInfo)});
+                 PiArray<MockProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
@@ -98,11 +98,11 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
                                        DeviceGlobalImgScopeName);
 
   // Insert remaining device global info into the binary.
-  PiPropertySet PropSet;
-  PiProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 PiArray<PiProperty>{std::move(DevGlobInfo)});
+                 PiArray<MockProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 

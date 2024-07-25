@@ -51,7 +51,7 @@ static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 

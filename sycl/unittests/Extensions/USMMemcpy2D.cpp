@@ -128,7 +128,7 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 static sycl::unittest::MockDeviceImage generateMemopsImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 

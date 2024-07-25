@@ -41,7 +41,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
 
   static unsigned char NImage = 0;
   std::vector<unsigned char> Bin{NImage++};

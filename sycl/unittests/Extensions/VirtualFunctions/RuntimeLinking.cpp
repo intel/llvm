@@ -47,8 +47,8 @@ KERNEL_INFO(KernelG)
 static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
-  sycl::unittest::PiPropertySet PropSet;
-  sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
+  sycl::unittest::MockPropertySet PropSet;
+  sycl::unittest::PiArray<sycl::unittest::MockProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
                             /* null terminator */ 1);
@@ -59,7 +59,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
   Storage.back() = '\0';
   const std::string PropName =
       UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
-  sycl::unittest::PiProperty Prop(PropName, Storage,
+  sycl::unittest::MockProperty Prop(PropName, Storage,
                                   PI_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
