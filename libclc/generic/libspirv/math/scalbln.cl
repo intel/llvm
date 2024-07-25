@@ -5,57 +5,38 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#define _USE_MATH_DEFINES
 
+#include <spirv/spirv.h>
 #include <clcmacro.h>
 #include <math/math.h>
-#include <spirv/spirv.h>
 
-int __ocml_scalbln_f64(double, int);
-int __ocml_scalbln_f32(float, int);
+// Define the scalbln function for float type
+_CLC_OVERLOAD _CLC_DEF float __spirv_ocl_scalbln(float x, long n) {
+    return x * __spirv_ocl_exp2((float)n);
+}
 
-//_CLC_DEFINE_BINARY_BUILTIN(int, __spirv_ocl_scalbln, __ocml_scalbln_f32, float, int)
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, float, __spirv_ocl_scalbln, float, long)
 
 #ifdef cl_khr_fp64
+
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-_CLC_DEFINE_BINARY_BUILTIN(int, __spirv_ocl_scalbln, __ocml_scalbln_f64, double, int)
+_CLC_OVERLOAD _CLC_DEF double __spirv_ocl_scalbln(double x, long n) {
+    return x * __spirv_ocl_exp2((double)n);
+}
+
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_scalbln, double, long)
+
 #endif
 
 #ifdef cl_khr_fp16
+
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_OVERLOAD _CLC_DEF int __spirv_ocl_scalbln(float x, int y) {
-    union {
-        float f;
-        unsigned int i;
-    } u;
-    u.f = x;
-
-    int exponent = ((u.i >> 23) & 0xFF) - 127;
-
-    if (exponent == -127 && (u.i & 0x7FFFFF) == 0) {
-        return 0;
-    } else if (exponent == 128) {
-        return (int)x;
-    }
-
-    exponent += y;
-
-    if (exponent > 127) {
-        return (int)(u.i & 0x80000000 ? -INFINITY : INFINITY);
-    } else if (exponent < -126) {
-        return 0;
-    }
-
-    u.i = (u.i & 0x807FFFFF) | ((exponent + 127) << 23);
-
-    return (int)u.f;
+_CLC_OVERLOAD _CLC_DEF half __spirv_ocl_scalbln(half x, long n) {
+    return x * __spirv_ocl_exp2((half)n);
 }
 
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_scalbln, float, int);
-#endif
+_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_scalbln, half, long)
 
-#undef __CLC_BUILTIN
-#undef __CLC_BUILTIN_F
-#undef __CLC_FUNCTION
+#endif

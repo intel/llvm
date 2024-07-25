@@ -25,6 +25,10 @@ double ceil(double x) { return __devicelib_ceil(x); }
 DEVICE_EXTERN_C_INLINE
 double copysign(double x, double y) { return __devicelib_copysign(x, y); }
 
+extern "C" SYCL_EXTERNAL double __devicelib_scalbln(double, long);
+DEVICE_EXTERN_C_INLINE
+double scalbln(double x, long y) { return __devicelib_scalbln(x, y); }
+
 DEVICE_EXTERN_C_INLINE
 double cospi(double x) { return __devicelib_cospi(x); }
 
