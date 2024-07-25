@@ -104,7 +104,7 @@ buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
 # Kernel fusion JIT compiler
-sycl-fusion/ @intel/dpcpp-kernel-fusion-reviewers
+sycl-jit/ @intel/dpcpp-kernel-fusion-reviewers
 sycl/doc/design/KernelFusionJIT.md @intel/dpcpp-kernel-fusion-reviewers
 sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc @intel/dpcpp-kernel-fusion-reviewers
 sycl/include/sycl/ext/codeplay/experimental/fusion_properties.hpp  @intel/dpcpp-kernel-fusion-reviewers

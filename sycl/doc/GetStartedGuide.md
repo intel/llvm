@@ -307,7 +307,7 @@ Support for the experimental SYCL extension for user-driven kernel fusion at
 runtime is enabled by default.
 
 To disable support for this feature, follow the instructions for the Linux DPC++
-toolchain, but add the `--disable-fusion` flag.
+toolchain, but add the `--disable-jit` flag.
 
 Kernel fusion is currently not yet supported on the Windows platform.
 

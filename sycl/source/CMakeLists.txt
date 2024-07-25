@@ -147,12 +147,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     set(SYCL_FUSION_INCLUDE_DIRS 
         ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/common/include
         ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/jit-compiler/include)
-    add_dependencies(${LIB_NAME} sycl-fusion)
-    add_dependencies(${LIB_OBJ_NAME} sycl-fusion)
+    add_dependencies(${LIB_NAME} sycl-jit)
+    add_dependencies(${LIB_OBJ_NAME} sycl-jit)
     target_include_directories(${LIB_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-       sycl-fusion)
+       sycl-jit)
   endif(SYCL_ENABLE_KERNEL_FUSION)
 
   find_package(Threads REQUIRED)

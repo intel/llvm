@@ -138,5 +138,5 @@ if(SYCL_BUILD_BACKEND_HIP)
 endif()
 
 if(SYCL_ENABLE_KERNEL_FUSION)
-  add_dependencies(check-sycl check-sycl-fusion)
+  add_dependencies(check-sycl check-sycl-jit)
 endif(SYCL_ENABLE_KERNEL_FUSION)
