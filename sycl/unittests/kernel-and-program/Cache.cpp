@@ -50,7 +50,7 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
@@ -64,7 +64,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -75,7 +75,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 struct TestCtx {

@@ -22,7 +22,7 @@ MOCK_INTEGRATION_HEADER(TestKernelCPUValidReqdWGSize3D)
 MOCK_INTEGRATION_HEADER(TestKernelGPU)
 MOCK_INTEGRATION_HEADER(TestKernelACC)
 
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
@@ -34,7 +34,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -45,7 +45,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[7] = {
+static sycl::unittest::MockDeviceImage Imgs[7] = {
     // Images for validating checks based on max_work_group_size + aspects
     generateDefaultImage({"TestKernelCPU"}, {sycl::aspect::cpu},
                          {32}), // 32 <= 256 (OK)

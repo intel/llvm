@@ -43,7 +43,7 @@ struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateEAMTestKernelImage() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
 
   // Eliminated arguments are 1st and 3rd.
@@ -60,7 +60,7 @@ static sycl::unittest::PiImage generateEAMTestKernelImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -71,7 +71,7 @@ static sycl::unittest::PiImage generateEAMTestKernelImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage generateEAMTestKernel2Image() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernel2Image() {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
@@ -80,7 +80,7 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -91,8 +91,8 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
   return Img;
 }
 
-static sycl::unittest::PiImage EAMImg = generateEAMTestKernelImage();
-static sycl::unittest::PiImage EAM2Img = generateEAMTestKernel2Image();
+static sycl::unittest::MockDeviceImage EAMImg = generateEAMTestKernelImage();
+static sycl::unittest::MockDeviceImage EAM2Img = generateEAMTestKernel2Image();
 static sycl::unittest::PiImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::PiImageArray<1> EAM2ImgArray{&EAM2Img};
 

@@ -47,7 +47,7 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> Kernels) {
   using namespace sycl::unittest;
 
@@ -57,7 +57,7 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels(Kernels);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -68,7 +68,7 @@ generateDefaultImage(std::initializer_list<std::string> Kernels) {
   return Img;
 }
 
-static sycl::unittest::PiImage Imgs[2] = {
+static sycl::unittest::MockDeviceImage Imgs[2] = {
     generateDefaultImage({"KernelID_TestKernel1", "KernelID_TestKernel3"}),
     generateDefaultImage(
         {"KernelID_TestKernel2",

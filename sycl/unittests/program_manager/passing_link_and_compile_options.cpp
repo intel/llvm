@@ -56,7 +56,7 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 } // namespace sycl
 
 template <typename T>
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
@@ -75,7 +75,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               _cmplOptions,                           // Compile options
               _lnkOptions,                            // Link options
@@ -134,7 +134,7 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_options = "";
-  static sycl::unittest::PiImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel1>(expected_options,
                                                  expected_options);
   static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
@@ -164,7 +164,7 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
                   "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
               expected_link_options_1 =
                   "-cl-denorms-are-zero -cl-no-signed-zeros";
-  static sycl::unittest::PiImage DevImage_1 =
+  static sycl::unittest::MockDeviceImage DevImage_1 =
       generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1,
                                                  expected_link_options_1);
 
@@ -199,7 +199,7 @@ TEST(Link_Compile_Options, check_sycl_build) {
   current_compile_options.clear();
   std::string expected_compile_options = "-cl-opt-disable",
               expected_link_options = "-cl-denorms-are-zero";
-  static sycl::unittest::PiImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options,
                                                  expected_link_options);
   static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};

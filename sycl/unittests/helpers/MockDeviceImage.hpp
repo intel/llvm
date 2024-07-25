@@ -220,10 +220,10 @@ private:
 
 /// Convenience wrapper around PI internal structures, that manages PI binary
 /// image data lifecycle.
-class PiImage {
+class MockDeviceImage {
 public:
   /// Constructs an arbitrary device image.
-  PiImage(uint16_t Version, uint8_t Kind, uint8_t Format,
+  MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
@@ -235,11 +235,11 @@ public:
         MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
-  PiImage(uint8_t Format, const std::string &DeviceTargetSpec,
+  MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
           PiArray<PiOffloadEntry> OffloadEntries, PiPropertySet PropertySet)
-      : PiImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+      : MockDeviceImage(PI_DEVICE_BINARY_VERSION, PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
                 Format, DeviceTargetSpec, CompileOptions, LinkOptions, {},
                 std::move(Binary), std::move(OffloadEntries),
                 std::move(PropertySet)) {}
@@ -283,7 +283,7 @@ template <size_t __NumberOfImages> class PiImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  PiImageArray(PiImage *Imgs) {
+  PiImageArray(MockDeviceImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
@@ -536,7 +536,7 @@ addDeviceRequirementsProps(PiPropertySet &Props,
                std::move(Value));
 }
 
-inline PiImage
+inline MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames) {
   PiPropertySet PropSet;
 
@@ -544,7 +544,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options

@@ -72,7 +72,7 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
@@ -87,7 +87,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -98,7 +98,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage generateCopierKernelImage() {
+static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
@@ -110,7 +110,7 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -121,7 +121,7 @@ static sycl::unittest::PiImage generateCopierKernelImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
+sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
                                   generateCopierKernelImage()};
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 

@@ -25,7 +25,7 @@ class MultipleDevsCacheTestKernel;
 
 MOCK_INTEGRATION_HEADER(MultipleDevsCacheTestKernel)
 
-static sycl::unittest::PiImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"MultipleDevsCacheTestKernel"});
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 

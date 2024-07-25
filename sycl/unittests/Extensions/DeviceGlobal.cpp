@@ -59,7 +59,7 @@ struct KernelInfo<DeviceGlobalImgScopeTestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDeviceGlobalImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -78,7 +78,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -89,7 +89,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImage() {
   return Img;
 }
 
-static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -109,7 +109,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -121,7 +121,7 @@ static sycl::unittest::PiImage generateDeviceGlobalImgScopeImage() {
 }
 
 namespace {
-sycl::unittest::PiImage Imgs[] = {generateDeviceGlobalImage(),
+sycl::unittest::MockDeviceImage Imgs[] = {generateDeviceGlobalImage(),
                                   generateDeviceGlobalImgScopeImage()};
 sycl::unittest::PiImageArray<2> ImgArray{Imgs};
 

@@ -125,7 +125,7 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateMemopsImage() {
+static sycl::unittest::MockDeviceImage generateMemopsImage() {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
@@ -136,7 +136,7 @@ static sycl::unittest::PiImage generateMemopsImage() {
       {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
        USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -148,7 +148,7 @@ static sycl::unittest::PiImage generateMemopsImage() {
 }
 
 namespace {
-sycl::unittest::PiImage Imgs[] = {generateMemopsImage()};
+sycl::unittest::MockDeviceImage Imgs[] = {generateMemopsImage()};
 sycl::unittest::PiImageArray<1> ImgArray{Imgs};
 
 size_t LastMemopsQuery = 0;

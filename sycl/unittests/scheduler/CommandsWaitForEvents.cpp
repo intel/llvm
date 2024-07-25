@@ -100,7 +100,7 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
@@ -110,7 +110,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -121,7 +121,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 class EventImplProxyT : public sycl::detail::event_impl {

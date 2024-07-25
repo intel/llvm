@@ -78,7 +78,7 @@ static void setupCommonMockAPIs(sycl::unittest::PiMock &Mock) {
   Mock.redefineBefore<PiApiKind::piProgramBuild>(redefinedProgramBuild);
 }
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   PiPropertySet PropSet;
@@ -87,7 +87,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "-compile-img",                         // Compile options
               "-link-img",                            // Link options
@@ -98,7 +98,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   return Img;
 }
 
-sycl::unittest::PiImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {

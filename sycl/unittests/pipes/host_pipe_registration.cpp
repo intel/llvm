@@ -29,7 +29,7 @@ class PipeID;
 using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
                                                   default_pipe_properties>;
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
@@ -45,7 +45,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
+  MockDeviceImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                     // Compile options
               "",                                     // Link options
@@ -126,7 +126,7 @@ protected:
   queue q;
 };
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
 static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
 TEST_F(PipeTest, Basic) {

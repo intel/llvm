@@ -35,7 +35,7 @@ MOCK_INTEGRATION_HEADER(KernelE)
 namespace {
 
 std::set<const void *> TrackedImages;
-sycl::unittest::PiImage
+sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      pi_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
@@ -48,7 +48,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  PiImage Img{BinaryType, // Format
+  MockDeviceImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
@@ -69,7 +69,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 5: input, KernelE
 // Image 6: exe, KernelE
 // Image 7: exe. KernelE
-sycl::unittest::PiImage Imgs[] = {
+sycl::unittest::MockDeviceImage Imgs[] = {
     generateDefaultImage({"KernelA", "KernelB"}, PI_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelA"}, PI_DEVICE_BINARY_TYPE_NATIVE,

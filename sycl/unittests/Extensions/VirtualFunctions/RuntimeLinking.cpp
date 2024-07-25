@@ -44,7 +44,7 @@ KERNEL_INFO(KernelG)
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
   sycl::unittest::PiPropertySet PropSet;
@@ -71,7 +71,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::PiImage Img{
+  sycl::unittest::MockDeviceImage Img{
       PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
       __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
       "",                                     // Compile options
@@ -102,7 +102,7 @@ static constexpr unsigned PROGRAM_F1 = 53;
 // Device images with no entires are ignored by SYCL RT during registration.
 // Therefore, we have to provide some kernel names to make the test work, even
 // if we don't really have them/use them.
-static sycl::unittest::PiImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
     generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false,
                   PROGRAM_A0),

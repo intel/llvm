@@ -27,7 +27,7 @@ class OutOfResourcesKernel2;
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel1)
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel2)
 
-static sycl::unittest::PiImage Img[2] = {
+static sycl::unittest::MockDeviceImage Img[2] = {
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel1"}),
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel2"})};
 
