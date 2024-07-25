@@ -110,12 +110,8 @@ affinityDomainToString(info::partition_affinity_domain AffinityDomain) {
 }
 
 // Mapping expected SYCL return types to those returned by PI calls
-template <typename T> struct sycl_to_pi {
-  using type = T;
-};
-template <> struct sycl_to_pi<bool> {
-  using type = pi_bool;
-};
+template <typename T> struct sycl_to_pi { using type = T; };
+template <> struct sycl_to_pi<bool> { using type = pi_bool; };
 template <> struct sycl_to_pi<device> {
   using type = sycl::detail::pi::PiDevice;
 };
@@ -1273,14 +1269,159 @@ template <typename Param>
 typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
-  if (std::is_same<Param,
-                   sycl::_V1::ext::intel::info::device::free_memory>::value) {
-    if (!Dev->has(aspect::ext_intel_free_memory))
-      throw exception(
-          make_error_code(errc::invalid),
-          "The device does not have the ext_intel_free_memory aspect");
-  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::device_id::return_type
+get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_device_id))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the ext_intel_device_id aspect");
+  using Param = ext::intel::info::device::device_id;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::uuid::return_type
+get_device_info<ext::intel::info::device::uuid>(const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_device_info_uuid))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_device_info_uuid aspect");
+  using Param = ext::intel::info::device::uuid;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::pci_address::return_type
+get_device_info<ext::intel::info::device::pci_address>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_pci_address))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_pci_address aspect");
+  using Param = ext::intel::info::device::pci_address;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_eu_simd_width::return_type
+get_device_info<ext::intel::info::device::gpu_eu_simd_width>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_eu_simd_width))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_gpu_eu_simd_width aspect");
+  using Param = ext::intel::info::device::gpu_eu_simd_width;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_eu_count::return_type
+get_device_info<ext::intel::info::device::gpu_eu_count>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_eu_count))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_gpu_eu_count aspect");
+  using Param = ext::intel::info::device::gpu_eu_count;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_slices::return_type
+get_device_info<ext::intel::info::device::gpu_slices>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_slices))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the ext_intel_gpu_slices aspect");
+  using Param = ext::intel::info::device::gpu_slices;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_subslices_per_slice::return_type
+get_device_info<ext::intel::info::device::gpu_subslices_per_slice>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_subslices_per_slice))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the "
+                    "ext_intel_gpu_subslices_per_slice aspect");
+  using Param = ext::intel::info::device::gpu_subslices_per_slice;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_eu_count_per_subslice::return_type
+get_device_info<ext::intel::info::device::gpu_eu_count_per_subslice>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_eu_count_per_subslice))
+    throw exception(make_error_code(errc::feature_not_supported),
+                    "The device does not have the "
+                    "ext_intel_gpu_eu_count_per_subslice aspect");
+  using Param = ext::intel::info::device::gpu_eu_count_per_subslice;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::gpu_hw_threads_per_eu::return_type
+get_device_info<ext::intel::info::device::gpu_hw_threads_per_eu>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_gpu_hw_threads_per_eu))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_gpu_hw_threads_per_eu aspect");
+  using Param = ext::intel::info::device::gpu_hw_threads_per_eu;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::max_mem_bandwidth::return_type
+get_device_info<ext::intel::info::device::max_mem_bandwidth>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_max_mem_bandwidth))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_max_mem_bandwidth aspect");
+  using Param = ext::intel::info::device::max_mem_bandwidth;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::free_memory::return_type
+get_device_info<ext::intel::info::device::free_memory>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_free_memory))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_free_memory aspect");
+  using Param = ext::intel::info::device::free_memory;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::memory_clock_rate::return_type
+get_device_info<ext::intel::info::device::memory_clock_rate>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_memory_clock_rate))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_memory_clock_rate aspect");
+  using Param = ext::intel::info::device::memory_clock_rate;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::info::device::memory_bus_width::return_type
+get_device_info<ext::intel::info::device::memory_bus_width>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_memory_bus_width))
+    throw exception(
+        make_error_code(errc::feature_not_supported),
+        "The device does not have the ext_intel_memory_bus_width aspect");
+  using Param = ext::intel::info::device::memory_bus_width;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
 }
 
 // Returns the list of all progress guarantees that can be requested for
