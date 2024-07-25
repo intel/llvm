@@ -624,9 +624,6 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
 
-    getContext()->logger.info("DeviceInfo {} (IsSupportSharedSystemUSM={})",
-                              (void *)Device, DI->IsSupportSharedSystemUSM);
-
     // Don't move DI, since it's a return value as well
     m_DeviceMap.emplace(Device, DI);
 

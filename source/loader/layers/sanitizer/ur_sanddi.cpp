@@ -35,7 +35,11 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
             getContext()->logger.error("Unsupport device");
             return UR_RESULT_ERROR_INVALID_DEVICE;
         }
-        getContext()->logger.info("Add {} into context {}", ToString(DI->Type),
+        getContext()->logger.info(
+            "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
+            (void *)DI->Handle, ToString(DI->Type),
+            DI->IsSupportSharedSystemUSM);
+        getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
                                   (void *)Context);
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
