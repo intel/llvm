@@ -159,7 +159,8 @@ static bool isDeviceBinaryTypeSupported(const context &C,
   return true;
 }
 
-static const char *getFormatStr(ur_device_binary_type Format) {
+// getFormatStr is used for debug-printing, so it may be unused.
+[[maybe_unused]] static const char *getFormatStr(ur_device_binary_type Format) {
   switch (Format) {
   case UR_DEVICE_BINARY_TYPE_NONE:
     return "none";
