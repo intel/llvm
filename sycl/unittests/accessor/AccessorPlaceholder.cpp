@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <helpers/MockDeviceImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <numeric>
 #include <sycl/sycl.hpp>
