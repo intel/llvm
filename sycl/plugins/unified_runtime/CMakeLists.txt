@@ -99,14 +99,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e161516663bd5d14d15532dfaba626d5cdf32ed8
-  # Merge: 47633088 febb18bb
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 24 13:54:43 2024 +0100
-  #     Merge pull request #1521 from AllanZyne/review/yang/dg2
-  #     [DeviceSanitizer] Support GPU DG2 & GEN Device
-  set(UNIFIED_RUNTIME_TAG e161516663bd5d14d15532dfaba626d5cdf32ed8)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/ianayl/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 7c4f45ff0d249816d56aa36a908bb6f949d20961)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
