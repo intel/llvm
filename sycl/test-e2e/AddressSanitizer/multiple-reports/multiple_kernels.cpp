@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux
 // RUN: %{build} %device_asan_flags -Xarch_device -fsanitize-recover=address -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} %t 2>&1 | FileCheck %s
 
