@@ -1317,8 +1317,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args, b
   if (!Triple.isNVPTX())
     CmdArgs.push_back("-Wl,--no-undefined");
 
-  if (IsSYCLKind)
-    CmdArgs.push_back(Triple.isNVPTX() ? "-S" : "-c");
+  if (IsSYCLKind && Triple.isNVPTX())
+    CmdArgs.push_back("-S");
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
 
