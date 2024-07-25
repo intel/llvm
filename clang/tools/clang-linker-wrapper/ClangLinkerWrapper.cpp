@@ -996,7 +996,7 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
 wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
-                         const ArgList &Args) {
+                         const ArgList &Args, bool IsEmbeddedIR) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
   if (!OutputFileOrErr)
@@ -1028,15 +1028,19 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   // spir64-unknown-unknown/spirv64-unknown-unknown/spirv64.
   // TODO: Fix SYCL runtime to accept other triples
   llvm::Triple T(Target);
-  StringRef A(T.getArchName());
-  if(A == "spirv64")
-    A = "spir64";
+  std::string EmbeddedIRTarget("llvm_");
+  EmbeddedIRTarget.append(T.getArchName());
+  StringRef RegularTarget(T.getArchName());
+  if (RegularTarget == "spirv64")
+    RegularTarget = "spir64";
+
   for (auto &SI : SplitModules) {
     auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
 
-    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, A);
+    StringRef ImageTarget = IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
+    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, ImageTarget);
   }
 
   LLVMContext C;
@@ -1117,8 +1121,8 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 // Run wrapping library and llc
 static Expected<StringRef>
 runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
-                     const ArgList &Args) {
-  auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args);
+                     const ArgList &Args, bool IsEmbeddedIR = false) {
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
@@ -2167,6 +2171,21 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return SplitModulesOrErr.takeError();
 
       auto &SplitModules = *SplitModulesOrErr;
+      const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
+      if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
+          LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
+        // When compiling for Nvidia/AMD devices and the user requested the
+        // IR to be embedded in the application (via option), run the output
+        // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
+        // through the offload wrapper and link the resulting object to the
+        // application.
+        auto OutputFile =
+            sycl::runWrapperAndCompile(SplitModules, LinkerArgs, /* IsEmbeddedIR */ true);
+        if (!OutputFile)
+          return OutputFile.takeError();
+        WrappedOutput.push_back(*OutputFile);
+      }
+
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
         auto LinkedFileFinalOrErr =
