@@ -285,7 +285,9 @@ PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
   if (const char *DebugEnv = std::getenv("SYCL_JIT_COMPILER_DEBUG"))
     if (strstr(DebugEnv, DEBUG_TYPE)) {
       DebugFlag = true;
+#ifndef NDEBUG
       llvm::setCurrentDebugType(DEBUG_TYPE);
+#endif
     }
 
   Mod = F.getParent();
