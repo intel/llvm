@@ -1,5 +1,7 @@
 // Test -fsycl-allow-device-dependencies with objects.
 
+// UNSUPPORTED: cuda || hip
+
 // RUN: %clangxx -fsycl %S/Inputs/a.cpp -I %S/Inputs -c -o %t_a.o
 // RUN: %clangxx -fsycl %S/Inputs/b.cpp -I %S/Inputs -c -o %t_b.o
 // RUN: %clangxx -fsycl %S/Inputs/c.cpp -I %S/Inputs -c -o %t_c.o
