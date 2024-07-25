@@ -12,11 +12,12 @@ add_ur_library(ur_common STATIC
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
+
 add_library(${PROJECT_NAME}::common ALIAS ur_common)
 
 target_include_directories(ur_common PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
 )
 
 message(STATUS "Download Unified Memory Framework from github.com")
@@ -62,3 +63,10 @@ if (UNIX)
     find_package(Threads REQUIRED)
     target_link_libraries(ur_common PUBLIC Threads::Threads)
 endif()
+
+install(TARGETS ur_common
+    EXPORT ${PROJECT_NAME}-targets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
