@@ -393,7 +393,11 @@ sycl::event launch_kernel_with_cluster() {
 == Known Issues
 
 This Specification does not mention the forward progress guarantees of the 
-cluster_group.
+   cluster_group. 
+
+The functions `map_cluster_local_pointer` and 
+`get_linear_cluster_group_id_for_local_pointer` do not differentiate between
+generic and local memory address space.
 
 
 == Revision History
