@@ -333,7 +333,7 @@ work-group in the cluster-group, which has been mapped as described above. To
 facilitate this, a new memory scope is introduced to the `memory_scope` class;
 `ext_codeplay_cuda_cluster_group` which indicates a memory ordering
 constraint that applies to all work-items in the same cluster-group. This memory
-scope can be used with `atomic_ref`` and other SYCL APIs that use
+scope can be used with `atomic_ref` and other SYCL APIs that use
 `memory_scope`.
 
 [source, c++]
