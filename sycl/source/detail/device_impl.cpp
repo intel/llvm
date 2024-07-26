@@ -78,11 +78,14 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  const PluginPtr &Plugin = getPlugin();
-  sycl::detail::pi::PiResult Err =
-      Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  try {
+    const PluginPtr &Plugin = getPlugin();
+    sycl::detail::pi::PiResult Err =
+        Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  } catch (std::exception e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
+  }
 }
 
 bool device_impl::is_affinity_supported(

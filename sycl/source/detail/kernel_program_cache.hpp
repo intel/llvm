@@ -99,10 +99,15 @@ public:
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
-      if (Val) {
-        sycl::detail::pi::PiResult Err =
-            Plugin->call_nocheck<PiApiKind::piProgramRelease>(Val);
-        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+      try {
+        if (Val) {
+          sycl::detail::pi::PiResult Err =
+              Plugin->call_nocheck<PiApiKind::piProgramRelease>(Val);
+          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+        }
+      } catch (std::exception e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
+                                          e);
       }
     }
   };
@@ -134,10 +139,14 @@ public:
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
-      if (Val.first) {
-        sycl::detail::pi::PiResult Err =
-            Plugin->call_nocheck<PiApiKind::piKernelRelease>(Val.first);
-        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+      try {
+        if (Val.first) {
+          sycl::detail::pi::PiResult Err =
+              Plugin->call_nocheck<PiApiKind::piKernelRelease>(Val.first);
+          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+        }
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
       }
     }
   };
