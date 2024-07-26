@@ -244,7 +244,7 @@ the various ids of the work-item and work-groups.
         bool leader() const;
 
         static constexpr memory_scope fence_scope = 
-                memory_scope::ext_codeplay_cuda_cluster_fence;
+                memory_scope::ext_codeplay_cuda_cluster_group;
     }
 ----
 
