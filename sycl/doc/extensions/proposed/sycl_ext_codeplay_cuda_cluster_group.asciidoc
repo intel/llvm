@@ -209,7 +209,7 @@ class, via a member function to be introduced called `ext_codeplay_cuda_get_clus
 
 |`cluster_group<Dim> nd_item::ext_codeplay_cuda_get_cluster_group()`
 |Returns the constituent `cluster_group` in the kernel, representing this
-`cluster_group`'s overall position in the `nd_range`
+`cluster_group` object's overall position in the `nd_range`
 |===
 
 
