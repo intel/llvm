@@ -8,7 +8,6 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
-//
 
 #include <cuda.h>
 #include <iostream>
