@@ -101,7 +101,7 @@ value to determine which of the extension's APIs the implementation supports.
 
 === Pipe properties
 
-Below is a list of compile-time-constant properties which `pipe` supports.
+Below is a list of compile-time-constant properties which `pipe` supports. This includes properties that can be placed on the read/write calls, or on the pipe type itself.
 
 ```c++
 namespace sycl {
@@ -227,6 +227,9 @@ namespace avalon-st {
 ```
 
 --
+
+The following is a table of properties that can be applied to the pipe type.
+
 [options="header"]
 |====
 | Property | Description
@@ -320,6 +323,15 @@ Provide an AXI4-Stream interface as described in https://documentation-service.a
 
 The default protocol is *avalon_streaming*
 
+|====
+--
+
+The following is a table of properties that can be applied on the read/write calls to the pipe.
+
+[options="header"]
+|====
+| Property | Description
+
 |`latency_anchor_id<N>`
 | Valid values: Non-negative integer values of N
 
@@ -341,7 +353,6 @@ This property is a tuple of three values which cause the current read/write func
 This property is only valud when passed as a function argument of a device side read/write method as a properties object.
 
 |====
---
 
 == Latency Control Example
 
