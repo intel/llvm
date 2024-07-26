@@ -345,7 +345,7 @@ namespace sycl {
 
   enum class memory_scope {
   ...
-  ext_codeplay_cuda_cluster_fence,
+  ext_codeplay_cuda_cluster_group,
   ...
   };
 
