@@ -12,9 +12,12 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Q1;
-  queue Q2;
-  queue Q3;
+
+  device Dev;
+  context Ctx{Dev};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx, Dev};
+  queue Q3{Ctx, Dev};
 
   using T = int;
 
