@@ -292,7 +292,7 @@ local memory. Typically addresses which reside in the local memory of a
 work-group can only be accessed by the work-items of that work-group. 
 Therefore, to access another work-group's local memory, the address needs to be
 mapped such that the address in another work-group is accessible within the 
-calling work-item. Further, to access another another work-group's local memory,
+calling work-item. Further, to access another work-group's local memory,
 all the work-groups within the cluster must exist and the work-groups should
 not cease to exist before all the memory operations are completed. This can be 
 ensured by synchronizing all the work-items within the cluster before and after
