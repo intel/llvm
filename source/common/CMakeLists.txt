@@ -19,12 +19,11 @@ target_include_directories(ur_common PUBLIC
 
 message(STATUS "Download Unified Memory Framework from github.com")
 if (NOT DEFINED UMF_REPO)
-    set(UMF_REPO "https://github.com/oneapi-src/unified-memory-framework.git")
+    set(UMF_REPO "https://github.com/igchor/unified-memory-framework.git")
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # Merge pull request #639 from kswiecicki/umf-compile-options-win
-    set(UMF_TAG bb07950f9804783cdc69951b90c2d7bd68c226f3)
+    set(UMF_TAG c89b4a29b1b0d5f8509d216e715a7c6d6e7c63e0)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
