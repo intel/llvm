@@ -350,7 +350,7 @@ namespace sycl {
     inline constexpr auto memory_scope_cluster_group
       = memory_scope::ext_codeplay_cuda_cluster_group;
   } // namespace ext::codeplay::experimental::cuda
-
+} // namespace sycl
 ----
 
 namespace ext::codeplay::experimental::cuda {
