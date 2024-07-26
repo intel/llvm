@@ -99,13 +99,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3d8fe8d298cec8db624fc230fa5c0e19865aa6f1
-  # Merge: e8c9f3db 0a259f33
+  # commit 2baf095188b235bb2b0a0140f0187d2041aef4b0
+  # Merge: 3d8fe8d2 58f85278
   # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Jul 25 15:13:00 2024 +0200
-  #     Merge pull request #1430 from igchor/umf_dynamic_linking
-  #     Bump UMF version and switch to dynamic linking
-  set(UNIFIED_RUNTIME_TAG 3d8fe8d298cec8db624fc230fa5c0e19865aa6f1)
+  # Date:   Fri Jul 26 12:06:22 2024 +0200
+  #     Merge pull request #1900 from kswiecicki/umf-version-bump
+  #     Bump UMF version
+  set(UNIFIED_RUNTIME_TAG 58f85278a4ebf37742dd10afb3350580b0b1d9d7)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
