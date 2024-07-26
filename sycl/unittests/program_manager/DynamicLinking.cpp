@@ -47,7 +47,7 @@ createPropertySet(const std::vector<std::string> &Symbols) {
     auto *DataPtr = reinterpret_cast<char *>(&Val);
     std::uninitialized_copy(DataPtr, DataPtr + sizeof(uint32_t),
                             Storage.data());
-    sycl::unittest::PiProperty Prop(Symbol, Storage, PI_PROPERTY_TYPE_UINT32);
+    sycl::unittest::PiProperty Prop(Symbol, Storage, SYCL_PROPERTY_TYPE_UINT32);
 
     Props.push_back(Prop);
   }
@@ -60,14 +60,14 @@ generateImage(std::initializer_list<std::string> KernelNames,
               const std::vector<std::string> &ImportedSymbols,
               unsigned char Magic,
               sycl::detail::pi::PiDeviceBinaryType BinType =
-                  PI_DEVICE_BINARY_TYPE_SPIRV) {
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV) {
   sycl::unittest::PiPropertySet PropSet;
   if (!ExportedSymbols.empty())
-    PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
-                   std::move(createPropertySet(ExportedSymbols)));
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
+                   createPropertySet(ExportedSymbols));
   if (!ImportedSymbols.empty())
-    PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
-                   std::move(createPropertySet(ImportedSymbols)));
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
+                   createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
   sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
@@ -75,9 +75,9 @@ generateImage(std::initializer_list<std::string> KernelNames,
 
   sycl::unittest::PiImage Img{
       BinType,
-      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};
@@ -102,7 +102,7 @@ static sycl::unittest::PiImage Imgs[] = {
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP_NATIVE,
-                  PI_DEVICE_BINARY_TYPE_NATIVE),
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE),
     generateImage({"BasicCaseKernelDepDep"}, {"BasicCaseKernelDepDep"}, {},
                   BASIC_CASE_PRG_DEP_DEP),
     generateImage({"UnresolvedDepKernel"}, {},
@@ -114,9 +114,9 @@ static sycl::unittest::PiImage Imgs[] = {
                   {"MutualDepKernelADep"}, {"MutualDepKernelBDep"},
                   MUTUAL_DEP_PRG_B),
     generateImage({"AOTCaseKernel"}, {}, {"AOTCaseKernelDep"},
-                  AOT_CASE_PRG_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE),
+                  AOT_CASE_PRG_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
-                  AOT_CASE_PRG_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE)};
+                  AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::PiImageArray<9> ImgArray{Imgs};

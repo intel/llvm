@@ -67,18 +67,17 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                           // Compile options
-              _lnkOptions,                            // Link options
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              _cmplOptions,                        // Compile options
+              _lnkOptions,                         // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

@@ -36,18 +36,13 @@ public:
   void operator()(sycl::item<1>){};
 };
 
+MOCK_INTEGRATION_HEADER(CacheTestKernel)
+MOCK_INTEGRATION_HEADER(CacheTestKernel2)
+
 namespace sycl {
 const static specialization_id<int> SpecConst1{42};
 inline namespace _V1 {
 namespace detail {
-template <>
-struct KernelInfo<CacheTestKernel> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "CacheTestKernel"; }
-};
-template <>
-struct KernelInfo<CacheTestKernel2> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "CacheTestKernel2"; }
-};
 template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
@@ -69,10 +64,10 @@ static sycl::unittest::PiImage generateDefaultImage() {
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

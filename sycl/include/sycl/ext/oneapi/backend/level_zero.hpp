@@ -79,7 +79,7 @@ inline std::optional<sycl::device> find_matching_descendent_device(
       auto sub_devices = d.create_sub_devices<
           info::partition_property::partition_by_affinity_domain>(
           info::partition_affinity_domain::next_partitionable);
-      for (auto sub_dev : sub_devices) {
+      for (auto &sub_dev : sub_devices) {
         if (auto maybe_device =
                 find_matching_descendent_device(sub_dev, BackendObject))
           return maybe_device;
@@ -111,11 +111,11 @@ template <>
 inline device make_device<backend::ext_oneapi_level_zero>(
     const backend_input_t<backend::ext_oneapi_level_zero, device>
         &BackendObject) {
-  for (auto p : platform::get_platforms()) {
+  for (auto &p : platform::get_platforms()) {
     if (p.get_backend() != backend::ext_oneapi_level_zero)
       continue;
 
-    for (auto d : p.get_devices()) {
+    for (auto &d : p.get_devices()) {
       if (auto maybe_device = find_matching_descendent_device(d, BackendObject))
         return *maybe_device;
     }

@@ -97,13 +97,13 @@ target_include_directories(sycl_pi_trace_collector PRIVATE
 
 add_dependencies(sycl_pi_trace_collector pi-pretty-printers)
 
-if(SYCL_BUILD_PI_CUDA)
+if(SYCL_BUILD_BACKEND_CUDA)
 
   find_package(CUDA 10.1 REQUIRED)
 
   target_compile_definitions(cuda_trace_collector
     PRIVATE
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+      $<$<BOOL:${SYCL_BUILD_BACKEND_CUDA}>:USE_PI_CUDA>
   )
 
   # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
@@ -157,7 +157,7 @@ if(SYCL_BUILD_PI_CUDA)
   target_link_libraries(cuda_trace_collector PRIVATE xptifw)
   target_compile_definitions(sycl_pi_trace_collector
     PRIVATE
-      $<$<BOOL:${SYCL_BUILD_PI_CUDA}>:USE_PI_CUDA>
+      $<$<BOOL:${SYCL_BUILD_BACKEND_CUDA}>:USE_PI_CUDA>
   )
 endif()
 
