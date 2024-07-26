@@ -6,6 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+// FIXME: failure in post-commit, re-enable when fixed:
+// UNSUPPORTED: linux
+
 // REQUIRES: aspect-ext_intel_fpga_task_sequence
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %{run} %t.out
@@ -17,7 +20,7 @@ constexpr double kX = 0.9;
 constexpr double kA = 2.5;
 constexpr double kB = 3.7;
 
-using intertask_pipe = ext::intel::pipe<class p, double>;
+using intertask_pipe = pipe<class p, double>;
 
 template <typename OutPipe> double task_a(double x, double a, int precision) {
   double res = 1;

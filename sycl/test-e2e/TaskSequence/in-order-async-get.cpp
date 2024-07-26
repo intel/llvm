@@ -18,7 +18,7 @@ class InOrderTasks;
 
 // task that computes the sigmoid function
 double sigmoid(double in) {
-  double Ex = sycl::exp(in);
+  double Ex = exp(in);
   return (Ex / (Ex + 1));
 }
 
@@ -37,7 +37,7 @@ int main() {
     queue q;
 
     buffer values_buf(values);
-    buffer results_buf(values);
+    buffer results_buf(results);
 
     q.submit([&](handler &h) {
       accessor values_acc(values_buf, h, read_only);

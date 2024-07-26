@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sycl/detail/core.hpp>
+#include "sycl/detail/builtins/builtins.hpp"
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
 #include <sycl/ext/intel/experimental/task_sequence.hpp>

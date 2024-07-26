@@ -14,7 +14,7 @@
 
 constexpr int kSize = 128;
 
-using intertask_pipe = ext::intel::pipe<class p, int>;
+using intertask_pipe = pipe<class p, int>;
 
 template <typename OutPipe> void producer(int *a, int *b, int N) {
   for (int i = 0; i < N; ++i) {

@@ -29,8 +29,8 @@ struct DataStruct {
 };
 
 using DataArray = FixedVect<float, 2>;
-using intertask_pipe1 = ext::intel::pipe<class p1, float, 1>;
-using intertask_pipe2 = ext::intel::pipe<class p2, float, 1>;
+using intertask_pipe1 = pipe<class p1, float, 1>;
+using intertask_pipe2 = pipe<class p2, float, 1>;
 
 template <typename OutPipe> void argStruct(DataStruct data) {
   if (data.isValid) {
