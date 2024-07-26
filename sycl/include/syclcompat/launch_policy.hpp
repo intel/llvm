@@ -47,12 +47,20 @@ template <typename Properties> struct kernel_properties {
   template <typename... Props>
   kernel_properties(Props... properties) : props{properties...} {}
 
+  template <typename... Props>
+  kernel_properties(sycl_exp::properties<Props...> properties)
+      : props{properties} {}
+
   Properties props;
 };
 
-template <typename... Props>
+template <typename... Props, typename = std::enable_if_t<detail::are_all_props<Props...>::value, void>>
 kernel_properties(Props... props)
     -> kernel_properties<decltype(sycl_exp::properties(props...))>;
+
+template <typename... Props>
+kernel_properties(sycl_exp::properties<Props...> props)
+    -> kernel_properties<sycl_exp::properties<Props...>>;
 
 // Wrapper for launch sycl_exp::properties
 template <typename Properties> struct launch_properties {
@@ -62,12 +70,20 @@ template <typename Properties> struct launch_properties {
   template <typename... Props>
   launch_properties(Props... properties) : props{properties...} {}
 
+  template <typename... Props>
+  launch_properties(sycl_exp::properties<Props...> properties)
+      : props{properties} {}
+
   Properties props;
 };
 
-template <typename... Props>
+template <typename... Props, typename = std::enable_if_t<detail::are_all_props<Props...>::value, void>>
 launch_properties(Props... props)
     -> launch_properties<decltype(sycl_exp::properties(props...))>;
+
+template <typename... Props>
+launch_properties(sycl_exp::properties<Props...> props)
+    -> launch_properties<sycl_exp::properties<Props...>>;
 
 // Wrapper for local memory size
 struct local_mem_size {

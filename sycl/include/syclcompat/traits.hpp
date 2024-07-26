@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include "sycl/ext/oneapi/properties/property_value.hpp"
 #include <sycl/range.hpp>
 #include <sycl/nd_range.hpp>
 #include <type_traits>
@@ -241,6 +242,11 @@ struct is_launch_policy<launch_policy<RangeT, KProps, LProps, LocalMem>>
 
 template <typename T>
 inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
+
+// Trait to detect if all args are sycl_exp property types
+template <typename... Args>
+using are_all_props = std::conjunction<
+    sycl::ext::oneapi::experimental::is_property_value<Args>...>;
 
 } // namespace experimental::detail
 

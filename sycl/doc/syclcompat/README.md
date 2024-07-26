@@ -233,8 +233,14 @@ use local memory should launch with a `launch_policy` object as described below.
 In addition to the simple `syclcompat::launch` interface described above,
 SYCLcompat provides a more flexible (`experimental`) interface to `launch` a
 kernel with a given `launch_policy`. By constructing and passing a
-`launch_policy`, users can pass `sycl::ext::oneapi::experimental::properties` associated with the kernel or
-launch, as well as request **local memory** for the kernel.
+`launch_policy`, users can pass `sycl::ext::oneapi::experimental::properties`
+associated with the kernel or launch, as well as request **local memory** for
+the kernel.
+
+In order to disambiguate the variadic constructor of `launch_policy`, the
+following wrapper structs are defined. The `kernel_properties` and
+`launch_properties` wrappers can be constructed *either* with a variadc set of
+properties, or with an existing `sycl_exp::properties` object.
 
 ```cpp
 namespace syclcompat::experimental {
@@ -245,6 +251,8 @@ template <typename Properties> struct kernel_properties {
   using Props = Properties;
   template <typename... Props>
   kernel_properties(Props... properties);
+  template <typename... Props>
+  kernel_properties(sycl_exp::properties<Props...> properties)
   Properties props;
 };
 
@@ -253,6 +261,8 @@ template <typename Properties> struct launch_properties {
   using Props = Properties;
   template <typename... Props>
   launch_properties(Props... properties);
+  template <typename... Props>
+  launch_properties(sycl_exp::properties<Props...> properties)
   Properties props;
 };
 

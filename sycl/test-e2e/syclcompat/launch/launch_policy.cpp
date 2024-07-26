@@ -112,6 +112,20 @@ int test_variadic_config_ctor() {
                            empty_properties_t, false>>);
   }
 
+  // nd_range and kernel_properties properties ctor
+  {
+    sycl_exp::properties my_props{sycl_exp::sub_group_size<32>};
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::kernel_properties(my_props));
+    static_assert(
+        std::is_same_v<decltype(my_config),
+                       compat_exp::launch_policy<
+                           sycl::nd_range<1>,
+                           decltype(sycl::ext::oneapi::experimental::properties{
+                               sycl_exp::sub_group_size<32>}),
+                           empty_properties_t, false>>);
+  }
   // Empty kernel properties
   {
     compat_exp::launch_policy my_config(sycl::nd_range<1>{{32}, {32}},
@@ -132,6 +146,24 @@ int test_variadic_config_ctor() {
             decltype(my_config),
             compat_exp::launch_policy<sycl::nd_range<1>, empty_properties_t,
                                       empty_properties_t, false>>);
+  }
+
+  // nd_range and launch_properties properties ctor
+  {
+
+    sycl_exp::cuda::cluster_size<1> ClusterDims(sycl::range<1>{32});
+    sycl_exp::properties my_props{ClusterDims};
+
+    compat_exp::launch_policy my_config(
+        sycl::nd_range<1>{{32}, {32}},
+        compat_exp::launch_properties(my_props));
+    static_assert(
+        std::is_same_v<decltype(my_config),
+                       compat_exp::launch_policy<
+                           sycl::nd_range<1>, empty_properties_t,
+                           decltype(sycl::ext::oneapi::experimental::properties{
+                               sycl_exp::cuda::cluster_size<1>{32}}),
+                           false>>);
   }
 
   // Just local mem
