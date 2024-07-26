@@ -83,7 +83,7 @@ device_impl::~device_impl() {
     sycl::detail::pi::PiResult Err =
         Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
     __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
-  } catch (std::exception e) {
+  } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
 }

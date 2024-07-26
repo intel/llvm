@@ -105,7 +105,7 @@ public:
               Plugin->call_nocheck<PiApiKind::piProgramRelease>(Val);
           __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
         }
-      } catch (std::exception e) {
+      } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
                                           e);
       }
