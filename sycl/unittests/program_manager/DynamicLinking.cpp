@@ -58,7 +58,8 @@ sycl::unittest::PiImage generateImage(
     std::initializer_list<std::string> KernelNames,
     const std::vector<std::string> &ExportedSymbols,
     const std::vector<std::string> &ImportedSymbols, unsigned char Magic,
-    sycl::detail::pi::PiDeviceBinaryType BinType = SYCL_DEVICE_BINARY_TYPE_SPIRV,
+    sycl::detail::pi::PiDeviceBinaryType BinType =
+        SYCL_DEVICE_BINARY_TYPE_SPIRV,
     const char *DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64) {
   sycl::unittest::PiPropertySet PropSet;
   if (!ExportedSymbols.empty())
