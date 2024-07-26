@@ -229,7 +229,8 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
 
 llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
     SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
-    const std::string &TargetCPU, const std::string &TargetFeatures) {
+    [[maybe_unused]] const std::string &TargetCPU,
+    [[maybe_unused]] const std::string &TargetFeatures) {
 #ifndef FUSION_JIT_SUPPORT_PTX
   (void)KernelInfo;
   (void)Mod;
@@ -310,7 +311,8 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
 
 llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
     SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
-    const std::string &TargetCPU, const std::string &TargetFeatures) {
+    [[maybe_unused]] const std::string &TargetCPU,
+    [[maybe_unused]] const std::string &TargetFeatures) {
 #ifndef FUSION_JIT_SUPPORT_AMDGCN
   (void)KernelInfo;
   (void)Mod;
