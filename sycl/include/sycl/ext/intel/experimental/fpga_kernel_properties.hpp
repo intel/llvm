@@ -12,8 +12,8 @@
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
-#include <cstdint>     // for uint16_t
-#include <type_traits> // for true_type
+#include <cstdint>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
