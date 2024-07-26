@@ -369,18 +369,17 @@ the cluster-range specified and accessing various id's within the kernel -
 [source,c++]
 ----
 sycl::event launch_kernel_with_cluster() {
-  using cluster_size_prop =
-    sycl::ext::codeplay::experimental::cuda::cluster_size
-  using namespace sycl::ext::codeplay::experimental::cuda;
+  namespace syclcp = sycl::ext::codeplay::experimental;
+  namespace syclex = sycl::ext::oneapi::experimental;
 
   sycl::queue q;
 
   sycl::nd_range<3> ndRange({4096, 4096, 32}, {32, 32, 1});
-  properties props(cluster_size_prop({4, 4, 1}));
-  sycl::ext::oneapi::experimental::launch_config config(ndRange, props);
+  syclex::properties props(syclcp::cuda::cluster_size({4, 4, 1}));
+  syclex::launch_config config(ndRange, props);
 
-  return submit_with_event(q, [&](sycl::handler& cgh){
-      nd_launch(cgh, config, [=](sycl::nd_item<3> it) {
+  return syclex::submit_with_event(q, [&](sycl::handler& cgh){
+      syclex::nd_launch(cgh, config, [=](sycl::nd_item<3> it) {
         auto cg = it.ext_codeplay_cuda_get_cluster_group();
         auto cgId = cg.get_group_id();
         ...
