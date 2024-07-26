@@ -165,7 +165,7 @@ void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
     switch (VR.Type) {
     case ValidateUSMResult::MAYBE_HOST_POINTER:
         getContext()->logger.always("The {}th argument {} is not a USM pointer",
-                                    ArgIndex, (void *)Addr);
+                                    ArgIndex + 1, (void *)Addr);
         break;
     case ValidateUSMResult::RELEASED_POINTER:
         getContext()->logger.always(
