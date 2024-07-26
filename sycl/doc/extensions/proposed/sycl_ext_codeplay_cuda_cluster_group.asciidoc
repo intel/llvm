@@ -242,6 +242,9 @@ the various ids of the work-item and work-groups.
         linear_id_type get_group_linear_range() const;
 
         bool leader() const;
+
+        static constexpr memory_scope fence_scope = 
+                memory_scope::ext_codeplay_cuda_cluster_fence;
     }
 ----
 
@@ -342,7 +345,7 @@ namespace sycl {
 
   enum class memory_scope {
   ...
-  ext_codeplay_cuda_cluster_group,
+  ext_codeplay_cuda_cluster_fence,
   ...
   };
 
@@ -353,20 +356,6 @@ namespace sycl {
 } // namespace sycl
 ----
 
-namespace ext::codeplay::experimental::cuda {
-inline constexpr auto memory_scope_cluster_group = memory_scope::ext_codeplay_cuda_cluster_group;
-} // namespace ext::codeplay::experimental::cuda
-
-
-[source,c++]
-----
-    class cluster_group {
-    public:
-    ...
-    static constexpr memory_scope fence_scope = 
-                memory_scope::ext_codeplay_cuda_cluster_fence;
-    }
-----
 
 To synchronize all workitems in the cluster group, `sycl::group_barrier` can be 
 used, accepting the `cluster_group` class.
