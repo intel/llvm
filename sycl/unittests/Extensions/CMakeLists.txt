@@ -13,6 +13,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   EnqueueFunctionsEvents.cpp
   DiscardEvent.cpp
   ProfilingTag.cpp
+  KernelProperties.cpp
 )
 
 add_subdirectory(CommandGraph)

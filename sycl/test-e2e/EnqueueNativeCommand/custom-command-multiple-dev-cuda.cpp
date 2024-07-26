@@ -1,6 +1,7 @@
 // REQUIRES: cuda, cuda_dev_kit
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} SYCL_PI_TRACE=-1 %t.out
+
 #include <cuda.h>
 
 #include <iostream>

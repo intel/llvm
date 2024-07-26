@@ -217,3 +217,6 @@ def sycl_backend_link_options_from_image_EQ : Joined<["--", "-"], "sycl-backend-
 
 def sycl_thin_lto : Flag<["--", "-"], "sycl-thin-lto">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
+
+def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
+Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;

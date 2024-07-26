@@ -266,6 +266,8 @@ template <typename PropertyT> struct PropertyMetaInfo {
   static constexpr std::nullptr_t value = nullptr;
 };
 
+template <typename> struct HasCompileTimeEffect : std::false_type {};
+
 } // namespace detail
 
 template <typename T>

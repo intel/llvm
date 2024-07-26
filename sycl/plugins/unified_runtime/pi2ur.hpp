@@ -9,6 +9,7 @@
 
 #include "ur_api.h"
 #include <cstdarg>
+#include <detail/compiler.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -785,15 +786,15 @@ mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
   ur_metadata->pName = (*pi_metadata)->Name;
   ur_metadata->size = (*pi_metadata)->ValSize;
   switch ((*pi_metadata)->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_UINT32;
     ur_metadata->value.data32 = (*pi_metadata)->ValSize;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
     ur_metadata->value.pData = (*pi_metadata)->ValAddr;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_STRING;
     ur_metadata->value.pString =
         reinterpret_cast<char *>((*pi_metadata)->ValAddr);
@@ -1304,23 +1305,14 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
-        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
         UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
@@ -1342,6 +1334,15 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                              UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH,
                              UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT,
+                             UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM,
+        UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -1487,47 +1488,48 @@ inline pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
 inline pi_result
 piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
-                        pi_device_binary *Binaries, pi_uint32 NumBinaries,
+                        pi_device_binary *PIBinaries, pi_uint32 NumBinaries,
                         pi_uint32 *SelectedBinaryInd) {
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   std::vector<ur_device_binary_t> UrBinaries(NumBinaries);
+  auto *Binaries = reinterpret_cast<sycl_device_binary *>(PIBinaries);
 
   for (uint32_t BinaryCount = 0; BinaryCount < NumBinaries; BinaryCount++) {
     if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+               __SYCL_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV32;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_NVPTX64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
@@ -1595,7 +1597,6 @@ inline pi_result piextContextCreateWithNativeHandle(
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
@@ -1607,7 +1608,7 @@ inline pi_result piextContextCreateWithNativeHandle(
       UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
-      NativeContext, NumDevices, UrDevices, &Properties, UrContext));
+      NativeContext, adapter, NumDevices, UrDevices, &Properties, UrContext));
 
   return PI_SUCCESS;
 }

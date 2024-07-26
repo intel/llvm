@@ -25,34 +25,19 @@ class KernelB;
 class KernelC;
 class KernelD;
 class KernelE;
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <> struct KernelInfo<KernelA> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelA"; }
-};
-template <> struct KernelInfo<KernelB> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelB"; }
-};
-template <> struct KernelInfo<KernelC> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelC"; }
-};
-template <> struct KernelInfo<KernelD> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelD"; }
-};
-template <> struct KernelInfo<KernelE> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "KernelE"; }
-};
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
+
+MOCK_INTEGRATION_HEADER(KernelA)
+MOCK_INTEGRATION_HEADER(KernelB)
+MOCK_INTEGRATION_HEADER(KernelC)
+MOCK_INTEGRATION_HEADER(KernelD)
+MOCK_INTEGRATION_HEADER(KernelE)
 
 namespace {
 
 std::set<const void *> TrackedImages;
 sycl::unittest::PiImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     pi_device_binary_type BinaryType,
+                     sycl_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
@@ -85,22 +70,22 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 6: exe, KernelE
 // Image 7: exe. KernelE
 sycl::unittest::PiImage Imgs[] = {
-    generateDefaultImage({"KernelA", "KernelB"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelA"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelC"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelC"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelD"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelE"}, PI_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
+    generateDefaultImage({"KernelA", "KernelB"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelA"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelD"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 
 sycl::unittest::PiImageArray<std::size(Imgs)> ImgArray{Imgs};
 std::vector<unsigned char> UsedImageIndices;
@@ -142,10 +127,11 @@ pi_result redefinedDevicesGet(pi_platform platform, pi_device_type device_type,
 }
 
 pi_result redefinedExtDeviceSelectBinary(pi_device device,
-                                         pi_device_binary *binaries,
+                                         pi_device_binary *pi_binaries,
                                          pi_uint32 num_binaries,
                                          pi_uint32 *selected_binary_ind) {
   EXPECT_EQ(num_binaries, 1U);
+  auto *binaries = reinterpret_cast<sycl_device_binary *>(pi_binaries);
   // Treat image 3 as incompatible with one of the devices.
   if (TrackedImages.count(binaries[0]->BinaryStart) != 0 &&
       *binaries[0]->BinaryStart == 3 &&

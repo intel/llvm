@@ -36,12 +36,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_register_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_register_lib(sycl_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_unregister_lib(sycl_device_binaries desc);
 
 // +++ }
 
@@ -156,11 +156,20 @@ public:
                     const std::string &KernelName,
                     const NDRDescT &NDRDesc = {});
 
+  sycl::detail::pi::PiKernel getCachedMaterializedKernel(
+      const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
+  sycl::detail::pi::PiKernel getOrCreateMaterializedKernel(
+      const RTDeviceBinaryImage &Img, const context &Context,
+      const device &Device, const std::string &KernelName,
+      const std::vector<unsigned char> &SpecializationConsts);
+
   sycl::detail::pi::PiProgram
   getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
                            const ContextImplPtr Context);
 
-  void addImages(pi_device_binaries DeviceImages);
+  void addImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string
   getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
@@ -425,6 +434,10 @@ private:
 
   /// Protects m_HostPipes and m_Ptr2HostPipe.
   std::mutex m_HostPipesMutex;
+
+  using MaterializedEntries =
+      std::map<std::vector<unsigned char>, pi::PiKernel>;
+  std::unordered_map<std::string, MaterializedEntries> m_MaterializedKernels;
 };
 } // namespace detail
 } // namespace _V1

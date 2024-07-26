@@ -10842,6 +10842,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   std::string OutputArg = Output.getFilename();
   if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+  else if (T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    OutputArg = "spir64_x86_64," + OutputArg;
 
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
@@ -11235,6 +11237,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
     if (IsUsingLTO && LTOMode == LTOK_Thin)
       CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
+
+    if (Args.hasArg(options::OPT_fsycl_embed_ir))
+      CmdArgs.push_back(Args.MakeArgString("-sycl-embed-ir"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and

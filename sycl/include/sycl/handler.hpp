@@ -970,28 +970,11 @@ private:
     }
   }
 
-  /// Process kernel properties.
+  /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
-  template <
-      typename KernelName,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    using KI = detail::KernelInfo<KernelName>;
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::intel::experimental::fp_control_key>() ||
-            (PropertiesT::template has_property<
-                 sycl::ext::intel::experimental::fp_control_key>() &&
-             KI::isESIMD()),
-        "Floating point control property is supported for ESIMD kernels only.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-        "indirectly_callable property cannot be applied to SYCL kernels");
+  template <typename PropertiesT>
+  void processLaunchProperties(PropertiesT Props) {
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1040,6 +1023,32 @@ private:
     }
 
     checkAndSetClusterRange(Props);
+  }
+
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <
+      typename KernelName,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  void processProperties(PropertiesT Props) {
+    using KI = detail::KernelInfo<KernelName>;
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
+        "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
+
+    processLaunchProperties(Props);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1440,14 +1449,40 @@ private:
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param Kernel is a SYCL kernel function.
-  template <int Dims>
-  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
+  /// \param Properties is the properties.
+  template <int Dims, typename PropertiesT>
+  void parallel_for_impl(range<Dims> NumWorkItems, PropertiesT Props,
+                         kernel Kernel) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
+    processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
+    extractArgsAndReqs();
+    MKernelName = getKernelName();
+  }
+
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// \param NDRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// \param Properties is the properties.
+  /// \param Kernel is a SYCL kernel function.
+  template <int Dims, typename PropertiesT>
+  void parallel_for_impl(nd_range<Dims> NDRange, PropertiesT Props,
+                         kernel Kernel) {
+    throwIfActionIsCreated();
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    detail::checkValueRange<Dims>(NDRange);
+    setNDRangeDescriptor(std::move(NDRange));
+    processLaunchProperties(Props);
+    setType(detail::CGType::Kernel);
+    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2163,15 +2198,18 @@ public:
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<2> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<3> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2205,14 +2243,8 @@ public:
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
-    throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
-    setNDRangeDescriptor(std::move(NDRange));
-    setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
-    extractArgsAndReqs();
-    MKernelName = getKernelName();
+    parallel_for_impl(NDRange, ext::oneapi::experimental::empty_properties_t{},
+                      Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function.
@@ -3740,6 +3772,12 @@ class HandlerAccess {
 public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
+  }
+
+  template <typename RangeT, typename PropertiesT>
+  static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
+                              kernel Kernel) {
+    Handler.parallel_for_impl(Range, Props, Kernel);
   }
 };
 } // namespace detail
