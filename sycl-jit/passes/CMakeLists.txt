@@ -68,6 +68,7 @@ add_llvm_library(SYCLKernelJITPasses
   TransformUtils
   Passes
   TargetParser
+  SYCLLowerIR
 )
 
 target_compile_options(SYCLKernelJITPasses PRIVATE ${SYCL_JIT_WARNING_FLAGS})

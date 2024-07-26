@@ -181,3 +181,10 @@
 // RUN:          -fsycl-embed-ir %s 2>&1 \
 // RUN:  | FileCheck -check-prefix CHECK_EMBED_IR %s
 // CHECK_EMBED_IR: clang-linker-wrapper{{.*}} "-sycl-embed-ir"
+
+/// Verify the filename being passed to the packager does not contain commas
+/// that are used in -device settings.
+// RUN: %clangxx -fsycl -### -fsycl-targets=spir64_gen --offload-new-driver \
+// RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
+// RUN:   | FileCheck -check-prefix COMMA_FILE %s
+// COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl"

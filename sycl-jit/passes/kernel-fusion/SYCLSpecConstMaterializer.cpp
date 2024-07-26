@@ -214,21 +214,23 @@ void SYCLSpecConstMaterializer::populateUses(Argument *A) {
 }
 
 void SYCLSpecConstMaterializer::reportAndReset() {
-  if (LoadsToTypes.empty()) {
-    LLVM_DEBUG(dbgs() << "Did not find any loads from spec const buffer.\n");
-  } else {
-    LLVM_DEBUG(dbgs() << "Replaced: " << LoadsToTypes.size()
-                      << " loads from spec const buffer.\n");
-    LLVM_DEBUG(dbgs() << "Load to global variable mappings:\n");
-    for (auto &LTT : LoadsToTypes) {
-      LLVM_DEBUG(dbgs() << "\tLoad:\n");
-      LLVM_DEBUG(LTT.first->dump());
-      LLVM_DEBUG(dbgs() << "\tGlobal Variable:\n");
-      LLVM_DEBUG(TypesAndOffsetsToBlob[LTT.second]->dump());
-      LLVM_DEBUG(dbgs() << "\n");
+  LLVM_DEBUG({
+    if (LoadsToTypes.empty()) {
+      dbgs() << "Did not find any loads from spec const buffer.\n";
+    } else {
+      dbgs() << "Replaced: " << LoadsToTypes.size()
+             << " loads from spec const buffer.\n";
+      dbgs() << "Load to global variable mappings:\n";
+      for (auto &LTT : LoadsToTypes) {
+        dbgs() << "\tLoad:\n";
+        LTT.first->dump();
+        dbgs() << "\tGlobal Variable:\n";
+        TypesAndOffsetsToBlob[LTT.second]->dump();
+        dbgs() << "\n";
+      }
     }
-  }
-  LLVM_DEBUG(dbgs() << "\n\n");
+    dbgs() << "\n\n";
+  });
 
   // Reset the state.
   TypesAndOffsets.clear();
@@ -283,7 +285,9 @@ PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
   if (const char *DebugEnv = std::getenv("SYCL_JIT_COMPILER_DEBUG"))
     if (strstr(DebugEnv, DEBUG_TYPE)) {
       DebugFlag = true;
+#ifndef NDEBUG
       llvm::setCurrentDebugType(DEBUG_TYPE);
+#endif
     }
 
   Mod = F.getParent();

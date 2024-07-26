@@ -104,6 +104,15 @@ struct is_property_key_of<
     : std::true_type {};
 
 namespace detail {
+template <intel::experimental::streaming_interface_options_enum option>
+struct HasCompileTimeEffect<
+    intel::experimental::streaming_interface_key::value_t<option>>
+    : std::true_type {};
+template <intel::experimental::register_map_interface_options_enum option>
+struct HasCompileTimeEffect<
+    intel::experimental::register_map_interface_key::value_t<option>>
+    : std::true_type {};
+
 template <intel::experimental::streaming_interface_options_enum Stall_Free>
 struct PropertyMetaInfo<
     intel::experimental::streaming_interface_key::value_t<Stall_Free>> {
