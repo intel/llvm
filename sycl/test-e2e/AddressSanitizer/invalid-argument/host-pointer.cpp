@@ -22,7 +22,7 @@ int main() {
   Q.wait();
 
   // CHECK-GPU: ERROR: DeviceSanitizer: invalid-argument
-  // CHECK-GPU: The 0th argument {{.*}} is not a USM pointer
+  // CHECK-GPU: The 1th argument {{.*}} is not a USM pointer
   // CHECK-CPU-NOT: ERROR: DeviceSanitizer: invalid-argument
 
   delete hostPtr;
