@@ -610,14 +610,14 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   };
 
   if (MatchMagicNumber(uint32_t{0x07230203}))
-    return PI_DEVICE_BINARY_TYPE_SPIRV;
+    return SYCL_DEVICE_BINARY_TYPE_SPIRV;
 
   if (MatchMagicNumber(uint32_t{0xDEC04342}))
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   if (MatchMagicNumber(uint32_t{0x43544E49}))
     // 'I', 'N', 'T', 'C' ; Intel native
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
@@ -625,16 +625,16 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
     if (ELFHdrType == 0xFF04)
       // OpenCL executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     if (ELFHdrType == 0xFF12)
       // ZEBIN executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     // Newer ZEBIN format does not have a special header type, but can instead
     // be identified by having a required .ze_info section.
     if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
   }
 
   if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
@@ -643,9 +643,9 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
     //
     // option.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
+    return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
-  return PI_DEVICE_BINARY_TYPE_NONE;
+  return SYCL_DEVICE_BINARY_TYPE_NONE;
 }
 
 } // namespace pi

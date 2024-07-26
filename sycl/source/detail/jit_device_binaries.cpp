@@ -22,9 +22,9 @@ OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
   std::memcpy(KernelName.get(), Name.c_str(), Name.length() + 1);
 }
 
-_pi_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
-  return _pi_offload_entry_struct{Address, KernelName.get(), EntrySize,
-                                  EntryFlags, EntryReserved};
+_sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
+  return _sycl_offload_entry_struct{Address, KernelName.get(), EntrySize,
+                                    EntryFlags, EntryReserved};
 }
 
 PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
@@ -37,13 +37,13 @@ PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
 
 PropertyContainer::PropertyContainer(const std::string &Name, uint32_t Data)
     : PropName{new char[Name.length() + 1]}, Value{}, ValueSize{Data},
-      PropType{PI_PROPERTY_TYPE_UINT32} {
+      PropType{SYCL_PROPERTY_TYPE_UINT32} {
   std::memcpy(PropName.get(), Name.c_str(), Name.length() + 1);
 }
 
-_pi_device_binary_property_struct PropertyContainer::getPIProperty() {
-  return _pi_device_binary_property_struct{PropName.get(), Value.get(),
-                                           PropType, ValueSize};
+_sycl_device_binary_property_struct PropertyContainer::getPIProperty() {
+  return _sycl_device_binary_property_struct{PropName.get(), Value.get(),
+                                             PropType, ValueSize};
 }
 
 PropertySetContainer::PropertySetContainer(const std::string &Name)
@@ -61,9 +61,10 @@ void PropertySetContainer::addProperty(PropertyContainer &&Prop) {
   Properties.push_back(std::move(Prop));
 }
 
-_pi_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
+_sycl_device_binary_property_set_struct
+PropertySetContainer::getPIPropertySet() {
   Fused = false;
-  return _pi_device_binary_property_set_struct{
+  return _sycl_device_binary_property_set_struct{
       const_cast<char *>(SetName.get()), PIProperties.data(),
       PIProperties.data() + Properties.size()};
 }
@@ -88,12 +89,12 @@ void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
   PropertySets.push_back(std::move(Cont));
 }
 
-pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
+sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
-    pi_device_binary_type Format) {
-  pi_device_binary_struct DeviceBinary;
-  DeviceBinary.Version = PI_DEVICE_BINARY_VERSION;
-  DeviceBinary.Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+    sycl_device_binary_type Format) {
+  sycl_device_binary_struct DeviceBinary;
+  DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
+  DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = "";
   DeviceBinary.LinkOptions = "";
@@ -116,7 +117,7 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
                                                const unsigned char *BinaryStart,
                                                size_t BinarySize,
                                                const char *TargetSpec,
-                                               pi_device_binary_type Format) {
+                                               sycl_device_binary_type Format) {
   // Adding to the vectors might trigger reallocation, which would invalidate
   // the pointers used for PI structs if a PI struct has already been created
   // via getPIDeviceStruct(). Forbid calls to this method after the first PI
@@ -127,10 +128,10 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
   Binaries.push_back(std::move(Cont));
 }
 
-pi_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
+sycl_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
 
-  PIStruct = std::make_unique<pi_device_binaries_struct>();
-  PIStruct->Version = PI_DEVICE_BINARIES_VERSION;
+  PIStruct = std::make_unique<sycl_device_binaries_struct>();
+  PIStruct->Version = SYCL_DEVICE_BINARIES_VERSION;
   PIStruct->NumDeviceBinaries = PIBinaries.size();
   PIStruct->DeviceBinaries = PIBinaries.data();
   // According to documentation in pi.h, the HostEntries are not used and

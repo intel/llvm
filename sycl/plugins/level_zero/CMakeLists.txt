@@ -47,6 +47,7 @@ add_sycl_plugin(level_zero
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
     ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/level_zero
     ${XPTI_INCLUDE}
+    "${SYCL_SOURCE_DIR}/source" # for compiler.hpp
   LIBRARIES
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers

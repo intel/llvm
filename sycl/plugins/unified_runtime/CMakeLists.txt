@@ -229,6 +229,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+    "${SYCL_SOURCE_DIR}/source" # for compiler.hpp
 )
 
 # We need for #include <ze_api.h> in common.h
