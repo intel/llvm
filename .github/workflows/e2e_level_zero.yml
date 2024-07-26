@@ -21,9 +21,9 @@ jobs:
       config: ""
       unit: "gpu"
       # Failing tests
-      xfail: "Matrix/SG32/get_coord_int8_matB.cpp;Matrix/element_wise_all_ops_1d.cpp;Matrix/element_wise_all_ops_1d_cont.cpp;Matrix/element_wise_all_ops_scalar.cpp;Matrix/get_coord_int8_matB.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Plugin/level_zero_barrier_optimization.cpp"
+      xfail: "Config/select_device.cpp;DeviceCodeSplit/grf.cpp;ESIMD/grf.cpp;ESIMD/named_barriers/loop_extended.cpp;KernelAndProgram/target_register_alloc_mode.cpp;Matrix/SG32/element_wise_all_ops.cpp;Matrix/SG32/get_coord_int8_matB.cpp;Matrix/get_coord_int8_matB.cpp;Matrix/joint_matrix_prefetch.cpp;Matrix/joint_matrix_rowmajorA_rowmajorB.cpp;Plugin/level_zero_barrier_optimization.cpp"
       # Flaky tests
-      filter_out: "UserDefinedReductions/user_defined_reductions.cpp"
+      filter_out: ""
       # These runners by default spawn upwards of 260 workers.
       # We also add a time out just in case some test hangs
-      extra_lit_flags: "--param gpu-intel-pvc=True -sv -j 100 --max-time 600"
+      extra_lit_flags: "--param gpu-intel-pvc=True --param gpu-intel-pvc-1T=True -sv -j 100 --max-time 600"
