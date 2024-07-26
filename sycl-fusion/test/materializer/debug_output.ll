@@ -1,5 +1,7 @@
-; https://github.com/intel/llvm/issues/14783
-; REQUIRES: TEMPORARY_DISABLED
+; This test relies on debug output from a pass, make sure that the compiler can
+; generate it.
+; REQUIRES: asserts
+
 ; RUN: %if hip_amd %{ env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" opt\
 ; RUN: -load-pass-plugin %shlibdir/SYCLKernelFusion%shlibext --mtriple amdgcn-amd-amdhsa\
 ; RUN: -passes=sycl-spec-const-materializer,sccp -S %s 2> %t.stderr\
