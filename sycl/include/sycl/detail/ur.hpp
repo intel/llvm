@@ -94,7 +94,7 @@ template <class To, class From> To cast(From value);
 template <class To, class From> inline To cast(From value) {
   // TODO: see if more sanity checks are possible.
   static_assert(sizeof(From) == sizeof(To), "assert: cast failed size check");
-  return reinterpret_cast<To>(value);
+  return (To)(value);
 }
 
 // Helper traits for identifying std::vector with arbitrary element type.
