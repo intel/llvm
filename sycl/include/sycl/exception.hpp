@@ -14,11 +14,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/string.hpp>
-#include <ur_api.h> // for ur_result_t
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
-#include <sstream>      // for stringstream
 #include <string>       // for string, basic_string, opera...
 #include <system_error> // for error_code, error_category
 #include <type_traits>  // for true_type

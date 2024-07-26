@@ -49,7 +49,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <ur_api.h>
 
 #include <assert.h>
 #include <functional>
