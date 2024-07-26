@@ -314,7 +314,7 @@ work-item which is to be mapped from the local memory of the work-group, as
 specified by the group_id, denoting the linear group_id within the cluster
 |===
 
-Conversely, `get_linear_cluster_group_id_for_local_pointer` will return the 
+Conversely, `get_cluster_group_linear_id_for_local_pointer` will return the 
 linearized id of the work-group a mapped local memory address belongs to.
 
 [%header,cols="10,5"]
@@ -322,7 +322,7 @@ linearized id of the work-group a mapped local memory address belongs to.
 |Method
 |Description
 
-|size_t  get_linear_cluster_group_id_for_local_pointer(T* addr)
+|size_t  get_cluster_group_linear_id_for_local_pointer(T* addr)
 |Accepts a mapped pointer to the local memory of another work-group and returns
 the linearized id of the work-group in the cluster from whom's local memory the
 mapped pointer was obtained
@@ -395,7 +395,7 @@ This Specification does not mention the forward progress guarantees of the
    cluster_group. 
 
 The functions `map_cluster_local_pointer` and 
-`get_linear_cluster_group_id_for_local_pointer` do not differentiate between
+`get_cluster_group_linear_id_for_local_pointer` do not differentiate between
 generic and local memory address space.
 
 
