@@ -9,10 +9,17 @@ from .velocity import VelocityBase, VelocityBench
 from utils.utils import run
 import os
 import re
+import shutil
 
 class CudaSift(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("cudaSift", "cudaSift", vb)
+
+    def download_deps(self):
+        images = os.path.join(self.vb.repo_path, self.bench_name, 'inputData')
+        dest = os.path.join(self.directory, 'inputData')
+        if not os.path.exists(dest):
+            shutil.copytree(images, dest)
 
     def name(self):
         return "Velocity-Bench CudaSift"
