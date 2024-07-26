@@ -26,7 +26,6 @@ set(SYCL_PI_UR_SOURCE_DIR
 # Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
-set(UMF_ENABLE_POOL_TRACKING ON)
 set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_TRACING ON)
 
@@ -114,13 +113,21 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e161516663bd5d14d15532dfaba626d5cdf32ed8
-  # Merge: 47633088 febb18bb
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jul 24 13:54:43 2024 +0100
-  #     Merge pull request #1521 from AllanZyne/review/yang/dg2
-  #     [DeviceSanitizer] Support GPU DG2 & GEN Device
-  set(UNIFIED_RUNTIME_TAG e161516663bd5d14d15532dfaba626d5cdf32ed8)
+  # commit 3d8fe8d298cec8db624fc230fa5c0e19865aa6f1
+  # Merge: e8c9f3db 0a259f33
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Jul 25 15:13:00 2024 +0200
+  #     Merge pull request #1430 from igchor/umf_dynamic_linking
+  #     Bump UMF version and switch to dynamic linking
+  set(UNIFIED_RUNTIME_TAG 3d8fe8d298cec8db624fc230fa5c0e19865aa6f1)
+
+  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
+  # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
+  # to link statically on windows
+  if(WIN32)
+    set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -206,7 +213,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS umf)
+add_library(UnifiedMemoryFramework ALIAS ur_umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -289,3 +296,11 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     Some valid SYCL programs may not build or may have low performance.")
   endif()
 endif()
+
+add_dependencies(sycl-runtime-libraries ur_umf)
+
+# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+install(TARGETS umf
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)

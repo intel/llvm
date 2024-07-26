@@ -3,7 +3,11 @@
 
 // REQUIRES: gpu, level_zero
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env ZES_ENABLE_SYSMAN=0 %{run} %t.out
+// Explicitly set 'ZES_ENABLE_SYSMAN=0'. HWLOC initializes this environment
+// variable in its constructor, causing this test to fail, as retrieving
+// free memory information is expected not to work in this test.
+// For more context, see: https://github.com/oneapi-src/level-zero/issues/36.
 
 #include <sycl/detail/core.hpp>
 int main() {
