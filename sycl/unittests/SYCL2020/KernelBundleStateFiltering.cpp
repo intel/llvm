@@ -77,7 +77,7 @@ sycl::unittest::UrImage Imgs[] = {
     generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA),
     generateDefaultImage({"KernelD"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
@@ -149,8 +149,7 @@ void verifyImageUse(const std::vector<unsigned char> &ExpectedImages) {
   UsedImageIndices.clear();
 }
 
-// TOOD: re-enable, see https://github.com/intel/llvm/issues/14598
-TEST(KernelBundle, DISABLED_DeviceImageStateFiltering) {
+TEST(KernelBundle, DeviceImageStateFiltering) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urProgramCreateWithIL",
                                           &redefinedUrProgramCreate);
