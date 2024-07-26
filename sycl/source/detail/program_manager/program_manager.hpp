@@ -36,12 +36,12 @@
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
 /// Registers device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_register_lib(ur_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_register_lib(sycl_device_binaries desc);
 
 /// Executed as a part of current module's (.exe, .dll) static
 /// de-initialization.
 /// Unregisters device executable images with the runtime.
-extern "C" __SYCL_EXPORT void __sycl_unregister_lib(ur_device_binaries desc);
+extern "C" __SYCL_EXPORT void __sycl_unregister_lib(sycl_device_binaries desc);
 
 // +++ }
 
@@ -171,7 +171,7 @@ public:
   ur_program_handle_t getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                                const ContextImplPtr Context);
 
-  void addImages(ur_device_binaries DeviceImages);
+  void addImages(sycl_device_binaries DeviceImages);
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr Context);

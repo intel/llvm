@@ -64,7 +64,7 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   UrPropertySet PropSet;
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
-  PropSet.insert(__SYCL_UR_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  UrArray<UrProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
@@ -72,10 +72,10 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -95,7 +95,7 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
   UrPropertySet PropSet;
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
-  PropSet.insert(__SYCL_UR_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
                  UrArray<UrProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
@@ -103,10 +103,10 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
   UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

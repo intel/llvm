@@ -53,9 +53,10 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool IsSupportedImageFormat(ur_device_binary_type Format) {
-  return Format == UR_DEVICE_BINARY_TYPE_SPIRV ||
-         Format == UR_DEVICE_BINARY_TYPE_NATIVE;
+static bool
+IsSupportedImageFormat(ur::DeviceBinaryType Format) {
+  return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == SYCL_DEVICE_BINARY_TYPE_NATIVE;
 }
 
 /* Returns true if specified images should be cached on disk. It checks if

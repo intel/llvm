@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/ur.hpp>
@@ -66,6 +67,15 @@ private:
   std::optional<ur_event_handle_t> MEvent;
   const PluginPtr &MPlugin;
 };
+
+namespace ur {
+using DeviceBinaryType = ::sycl_device_binary_type;
+
+/// Tries to determine the device binary image foramat. Returns
+/// SYCL_DEVICE_BINARY_TYPE_NONE if unsuccessful.
+DeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
+                                      size_t ImgSize);
+} // namespace ur
 
 } // namespace detail
 } // namespace _V1

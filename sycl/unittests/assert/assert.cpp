@@ -88,10 +88,10 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -111,10 +111,10 @@ static sycl::unittest::UrImage generateCopierKernelImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

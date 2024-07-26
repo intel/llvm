@@ -80,10 +80,10 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
-  UrImage Img{UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "-compile-img",                         // Compile options
-              "-link-img",                            // Link options
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "-compile-img",                      // Compile options
+              "-link-img",                         // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};

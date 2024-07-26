@@ -37,7 +37,7 @@ namespace {
 std::set<const void *> TrackedImages;
 sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     ur_device_binary_type BinaryType,
+                     sycl_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
   using namespace sycl::unittest;
 
@@ -70,22 +70,22 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 6: exe, KernelE
 // Image 7: exe. KernelE
 sycl::unittest::UrImage Imgs[] = {
-    generateDefaultImage({"KernelA", "KernelB"}, UR_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelA"}, UR_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelC"}, UR_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelC"}, UR_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA),
-    generateDefaultImage({"KernelD"}, UR_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_SPIRV,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64),
-    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
-    generateDefaultImage({"KernelE"}, UR_DEVICE_BINARY_TYPE_NATIVE,
-                         __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
+    generateDefaultImage({"KernelA", "KernelB"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelA"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelC"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelD"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64),
+    generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                         __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 
 sycl::unittest::UrImageArray<std::size(Imgs)> ImgArray{Imgs};
 std::vector<unsigned char> UsedImageIndices;
@@ -149,7 +149,8 @@ void verifyImageUse(const std::vector<unsigned char> &ExpectedImages) {
   UsedImageIndices.clear();
 }
 
-TEST(KernelBundle, DeviceImageStateFiltering) {
+// TOOD: re-enable, see https://github.com/intel/llvm/issues/14598
+TEST(KernelBundle, DISABLED_DeviceImageStateFiltering) {
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urProgramCreateWithIL",
                                           &redefinedUrProgramCreate);

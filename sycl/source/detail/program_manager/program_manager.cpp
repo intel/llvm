@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/compiler.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_image_impl.hpp>
@@ -73,7 +74,7 @@ ProgramManager &ProgramManager::getInstance() {
 static ur_program_handle_t
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
-                    const std::vector<ur_program_metadata_t> &Metadata) {
+                    const std::vector<ur_program_metadata_t> Metadata) {
   const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   uint32_t NumDevices = 0;
@@ -116,10 +117,11 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
 }
 
 // TODO replace this with a new UR API function
-static bool isDeviceBinaryTypeSupported(const context &C,
-                                        ur_device_binary_type Format) {
-  // All formats except UR_DEVICE_BINARY_TYPE_SPIRV are supported.
-  if (Format != UR_DEVICE_BINARY_TYPE_SPIRV)
+static bool
+isDeviceBinaryTypeSupported(const context &C,
+                            ur::DeviceBinaryType Format) {
+  // All formats except SYCL_DEVICE_BINARY_TYPE_SPIRV are supported.
+  if (Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     return true;
 
   const backend ContextBackend = detail::getSyclObjImpl(C)->getBackend();
@@ -160,15 +162,15 @@ static bool isDeviceBinaryTypeSupported(const context &C,
 }
 
 // getFormatStr is used for debug-printing, so it may be unused.
-[[maybe_unused]] static const char *getFormatStr(ur_device_binary_type Format) {
+[[maybe_unused]] static const char *getFormatStr(ur::DeviceBinaryType Format) {
   switch (Format) {
-  case UR_DEVICE_BINARY_TYPE_NONE:
+  case SYCL_DEVICE_BINARY_TYPE_NONE:
     return "none";
-  case UR_DEVICE_BINARY_TYPE_NATIVE:
+  case SYCL_DEVICE_BINARY_TYPE_NATIVE:
     return "native";
-  case UR_DEVICE_BINARY_TYPE_SPIRV:
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     return "SPIR-V";
-  case UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return "LLVM IR";
   }
   assert(false && "Unknown device image format");
@@ -182,7 +184,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
               << getSyclObjImpl(Context).get() << ", "
               << getSyclObjImpl(Device).get() << ")\n";
-  const ur_device_binary_struct &RawImg = Img.getRawData();
+  const sycl_device_binary_struct &RawImg = Img.getRawData();
 
   // perform minimal sanity checks on the device image and the descriptor
   if (RawImg.BinaryEnd < RawImg.BinaryStart) {
@@ -201,10 +203,12 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   //   implementation, so will be implemented together with it.
   //   Img->Format can't be updated as it is inside of the in-memory
   //   OS module binary.
-  ur_device_binary_type Format = Img.getFormat();
+  ur::DeviceBinaryType Format = Img.getFormat();
 
-  if (Format == UR_DEVICE_BINARY_TYPE_NONE)
+  if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     Format = ur::getBinaryImageFormat(RawImg.BinaryStart, ImgSize);
+  // sycl::detail::pi::PiDeviceBinaryType Format = Img->Format;
+  // assert(Format != SYCL_DEVICE_BINARY_TYPE_NONE && "Image format not set");
 
   if (!isDeviceBinaryTypeSupported(Context, Format))
     throw sycl::exception(
@@ -213,13 +217,11 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
 
   // Get program metadata from properties
   auto ProgMetadata = Img.getProgramMetadataUR();
-  // std::vector<ur_program_metadata_t> ProgMetadataVector{ProgMetadata.begin(),
-  //                                                       ProgMetadata.end()};
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
   ur_program_handle_t Res =
-      Format == UR_DEVICE_BINARY_TYPE_SPIRV
+      Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize,
                                 ProgMetadata);
@@ -255,13 +257,13 @@ static void appendLinkOptionsFromImage(std::string &LinkOpts,
 
 static bool getUint32PropAsBool(const RTDeviceBinaryImage &Img,
                                 const char *PropName) {
-  ur_device_binary_property Prop = Img.getProperty(PropName);
+  sycl_device_binary_property Prop = Img.getProperty(PropName);
   return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
 }
 
 static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
                                          const char *PropName) {
-  ur_device_binary_property Prop = Img.getProperty(PropName);
+  sycl_device_binary_property Prop = Img.getProperty(PropName);
   std::stringstream ss;
   if (!Prop)
     return "";
@@ -279,9 +281,9 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
                                          bool IsEsimdImage) {
   // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
   // next ABI break.
-  ur_device_binary_property RegAllocModeProp =
+  sycl_device_binary_property RegAllocModeProp =
       Img.getProperty("sycl-register-alloc-mode");
-  ur_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
+  sycl_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
 
   if (!RegAllocModeProp && !GRFSizeProp)
     return;
@@ -526,26 +528,26 @@ static void emitBuiltProgramInfo(const ur_program_handle_t &Prog,
 }
 
 static const char *getUrDeviceTarget(const char *URDeviceTarget) {
-  if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+  if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
     return UR_DEVICE_BINARY_TARGET_UNKNOWN;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV32;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64;
   else if (strcmp(URDeviceTarget,
-                  __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
            0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
   else if (strcmp(URDeviceTarget,
-                  __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
     return UR_DEVICE_BINARY_TARGET_AMDGCN;
-  else if (strcmp(URDeviceTarget, __SYCL_UR_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
            0)
     return "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
 
@@ -564,8 +566,8 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   // compatible with implementation. The function returns invalid index if no
   // device images are compatible.
   uint32_t SuitableImageID = std::numeric_limits<uint32_t>::max();
-  ur_device_binary DevBin =
-      const_cast<ur_device_binary>(&BinImage->getRawData());
+  sycl_device_binary DevBin =
+      const_cast<sycl_device_binary>(&BinImage->getRawData());
 
   ur_device_binary_t UrBinary{};
   UrBinary.pDeviceTargetSpec = getUrDeviceTarget(DevBin->DeviceTargetSpec);
@@ -587,12 +589,13 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
   std::set<RTDeviceBinaryImage *> DeviceImagesToLink;
   std::set<std::string> HandledSymbols;
   std::queue<std::string> WorkList;
-  for (const ur_device_binary_property &ISProp : MainImg.getImportedSymbols()) {
+  for (const sycl_device_binary_property &ISProp :
+       MainImg.getImportedSymbols()) {
     WorkList.push(ISProp->Name);
     HandledSymbols.insert(ISProp->Name);
   }
-  ur_device_binary_type Format = MainImg.getFormat();
-  if (!WorkList.empty() && Format != UR_DEVICE_BINARY_TYPE_SPIRV)
+  ur::DeviceBinaryType Format = MainImg.getFormat();
+  if (!WorkList.empty() && Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     throw exception(make_error_code(errc::feature_not_supported),
                     "Dynamic linking is not supported for AOT compilation yet");
   while (!WorkList.empty()) {
@@ -609,7 +612,7 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
         continue;
       DeviceImagesToLink.insert(Img);
       Found = true;
-      for (const ur_device_binary_property &ISProp :
+      for (const sycl_device_binary_property &ISProp :
            Img->getImportedSymbols()) {
         if (HandledSymbols.insert(ISProp->Name).second)
           WorkList.push(ISProp->Name);
@@ -639,7 +642,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   // already seen.
   std::set<std::string> HandledSets;
   std::queue<std::string> WorkList;
-  for (const ur_device_binary_property &VFProp : Img.getVirtualFunctions()) {
+  for (const sycl_device_binary_property &VFProp : Img.getVirtualFunctions()) {
     std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
     // Device image passed to this function is expected to contain SYCL kernels
     // and therefore it may only use virtual function sets, but cannot provide
@@ -664,7 +667,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // virtual-functions-set properties, but their handling is the same: we
       // just grab all sets they reference and add them for consideration if
       // we haven't done so already.
-      for (const ur_device_binary_property &VFProp :
+      for (const sycl_device_binary_property &VFProp :
            BinImage->getVirtualFunctions()) {
         std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
         for (const auto &SetName : detail::split_string(StrValue, ',')) {
@@ -801,7 +804,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
     if (!DeviceCodeWasInCache &&
-        Img.getFormat() == UR_DEVICE_BINARY_TYPE_SPIRV &&
+        Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -1047,7 +1050,7 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 
 // TODO device libraries may use scpecialization constants, manifest files, etc.
 // To support that they need to be delivered in a different container - so that
-// ur_device_binary_struct can be created for each of them.
+// sycl_device_binary_struct can be created for each of them.
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           ur_program_handle_t &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
@@ -1230,13 +1233,13 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   if (!JITCompilationIsRequired)
     return;
   // If the image is already compiled with AOT, throw an exception.
-  const ur_device_binary_struct &RawImg = Image->getRawData();
+  const sycl_device_binary_struct &RawImg = Image->getRawData();
   if ((strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
       (strcmp(RawImg.DeviceTargetSpec,
-              __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)) {
     throw sycl::exception(sycl::errc::feature_not_supported,
                           "Recompiling AOT image is not supported");
   }
@@ -1250,10 +1253,11 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (ItBegin == ItEnd)
     return nullptr;
 
-  std::vector<ur_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
+  std::vector<sycl_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
   auto It = ItBegin;
   for (unsigned I = 0; It != ItEnd; ++It, ++I)
-    RawImgs[I] = const_cast<ur_device_binary>(&It->second->getRawData());
+    RawImgs[I] = reinterpret_cast<sycl_device_binary>(
+        const_cast<sycl_device_binary>(&It->second->getRawData()));
 
   std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
   for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
@@ -1337,10 +1341,11 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   }
 
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
-  std::vector<ur_device_binary> RawImgs(ImageSet.size());
+  std::vector<sycl_device_binary> RawImgs(ImageSet.size());
   auto ImageIterator = ImageSet.begin();
   for (size_t i = 0; i < ImageSet.size(); i++, ImageIterator++)
-    RawImgs[i] = const_cast<ur_device_binary>(&(*ImageIterator)->getRawData());
+    RawImgs[i] = reinterpret_cast<sycl_device_binary>(
+        const_cast<sycl_device_binary>(&(*ImageIterator)->getRawData()));
   uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
@@ -1565,12 +1570,12 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
   return m_KernelUsesAssert.find(KernelName) != m_KernelUsesAssert.end();
 }
 
-void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
+void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
-    ur_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
-    const _ur_offload_entry EntriesB = RawImg->EntriesBegin;
-    const _ur_offload_entry EntriesE = RawImg->EntriesEnd;
+    sycl_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
+    const sycl_offload_entry EntriesB = RawImg->EntriesBegin;
+    const sycl_offload_entry EntriesE = RawImg->EntriesEnd;
     // Treat the image as empty one
     if (EntriesB == EntriesE)
       continue;
@@ -1593,12 +1598,14 @@ void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
     // Register all exported symbols
-    for (const ur_device_binary_property &ESProp : Img->getExportedSymbols()) {
+    for (const sycl_device_binary_property &ESProp :
+         Img->getExportedSymbols()) {
       m_ExportedSymbolImages.insert({ESProp->Name, Img.get()});
     }
 
     // Record mapping between virtual function sets and device images
-    for (const ur_device_binary_property &VFProp : Img->getVirtualFunctions()) {
+    for (const sycl_device_binary_property &VFProp :
+         Img->getVirtualFunctions()) {
       std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage[SetName].insert(Img.get());
@@ -1615,7 +1622,7 @@ void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
 
     m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-    for (_ur_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+    for (sycl_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          ++EntriesIt) {
 
       // Skip creating unique kernel ID if it is a service kernel.
@@ -1652,7 +1659,7 @@ void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
 
     // check if kernel uses asan
     {
-      ur_device_binary_property Prop = Img->getProperty("asanUsed");
+      sycl_device_binary_property Prop = Img->getProperty("asanUsed");
       m_AsanFoundInImage |=
           Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
     }
@@ -1666,7 +1673,7 @@ void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
       std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
 
       auto DeviceGlobals = Img->getDeviceGlobals();
-      for (const ur_device_binary_property &DeviceGlobal : DeviceGlobals) {
+      for (const sycl_device_binary_property &DeviceGlobal : DeviceGlobals) {
         ByteArray DeviceGlobalInfo =
             DeviceBinaryProperty(DeviceGlobal).asByteArray();
 
@@ -1703,7 +1710,7 @@ void ProgramManager::addImages(ur_device_binaries DeviceBinary) {
     {
       std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
       auto HostPipes = Img->getHostPipes();
-      for (const ur_device_binary_property &HostPipe : HostPipes) {
+      for (const sycl_device_binary_property &HostPipe : HostPipes) {
         ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
 
         // The supplied host_pipe info property is expected to contain:
@@ -1745,16 +1752,16 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
-  const ur_device_binary_struct &RawImg = Img.getRawData();
+  const sycl_device_binary_struct &RawImg = Img.getRawData();
   Fname += RawImg.DeviceTargetSpec;
   if (SequenceID)
     Fname += '_' + std::to_string(SequenceID);
   std::string Ext;
 
-  ur_device_binary_type Format = Img.getFormat();
-  if (Format == UR_DEVICE_BINARY_TYPE_SPIRV)
+  ur::DeviceBinaryType Format = Img.getFormat();
+  if (Format == SYCL_DEVICE_BINARY_TYPE_SPIRV)
     Ext = ".spv";
-  else if (Format == UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
+  else if (Format == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE)
     Ext = ".bc";
   else
     Ext = ".bin";
@@ -1814,10 +1821,9 @@ ProgramManager::getEliminatedKernelArgMask(ur_program_handle_t NativePrg,
 
 static bundle_state getBinImageState(const RTDeviceBinaryImage *BinImage) {
   auto IsAOTBinary = [](const char *Format) {
-    return (
-        (strcmp(Format, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
-        (strcmp(Format, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
-        (strcmp(Format, __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
+    return ((strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0) ||
+            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) ||
+            (strcmp(Format, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0));
   };
 
   // There are only two initial states so far - SPIRV which needs to be compiled
@@ -2261,7 +2267,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Add support for creating non-SPIRV programs from multiple devices.
   if (InputImpl->get_bin_image_ref()->getFormat() !=
-          UR_DEVICE_BINARY_TYPE_SPIRV &&
+          SYCL_DEVICE_BINARY_TYPE_SPIRV &&
       Devs.size() > 1)
     // FIXME: It was probably intended to be thrown, but a unittest starts
     // failing if we do so, investigate independently of switching to SYCL 2020
@@ -2460,7 +2466,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
-            UR_DEVICE_BINARY_TYPE_SPIRV &&
+            SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         Devs.size() > 1)
       // FIXME: It was probably intended to be thrown, but a unittest starts
       // failing if we do so, investigate independently of switching to SYCL
@@ -2486,7 +2492,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (Img.getFormat() == UR_DEVICE_BINARY_TYPE_SPIRV &&
+    if (Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
@@ -3202,12 +3208,12 @@ checkDevSupportDeviceRequirements(const device &Dev,
 } // namespace _V1
 } // namespace sycl
 
-extern "C" void __sycl_register_lib(ur_device_binaries desc) {
+extern "C" void __sycl_register_lib(sycl_device_binaries desc) {
   sycl::detail::ProgramManager::getInstance().addImages(desc);
 }
 
 // Executed as a part of current module's (.exe, .dll) static initialization
-extern "C" void __sycl_unregister_lib(ur_device_binaries desc) {
+extern "C" void __sycl_unregister_lib(sycl_device_binaries desc) {
   (void)desc;
   // TODO implement the function
 }

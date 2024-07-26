@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <detail/compiler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <ur_api.h>
+#include "ur_utils.hpp"
 
 #include <sycl/detail/iostream_proxy.hpp>
 
@@ -63,10 +65,10 @@ private:
   std::size_t Size;
 };
 
-// C++ wrapper over the _ur_device_binary_property_struct structure.
+// C++ wrapper over the _sycl_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
-  DeviceBinaryProperty(const _ur_device_binary_property_struct *Prop)
+  DeviceBinaryProperty(const _sycl_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
   uint32_t asUint32() const;
@@ -76,7 +78,7 @@ public:
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
                                   const DeviceBinaryProperty &P);
-  const _ur_device_binary_property_struct *Prop;
+  const _sycl_device_binary_property_struct *Prop;
 };
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
@@ -88,19 +90,19 @@ public:
   // Implements the standard C++ STL input iterator interface.
   class PropertyRange {
   public:
-    using ValTy = std::remove_pointer<ur_device_binary_property>::type;
+    using ValTy = std::remove_pointer<sycl_device_binary_property>::type;
 
     class ConstIterator {
-      ur_device_binary_property Cur;
+      sycl_device_binary_property Cur;
 
     public:
       using iterator_category = std::input_iterator_tag;
       using value_type = ValTy;
       using difference_type = ptrdiff_t;
-      using pointer = const ur_device_binary_property;
-      using reference = ur_device_binary_property;
+      using pointer = const sycl_device_binary_property;
+      using reference = sycl_device_binary_property;
 
-      ConstIterator(ur_device_binary_property Cur = nullptr) : Cur(Cur) {}
+      ConstIterator(sycl_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;
         return *this;
@@ -125,18 +127,18 @@ public:
     // Searches for a property set with given name and constructs a
     // PropertyRange spanning all its elements. If property set is not found,
     // the range will span zero elements.
-    PropertyRange(ur_device_binary Bin, const char *PropSetName)
+    PropertyRange(sycl_device_binary Bin, const char *PropSetName)
         : PropertyRange() {
       init(Bin, PropSetName);
     };
-    void init(ur_device_binary Bin, const char *PropSetName);
-    ur_device_binary_property Begin;
-    ur_device_binary_property End;
+    void init(sycl_device_binary Bin, const char *PropSetName);
+    sycl_device_binary_property Begin;
+    sycl_device_binary_property End;
   };
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(ur_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -148,10 +150,10 @@ public:
   virtual ~RTDeviceBinaryImage() {}
 
   bool supportsSpecConstants() const {
-    return getFormat() == UR_DEVICE_BINARY_TYPE_SPIRV;
+    return getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV;
   }
 
-  const ur_device_binary_struct &getRawData() const { return *get(); }
+  const sycl_device_binary_struct &getRawData() const { return *get(); }
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
@@ -172,13 +174,13 @@ public:
   }
 
   /// Returns the format of the binary image
-  ur_device_binary_type getFormat() const {
+  ur::DeviceBinaryType getFormat() const {
     assert(Bin && "binary image data not set");
     return Format;
   }
 
   /// Returns a single property from SYCL_MISC_PROP category.
-  ur_device_binary_property getProperty(const char *PropName) const;
+  sycl_device_binary_property getProperty(const char *PropName) const;
 
   /// Gets the iterator range over specialization constants in this binary
   /// image. For each property pointed to by an iterator within the
@@ -232,12 +234,12 @@ public:
   }
 
 protected:
-  void init(ur_device_binary Bin);
-  ur_device_binary get() const { return Bin; }
+  void init(sycl_device_binary Bin);
+  sycl_device_binary get() const { return Bin; }
 
-  ur_device_binary Bin;
+  sycl_device_binary Bin;
 
-  ur_device_binary_type Format = UR_DEVICE_BINARY_TYPE_NONE;
+  ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;

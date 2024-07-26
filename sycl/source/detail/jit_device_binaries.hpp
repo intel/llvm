@@ -8,17 +8,19 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
+#include <sycl/detail/ur.hpp>
+
 #include <cstring>
 #include <memory>
-#include <sycl/detail/ur.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// Representation of _ur_offload_entry for creation of JIT device binaries at
-/// runtime.
-/// Owns the necessary data and provides raw pointers for the UR struct.
+/// Representation of _sycl_offload_entry_struct for creation of JIT device
+/// binaries at runtime. Owns the necessary data and provides raw pointers for
+/// the UR struct.
 class OffloadEntryContainer {
 public:
   OffloadEntryContainer(const std::string &Name, void *Addr, size_t Size,
@@ -31,7 +33,7 @@ public:
   OffloadEntryContainer(const OffloadEntryContainer &) = delete;
   OffloadEntryContainer &operator=(const OffloadEntryContainer &) = delete;
 
-  _ur_offload_entry_struct getPIOffloadEntry();
+  _sycl_offload_entry_struct getPIOffloadEntry();
 
 private:
   std::unique_ptr<char[]> KernelName;
@@ -42,7 +44,7 @@ private:
   int32_t EntryReserved;
 };
 
-/// Representation of _ur_device_binary_property_struct for creation of JIT
+/// Representation of _sycl_device_binary_property_struct for creation of JIT
 /// device binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class PropertyContainer {
@@ -60,7 +62,7 @@ public:
   PropertyContainer(const PropertyContainer &) = delete;
   PropertyContainer &operator=(const PropertyContainer &) = delete;
 
-  _ur_device_binary_property_struct getPIProperty();
+  _sycl_device_binary_property_struct getPIProperty();
 
 private:
   std::unique_ptr<char[]> PropName;
@@ -69,9 +71,9 @@ private:
   uint32_t PropType;
 };
 
-/// Representation of _ur_device_binary_property_set_struct for creation of JIT
-/// device binaries at runtime.
-/// Owns the necessary data and provides raw pointers for the UR struct.
+/// Representation of _sycl_device_binary_property_set_struct for creation of
+/// JIT device binaries at runtime. Owns the necessary data and provides raw
+/// pointers for the UR struct.
 class PropertySetContainer {
 public:
   PropertySetContainer(const std::string &Name);
@@ -85,16 +87,16 @@ public:
 
   void addProperty(PropertyContainer &&Prop);
 
-  _ur_device_binary_property_set_struct getPIPropertySet();
+  _sycl_device_binary_property_set_struct getPIPropertySet();
 
 private:
   std::unique_ptr<char[]> SetName;
   bool Fused = true;
   std::vector<PropertyContainer> Properties;
-  std::vector<_ur_device_binary_property_struct> PIProperties;
+  std::vector<_sycl_device_binary_property_struct> PIProperties;
 };
 
-/// Representation of ur_device_binary_struct for creation of JIT device
+/// Representation of sycl_device_binary_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinaryContainer {
@@ -111,20 +113,20 @@ public:
 
   void addProperty(PropertySetContainer &&Cont);
 
-  ur_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
-                                            size_t BinarySize,
-                                            const char *TargetSpec,
-                                            ur_device_binary_type Format);
+  sycl_device_binary_struct getPIDeviceBinary(const unsigned char *BinaryStart,
+                                              size_t BinarySize,
+                                              const char *TargetSpec,
+                                              sycl_device_binary_type Format);
 
 private:
   bool Fused = true;
   std::vector<OffloadEntryContainer> OffloadEntries;
-  std::vector<_ur_offload_entry_struct> PIOffloadEntries;
+  std::vector<_sycl_offload_entry_struct> PIOffloadEntries;
   std::vector<PropertySetContainer> PropertySets;
-  std::vector<_ur_device_binary_property_set_struct> PIPropertySets;
+  std::vector<_sycl_device_binary_property_set_struct> PIPropertySets;
 };
 
-/// Representation of ur_device_binaries_struct for creation of JIT device
+/// Representation of sycl_device_binaries_struct for creation of JIT device
 /// binaries at runtime.
 /// Owns the necessary data and provides raw pointers for the UR struct.
 class DeviceBinariesCollection {
@@ -141,15 +143,15 @@ public:
 
   void addDeviceBinary(DeviceBinaryContainer &&Cont,
                        const unsigned char *BinaryStart, size_t BinarySize,
-                       const char *TargetSpec, ur_device_binary_type Format);
-  ur_device_binaries getPIDeviceStruct();
+                       const char *TargetSpec, sycl_device_binary_type Format);
+  sycl_device_binaries getPIDeviceStruct();
 
 private:
   bool Fused = true;
-  std::unique_ptr<ur_device_binaries_struct> PIStruct;
+  std::unique_ptr<sycl_device_binaries_struct> PIStruct;
 
   std::vector<DeviceBinaryContainer> Binaries;
-  std::vector<ur_device_binary_struct> PIBinaries;
+  std::vector<sycl_device_binary_struct> PIBinaries;
 };
 
 } // namespace detail

@@ -297,8 +297,6 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   endif()
 endif()
 
-add_dependencies(sycl-runtime-libraries ur_umf)
-
 # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
   LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev

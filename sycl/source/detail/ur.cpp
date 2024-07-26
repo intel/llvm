@@ -332,8 +332,8 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
   return readELFValue<uint16_t>(ImgData + 16, 2, IsBigEndian);
 }
 
-ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
-                                           size_t ImgSize) {
+sycl_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
+                                             size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
   auto MatchMagicNumber = [&](auto Number) {
     return ImgSize >= sizeof(Number) &&
@@ -341,14 +341,14 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
   };
 
   if (MatchMagicNumber(uint32_t{0x07230203}))
-    return UR_DEVICE_BINARY_TYPE_SPIRV;
+    return SYCL_DEVICE_BINARY_TYPE_SPIRV;
 
   if (MatchMagicNumber(uint32_t{0xDEC04342}))
-    return UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   if (MatchMagicNumber(uint32_t{0x43544E49}))
     // 'I', 'N', 'T', 'C' ; Intel native
-    return UR_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
@@ -356,16 +356,16 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
     uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
     if (ELFHdrType == 0xFF04)
       // OpenCL executable.
-      return UR_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     if (ELFHdrType == 0xFF12)
       // ZEBIN executable.
-      return UR_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     // Newer ZEBIN format does not have a special header type, but can instead
     // be identified by having a required .ze_info section.
     if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-      return UR_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
   }
 
   if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
@@ -374,26 +374,26 @@ ur_device_binary_type getBinaryImageFormat(const unsigned char *ImgData,
     //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
     //
     // option.
-    return UR_DEVICE_BINARY_TYPE_NATIVE;
+    return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
-  return UR_DEVICE_BINARY_TYPE_NONE;
+  return SYCL_DEVICE_BINARY_TYPE_NONE;
 }
 
 ur_program_metadata_t mapDeviceBinaryPropertyToProgramMetadata(
-    const ur_device_binary_property &DeviceBinaryProperty) {
+    const sycl_device_binary_property &DeviceBinaryProperty) {
   ur_program_metadata_t URMetadata{};
   URMetadata.pName = DeviceBinaryProperty->Name;
   URMetadata.size = DeviceBinaryProperty->ValSize;
   switch (DeviceBinaryProperty->Type) {
-  case UR_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     URMetadata.type = UR_PROGRAM_METADATA_TYPE_UINT32;
     URMetadata.value.data32 = DeviceBinaryProperty->ValSize;
     break;
-  case UR_PROPERTY_TYPE_BYTE_ARRAY:
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY:
     URMetadata.type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
     URMetadata.value.pData = DeviceBinaryProperty->ValAddr;
     break;
-  case UR_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     URMetadata.type = UR_PROGRAM_METADATA_TYPE_STRING;
     URMetadata.value.pString =
         reinterpret_cast<char *>(DeviceBinaryProperty->ValAddr);

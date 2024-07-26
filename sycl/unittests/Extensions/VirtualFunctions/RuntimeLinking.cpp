@@ -62,11 +62,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
   const std::string PropName =
       UsesVFSets ? "uses-virtual-functions-set" : "virtual-functions-set";
   sycl::unittest::UrProperty Prop(PropName, Storage,
-                                  UR_PROPERTY_TYPE_BYTE_ARRAY);
+                                  SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
   Props.push_back(Prop);
-  PropSet.insert(__SYCL_UR_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS,
-                 std::move(Props));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
 
   std::vector<unsigned char> Bin{Magic};
 
@@ -74,10 +73,10 @@ generateImage(std::initializer_list<std::string> KernelNames,
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::UrImage Img{
-      UR_DEVICE_BINARY_TYPE_SPIRV,            // Format
-      __SYCL_UR_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+      SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};
