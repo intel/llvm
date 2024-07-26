@@ -341,4 +341,67 @@ int test_volatile(volatile atomic_int *i) {
   return __opencl_atomic_load(i, memory_order_seq_cst, memory_scope_work_group);
 }
 
+// Check emitting the correct syncscope to use for cross-address-space ordering.
+// (-mamdgpu-enable-cross-address-space-ordering)
+
+// Test store-release atomic ops
+// CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-LABEL: @test_syncscope_store
+void test_syncscope_store(atomic_int *i) {
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("wavefront") release, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("wavefront-one-as") release, align 4
+  __opencl_atomic_store(i, 1, memory_order_release, memory_scope_sub_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("workgroup") release, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("workgroup-one-as") release, align 4
+  __opencl_atomic_store(i, 1, memory_order_release, memory_scope_work_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("agent") release, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("agent-one-as") release, align 4
+  __opencl_atomic_store(i, 1, memory_order_release, memory_scope_device);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} release, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: store atomic i32 %{{[.0-9A-Z_a-z]+}}, ptr %{{[.0-9A-Z_a-z]+}} syncscope("one-as") release, align 4
+  __opencl_atomic_store(i, 1, memory_order_release, memory_scope_all_svm_devices);
+}
+
+// Test load-acquire atomic ops
+// CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-LABEL: @test_syncscope_load
+void test_syncscope_load(atomic_int *i) {
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("wavefront") acquire, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("wavefront-one-as") acquire, align 4
+  int x = __opencl_atomic_load(i, memory_order_acquire, memory_scope_sub_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("workgroup") acquire, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("workgroup-one-as") acquire, align 4
+  x = __opencl_atomic_load(i, memory_order_acquire, memory_scope_work_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("agent") acquire, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("agent-one-as") acquire, align 4
+  x = __opencl_atomic_load(i, memory_order_acquire, memory_scope_device);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} acquire, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: load atomic i32, ptr %{{[.0-9A-Z_a-z]+}} syncscope("one-as") acquire, align 4
+  x = __opencl_atomic_load(i, memory_order_acquire, memory_scope_all_svm_devices);
+}
+
+// Test rmw (read-modify-write) atomic ops
+// CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-LABEL: @test_syncscope_rmw
+void test_syncscope_rmw(atomic_int *i) {
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: atomicrmw add ptr addrspace(1) {{.*}} syncscope("wavefront") acq_rel, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: atomicrmw add ptr addrspace(1) {{.*}} syncscope("wavefront-one-as") acq_rel, align 4
+  int x = __opencl_atomic_fetch_add(i, 1, memory_order_acq_rel, memory_scope_sub_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: atomicrmw add ptr addrspace(1) {{.*}} syncscope("workgroup") acq_rel, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: atomicrmw add ptr addrspace(1) {{.*}} syncscope("workgroup-one-as") acq_rel, align 4
+  x = __opencl_atomic_fetch_add(i, 1, memory_order_acq_rel, memory_scope_work_group);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: atomicrmw add ptr addrspace(1) {{.*}} syncscope("agent") acq_rel, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: atomicrmw add ptr addrspace(1) {{.*}} syncscope("agent-one-as") acq_rel, align 4
+  x = __opencl_atomic_fetch_add(i, 1, memory_order_acq_rel, memory_scope_device);
+
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE: atomicrmw add ptr addrspace(1) {{.*}} acq_rel, align 4
+  // CHECK-CROSS-ADDR-SPACE-SYNCSCOPE-NOT: atomicrmw add ptr addrspace(1) {{.*}} syncscope("one-as") acq_rel, align 4
+  x = __opencl_atomic_fetch_add(i, 1, memory_order_acq_rel, memory_scope_all_svm_devices);
+}
+
 #endif
