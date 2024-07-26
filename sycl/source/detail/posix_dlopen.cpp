@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/dlopen_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
@@ -15,7 +16,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail::ur {
+namespace detail {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
@@ -35,6 +36,6 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
-} // namespace detail::ur
+} // namespace detail
 } // namespace _V1
 } // namespace sycl

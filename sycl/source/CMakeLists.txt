@@ -296,7 +296,8 @@ set(SYCL_COMMON_SOURCES
     "spirv_ops.cpp"
     "virtual_mem.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
-    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
+    "$<$<PLATFORM_ID:Windows>:detail/windows_dlopen.cpp>"
+    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_dlopen.cpp>"
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
