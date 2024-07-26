@@ -53,17 +53,16 @@ static sycl::unittest::PiImage generateEAMTestKernelImage() {
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -80,10 +79,10 @@ static sycl::unittest::PiImage generateEAMTestKernel2Image() {
 
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
+  PiImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+              "",                                  // Compile options
+              "",                                  // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -110,6 +109,8 @@ inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
 class MockHandler : public sycl::handler {
 
 public:
+  using sycl::handler::impl;
+
   MockHandler(std::shared_ptr<sycl::detail::queue_impl> Queue)
       : sycl::handler(Queue, /*CallerNeedsEvent*/ true) {}
 
@@ -117,20 +118,20 @@ public:
     auto CGH = static_cast<sycl::handler *>(this);
     std::unique_ptr<sycl::detail::CG> CommandGroup;
     switch (getType()) {
-    case sycl::detail::CG::Kernel: {
+    case sycl::detail::CGType::Kernel: {
       CommandGroup.reset(new sycl::detail::CGExecKernel(
-          std::move(CGH->MNDRDesc), std::move(CGH->MHostKernel),
-          std::move(CGH->MKernel), std::move(MImpl->MKernelBundle),
-          std::move(CGH->CGData), std::move(CGH->MArgs),
+          std::move(impl->MNDRDesc), std::move(CGH->MHostKernel),
+          std::move(CGH->MKernel), std::move(impl->MKernelBundle),
+          std::move(impl->CGData), std::move(impl->MArgs),
           CGH->MKernelName.c_str(), std::move(CGH->MStreamStorage),
-          std::move(MImpl->MAuxiliaryResources), CGH->MCGType, {},
-          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          std::move(impl->MAuxiliaryResources), impl->MCGType, {},
+          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
           CGH->MCodeLoc));
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

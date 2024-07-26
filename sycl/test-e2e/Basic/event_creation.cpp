@@ -17,7 +17,7 @@ int main() {
   try {
     std::cout << "Create default event" << std::endl;
     sycl::event e;
-  } catch (sycl::device_error e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Failed to create device for event" << std::endl;
   }
 }

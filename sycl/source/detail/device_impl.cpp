@@ -206,10 +206,9 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
 
 std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
   if (!is_partition_supported(info::partition_property::partition_equally)) {
-    throw sycl::feature_not_supported(
-        "Device does not support "
-        "sycl::info::partition_property::partition_equally.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support "
+                          "sycl::info::partition_property::partition_equally.");
   }
   // If count exceeds the total number of compute units in the device, an
   // exception with the errc::invalid error code must be thrown.
@@ -228,10 +227,10 @@ std::vector<device> device_impl::create_sub_devices(size_t ComputeUnits) const {
 std::vector<device>
 device_impl::create_sub_devices(const std::vector<size_t> &Counts) const {
   if (!is_partition_supported(info::partition_property::partition_by_counts)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_counts.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_counts.");
   }
   static const pi_device_partition_property P[] = {
       PI_DEVICE_PARTITION_BY_COUNTS, PI_DEVICE_PARTITION_BY_COUNTS_LIST_END, 0};
@@ -270,16 +269,15 @@ std::vector<device> device_impl::create_sub_devices(
     info::partition_affinity_domain AffinityDomain) const {
   if (!is_partition_supported(
           info::partition_property::partition_by_affinity_domain)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::partition_by_affinity_domain.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::partition_by_affinity_domain.");
   }
   if (!is_affinity_supported(AffinityDomain)) {
-    throw sycl::feature_not_supported(
-        "Device does not support " + affinityDomainToString(AffinityDomain) +
-            ".",
-        PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "Device does not support " +
+                              affinityDomainToString(AffinityDomain) + ".");
   }
   const pi_device_partition_property Properties[3] = {
       PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
@@ -296,10 +294,10 @@ std::vector<device> device_impl::create_sub_devices(
 std::vector<device> device_impl::create_sub_devices() const {
   if (!is_partition_supported(
           info::partition_property::ext_intel_partition_by_cslice)) {
-    throw sycl::feature_not_supported(
+    throw sycl::exception(
+        make_error_code(errc::feature_not_supported),
         "Device does not support "
-        "sycl::info::partition_property::ext_intel_partition_by_cslice.",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::info::partition_property::ext_intel_partition_by_cslice.");
   }
 
   const pi_device_partition_property Properties[2] = {
@@ -506,27 +504,11 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_interop_semaphore_import: {
     pi_bool support = PI_FALSE;
     bool call_successful =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
-  case aspect::ext_oneapi_interop_semaphore_export: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
@@ -588,15 +570,6 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm: {
-    pi_bool support = PI_FALSE;
-    bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice,
-            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
-  }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_3d: {
     pi_bool support = PI_FALSE;
     bool call_successful =
@@ -619,6 +592,39 @@ bool device_impl::has(aspect Aspect) const {
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice,
             PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_image_array: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_unique_addressing_per_dim: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_1d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_sample_2d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM,
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
@@ -646,7 +652,8 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_matrix: {
     using arch = sycl::ext::oneapi::experimental::architecture;
     const std::vector<arch> supported_archs = {
-        arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
+        arch::intel_cpu_spr,     arch::intel_cpu_gnr,
+        arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
         arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
     try {
       return std::any_of(
@@ -700,9 +707,6 @@ bool device_impl::has(aspect Aspect) const {
     }
 
     return SupportsCommandBuffers;
-  }
-  case aspect::ext_intel_fpga_task_sequence: {
-    return is_accelerator();
   }
   case aspect::ext_oneapi_private_alloca: {
     // Extension only supported on SPIR-V targets.
@@ -797,10 +801,12 @@ uint64_t device_impl::getCurrentDeviceTime() {
       char *p = nullptr;
       Plugin->call_nocheck<detail::PiApiKind::piPluginGetLastError>(&p);
       std::string errorMsg(p ? p : "");
-      throw sycl::feature_not_supported(
-          "Device and/or backend does not support querying timestamp: " +
-              errorMsg,
-          Result);
+      throw detail::set_pi_error(
+          sycl::exception(
+              make_error_code(errc::feature_not_supported),
+              "Device and/or backend does not support querying timestamp: " +
+                  errorMsg),
+          PI_ERROR_INVALID_OPERATION);
     } else {
       Plugin->checkPiResult(Result);
     }

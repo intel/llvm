@@ -189,42 +189,6 @@ __SYCL_EXPORT image_mem_handle alloc_image_mem(const image_descriptor &desc,
   return alloc_image_mem(desc, syclQueue.get_device(), syclQueue.get_context());
 }
 
-__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
-                         "Instead use alloc_image_mem().")
-image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                  const sycl::device &syclDevice,
-                                  const sycl::context &syclContext) {
-  desc.verify();
-
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  pi_context C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
-  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  pi_image_desc piDesc;
-  pi_image_format piFormat;
-  populate_pi_structs(desc, piDesc, piFormat);
-
-  // Call impl.
-  image_mem_handle retHandle;
-  Plugin->call<sycl::errc::memory_allocation,
-               sycl::detail::PiApiKind::piextMemImageAllocate>(
-      C, Device, &piFormat, &piDesc, &retHandle.raw_handle);
-
-  return retHandle;
-}
-
-__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
-                         "Instead use alloc_image_mem().")
-image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                  const sycl::queue &syclQueue) {
-  return alloc_mipmap_mem(desc, syclQueue.get_device(),
-                          syclQueue.get_context());
-}
-
 __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
     const image_mem_handle mipMem, unsigned int level,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
@@ -288,48 +252,6 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
                                   const sycl::queue &syclQueue) {
   free_image_mem(memHandle, imageType, syclQueue.get_device(),
                  syclQueue.get_context());
-}
-
-__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
-                         "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle memHandle, const sycl::device &syclDevice,
-                    const sycl::context &syclContext) {
-  return free_image_mem(memHandle, image_type::standard, syclDevice,
-                        syclContext);
-}
-
-__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
-                         "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle memHandle, const sycl::queue &syclQueue) {
-  free_image_mem(memHandle, syclQueue.get_device(), syclQueue.get_context());
-}
-
-__SYCL_EXPORT_DEPRECATED(
-    "Distinct mipmap frees are deprecated. "
-    "Instead use free_image_mem() that accepts image_type.")
-void free_mipmap_mem(image_mem_handle memoryHandle,
-                     const sycl::device &syclDevice,
-                     const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  pi_context C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
-  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  Plugin->call<sycl::errc::memory_allocation,
-               sycl::detail::PiApiKind::piextMemMipmapFree>(
-      C, Device, memoryHandle.raw_handle);
-}
-
-__SYCL_EXPORT_DEPRECATED(
-    "Distinct mipmap frees are deprecated. "
-    "Instead use free_image_mem() that accepts image_type.")
-void free_mipmap_mem(image_mem_handle memoryHandle,
-                     const sycl::queue &syclQueue) {
-  free_mipmap_mem(memoryHandle, syclQueue.get_device(),
-                  syclQueue.get_context());
 }
 
 __SYCL_EXPORT unsampled_image_handle
@@ -545,32 +467,6 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
 }
 
 template <>
-__SYCL_EXPORT_DEPRECATED(
-    "import_external_memory templated by external_mem_fd is deprecated."
-    "Template with resource_fd instead.")
-interop_mem_handle import_external_memory<external_mem_fd>(
-    external_mem_descriptor<external_mem_fd> externalMem,
-    const sycl::device &syclDevice, const sycl::context &syclContext) {
-
-  external_mem_descriptor<resource_fd> extMem;
-  extMem.external_resource.file_descriptor =
-      externalMem.external_resource.file_descriptor;
-  extMem.size_in_bytes = externalMem.size_in_bytes;
-  return import_external_memory<resource_fd>(extMem, syclDevice, syclContext);
-}
-
-template <>
-__SYCL_EXPORT_DEPRECATED(
-    "import_external_memory templated by external_mem_fd is deprecated."
-    "Template with resource_fd instead.")
-interop_mem_handle import_external_memory<external_mem_fd>(
-    external_mem_descriptor<external_mem_fd> externalMem,
-    const sycl::queue &syclQueue) {
-  return import_external_memory<external_mem_fd>(
-      externalMem, syclQueue.get_device(), syclQueue.get_context());
-}
-
-template <>
 __SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
     external_mem_descriptor<resource_win32_handle> externalMem,
     const sycl::queue &syclQueue) {
@@ -612,24 +508,6 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
                                            const image_descriptor &desc,
                                            const sycl::queue &syclQueue) {
   return map_external_image_memory(memHandle, desc, syclQueue.get_device(),
-                                   syclQueue.get_context());
-}
-
-__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
-                         "use map_external_image_memory")
-image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
-                                           const image_descriptor &desc,
-                                           const sycl::device &syclDevice,
-                                           const sycl::context &syclContext) {
-  return map_external_image_memory(memHandle, desc, syclDevice, syclContext);
-}
-
-__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
-                         "use map_external_image_memory")
-image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
-                                           const image_descriptor &desc,
-                                           const sycl::queue &syclQueue) {
-  return map_external_memory_array(memHandle, desc, syclQueue.get_device(),
                                    syclQueue.get_context());
 }
 
@@ -741,33 +619,8 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
       externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
 }
 
-template <>
-__SYCL_EXPORT_DEPRECATED("import_external_semaphore templated by "
-                         "external_semaphore_fd is deprecated."
-                         "Template with resource_fd instead.")
-interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
-    const sycl::device &syclDevice, const sycl::context &syclContext) {
-  external_semaphore_descriptor<resource_fd> extSem;
-  extSem.external_resource.file_descriptor =
-      externalSemaphoreDesc.external_resource.file_descriptor;
-  return import_external_semaphore<resource_fd>(extSem, syclDevice,
-                                                syclContext);
-}
-
-template <>
-__SYCL_EXPORT_DEPRECATED("import_external_semaphore templated by "
-                         "external_semaphore_fd is deprecated."
-                         "Template with resource_fd instead.")
-interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_fd> externalSemaphoreDesc,
-    const sycl::queue &syclQueue) {
-  return import_external_semaphore(
-      externalSemaphoreDesc, syclQueue.get_device(), syclQueue.get_context());
-}
-
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -779,14 +632,14 @@ destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
   pi_device Device = DevImpl->getHandleRef();
 
   Plugin->call<sycl::errc::invalid,
-               sycl::detail::PiApiKind::piextDestroyExternalSemaphore>(
+               sycl::detail::PiApiKind::piextReleaseExternalSemaphore>(
       C, Device, (pi_interop_semaphore_handle)semaphoreHandle.raw_handle);
 }
 
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::queue &syclQueue) {
-  destroy_external_semaphore(semaphoreHandle, syclQueue.get_device(),
+  release_external_semaphore(semaphoreHandle, syclQueue.get_device(),
                              syclQueue.get_context());
 }
 
@@ -802,15 +655,18 @@ __SYCL_EXPORT sycl::range<3> get_image_range(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_WIDTH, &Width, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_WIDTH,
+      &Width, nullptr);
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT, &Height, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_HEIGHT,
+      &Height, nullptr);
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_DEPTH, &Depth, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_DEPTH,
+      &Depth, nullptr);
 
   return {Width, Height, Depth};
 }
@@ -834,7 +690,8 @@ get_image_channel_type(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::invalid,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_FORMAT,
+      &PIFormat, nullptr);
 
   image_channel_type ChannelType =
       sycl::detail::convertChannelType(PIFormat.image_channel_data_type);
@@ -920,7 +777,8 @@ get_image_num_channels(const image_mem_handle memHandle,
 
   Plugin->call<sycl::errc::runtime,
                sycl::detail::PiApiKind::piextMemImageGetInfo>(
-      memHandle.raw_handle, PI_IMAGE_INFO_FORMAT, &PIFormat, nullptr);
+      CtxImpl->getHandleRef(), memHandle.raw_handle, PI_IMAGE_INFO_FORMAT,
+      &PIFormat, nullptr);
 
   image_channel_order Order =
       sycl::detail::convertChannelOrder(PIFormat.image_channel_order);

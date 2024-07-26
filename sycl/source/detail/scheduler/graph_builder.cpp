@@ -349,7 +349,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   auto Context = queue_impl::getContext(Queue);
   std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
@@ -379,8 +380,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     AllocaCmdSrc = (Record->MAllocaCommands.end() != It) ? *It : nullptr;
   }
   if (!AllocaCmdSrc)
-    throw runtime_error("Cannot find buffer allocation",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::runtime),
+                    "Cannot find buffer allocation");
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
@@ -496,7 +497,8 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
       SrcAllocaCmd->getQueue(), nullptr);
 
   if (!MemCpyCmdUniquePtr)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
@@ -870,7 +872,8 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
   EmptyCommand *EmptyCmd = new EmptyCommand();
 
   if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
@@ -903,7 +906,7 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
 }
 
 static bool isInteropHostTask(ExecCGCommand *Cmd) {
-  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CGType::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -945,7 +948,8 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
                                                 std::move(Dependencies));
 
   if (!NewCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   // Only device kernel command groups can participate in fusion. Otherwise,
   // command groups take the regular route. If they create any requirement or
@@ -1013,7 +1017,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     } else {
       std::string s;
       std::stringstream ss(s);
-      if (NewCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+      if (NewCmd->getCG().getType() == CGType::Kernel) {
         ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
               "non-cooperative device kernels.";
       } else {
@@ -1329,7 +1333,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   ExecCGCommand *ConnectCmd = nullptr;
 
   try {
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
+    std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
         std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
         /* Args = */ {},
@@ -1337,12 +1341,13 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
             /* SharedPtrStorage = */ {}, /* Requirements = */ {},
             /* DepEvents = */ {DepEvent}),
-        CG::CodeplayHostTask,
+        CGType::CodeplayHostTask,
         /* Payload */ {}));
     ConnectCmd = new ExecCGCommand(std::move(ConnectCG), nullptr,
                                    /*EventNeeded=*/true);
   } catch (const std::bad_alloc &) {
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
   }
 
   if (Dep.MDepRequirement) {

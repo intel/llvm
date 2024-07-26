@@ -17,6 +17,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include <algorithm>
 #include <sstream>
 
@@ -290,6 +291,15 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
       {"libsycl-sanitizer", "internal"}};
 #endif
+
+  const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
+      {"libsycl-nativecpu_utils", "internal"}};
+
+  const bool isNativeCPU =
+      (driver::isSYCLNativeCPU(Args) &&
+       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
+                               TargetTriple));
+
   bool IsWindowsMSVCEnv =
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
@@ -368,7 +378,105 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
+
+  if (isNativeCPU)
+    addLibraries(SYCLNativeCpuDeviceLibs);
+
   return LibraryList;
+}
+
+/// Reads device config file to find information about the SYCL targets in
+/// `Targets`, and defines device traits macros accordingly.
+void SYCL::populateSYCLDeviceTraitsMacrosArgs(
+    Compilation &C, const llvm::opt::ArgList &Args,
+    const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets) {
+  if (Targets.empty())
+    return;
+
+  const auto &TargetTable = DeviceConfigFile::TargetTable;
+  std::map<StringRef, unsigned int> AllDevicesHave;
+  std::map<StringRef, bool> AnyDeviceHas;
+  bool AnyDeviceHasAnyAspect = false;
+  unsigned int ValidTargets = 0;
+  for (const auto &[TC, BoundArch] : Targets) {
+    assert(TC && "Invalid SYCL Offload Toolchain");
+    // Try and find the device arch, if it's empty, try to search for either
+    // the whole Triple or just the 'ArchName' string.
+    auto TargetIt = TargetTable.end();
+    const llvm::Triple &TargetTriple = TC->getTriple();
+    const StringRef TargetArch{BoundArch};
+    if (!TargetArch.empty()) {
+      TargetIt = llvm::find_if(TargetTable, [&](const auto &Value) {
+        using namespace tools::SYCL;
+        StringRef Device{Value.first};
+        if (Device.consume_front(gen::AmdGPU))
+          return TargetArch == Device && TargetTriple.isAMDGCN();
+        if (Device.consume_front(gen::NvidiaGPU))
+          return TargetArch == Device && TargetTriple.isNVPTX();
+        if (Device.consume_front(gen::IntelGPU))
+          return TargetArch == Device && TargetTriple.isSPIRAOT();
+        return TargetArch == Device;
+      });
+    } else {
+      TargetIt = TargetTable.find(TargetTriple.str());
+      if (TargetIt == TargetTable.end())
+        TargetIt = TargetTable.find(TargetTriple.getArchName().str());
+    }
+
+    if (TargetIt != TargetTable.end()) {
+      const DeviceConfigFile::TargetInfo &Info = (*TargetIt).second;
+      ++ValidTargets;
+      const auto &AspectList = Info.aspects;
+      const auto &MaySupportOtherAspects = Info.maySupportOtherAspects;
+      if (!AnyDeviceHasAnyAspect)
+        AnyDeviceHasAnyAspect = MaySupportOtherAspects;
+      for (const auto &Aspect : AspectList) {
+        // If target has an entry in the config file, the set of aspects
+        // supported by all devices supporting the target is 'AspectList'.
+        // If there's no entry, such set is empty.
+        const auto &AspectIt = AllDevicesHave.find(Aspect);
+        if (AspectIt != AllDevicesHave.end())
+          ++AllDevicesHave[Aspect];
+        else
+          AllDevicesHave[Aspect] = 1;
+        // If target has an entry in the config file AND
+        // 'MaySupportOtherAspects' is false, the set of aspects supported
+        // by any device supporting the target is 'AspectList'. If there's
+        // no entry OR 'MaySupportOtherAspects' is true, such set contains
+        // all the aspects.
+        AnyDeviceHas[Aspect] = true;
+      }
+    }
+  }
+  // If there's no entry for the target in the device config file, the set
+  // of aspects supported by any device supporting the target contains all
+  // the aspects.
+  if (ValidTargets == 0)
+    AnyDeviceHasAnyAspect = true;
+
+  const Driver &D = C.getDriver();
+  if (AnyDeviceHasAnyAspect) {
+    // There exists some target that supports any given aspect.
+    constexpr static StringRef MacroAnyDeviceAnyAspect{
+        "-D__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__=1"};
+    D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDeviceAnyAspect);
+  } else {
+    // Some of the aspects are not supported at all by any of the targets.
+    // Thus, we need to define individual macros for each supported aspect.
+    for (const auto &[TargetKey, SupportedTarget] : AnyDeviceHas) {
+      assert(SupportedTarget);
+      const SmallString<64> MacroAnyDevice{
+          {"-D__SYCL_ANY_DEVICE_HAS_", TargetKey, "__=1"}};
+      D.addSYCLDeviceTraitsMacroArg(Args, MacroAnyDevice);
+    }
+  }
+  for (const auto &[TargetKey, SupportedTargets] : AllDevicesHave) {
+    if (SupportedTargets != ValidTargets)
+      continue;
+    const SmallString<64> MacroAllDevices{
+        {"-D__SYCL_ALL_DEVICES_HAVE_", TargetKey, "__=1"}};
+    D.addSYCLDeviceTraitsMacroArg(Args, MacroAllDevices);
+  }
 }
 
 // The list should match pre-built SYCL device library files located in
@@ -1554,6 +1662,15 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         getDriver().Diag(diag::err_drv_unsupported_opt_for_target)
             << "-device" << Target;
       }
+      // ocloc has different names for some of the newer architectures;
+      // translate them to the apropriate value here.
+      DepInfo =
+          llvm::StringSwitch<StringRef>(DepInfo)
+              .Cases("pvc_vg", "12_61_7", "pvc_xt_c0_vg")
+              .Cases("mtl_u", "mtl_s", "arl_u", "arl_s", "12_70_4", "mtl_s")
+              .Cases("mtl_h", "12_71_4", "mtl_p")
+              .Cases("arl_h", "12_74_4", "xe_lpgplus_b0")
+              .Default(DepInfo);
       CmdArgs.push_back("-device");
       CmdArgs.push_back(Args.MakeArgString(DepInfo));
     }

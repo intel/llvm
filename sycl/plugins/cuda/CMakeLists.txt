@@ -46,6 +46,7 @@ add_sycl_plugin(cuda
     ${XPTI_INCLUDE}
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
     ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/cuda
+    "${SYCL_SOURCE_DIR}/source" # for compiler.hpp
   LIBRARIES
     cudadrv
     ${XPTI_LIBS}

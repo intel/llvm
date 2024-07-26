@@ -23,8 +23,8 @@ void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
     t = ft;
   } else if (ft != info::device_type::all && t != ft) {
-    throw sycl::invalid_parameter_error("No device of forced type.",
-                                        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "No device of forced type.");
   }
 }
 } // namespace detail
@@ -115,8 +115,8 @@ std::vector<device> device::create_sub_devices() const {
 template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::ext_intel_partition_by_cslice>() const;
 
-bool device::has_extension(const std::string &extension_name) const {
-  return impl->has_extension(extension_name);
+bool device::has_extension(detail::string_view ext_name) const {
+  return impl->has_extension(ext_name.data());
 }
 
 template <typename Param>
@@ -134,9 +134,8 @@ device::get_info_impl<info::device::parent_device>() const {
   // have parents, but we don't want to return them. They must pretend to be
   // parentless root devices.
   if (impl->isRootDevice())
-    throw invalid_object_error(
-        "No parent for device because it is not a subdevice",
-        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::invalid),
+                    "No parent for device because it is not a subdevice");
   else
     return impl->template get_info<info::device::parent_device>();
 }
@@ -268,7 +267,8 @@ bool device::ext_oneapi_can_compile(
   return impl->extOneapiCanCompile(Language);
 }
 
-bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
+
   const detail::pi::PiDevice Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
@@ -279,7 +279,7 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
-      Feature, ipVersion);
+      Feature.data(), ipVersion);
 }
 
 bool device::ext_oneapi_supports_cl_c_version(
@@ -298,7 +298,7 @@ bool device::ext_oneapi_supports_cl_c_version(
 }
 
 bool device::ext_oneapi_supports_cl_extension(
-    const std::string &Name,
+    detail::string_view Name,
     ext::oneapi::experimental::cl_version *VersionPtr) const {
   const detail::pi::PiDevice Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
@@ -310,7 +310,7 @@ bool device::ext_oneapi_supports_cl_extension(
     return false;
 
   return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
-      Name, VersionPtr, ipVersion);
+      Name.data(), VersionPtr, ipVersion);
 }
 
 std::string device::ext_oneapi_cl_profile() const {

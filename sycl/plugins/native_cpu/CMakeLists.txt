@@ -17,6 +17,7 @@ add_sycl_plugin(native_cpu
     ${sycl_inc_dir}
     ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
     ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/native_cpu
+    "${SYCL_SOURCE_DIR}/source" # for compiler.hpp
   LIBRARIES
     sycl
     UnifiedRuntime-Headers

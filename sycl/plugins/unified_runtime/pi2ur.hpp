@@ -9,6 +9,7 @@
 
 #include "ur_api.h"
 #include <cstdarg>
+#include <detail/compiler.hpp>
 #include <sycl/detail/cuda_definitions.hpp>
 #include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
@@ -785,15 +786,15 @@ mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
   ur_metadata->pName = (*pi_metadata)->Name;
   ur_metadata->size = (*pi_metadata)->ValSize;
   switch ((*pi_metadata)->Type) {
-  case PI_PROPERTY_TYPE_UINT32:
+  case SYCL_PROPERTY_TYPE_UINT32:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_UINT32;
     ur_metadata->value.data32 = (*pi_metadata)->ValSize;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_BYTE_ARRAY:
+  case SYCL_PROPERTY_TYPE_BYTE_ARRAY:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY;
     ur_metadata->value.pData = (*pi_metadata)->ValAddr;
     return UR_RESULT_SUCCESS;
-  case PI_PROPERTY_TYPE_STRING:
+  case SYCL_PROPERTY_TYPE_STRING:
     ur_metadata->type = UR_PROGRAM_METADATA_TYPE_STRING;
     ur_metadata->value.pString =
         reinterpret_cast<char *>((*pi_metadata)->ValAddr);
@@ -1304,23 +1305,14 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM,
-        UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D,
         UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP)
-    PI_TO_UR_MAP_DEVICE_INFO(
-        PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-        UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
         UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
@@ -1342,6 +1334,15 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                              UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH,
                              UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT,
+                             UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM,
+        UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM,
+                             UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -1487,47 +1488,48 @@ inline pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
 
 inline pi_result
 piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
-                        pi_device_binary *Binaries, pi_uint32 NumBinaries,
+                        pi_device_binary *PIBinaries, pi_uint32 NumBinaries,
                         pi_uint32 *SelectedBinaryInd) {
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   std::vector<ur_device_binary_t> UrBinaries(NumBinaries);
+  auto *Binaries = reinterpret_cast<sycl_device_binary *>(PIBinaries);
 
   for (uint32_t BinaryCount = 0; BinaryCount < NumBinaries; BinaryCount++) {
     if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-               __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
+               __SYCL_DEVICE_BINARY_TARGET_UNKNOWN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV32;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_NVPTX64;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
     else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
-                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+                    __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
@@ -1595,7 +1597,6 @@ inline pi_result piextContextCreateWithNativeHandle(
   if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
     return res;
   }
-  (void)adapter;
 
   ur_native_handle_t NativeContext = NativeHandle;
   const ur_device_handle_t *UrDevices =
@@ -1607,7 +1608,7 @@ inline pi_result piextContextCreateWithNativeHandle(
       UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
   HANDLE_ERRORS(urContextCreateWithNativeHandle(
-      NativeContext, NumDevices, UrDevices, &Properties, UrContext));
+      NativeContext, adapter, NumDevices, UrDevices, &Properties, UrContext));
 
   return PI_SUCCESS;
 }
@@ -2074,12 +2075,16 @@ piProgramLink(pi_context Context, pi_uint32 NumDevices,
   auto UrDevices = reinterpret_cast<ur_device_handle_t *>(
       const_cast<pi_device *>(DeviceList));
 
+  // If it fails, urProgramLinkExp will clear the pointer
+  ur_program_handle_t UrProgramForExp;
   auto urResult =
       urProgramLinkExp(UrContext, NumDevices, UrDevices, NumInputPrograms,
-                       UrInputPrograms, Options, UrProgram);
+                       UrInputPrograms, Options, &UrProgramForExp);
   if (urResult == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     urResult = urProgramLink(UrContext, NumInputPrograms, UrInputPrograms,
                              Options, UrProgram);
+  } else {
+    *UrProgram = UrProgramForExp;
   }
   return ur2piResult(urResult);
 }
@@ -5080,8 +5085,8 @@ inline pi_result piextMemImageAllocate(pi_context Context, pi_device Device,
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesImageAllocateExp(UrContext, UrDevice, &UrFormat,
                                                  &UrDesc, UrRetMem));
@@ -5100,14 +5105,14 @@ inline pi_result piextMemUnsampledImageCreate(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
-  ur_exp_image_handle_t *UrRetHandle =
-      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+  ur_exp_image_native_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_native_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageCreateExp(
       UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrRetHandle));
@@ -5125,15 +5130,15 @@ inline pi_result piextMemSampledImageCreate(
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_handle_t>(ImgMem);
+  auto UrImgMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(ImgMem);
 
   ur_image_format_t UrFormat{};
   ur_image_desc_t UrDesc{};
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
   auto UrSampler = reinterpret_cast<ur_sampler_handle_t>(Sampler);
-  ur_exp_image_handle_t *UrRetHandle =
-      reinterpret_cast<ur_exp_image_handle_t *>(RetHandle);
+  ur_exp_image_native_handle_t *UrRetHandle =
+      reinterpret_cast<ur_exp_image_native_handle_t *>(RetHandle);
 
   HANDLE_ERRORS(urBindlessImagesSampledImageCreateExp(
       UrContext, UrDevice, UrImgMem, &UrFormat, &UrDesc, UrSampler,
@@ -5258,9 +5263,9 @@ inline pi_result piextMemMipmapGetLevel(pi_context Context, pi_device Device,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrMipMem = reinterpret_cast<ur_exp_image_mem_handle_t>(MipMem);
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  auto UrMipMem = reinterpret_cast<ur_exp_image_mem_native_handle_t>(MipMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesMipmapGetLevelExp(UrContext, UrDevice, UrMipMem,
                                                   Level, UrRetMem));
@@ -5276,7 +5281,7 @@ inline pi_result piextMemImageFree(pi_context Context, pi_device Device,
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrMemoryHandle =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
       urBindlessImagesImageFreeExp(UrContext, UrDevice, UrMemoryHandle));
@@ -5292,7 +5297,7 @@ inline pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrMemoryHandle =
-      reinterpret_cast<ur_exp_image_mem_handle_t>(MemoryHandle);
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemoryHandle);
 
   HANDLE_ERRORS(
       urBindlessImagesMipmapFreeExp(UrContext, UrDevice, UrMemoryHandle));
@@ -5317,21 +5322,25 @@ static void pi2urImageCopyFlags(const pi_image_copy_flags PiFlags,
   }
 }
 
-inline pi_result
-piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
-                  const pi_image_format *ImageFormat,
-                  const pi_image_desc *ImageDesc,
-                  const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
-                  pi_image_offset DstOffset, pi_image_region CopyExtent,
-                  pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
-                  const pi_event *EventWaitList, pi_event *Event) {
+inline pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, const void *SrcPtr,
+    const pi_image_desc *SrcImageDesc, const pi_image_desc *DstImageDesc,
+    const pi_image_format *SrcImageFormat,
+    const pi_image_format *DstImageFormat, const pi_image_copy_flags Flags,
+    pi_image_offset SrcOffset, pi_image_offset DstOffset,
+    pi_image_region CopyExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
 
   auto UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
-  ur_image_format_t UrFormat{};
-  ur_image_desc_t UrDesc{};
-  pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
+  ur_image_format_t UrSrcFormat{};
+  ur_image_desc_t UrSrcDesc{};
+  pi2urImageDesc(SrcImageFormat, SrcImageDesc, &UrSrcFormat, &UrSrcDesc);
+
+  ur_image_format_t UrDstFormat{};
+  ur_image_desc_t UrDstDesc{};
+  pi2urImageDesc(DstImageFormat, DstImageDesc, &UrDstFormat, &UrDstDesc);
 
   ur_exp_image_copy_flags_t UrFlags;
   pi2urImageCopyFlags(Flags, &UrFlags);
@@ -5342,18 +5351,19 @@ piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
   UrCopyExtent.depth = CopyExtent->depth;
   UrCopyExtent.height = CopyExtent->height;
   UrCopyExtent.width = CopyExtent->width;
-  ur_rect_region_t UrHostExtent{};
-  UrHostExtent.depth = HostExtent->depth;
-  UrHostExtent.height = HostExtent->height;
-  UrHostExtent.width = HostExtent->width;
+
+  ur_exp_image_copy_region_t UrCopyRegion{};
+  UrCopyRegion.copyExtent = UrCopyExtent;
+  UrCopyRegion.srcOffset = UrSrcOffset;
+  UrCopyRegion.dstOffset = UrDstOffset;
 
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesImageCopyExp(
-      UrQueue, DstPtr, SrcPtr, &UrFormat, &UrDesc, UrFlags, UrSrcOffset,
-      UrDstOffset, UrCopyExtent, UrHostExtent, NumEventsInWaitList,
+      UrQueue, SrcPtr, DstPtr, &UrSrcDesc, &UrDstDesc, &UrSrcFormat,
+      &UrDstFormat, &UrCopyRegion, UrFlags, NumEventsInWaitList,
       UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
@@ -5367,10 +5377,9 @@ inline pi_result piextMemUnsampledImageHandleDestroy(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
   HANDLE_ERRORS(urBindlessImagesUnsampledImageHandleDestroyExp(
-      UrContext, UrDevice, UrHandle));
+      UrContext, UrDevice, Handle));
 
   return PI_SUCCESS;
 }
@@ -5383,10 +5392,9 @@ inline pi_result piextMemSampledImageHandleDestroy(pi_context Context,
 
   auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto UrHandle = reinterpret_cast<ur_exp_image_handle_t>(Handle);
 
-  HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(
-      UrContext, UrDevice, UrHandle));
+  HANDLE_ERRORS(urBindlessImagesSampledImageHandleDestroyExp(UrContext,
+                                                             UrDevice, Handle));
 
   return PI_SUCCESS;
 }
@@ -5412,16 +5420,19 @@ static void pi2urImageInfoFlags(const pi_image_info PiFlags,
   }
 }
 
-inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+inline pi_result piextMemImageGetInfo(pi_context Context,
+                                      pi_image_mem_handle MemHandle,
                                       pi_image_info ParamName, void *ParamValue,
                                       size_t *ParamValueSizeRet) {
-  auto UrMemHandle = reinterpret_cast<ur_exp_image_mem_handle_t>(MemHandle);
+  auto UrMemHandle =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t>(MemHandle);
+  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
 
   ur_image_info_t UrParamName{};
   pi2urImageInfoFlags(ParamName, &UrParamName);
 
-  HANDLE_ERRORS(urBindlessImagesImageGetInfoExp(UrMemHandle, UrParamName,
-                                                ParamValue, ParamValueSizeRet));
+  HANDLE_ERRORS(urBindlessImagesImageGetInfoExp(
+      UrContext, UrMemHandle, UrParamName, ParamValue, ParamValueSizeRet));
 
   if (ParamName == pi_image_info::PI_IMAGE_INFO_FORMAT && ParamValue) {
     pi_image_format PiFormat;
@@ -5435,34 +5446,6 @@ inline pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
       *ParamValueSizeRet = sizeof(pi_image_format);
     }
   }
-
-  return PI_SUCCESS;
-}
-
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalMemory`")]]
-inline pi_result piextMemImportOpaqueFD(pi_context Context, pi_device Device,
-                                        size_t Size, int FileDescriptor,
-                                        pi_interop_mem_handle *RetHandle) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetHandle =
-      reinterpret_cast<ur_exp_interop_mem_handle_t *>(RetHandle);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_interop_mem_desc_t InteropMemDesc{};
-  InteropMemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
-  InteropMemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalMemoryExp(
-      UrContext, UrDevice, Size, UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
-      &InteropMemDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -5549,8 +5532,8 @@ inline pi_result piextMemMapExternalArray(pi_context Context, pi_device Device,
   pi2urImageDesc(ImageFormat, ImageDesc, &UrFormat, &UrDesc);
 
   auto UrMemHandle = reinterpret_cast<ur_exp_interop_mem_handle_t>(MemHandle);
-  ur_exp_image_mem_handle_t *UrRetMem =
-      reinterpret_cast<ur_exp_image_mem_handle_t *>(RetMem);
+  ur_exp_image_mem_native_handle_t *UrRetMem =
+      reinterpret_cast<ur_exp_image_mem_native_handle_t *>(RetMem);
 
   HANDLE_ERRORS(urBindlessImagesMapExternalArrayExp(
       UrContext, UrDevice, &UrFormat, &UrDesc, UrMemHandle, UrRetMem));
@@ -5569,35 +5552,6 @@ inline pi_result piextMemReleaseInterop(pi_context Context, pi_device Device,
 
   HANDLE_ERRORS(
       urBindlessImagesReleaseInteropExp(UrContext, UrDevice, UrExtMem));
-
-  return PI_SUCCESS;
-}
-
-[[deprecated("This function has been deprecated in favor of "
-             "`piextImportExternalSemaphore`")]]
-inline pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context Context, pi_device Device,
-                                     int FileDescriptor,
-                                     pi_interop_semaphore_handle *RetHandle) {
-  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrContext = reinterpret_cast<ur_context_handle_t>(Context);
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  auto *UrRetHandle =
-      reinterpret_cast<ur_exp_interop_semaphore_handle_t *>(RetHandle);
-
-  ur_exp_file_descriptor_t PosixFD{};
-  PosixFD.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  PosixFD.fd = FileDescriptor;
-
-  ur_exp_interop_semaphore_desc_t InteropSemDesc{};
-  InteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
-  InteropSemDesc.pNext = &PosixFD;
-
-  HANDLE_ERRORS(urBindlessImagesImportExternalSemaphoreExp(
-      UrContext, UrDevice, UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
-      &InteropSemDesc, UrRetHandle));
 
   return PI_SUCCESS;
 }
@@ -5670,7 +5624,7 @@ piextImportExternalSemaphore(pi_context Context, pi_device Device,
 }
 
 inline pi_result
-piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+piextReleaseExternalSemaphore(pi_context Context, pi_device Device,
                               pi_interop_semaphore_handle SemHandle) {
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
@@ -5680,7 +5634,7 @@ piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
   auto UrSemHandle =
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
 
-  HANDLE_ERRORS(urBindlessImagesDestroyExternalSemaphoreExp(UrContext, UrDevice,
+  HANDLE_ERRORS(urBindlessImagesReleaseExternalSemaphoreExp(UrContext, UrDevice,
                                                             UrSemHandle));
 
   return PI_SUCCESS;

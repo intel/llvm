@@ -199,9 +199,25 @@
 // 16.56 Replaced piextUSMEnqueueMemset with piextUSMEnqueueFill
 // 16.57 Added mappings to UR launch properties extension
 // (piextEnqueueKernelLaunchCustom)
+// 17.58 Added context parameter to piextMemImageGetInfo
+// 17.59 Added const-qualifier to src_ptr in piextMemImageCopy.
+// 18.60 Remove deprecated functions piextMemImportOpaqueFD and
+//       piextImportExternalSemaphoreOpaqueFD
+// 19.61 Rename piextDestroyExternalSemaphore to piextReleaseExternalSemaphore
+// 20.62 Changed the signature of piextMemImageCopy to take 2 image and format
+//       descriptors.
+// 20.63 Added device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM
+//       Removed device queries
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT
+//         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 
-#define _PI_H_VERSION_MAJOR 16
-#define _PI_H_VERSION_MINOR 57
+#define _PI_H_VERSION_MAJOR 20
+#define _PI_H_VERSION_MINOR 63
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -485,9 +501,7 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY = 0x2010A,
   PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT = 0x2010B,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT = 0x2010C,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT = 0x2010D,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
-  PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
 
@@ -508,7 +522,6 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D = 0x20118,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM = 0x20119,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D = 0x2011A,
-  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM = 0x2011B,
   PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D = 0x2011C,
 
   // Timestamp enqueue
@@ -522,6 +535,12 @@ typedef enum {
 
   // Return whether cluster launch is supported by device
   PI_EXT_ONEAPI_DEVICE_INFO_CLUSTER_LAUNCH = 0x2021,
+
+  // Bindless image arrays, unique addressing and USM sampling
+  PI_EXT_ONEAPI_DEVICE_INFO_IMAGE_ARRAY_SUPPORT = 0x20122,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM = 0x20123,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM = 0x20124,
+  PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM = 0x20125,
 } _pi_device_info;
 
 typedef enum {
@@ -969,181 +988,10 @@ using pi_device_exec_capabilities = pi_bitfield;
 static constexpr pi_device_exec_capabilities PI_EXEC_KERNEL = (1 << 0);
 static constexpr pi_device_exec_capabilities PI_EXEC_NATIVE_KERNEL = (1 << 1);
 
-// Entry type, matches OpenMP for compatibility
-struct _pi_offload_entry_struct {
-  void *addr;
-  char *name;
-  size_t size;
-  int32_t flags;
-  int32_t reserved;
-};
-
-using _pi_offload_entry = _pi_offload_entry_struct *;
-
-// A type of a binary image property.
-typedef enum {
-  PI_PROPERTY_TYPE_UNKNOWN,
-  PI_PROPERTY_TYPE_UINT32,     // 32-bit integer
-  PI_PROPERTY_TYPE_BYTE_ARRAY, // byte array
-  PI_PROPERTY_TYPE_STRING      // null-terminated string
-} pi_property_type;
-
-// Device binary image property.
-// If the type size of the property value is fixed and is no greater than
-// 64 bits, then ValAddr is 0 and the value is stored in the ValSize field.
-// Example - PI_PROPERTY_TYPE_UINT32, which is 32-bit
-struct _pi_device_binary_property_struct {
-  char *Name;       // null-terminated property name
-  void *ValAddr;    // address of property value
-  uint32_t Type;    // _pi_property_type
-  uint64_t ValSize; // size of property value in bytes
-};
-
-typedef _pi_device_binary_property_struct *pi_device_binary_property;
-
-// Named array of properties.
-struct _pi_device_binary_property_set_struct {
-  char *Name;                                // the name
-  pi_device_binary_property PropertiesBegin; // array start
-  pi_device_binary_property PropertiesEnd;   // array end
-};
-
-typedef _pi_device_binary_property_set_struct *pi_device_binary_property_set;
-
-/// Types of device binary.
-using pi_device_binary_type = uint8_t;
-// format is not determined
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_NONE = 0;
-// specific to a device
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_NATIVE = 1;
-// portable binary types go next
-// SPIR-V
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_SPIRV = 2;
-// LLVM bitcode
-static constexpr pi_device_binary_type PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3;
-
-// Device binary descriptor version supported by this library.
-static const uint16_t PI_DEVICE_BINARY_VERSION = 1;
-
-// The kind of offload model the binary employs; must be 4 for SYCL
-static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
-
-/// Target identification strings for
-/// pi_device_binary_struct.DeviceTargetSpec
-///
-/// A device type represented by a particular target
-/// triple requires specific binary images. We need
-/// to map the image type onto the device target triple
-///
-#define __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
-/// SPIR-V 32-bit image <-> "spir", 32-bit OpenCL device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 "spir"
-/// SPIR-V 64-bit image <-> "spir64", 64-bit OpenCL device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 "spir64"
-/// Device-specific binary images produced from SPIR-V 64-bit <->
-/// various "spir64_*" triples for specific 64-bit OpenCL devices
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 "spir64_x86_64"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN "spir64_gen"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA "spir64_fpga"
-/// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
-#define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
-#define __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
-
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
 #define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
-
-/// Device binary image property set names recognized by the SYCL runtime.
-/// Name must be consistent with
-/// PropertySetRegistry::SYCL_SPECIALIZATION_CONSTANTS defined in
-/// PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_MAP "SYCL/specialization constants"
-/// PropertySetRegistry::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES defined in
-/// PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                   \
-  "SYCL/specialization constants default values"
-/// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
-/// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
-/// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA "SYCL/program metadata"
-/// PropertySetRegistry::SYCL_MISC_PROP defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_MISC_PROP "SYCL/misc properties"
-/// PropertySetRegistry::SYCL_ASSERT_USED defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_ASSERT_USED "SYCL/assert used"
-/// PropertySetRegistry::SYCL_EXPORTED_SYMBOLS defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS "SYCL/exported symbols"
-/// PropertySetRegistry::SYCL_DEVICE_GLOBALS defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS "SYCL/device globals"
-/// PropertySetRegistry::SYCL_DEVICE_REQUIREMENTS defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS                        \
-  "SYCL/device requirements"
-/// PropertySetRegistry::SYCL_HOST_PIPES defined in PropertySetIO.h
-#define __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES "SYCL/host pipes"
-
-/// Program metadata tags recognized by the PI backends. For kernels the tag
-/// must appear after the kernel name.
-#define __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
-  "@reqd_work_group_size"
-#define __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
-
-#define __SYCL_PI_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
-
-/// This struct is a record of the device binary information. If the Kind field
-/// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
-/// field can still be specific and denote e.g. FPGA target. It must match the
-/// __tgt_device_image structure generated by the clang-offload-wrapper tool
-/// when their Version field match.
-struct pi_device_binary_struct {
-  /// version of this structure - for backward compatibility;
-  /// all modifications which change order/type/offsets of existing fields
-  /// should increment the version.
-  uint16_t Version;
-  /// the type of offload model the binary employs; must be 4 for SYCL
-  uint8_t Kind;
-  /// format of the binary data - SPIR-V, LLVM IR bitcode,...
-  uint8_t Format;
-  /// null-terminated string representation of the device's target architecture
-  /// which holds one of:
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_UNKNOWN - unknown
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32 - general value for 32-bit OpenCL
-  /// devices
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64 - general value for 64-bit OpenCL
-  /// devices
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64 - 64-bit OpenCL CPU device
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN - GEN GPU device (64-bit
-  /// OpenCL)
-  /// __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA - 64-bit OpenCL FPGA device
-  const char *DeviceTargetSpec;
-  /// a null-terminated string; target- and compiler-specific options
-  /// which are suggested to use to "compile" program at runtime
-  const char *CompileOptions;
-  /// a null-terminated string; target- and compiler-specific options
-  /// which are suggested to use to "link" program at runtime
-  const char *LinkOptions;
-  /// Pointer to the manifest data start
-  const char *ManifestStart;
-  /// Pointer to the manifest data end
-  const char *ManifestEnd;
-  /// Pointer to the target code start
-  const unsigned char *BinaryStart;
-  /// Pointer to the target code end
-  const unsigned char *BinaryEnd;
-  /// the offload entry table
-  _pi_offload_entry EntriesBegin;
-  _pi_offload_entry EntriesEnd;
-  // Array of preperty sets; e.g. specialization constants symbol-int ID map is
-  // propagated to runtime with this mechanism.
-  pi_device_binary_property_set PropertySetsBegin;
-  pi_device_binary_property_set PropertySetsEnd;
-  // TODO Other fields like entries, link options can be propagated using
-  // the property set infrastructure. This will improve binary compatibility and
-  // add flexibility.
-};
-using pi_device_binary = pi_device_binary_struct *;
 
 // pi_buffer_region structure repeats cl_buffer_region, used for sub buffers.
 struct pi_buffer_region_struct {
@@ -1187,27 +1035,6 @@ struct pi_image_region_struct {
   size_t depth;
 };
 using pi_image_region = pi_image_region_struct *;
-
-// Offload binaries descriptor version supported by this library.
-static const uint16_t PI_DEVICE_BINARIES_VERSION = 1;
-
-/// This struct is a record of all the device code that may be offloaded.
-/// It must match the __tgt_bin_desc structure generated by
-/// the clang-offload-wrapper tool when their Version field match.
-struct pi_device_binaries_struct {
-  /// version of this structure - for backward compatibility;
-  /// all modifications which change order/type/offsets of existing fields
-  /// should increment the version.
-  uint16_t Version;
-  /// Number of device binaries in this descriptor
-  uint16_t NumDeviceBinaries;
-  /// Device binaries data
-  pi_device_binary DeviceBinaries;
-  /// the offload entry table (not used, for compatibility with OpenMP)
-  _pi_offload_entry *HostEntriesBegin;
-  _pi_offload_entry *HostEntriesEnd;
-};
-using pi_device_binaries = pi_device_binaries_struct *;
 
 // This union encapsulates the two external handles we currently support.
 // When choosing the correct field from the union we need to look at the value
@@ -1345,6 +1172,11 @@ typedef struct {
 } _pi_launch_property;
 
 using pi_launch_property = _pi_launch_property;
+
+struct sycl_device_binaries_struct;
+typedef sycl_device_binaries_struct *pi_device_binary;
+struct _sycl_device_binary_property_struct;
+typedef _sycl_device_binary_property_struct *pi_device_binary_property;
 
 //
 // Following section contains SYCL RT Plugin Interface (PI) functions.
@@ -3078,52 +2910,40 @@ __SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
 /// API to copy image data Host to Device or Device to Host.
 ///
 /// \param queue is the queue to submit to
-/// \param dst_ptr is the location the data will be copied to
 /// \param src_ptr is the data to be copied
-/// \param image_format format of the image (channel order and data type)
-/// \param image_desc image descriptor
+/// \param dst_ptr is the location the data will be copied to
+/// \param src_image_desc source image descriptor
+/// \param dst_image_desc destination image descriptor
+/// \param src_image_format format of the image (channel order and data type)
+/// \param dst_image_format format of the image (channel order and data type)
 /// \param flags flags describing copy direction (H2D or D2H)
 /// \param src_offset is the offset into the source image/memory
 /// \param dst_offset is the offset into the destination image/memory
 /// \param copy_extent is the extent (region) of the image/memory to copy
-/// \param host_extent is the extent (region) of the memory on the host
 /// \param num_events_in_wait_list is the number of events in the wait list
 /// \param event_wait_list is the list of events to wait on before copying
 /// \param event is the returned event representing this operation
 __SYCL_EXPORT pi_result piextMemImageCopy(
-    pi_queue command_queue, void *dst_ptr, void *src_ptr,
-    const pi_image_format *image_format, const pi_image_desc *image_desc,
-    const pi_image_copy_flags flags, pi_image_offset src_offset,
-    pi_image_offset dst_offset, pi_image_region copy_extent,
-    pi_image_region host_extent, pi_uint32 num_events_in_wait_list,
+    pi_queue queue, void *dst_ptr, const void *src_ptr,
+    const pi_image_desc *src_image_desc, const pi_image_desc *dst_image_desc,
+    const pi_image_format *src_image_format,
+    const pi_image_format *dst_image_format, const pi_image_copy_flags flags,
+    pi_image_offset src_offset, pi_image_offset dst_offset,
+    pi_image_region copy_extent, pi_uint32 num_events_in_wait_list,
     const pi_event *event_wait_list, pi_event *event);
 
 /// API to query an image memory handle for specific properties.
 ///
+/// \param context is the handle to the context
 /// \param mem_handle is the handle to the image memory
 /// \param param_name is the queried info name
 /// \param param_value is the returned query value
 /// \param param_value_size_ret is the returned query value size
-__SYCL_EXPORT pi_result piextMemImageGetInfo(
-    const pi_image_mem_handle mem_handle, pi_image_info param_name,
-    void *param_value, size_t *param_value_size_ret);
-
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalMemory`
-///
-/// API to import external memory in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param size is the size of the external memory
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop memory handle to the external
-/// memory
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalMemory`")
-pi_result piextMemImportOpaqueFD(pi_context context, pi_device device,
-                                 size_t size, int file_descriptor,
-                                 pi_interop_mem_handle *ret_handle);
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_context context,
+                                             pi_image_mem_handle mem_handle,
+                                             pi_image_info param_name,
+                                             void *param_value,
+                                             size_t *param_value_size_ret);
 
 /// API to import external memory
 ///
@@ -3159,23 +2979,6 @@ __SYCL_EXPORT pi_result piextMemMapExternalArray(
 __SYCL_EXPORT pi_result piextMemReleaseInterop(
     pi_context context, pi_device device, pi_interop_mem_handle memory_handle);
 
-/// [DEPRECATED] This function is deprecated in favor of
-/// `piextImportExternalSemaphore`
-///
-/// API to import an external semaphore in the form of a file descriptor.
-///
-/// \param context is the pi_context
-/// \param device is the pi_device
-/// \param file_descriptor is the file descriptor
-/// \param ret_handle is the returned interop semaphore handle to the external
-/// semaphore
-__SYCL_EXPORT_DEPRECATED("This function has been deprecated in favor of "
-                         "`piextImportExternalSemaphore`")
-pi_result
-piextImportExternalSemaphoreOpaqueFD(pi_context context, pi_device device,
-                                     int file_descriptor,
-                                     pi_interop_semaphore_handle *ret_handle);
-
 /// API to import an external semaphore
 ///
 /// \param context is the pi_context
@@ -3188,14 +2991,14 @@ piextImportExternalSemaphore(pi_context context, pi_device device,
                              pi_external_semaphore_descriptor *sem_descriptor,
                              pi_interop_semaphore_handle *ret_handle);
 
-/// API to destroy the external semaphore handle.
+/// API to release the external semaphore.
 ///
 /// \param context is the pi_context
 /// \param device is the pi_device
 /// \param sem_handle is the interop semaphore handle to the external semaphore
 /// to be destroyed
 __SYCL_EXPORT pi_result
-piextDestroyExternalSemaphore(pi_context context, pi_device device,
+piextReleaseExternalSemaphore(pi_context context, pi_device device,
                               pi_interop_semaphore_handle sem_handle);
 
 /// API to instruct the queue with a non-blocking wait on an external semaphore.

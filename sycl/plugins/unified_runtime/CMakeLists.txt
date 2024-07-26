@@ -17,7 +17,6 @@ set(SYCL_PI_UR_SOURCE_DIR
 
 # Override default to enable building tests from unified-runtime
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
-set(UMF_ENABLE_POOL_TRACKING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_L0 ON)
@@ -100,13 +99,21 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e
-  # Merge: 01af5602 79be9c5f
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 8 13:52:48 2024 +0100
-  #     Merge pull request #1775 from Bensuo/fabio/refactor_l0_cmd_buffer
-  #     Refactor Level Zero Command-Buffer implementation
-  set(UNIFIED_RUNTIME_TAG 4a60029d79aeb6a2bb09fc2f7677ec682634aa6e)
+  # commit 2baf095188b235bb2b0a0140f0187d2041aef4b0
+  # Merge: 3d8fe8d2 58f85278
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Jul 26 12:06:22 2024 +0200
+  #     Merge pull request #1900 from kswiecicki/umf-version-bump
+  #     Bump UMF version
+  set(UNIFIED_RUNTIME_TAG 58f85278a4ebf37742dd10afb3350580b0b1d9d7)
+
+  set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
+  # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
+  # to link statically on windows
+  if(WIN32)
+    set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
+    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  endif()
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
@@ -192,7 +199,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMemoryFramework ALIAS umf)
+add_library(UnifiedMemoryFramework ALIAS ur_umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -222,6 +229,7 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
   INCLUDE_DIRS
     "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
     "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+    "${SYCL_SOURCE_DIR}/source" # for compiler.hpp
 )
 
 # We need for #include <ze_api.h> in common.h
@@ -291,3 +299,11 @@ if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     Some valid SYCL programs may not build or may have low performance.")
   endif()
 endif()
+
+add_dependencies(sycl-runtime-libraries ur_umf)
+
+# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+install(TARGETS umf
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)

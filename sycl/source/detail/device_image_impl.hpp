@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/compiler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
@@ -127,8 +128,8 @@ public:
            "native_specialization_constant() called for unimplemented case");
 
     auto IsJITSPIRVTarget = [](const char *Target) {
-      return (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
-              strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32) == 0);
+      return (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0 ||
+              strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV32) == 0);
     };
     return (MContext.get_backend() == backend::opencl ||
             MContext.get_backend() == backend::ext_oneapi_level_zero) &&
@@ -226,7 +227,7 @@ public:
   }
 
   bool specialization_constants_replaced_with_default() const noexcept {
-    pi_device_binary_property Prop =
+    sycl_device_binary_property Prop =
         MBinImage->getProperty("specConstsReplacedWithDefault");
     return Prop && (DeviceBinaryProperty(Prop).asUint32() != 0);
   }

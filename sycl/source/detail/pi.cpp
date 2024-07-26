@@ -212,13 +212,12 @@ std::string platformInfoToString(pi_platform_info info) {
   case PI_EXT_PLATFORM_INFO_BACKEND:
     return "PI_EXT_PLATFORM_INFO_BACKEND";
   }
-  die("Unknown pi_platform_info value passed to "
-      "sycl::detail::pi::platformInfoToString");
+  return "unknown PI_PLATFORM_INFO enum value";
 }
 
 std::string memFlagToString(pi_mem_flags Flag) {
-  assertion(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
-            "More than one bit set");
+  assert(((Flag == 0u) || ((Flag & (Flag - 1)) == 0)) &&
+         "More than one bit set");
 
   std::stringstream Sstream;
 
@@ -504,29 +503,14 @@ template <backend BE> const PluginPtr &getPlugin() {
       return *Plugin;
     }
 
-  throw runtime_error("pi::getPlugin couldn't find plugin",
-                      PI_ERROR_INVALID_OPERATION);
+  throw exception(make_error_code(errc::runtime),
+                  "pi::getPlugin couldn't find plugin");
 }
 
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::opencl>();
-template __SYCL_EXPORT const PluginPtr &
-getPlugin<backend::ext_oneapi_level_zero>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
-template __SYCL_EXPORT const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
-
-// Report error and no return (keeps compiler from printing warnings).
-// TODO: Probably change that to throw a catchable exception,
-//       but for now it is useful to see every failure.
-//
-[[noreturn]] void die(const char *Message) {
-  std::cerr << "pi_die: " << Message << std::endl;
-  std::terminate();
-}
-
-void assertion(bool Condition, const char *Message) {
-  if (!Condition)
-    die(Message);
-}
+template const PluginPtr &getPlugin<backend::opencl>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_level_zero>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
+template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>
@@ -626,14 +610,14 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   };
 
   if (MatchMagicNumber(uint32_t{0x07230203}))
-    return PI_DEVICE_BINARY_TYPE_SPIRV;
+    return SYCL_DEVICE_BINARY_TYPE_SPIRV;
 
   if (MatchMagicNumber(uint32_t{0xDEC04342}))
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   if (MatchMagicNumber(uint32_t{0x43544E49}))
     // 'I', 'N', 'T', 'C' ; Intel native
-    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    return SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
   // Check for ELF format, size requirements include data we'll read in case of
   // succesful match.
@@ -641,16 +625,16 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
     if (ELFHdrType == 0xFF04)
       // OpenCL executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     if (ELFHdrType == 0xFF12)
       // ZEBIN executable.
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
     // Newer ZEBIN format does not have a special header type, but can instead
     // be identified by having a required .ze_info section.
     if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-      return PI_DEVICE_BINARY_TYPE_NATIVE;
+      return SYCL_DEVICE_BINARY_TYPE_NATIVE;
   }
 
   if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
@@ -659,9 +643,9 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
     //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
     //
     // option.
-    return PI_DEVICE_BINARY_TYPE_NATIVE;
+    return SYCL_DEVICE_BINARY_TYPE_NATIVE;
 
-  return PI_DEVICE_BINARY_TYPE_NONE;
+  return SYCL_DEVICE_BINARY_TYPE_NONE;
 }
 
 } // namespace pi

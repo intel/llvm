@@ -24,45 +24,12 @@ using namespace sycl;
 class OutOfResourcesKernel1;
 class OutOfResourcesKernel2;
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-template <>
-struct KernelInfo<OutOfResourcesKernel1> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "OutOfResourcesKernel1"; }
-};
+MOCK_INTEGRATION_HEADER(OutOfResourcesKernel1)
+MOCK_INTEGRATION_HEADER(OutOfResourcesKernel2)
 
-template <>
-struct KernelInfo<OutOfResourcesKernel2> : public unittest::MockKernelInfoBase {
-  static constexpr const char *getName() { return "OutOfResourcesKernel2"; }
-};
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-
-static sycl::unittest::PiImage makeImage(const char *kname) {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({kname});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::PiImage Img[2] = {makeImage("OutOfResourcesKernel1"),
-                                         makeImage("OutOfResourcesKernel2")};
+static sycl::unittest::PiImage Img[2] = {
+    sycl::unittest::generateDefaultImage({"OutOfResourcesKernel1"}),
+    sycl::unittest::generateDefaultImage({"OutOfResourcesKernel2"})};
 
 static sycl::unittest::PiImageArray<2> ImgArray{Img};
 

@@ -98,11 +98,6 @@ bool trace(TraceLevel level);
 #error "Unsupported OS"
 #endif
 
-// Report error and no return (keeps compiler happy about no return statements).
-[[noreturn]] __SYCL_EXPORT void die(const char *Message);
-
-__SYCL_EXPORT void assertion(bool Condition, const char *Message = nullptr);
-
 using PiPlugin = ::pi_plugin;
 using PiResult = ::pi_result;
 using PiPlatform = ::pi_platform;
@@ -110,7 +105,6 @@ using PiPlatformBackend = ::pi_platform_backend;
 using PiDevice = ::pi_device;
 using PiDeviceType = ::pi_device_type;
 using PiDeviceInfo = ::pi_device_info;
-using PiDeviceBinaryType = ::pi_device_binary_type;
 using PiContext = ::pi_context;
 using PiContextInfo = ::pi_context_info;
 using PiProgram = ::pi_program;
@@ -194,7 +188,7 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 std::vector<PluginPtr> &initialize();
 
 // Get the plugin serving given backend.
-template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
+template <backend BE> const PluginPtr &getPlugin();
 
 // Utility Functions to get Function Name for a PI Api.
 template <PiApiKind PiApiOffset> struct PiFuncInfo {};
@@ -243,12 +237,6 @@ uint64_t emitFunctionWithArgsBeginTrace(uint32_t FuncID, const char *FName,
 void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin);
-
-/// Tries to determine the device binary image foramat. Returns
-/// PI_DEVICE_BINARY_TYPE_NONE if unsuccessful.
-PiDeviceBinaryType getBinaryImageFormat(const unsigned char *ImgData,
-                                        size_t ImgSize);
-
 } // namespace pi
 
 // Workaround for build with GCC 5.x
@@ -260,9 +248,7 @@ namespace pi {
 // Want all the needed casts be explicit, do not define conversion
 // operators.
 template <class To, class From> inline To cast(From value) {
-  // TODO: see if more sanity checks are possible.
-  sycl::detail::pi::assertion((sizeof(From) == sizeof(To)),
-                              "assert: cast failed size check");
+  static_assert(sizeof(From) == sizeof(To), "cast failed size check");
   return (To)(value);
 }
 
