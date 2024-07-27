@@ -161,7 +161,7 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<int, 16> a, vec<int, 16> b) {
   return a > b;
 }
 
-// CHECK-LABEL: define dso_local spir_func noundef <3 x i8> @_Z15TestGreaterThanN4sycl3_V13vecISt4byteLi3EEES3_(
+// CHECK-LABEL: define dso_local spir_func noundef range(i8 -1, 1) <3 x i8> @_Z15TestGreaterThanN4sycl3_V13vecISt4byteLi3EEES3_(
 // CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.35") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.35") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] !srcloc [[META56:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 1
