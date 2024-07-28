@@ -8,7 +8,6 @@
 
 #include <detail/kernel_bundle_impl.hpp>
 
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
