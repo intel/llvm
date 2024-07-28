@@ -33,6 +33,6 @@ struct KernelInfo<TestKernel<KernelSize>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"TestKernel"});
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};

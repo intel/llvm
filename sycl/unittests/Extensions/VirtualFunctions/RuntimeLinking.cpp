@@ -46,7 +46,7 @@ KERNEL_INFO(KernelG)
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage
+static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
   sycl::unittest::UrPropertySet PropSet;
@@ -72,7 +72,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::UrImage Img{
+  sycl::unittest::MockDeviceImage Img{
       SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
       "",                                  // Compile options
@@ -103,7 +103,7 @@ static constexpr unsigned PROGRAM_F1 = 53;
 // Device images with no entires are ignored by SYCL RT during registration.
 // Therefore, we have to provide some kernel names to make the test work, even
 // if we don't really have them/use them.
-static sycl::unittest::UrImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"KernelA"}, "set-a", /* uses vf set */ true, PROGRAM_A),
     generateImage({"DummyKernel0"}, "set-a", /* provides vf set */ false,
                   PROGRAM_A0),
@@ -131,7 +131,7 @@ static sycl::unittest::UrImage Imgs[] = {
     generateImage({"KernelG"}, "set-f", /* uses vf set */ true, PROGRAM_F1)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::UrImageArray<15> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<15> ImgArray{Imgs};
 
 TEST(VirtualFunctions, SingleKernelUsesSingleVFSet) {
   sycl::unittest::UrMock<> Mock;

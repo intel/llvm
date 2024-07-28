@@ -29,7 +29,7 @@ class PipeID;
 using Pipe = sycl::ext::intel::experimental::pipe<PipeID, int, 10,
                                                   default_pipe_properties>;
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   sycl::detail::host_pipe_map::add(Pipe::get_host_ptr(),
@@ -45,13 +45,13 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
@@ -123,8 +123,8 @@ protected:
   queue q;
 };
 
-static sycl::unittest::UrImage Img = generateDefaultImage();
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST_F(PipeTest, Basic) {
   // Fake extension

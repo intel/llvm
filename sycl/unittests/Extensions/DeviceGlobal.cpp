@@ -53,7 +53,7 @@ struct KernelInfo<DeviceGlobalImgScopeTestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDeviceGlobalImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -72,18 +72,18 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -103,21 +103,21 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
   UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
 namespace {
-sycl::unittest::UrImage Imgs[] = {generateDeviceGlobalImage(),
-                                  generateDeviceGlobalImgScopeImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDeviceGlobalImage(),
+                                          generateDeviceGlobalImgScopeImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 // Trackers.
 thread_local DeviceGlobalElemType MockDeviceGlobalMem;

@@ -55,7 +55,7 @@ createPropertySet(const std::vector<std::string> &Symbols) {
   return Props;
 }
 
-sycl::unittest::UrImage
+sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::vector<std::string> &ExportedSymbols,
               const std::vector<std::string> &ImportedSymbols,
@@ -74,7 +74,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::UrImage Img{
+  sycl::unittest::MockDeviceImage Img{
       BinType,
       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
       "",                                  // Compile options
@@ -96,7 +96,7 @@ static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
 static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
 
-static sycl::unittest::UrImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
                   BASIC_CASE_PRG),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
@@ -120,7 +120,7 @@ static sycl::unittest::UrImage Imgs[] = {
                   AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::UrImageArray<9> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<9> ImgArray{Imgs};
 
 TEST(DynamicLinking, BasicCase) {
   sycl::unittest::UrMock<> Mock;

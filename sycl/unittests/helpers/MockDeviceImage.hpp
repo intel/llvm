@@ -1,4 +1,5 @@
-//==------------- UrImage.hpp --- UR mock image unit testing library -------==//
+//==------------- MockDeviceImage.hpp --- UR mock image unit testing library
+//-------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -222,14 +223,16 @@ private:
 
 /// Convenience wrapper around UR internal structures, that manages UR binary
 /// image data lifecycle.
-class UrImage {
+class MockDeviceImage {
 public:
   /// Constructs an arbitrary device image.
-  UrImage(uint16_t Version, uint8_t Kind, uint8_t Format,
-          const std::string &DeviceTargetSpec,
-          const std::string &CompileOptions, const std::string &LinkOptions,
-          std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+  MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
+                  const std::string &DeviceTargetSpec,
+                  const std::string &CompileOptions,
+                  const std::string &LinkOptions, std::vector<char> Manifest,
+                  std::vector<unsigned char> Binary,
+                  UrArray<UrOffloadEntry> OffloadEntries,
+                  UrPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -237,14 +240,17 @@ public:
         MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
-  UrImage(uint8_t Format, const std::string &DeviceTargetSpec,
-          const std::string &CompileOptions, const std::string &LinkOptions,
-          std::vector<unsigned char> Binary,
-          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
-      : UrImage(SYCL_DEVICE_BINARY_VERSION,
-                SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format, DeviceTargetSpec,
-                CompileOptions, LinkOptions, {}, std::move(Binary),
-                std::move(OffloadEntries), std::move(PropertySet)) {}
+  MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
+                  const std::string &CompileOptions,
+                  const std::string &LinkOptions,
+                  std::vector<unsigned char> Binary,
+                  UrArray<UrOffloadEntry> OffloadEntries,
+                  UrPropertySet PropertySet)
+      : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
+                        SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
+                        DeviceTargetSpec, CompileOptions, LinkOptions, {},
+                        std::move(Binary), std::move(OffloadEntries),
+                        std::move(PropertySet)) {}
 
   sycl_device_binary_struct convertToNativeType() {
     return sycl_device_binary_struct{
@@ -281,11 +287,11 @@ private:
 
 /// Convenience wrapper around sycl_device_binaries_struct, that manages mock
 /// device images' lifecycle.
-template <size_t __NumberOfImages> class UrImageArray {
+template <size_t __NumberOfImages> class MockDeviceImageArray {
 public:
   static constexpr size_t NumberOfImages = __NumberOfImages;
 
-  UrImageArray(UrImage *Imgs) {
+  MockDeviceImageArray(MockDeviceImage *Imgs) {
     for (size_t Idx = 0; Idx < NumberOfImages; ++Idx)
       MNativeImages[Idx] = Imgs[Idx].convertToNativeType();
 
@@ -300,7 +306,7 @@ public:
     __sycl_register_lib(&MAllBinaries);
   }
 
-  ~UrImageArray() { __sycl_unregister_lib(&MAllBinaries); }
+  ~MockDeviceImageArray() { __sycl_unregister_lib(&MAllBinaries); }
 
 private:
   sycl_device_binary_struct MNativeImages[NumberOfImages];
@@ -537,7 +543,7 @@ addDeviceRequirementsProps(UrPropertySet &Props,
   Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS, std::move(Value));
 }
 
-inline UrImage
+inline MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames) {
   UrPropertySet PropSet;
 
@@ -545,13 +551,13 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }

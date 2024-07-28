@@ -56,7 +56,7 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 } // namespace sycl
 
 template <typename T>
-static sycl::unittest::UrImage
+static sycl::unittest::MockDeviceImage
 generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
@@ -74,13 +74,13 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   UrArray<UrOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                        // Compile options
-              _lnkOptions,                         // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      _cmplOptions,                        // Compile options
+                      _lnkOptions,                         // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
   return Img;
 }
 
@@ -126,10 +126,10 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_options = "";
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel1>(expected_options,
                                                  expected_options);
-  static sycl::unittest::UrImageArray<1> DevImageArray_{&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
@@ -156,11 +156,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
                   "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
               expected_link_options_1 =
                   "-cl-denorms-are-zero -cl-no-signed-zeros";
-  static sycl::unittest::UrImage DevImage_1 =
+  static sycl::unittest::MockDeviceImage DevImage_1 =
       generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1,
                                                  expected_link_options_1);
 
-  static sycl::unittest::UrImageArray<1> DevImageArray = {&DevImage_1};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
@@ -191,10 +191,10 @@ TEST(Link_Compile_Options, check_sycl_build) {
   current_compile_options.clear();
   std::string expected_compile_options = "-cl-opt-disable",
               expected_link_options = "-cl-denorms-are-zero";
-  static sycl::unittest::UrImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options,
                                                  expected_link_options);
-  static sycl::unittest::UrImageArray<1> DevImageArray{&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray{&DevImage};
   auto KernelID = sycl::get_kernel_id<EAMTestKernel3>();
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};

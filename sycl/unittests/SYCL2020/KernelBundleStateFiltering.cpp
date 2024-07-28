@@ -35,7 +35,7 @@ MOCK_INTEGRATION_HEADER(KernelE)
 namespace {
 
 std::set<const void *> TrackedImages;
-sycl::unittest::UrImage
+sycl::unittest::MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      sycl_device_binary_type BinaryType,
                      const char *DeviceTargetSpec) {
@@ -48,13 +48,13 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  UrImage Img{BinaryType, // Format
-              DeviceTargetSpec,
-              "", // Compile options
-              "", // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{BinaryType, // Format
+                      DeviceTargetSpec,
+                      "", // Compile options
+                      "", // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
   const void *BinaryPtr = Img.getBinaryPtr();
   TrackedImages.insert(BinaryPtr);
 
@@ -69,7 +69,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 // Image 5: input, KernelE
 // Image 6: exe, KernelE
 // Image 7: exe. KernelE
-sycl::unittest::UrImage Imgs[] = {
+sycl::unittest::MockDeviceImage Imgs[] = {
     generateDefaultImage({"KernelA", "KernelB"}, SYCL_DEVICE_BINARY_TYPE_SPIRV,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64),
     generateDefaultImage({"KernelA"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
@@ -87,7 +87,7 @@ sycl::unittest::UrImage Imgs[] = {
     generateDefaultImage({"KernelE"}, SYCL_DEVICE_BINARY_TYPE_NATIVE,
                          __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64)};
 
-sycl::unittest::UrImageArray<std::size(Imgs)> ImgArray{Imgs};
+sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
 std::vector<unsigned char> UsedImageIndices;
 
 void redefinedUrProgramCreateCommon(const void *bin) {

@@ -25,9 +25,9 @@ class MultipleDevsCacheTestKernel;
 
 MOCK_INTEGRATION_HEADER(MultipleDevsCacheTestKernel)
 
-static sycl::unittest::UrImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"MultipleDevsCacheTestKernel"});
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 static ur_result_t redefinedDeviceGetAfter(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);

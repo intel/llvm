@@ -73,7 +73,7 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
@@ -88,18 +88,18 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateCopierKernelImage() {
+static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
@@ -111,20 +111,20 @@ static sycl::unittest::UrImage generateCopierKernelImage() {
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-sycl::unittest::UrImage Imgs[] = {generateDefaultImage(),
-                                  generateCopierKernelImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
+                                          generateCopierKernelImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
   int Flag = 0;
