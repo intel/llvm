@@ -1,6 +1,8 @@
 // Test -fsycl-allow-device-dependencies with a single dynamic library on Windows
 // and Linux.
 
+// UNSUPPORTED: cuda || hip
+
 // RUN: %clangxx -fsycl %fPIC %shared_lib -fsycl-allow-device-dependencies -I %S/Inputs \
 // RUN:    %S/Inputs/a.cpp                                                              \
 // RUN:    %S/Inputs/b.cpp                                                              \
