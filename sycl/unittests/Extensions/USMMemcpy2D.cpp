@@ -132,7 +132,7 @@ static sycl::unittest::MockDeviceImage generateMemopsImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(
+  Array<UrOffloadEntry> Entries = makeEmptyKernels(
       {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
        USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
 

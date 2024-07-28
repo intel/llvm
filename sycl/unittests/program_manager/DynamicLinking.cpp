@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrArray<sycl::unittest::UrProperty>
+sycl::unittest::Array<sycl::unittest::UrProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
   sycl::unittest::UrPropertySet PropSet;
-  sycl::unittest::UrArray<sycl::unittest::UrProperty> Props;
+  sycl::unittest::Array<sycl::unittest::UrProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -71,7 +71,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
+  sycl::unittest::Array<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::MockDeviceImage Img{

@@ -65,11 +65,11 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 UrArray<UrProperty>{std::move(DevGlobInfo)});
+                 Array<UrProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  Array<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
@@ -96,11 +96,11 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 UrArray<UrProperty>{std::move(DevGlobInfo)});
+                 Array<UrProperty>{std::move(DevGlobInfo)});
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  Array<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
