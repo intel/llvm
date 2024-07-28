@@ -80,7 +80,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   setKernelUsesAssert({KernelName}, PropSet);
 
@@ -105,7 +105,7 @@ static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 

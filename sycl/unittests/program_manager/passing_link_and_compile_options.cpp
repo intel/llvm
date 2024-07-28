@@ -61,12 +61,12 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM1{0b00000101};
-  UrProperty EAMKernelPOI =
+  MockProperty EAMKernelPOI =
       makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
                              EAMTestKernelNumArgs1, KernelEAM1);
-  Array<UrProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data

@@ -28,7 +28,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
                      const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data

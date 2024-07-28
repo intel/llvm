@@ -41,10 +41,11 @@ static sycl::unittest::MockDeviceImage generateImageWithSpecConsts() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  UrProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
-  UrProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
+  MockProperty SC1 =
+      makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  MockProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addSpecConstants({SC1, SC2}, std::move(SpecConstData), PropSet);
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data

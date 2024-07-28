@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::Array<sycl::unittest::UrProperty>
+sycl::unittest::Array<sycl::unittest::MockProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
-  sycl::unittest::UrPropertySet PropSet;
-  sycl::unittest::Array<sycl::unittest::UrProperty> Props;
+  sycl::unittest::MockPropertySet PropSet;
+  sycl::unittest::Array<sycl::unittest::MockProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -48,7 +48,8 @@ createPropertySet(const std::vector<std::string> &Symbols) {
     std::uninitialized_copy(DataPtr, DataPtr + sizeof(uint32_t),
                             Storage.data());
 
-    sycl::unittest::UrProperty Prop(Symbol, Storage, SYCL_PROPERTY_TYPE_UINT32);
+    sycl::unittest::MockProperty Prop(Symbol, Storage,
+                                      SYCL_PROPERTY_TYPE_UINT32);
 
     Props.push_back(Prop);
   }
@@ -62,7 +63,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
               unsigned char Magic,
               sycl::detail::ur::DeviceBinaryType BinType =
                   SYCL_DEVICE_BINARY_TYPE_SPIRV) {
-  sycl::unittest::UrPropertySet PropSet;
+  sycl::unittest::MockPropertySet PropSet;
   if (!ExportedSymbols.empty())
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
                    createPropertySet(ExportedSymbols));

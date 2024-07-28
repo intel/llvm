@@ -48,11 +48,11 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
 
   // Eliminated arguments are 1st and 3rd.
   std::vector<unsigned char> KernelEAM{0b00000101};
-  UrProperty EAMKernelPOI = makeKernelParamOptInfo(
+  MockProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernelName, EAMTestKernelNumArgs, KernelEAM);
-  Array<UrProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
@@ -73,7 +73,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
 static sycl::unittest::MockDeviceImage generateEAMTestKernel2Image() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
 
