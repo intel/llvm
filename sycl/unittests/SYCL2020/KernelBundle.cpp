@@ -37,7 +37,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{BinaryType, // Format
                       DeviceTargetSpec,

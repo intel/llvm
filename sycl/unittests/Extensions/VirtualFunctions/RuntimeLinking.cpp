@@ -69,7 +69,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::Array<sycl::unittest::UrOffloadEntry> Entries =
+  sycl::unittest::Array<sycl::unittest::MockOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::MockDeviceImage Img{

@@ -57,7 +57,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -77,7 +77,7 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel2Image() {
 
   std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

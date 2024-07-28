@@ -46,7 +46,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   static unsigned char NImage = 0;
   std::vector<unsigned char> Bin{NImage++};
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{BinaryType, // Format
                       DeviceTargetSpec,

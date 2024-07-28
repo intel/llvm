@@ -72,22 +72,23 @@ private:
 };
 
 /// Convinience wrapper for _ur_offload_entry_struct.
-class UrOffloadEntry {
+class MockOffloadEntry {
 public:
   using NativeType = _sycl_offload_entry_struct;
 
-  UrOffloadEntry(const std::string &Name, std::vector<char> Data, int32_t Flags)
+  MockOffloadEntry(const std::string &Name, std::vector<char> Data,
+                   int32_t Flags)
       : MName(Name), MData(std::move(Data)), MFlags(Flags) {
     updateNativeType();
   }
 
-  UrOffloadEntry(const UrOffloadEntry &Src) {
+  MockOffloadEntry(const MockOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
     updateNativeType();
   }
-  UrOffloadEntry &operator=(const UrOffloadEntry &Src) {
+  MockOffloadEntry &operator=(const MockOffloadEntry &Src) {
     MName = Src.MName;
     MData = Src.MData;
     MFlags = Src.MFlags;
@@ -231,7 +232,7 @@ public:
                   const std::string &CompileOptions,
                   const std::string &LinkOptions, std::vector<char> Manifest,
                   std::vector<unsigned char> Binary,
-                  Array<UrOffloadEntry> OffloadEntries,
+                  Array<MockOffloadEntry> OffloadEntries,
                   MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
@@ -244,7 +245,7 @@ public:
                   const std::string &CompileOptions,
                   const std::string &LinkOptions,
                   std::vector<unsigned char> Binary,
-                  Array<UrOffloadEntry> OffloadEntries,
+                  Array<MockOffloadEntry> OffloadEntries,
                   MockPropertySet PropertySet)
       : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
                         SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
@@ -281,7 +282,7 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  Array<UrOffloadEntry> MOffloadEntries;
+  Array<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
 };
 
@@ -432,12 +433,12 @@ inline void addESIMDFlag(MockPropertySet &Props) {
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline Array<UrOffloadEntry>
+inline Array<MockOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  Array<UrOffloadEntry> Entries;
+  Array<MockOffloadEntry> Entries;
 
   for (const auto &Name : KernelNames) {
-    UrOffloadEntry E{Name, {}, 0};
+    MockOffloadEntry E{Name, {}, 0};
     Entries.push_back(std::move(E));
   }
   return Entries;
@@ -550,7 +551,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

@@ -33,7 +33,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

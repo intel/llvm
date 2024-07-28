@@ -71,7 +71,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries =
+  Array<MockOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format

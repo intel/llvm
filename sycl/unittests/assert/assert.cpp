@@ -86,7 +86,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -109,7 +109,7 @@ static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

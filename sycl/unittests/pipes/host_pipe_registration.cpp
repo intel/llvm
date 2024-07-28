@@ -43,7 +43,7 @@ static sycl::unittest::MockDeviceImage generateDefaultImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec

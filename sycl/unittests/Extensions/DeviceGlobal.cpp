@@ -69,7 +69,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  Array<UrOffloadEntry> Entries =
+  Array<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
@@ -100,7 +100,7 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  Array<UrOffloadEntry> Entries =
+  Array<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
