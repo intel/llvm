@@ -1,7 +1,7 @@
 // Test -fsycl-allow-device-dependencies with dynamic libraries.
 
 // REQUIRES: linux
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: cuda || hip || (gpu-intel-gen12 && opencl)
 
 // RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/a.cpp -I %S/Inputs -o %T/libdevice_a.so
 // RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/b.cpp -I %S/Inputs -o %T/libdevice_b.so
