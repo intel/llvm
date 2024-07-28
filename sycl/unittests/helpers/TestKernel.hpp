@@ -9,7 +9,7 @@
 #pragma once
 
 #include "MockKernelInfo.hpp"
-#include "UrImage.hpp"
+#include "MockDeviceImage.hpp"
 
 template <size_t KernelSize = 1> class TestKernel;
 

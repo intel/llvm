@@ -10,7 +10,7 @@
 #include "SchedulerTestUtils.hpp"
 #include "ur_mock_helpers.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <cassert>

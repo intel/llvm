@@ -13,7 +13,7 @@
 #include <detail/host_pipe_map_entry.hpp>
 #include <gtest/gtest.h>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/detail/host_pipe_map.hpp>
 

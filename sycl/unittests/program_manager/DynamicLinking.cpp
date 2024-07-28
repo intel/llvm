@@ -2,7 +2,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>

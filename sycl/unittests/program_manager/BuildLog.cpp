@@ -13,7 +13,7 @@
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <helpers/ScopedEnvVar.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 

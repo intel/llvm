@@ -17,7 +17,7 @@
 
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/TestKernel.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <detail/context_impl.hpp>
