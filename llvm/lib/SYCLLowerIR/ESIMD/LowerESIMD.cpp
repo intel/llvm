@@ -2092,13 +2092,11 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
     if (!Global.getName().starts_with(SPIRV_INTRIN_PREF))
       continue;
 
-    for (User *U : Global.users()) {
+    for (User *U : Global.users())
       translateGlobalUse(U, Global.getName().drop_front(PrefLen), ToErase);
-    }
   }
-  for (auto *CI : ToErase) {
+  for (auto *CI : ToErase)
     CI->eraseFromParent();
-  }
 
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
