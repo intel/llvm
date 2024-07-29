@@ -134,7 +134,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
     set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
 
-
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
     ${UNIFIED_RUNTIME_TAG}
