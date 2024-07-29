@@ -2202,8 +2202,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         if (!ClangOutputOrErr)
           return ClangOutputOrErr.takeError();
         if (Triple.isNVPTX()) {
-          auto VirtualArch = StringRef(clang::CudaArchToVirtualArchString(
-              clang::StringToCudaArch(Arch)));
+          auto VirtualArch = StringRef(clang::OffloadArchToVirtualArchString(
+              clang::StringToOffloadArch(Arch)));
           auto PtxasOutputOrErr =
               nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
           if (!PtxasOutputOrErr)
