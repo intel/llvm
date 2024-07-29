@@ -4,10 +4,10 @@
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
-; This test checks that the transformation is applied in the basic case with multiple identical annotations nodes.
+; This test checks that the transformation is applied to kernels found using
+; less common annotation formats, and that annotations are correctly updated.
 
-
-define dso_local void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
+define void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
 entry:
   %0 = load i32, ptr addrspace(3) %a
   %1 = load i32, ptr addrspace(1) %b
@@ -15,21 +15,18 @@ entry:
   ret void
 }
 
-!llvm.module.flags = !{!6}
-!nvvm.annotations = !{!0, !0}
-!nvvmir.version = !{!5}
+!llvm.module.flags = !{!0}
+!nvvm.annotations = !{!1, !2, !3, !4}
 
-!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
-!1 = !{null, !"align", i32 8}
-!2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
-!3 = !{null, !"align", i32 16}
-!4 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-!5 = !{i32 1, i32 4}
-!6 = !{i32 1, !"sycl-device", i32 1}
+!0 = !{i32 1, !"sycl-device", i32 1}
+!1 = distinct !{ptr @_ZTS14example_kernel, !"maxntidx", i32 256, !"kernel", i32 1, !"maxntidy", i32 64}
+!2 = !{ptr @_ZTS14example_kernel, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
+!3 = !{ptr @_ZTS14example_kernel, !"maxntidz", i32 256}
+!4 = !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 ;.
 ; CHECK: @_ZTS14example_kernel_shared_mem = external addrspace(3) global [0 x i8], align 4
 ;.
-; CHECK-LABEL: define dso_local void @_ZTS14example_kernel(
+; CHECK-LABEL: define void @_ZTS14example_kernel(
 ; CHECK-SAME: i32 [[TMP0:%.*]], ptr addrspace(1) [[B:%.*]], i32 [[C:%.*]]) {
 ; CHECK-NEXT:  [[ENTRY:.*:]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 [[TMP0]]
@@ -41,6 +38,8 @@ entry:
 ;
 ;.
 ; CHECK: [[META0:![0-9]+]] = !{i32 1, !"sycl-device", i32 1}
-; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
-; CHECK: [[META2:![0-9]+]] = !{i32 1, i32 4}
+; CHECK: [[META1:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"maxntidx", i32 256, !"kernel", i32 1, !"maxntidy", i32 64}
+; CHECK: [[META2:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
+; CHECK: [[META3:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"maxntidz", i32 256}
+; CHECK: [[META4:![0-9]+]] = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 ;.
