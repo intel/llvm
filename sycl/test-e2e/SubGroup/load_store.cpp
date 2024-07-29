@@ -1,6 +1,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
+// TODO: Flaky reenable, see https://github.com/intel/llvm/issues/14765
+// UNSUPPORTED: windows, linux
+//
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

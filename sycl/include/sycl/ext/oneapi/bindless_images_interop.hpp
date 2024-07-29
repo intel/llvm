@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_uint64
+#include <ur_api.h>
 
 #include <stddef.h> // for size_t
 
@@ -32,13 +32,13 @@ enum class external_semaphore_handle_type {
 
 /// Opaque interop memory handle type
 struct interop_mem_handle {
-  using raw_handle_type = pi_uint64;
+  using raw_handle_type = ur_exp_interop_mem_handle_t;
   raw_handle_type raw_handle;
 };
 
 /// Opaque interop semaphore handle type
 struct interop_semaphore_handle {
-  using raw_handle_type = pi_uint64;
+  using raw_handle_type = ur_exp_interop_semaphore_handle_t;
   raw_handle_type raw_handle;
   external_semaphore_handle_type handle_type;
 };
