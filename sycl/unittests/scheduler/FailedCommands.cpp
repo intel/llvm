@@ -9,13 +9,13 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
 TEST_F(SchedulerTest, FailedDependency) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   queue Queue(context(Plt), default_selector_v);
 
   detail::Requirement MockReq = getMockRequirement();
