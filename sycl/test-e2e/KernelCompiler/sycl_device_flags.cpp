@@ -12,15 +12,13 @@
 // IGC shader dump not available on Windows.
 
 // RUN: %{build} -o %t.out
-// RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out
-// RUN: grep -e '-doubleGRF' %t.dump/OCL_asmaf99e2d4667ef6d3_options.txt
-// RUN grep -e '-Xfinalizer "-printregusage"'
-// ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
+// RUN: env IGC_DumpToCustomDir=%T.dump IGC_ShaderDumpEnable=1 NEO_CACHE_PERSISTENT=0 %{run} %t.out %T.dump/
 
 // clang-format off
 /*
     clang++ -fsycl -o sdf.bin sycl_device_flags.cpp
-    IGC_ShaderDumpEnable=1 IGC_DumpToCustomDir=./dump NEO_CACHE_PERSISTENT=0 ./sdf.bin 
+    IGC_ShaderDumpEnable=1 IGC_DumpToCustomDir=./dump NEO_CACHE_PERSISTENT=0 ./sdf.bin ./dump
+    
     grep -e '-doubleGRF' ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
     grep -e '-Xfinalizer "-printregusage"' ./dump/OCL_asmaf99e2d4667ef6d3_options.txt
 
@@ -73,13 +71,58 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   sycl::free(usmPtr, Queue);
 }
 
-int main() {
+int test_dump(std::string &dump_dir) {
+  // If this has been run with the shader dump environment variables set, then
+  // the output files we are looking for should be in ./dump
+  // There are two files whose name ends in _options. We do NOT want
+  // the file that ends in _internal_options.txt
+
+  std::string command_one =
+      "find " + dump_dir +
+      " -name \"*_options.txt\" -not -name \"*_internal_options.txt\" -type f "
+      "-exec grep -q -e "
+      "'-doubleGRF' {} +";
+  std::string command_two =
+      "find " + dump_dir +
+      " -name \"*_options.txt\" -not -name \"*_internal_options.txt\" -type f "
+      "-exec grep -q -e "
+      "'-Xfinalizer \"-printregusage\"' {} +";
+
+  // 0 means success, any other value is a failure
+  int result_one = std::system(command_one.c_str());
+  int result_two = std::system(command_two.c_str());
+
+  if (result_one == 0 && result_two == 0) {
+    return 0;
+  } else {
+    std::cout << "result_one: " << result_one << " result_two: " << result_two
+              << std::endl;
+    return -1;
+  }
+}
+
+int main(int argc, char *argv[]) {
+
+  if (argc != 2) {
+    std::cerr << "Usage: " << argv[0] << " <dump_directory>" << std::endl;
+    return 1;
+  }
+  std::string dump_dir = argv[1];
+
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
 
   sycl::queue q;
   sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  if (!ok) {
+    std::cout << "compiling from SYCL source not supported" << std::endl;
+    return 0; // if kernel compilation is not supported, do nothing.
+  }
+
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource);
 
@@ -93,5 +136,5 @@ int main() {
 
   test_1(q, k, 30);
 
-  return 0;
+  return test_dump(dump_dir);
 }
