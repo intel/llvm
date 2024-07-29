@@ -45,7 +45,7 @@ void event_impl::initContextIfNeeded() {
 event_impl::~event_impl() {
   try {
     if (MEvent)
-      getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+      getPlugin()->call(urEventRelease, MEvent);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -54,17 +54,16 @@ event_impl::~event_impl() {
 void event_impl::waitInternal(bool *Success) {
   if (!MIsHostEvent && MEvent) {
     // Wait for the native event
-    sycl::detail::pi::PiResult Err =
-        getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
-    // TODO drop the PI_ERROR_UKNOWN from here once the UR counterpart to
-    // PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST is added:
-    // https://github.com/oneapi-src/unified-runtime/issues/1459
+    ur_result_t Err = getPlugin()->call_nocheck(urEventWait, 1, &MEvent);
+    // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
+    // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
+    // closed).
     if (Success != nullptr &&
-        (Err == PI_ERROR_UNKNOWN ||
-         Err == PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST))
+        (Err == UR_RESULT_ERROR_UNKNOWN ||
+         Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getPlugin()->checkPiResult(Err);
+      getPlugin()->checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -112,10 +111,8 @@ static uint64_t inline getTimestamp() {
       .count();
 }
 
-const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
-  return MEvent;
-}
-sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
+const ur_event_handle_t &event_impl::getHandleRef() const { return MEvent; }
+ur_event_handle_t &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   initContextIfNeeded();
@@ -134,20 +131,19 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl(sycl::detail::pi::PiEvent Event,
-                       const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
-  sycl::detail::pi::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
-      &TempContext, nullptr);
+  ur_context_handle_t TempContext;
+  getPlugin()->call(urEventGetInfo, MEvent, UR_EVENT_INFO_CONTEXT,
+                    sizeof(ur_context_handle_t), &TempContext, nullptr);
+
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
-                              codeToString(PI_ERROR_INVALID_CONTEXT));
+                              codeToString(UR_RESULT_ERROR_INVALID_CONTEXT));
   }
 }
 
@@ -161,9 +157,10 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     MState.store(HES_NotComplete);
     MHostProfilingInfo.reset(new HostProfilingInfo());
     if (!MHostProfilingInfo)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Out of host memory " +
-                                codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "Out of host memory " +
+              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
     return;
   }
   MState.store(HES_Complete);
@@ -184,7 +181,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -337,7 +334,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -364,7 +361,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 
@@ -383,11 +380,11 @@ event_impl::get_info<info::event::command_execution_status>() {
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MIsHostEvent) {
-    // Command is enqueued and PiEvent is ready
+    // Command is enqueued and UrEvent is ready
     if (MEvent)
       return get_event_info<info::event::command_execution_status>(
           this->getHandleRef(), this->getPlugin());
-    // Command is blocked and not enqueued, PiEvent is not assigned yet
+    // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
   }
@@ -457,7 +454,7 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-pi_native_handle event_impl::getNative() {
+ur_native_handle_t event_impl::getNative() {
   if (isHost())
     return {};
   initContextIfNeeded();
@@ -465,12 +462,14 @@ pi_native_handle event_impl::getNative() {
   auto Plugin = getPlugin();
   if (MIsDefaultConstructed && !MEvent) {
     auto TempContext = MContext.get()->getHandleRef();
-    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    ur_event_native_properties_t NativeProperties{};
+    Plugin->call(urEventCreateWithNativeHandle, 0, TempContext,
+                 &NativeProperties, &MEvent);
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+    Plugin->call(urEventRetain, getHandleRef());
+  ur_native_handle_t Handle;
+  Plugin->call(urEventGetNativeHandle, getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -494,13 +493,13 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   // Some events might not have a native handle underneath even at this point,
-  // e.g. those produced by memset with 0 size (no PI call is made).
+  // e.g. those produced by memset with 0 size (no UR call is made).
   if (MIsFlushed || !MEvent)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
-  // implicitly flushed by piQueueRelease.
+  // implicitly flushed by urQueueRelease.
   if (!Queue) {
     MIsFlushed = true;
     return;
@@ -509,12 +508,12 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
-      nullptr);
-  if (Status == PI_EVENT_QUEUED) {
-    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
+  getPlugin()->call(urEventGetInfo, MEvent,
+                    UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                    sizeof(ur_event_status_t), &Status, nullptr);
+  if (Status == UR_EVENT_STATUS_QUEUED) {
+    getPlugin()->call(urQueueFlush, Queue->getHandleRef());
   }
   MIsFlushed = true;
 }

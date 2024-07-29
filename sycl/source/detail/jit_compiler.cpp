@@ -14,7 +14,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -32,14 +32,14 @@ jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     static const std::string JITLibraryName = "libsycl-fusion.so";
 
-    void *LibraryPtr = sycl::detail::pi::loadOsLibrary(JITLibraryName);
+    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -48,7 +48,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -57,7 +57,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -66,7 +66,7 @@ jit_compiler::jit_compiler() {
 
     this->MaterializeSpecConstHandle =
         reinterpret_cast<MaterializeSpecConstFuncT>(
-            sycl::detail::pi::getOsLibraryFuncAddress(
+            sycl::detail::ur::getOsLibraryFuncAddress(
                 LibraryPtr, "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
@@ -80,7 +80,7 @@ jit_compiler::jit_compiler() {
 }
 
 static ::jit_compiler::BinaryFormat
-translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
+translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   switch (Type) {
   case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     return ::jit_compiler::BinaryFormat::SPIRV;
@@ -625,7 +625,7 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
   }
 }
 
-sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
+ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
@@ -742,8 +742,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -906,7 +905,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     if (KernelIndex == 0) {
       KernelCacheConfig = KernelCG->MKernelCacheConfig;
     } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
-      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+      KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
     }
 
     ++KernelIndex;
@@ -918,8 +917,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<::jit_compiler::JITConstant> JITConstants;
   std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
-  for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
-    PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, InternalizeParams,
+  for (auto UR = FusedParams.begin(); UR != FusedParams.end();) {
+    UR = preProcessArguments(ArgsStorage, UR, PromotedAccs, InternalizeParams,
                              JITConstants, NonIdenticalParameters,
                              ParamIdentities);
   }
@@ -1070,7 +1069,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::PTX ||
       Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
-    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
         FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
         [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
@@ -1146,7 +1145,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   std::vector<uint8_t> Encoded(NumBytes, 0u);
   uint8_t *Ptr = Encoded.data();
   // Skip 64-bit wide size argument with value 0 at the start of the data.
-  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
   Ptr += sizeof(uint64_t);
   for (const auto &Val : Attr.Values) {
     auto UVal = static_cast<uint32_t>(Val);

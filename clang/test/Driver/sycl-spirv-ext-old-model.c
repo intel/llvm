@@ -51,6 +51,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bindless_images
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_task_sequence
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
@@ -83,6 +84,7 @@
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_buffer_location
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_argument_interfaces
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_latency_control
+// CHECK-FPGA-HW-SAME:,+SPV_INTEL_task_sequence
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_usm_storage_classes
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_runtime_aligned
 // CHECK-FPGA-HW-SAME:,+SPV_INTEL_fpga_cluster_attributes,+SPV_INTEL_loop_fuse
@@ -114,6 +116,7 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_argument_interfaces
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_latency_control
+// CHECK-CPU-SAME:,+SPV_INTEL_task_sequence
 // CHECK-CPU-SAME:,+SPV_INTEL_token_type
 // CHECK-CPU-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_joint_matrix

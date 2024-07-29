@@ -1,4 +1,6 @@
 // REQUIRES: fusion
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
+// UNSUPPORTED: hip
 
 // RUN: %{build} %{embed-ir} -O2 --offload-new-driver -o %t.out
 // RUN: %{run} %t.out
