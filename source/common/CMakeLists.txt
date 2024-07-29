@@ -23,8 +23,7 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # Merge pull request #639 from kswiecicki/umf-compile-options-win
-    set(UMF_TAG bb07950f9804783cdc69951b90c2d7bd68c226f3)
+    set(UMF_TAG 9a96626d8c5fe3b8e7625cb2c3bd41e779c6eb8c)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
