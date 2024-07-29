@@ -133,7 +133,7 @@ std::span<std::byte> ext_oneapi_get_content_view() const;
 ----
 !====
 
-Available on when the compiler is {cpp}20 or higher.
+Available only when the compiler is {cpp}20 or higher.
 
 _Returns:_ A view of the raw bytes for this device image.
 The data behind this view has the same lifetime as the `kernel_bundle` that
