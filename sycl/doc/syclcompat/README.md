@@ -410,11 +410,10 @@ To request a certain cluster dimension on supported hardware:
 using syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-sycl_exp::cuda::cluster_size ClusterDims(ClusterRange);
-sycl_exp::properties ClusterLaunchProperty{ClusterDims};
+sycl_exp::cuda::cluster_size cluster_dims(cluster_range);
 launch_policy policy{blocksPerGrid, threadsPerBlock,
                                   local_mem_size(nbytes), 
-                                  launch_properties{ClusterDims}};
+                                  launch_properties{cluster_dims}};
 
 launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```

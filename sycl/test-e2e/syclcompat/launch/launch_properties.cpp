@@ -17,7 +17,7 @@
  *  launch_properties.cpp
  *
  *  Description:
- *     launch<F> with launch properties tests - test ClusterDims passed
+ *     launch<F> with launch properties tests - test cluster_dims passed
  *     correctly. Adapted from
  *     sycl/test-e2e/ClusterLaunch/cluster_launch_parallel_for.cpp
  **************************************************************************/
@@ -37,9 +37,9 @@ namespace compat_exp = syclcompat::experimental;
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
 template <int Dim>
-void cluster_launch_kernel(sycl::range<Dim> ClusterRange,
-                           int *CorrectResultFlag) {
-  uint32_t ClusterDimX, ClusterDimY, ClusterDimZ;
+void cluster_launch_kernel(sycl::range<Dim> cluster_range,
+                           int *correct_result_flag) {
+  uint32_t cluster_dim_x, cluster_dim_y, cluster_dim_z;
 // Temporary solution till cluster group class is implemented
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SYCL_CUDA_ARCH__) &&            \
     (__SYCL_CUDA_ARCH__ >= 900)
@@ -47,52 +47,51 @@ void cluster_launch_kernel(sycl::range<Dim> ClusterRange,
                "mov.u32 %0, %%cluster_nctaid.x; \n\t"
                "mov.u32 %1, %%cluster_nctaid.y; \n\t"
                "mov.u32 %2, %%cluster_nctaid.z; \n\t"
-               : "=r"(ClusterDimZ), "=r"(ClusterDimY), "=r"(ClusterDimX));
+               : "=r"(cluster_dim_z), "=r"(cluster_dim_y), "=r"(cluster_dim_x));
 #endif
   if constexpr (Dim == 1) {
-    if (ClusterDimZ == ClusterRange[0] && ClusterDimY == 1 &&
-        ClusterDimX == 1) {
-      *CorrectResultFlag = 1;
+    if (cluster_dim_z == cluster_range[0] && cluster_dim_y == 1 &&
+        cluster_dim_x == 1) {
+      *correct_result_flag = 1;
     }
   } else if constexpr (Dim == 2) {
-    if (ClusterDimZ == ClusterRange[1] && ClusterDimY == ClusterRange[0] &&
-        ClusterDimX == 1) {
-      *CorrectResultFlag = 1;
+    if (cluster_dim_z == cluster_range[1] && cluster_dim_y == cluster_range[0] &&
+        cluster_dim_x == 1) {
+      *correct_result_flag = 1;
     }
   } else {
-    if (ClusterDimZ == ClusterRange[2] && ClusterDimY == ClusterRange[1] &&
-        ClusterDimX == ClusterRange[0]) {
-      *CorrectResultFlag = 1;
+    if (cluster_dim_z == cluster_range[2] && cluster_dim_y == cluster_range[1] &&
+        cluster_dim_x == cluster_range[0]) {
+      *correct_result_flag = 1;
     }
   }
 };
 
 template <int Dim>
-int test_cluster_launch_parallel_for(sycl::range<Dim> GlobalRange,
-                                     sycl::range<Dim> LocalRange,
-                                     sycl::range<Dim> ClusterRange) {
+int test_cluster_launch_parallel_for(sycl::range<Dim> global_range,
+                                     sycl::range<Dim> local_range,
+                                     sycl::range<Dim> cluster_range) {
 
-  sycl_exp::cuda::cluster_size ClusterDims(ClusterRange);
-  sycl_exp::properties ClusterLaunchProperty{ClusterDims};
+  sycl_exp::cuda::cluster_size cluster_dims(cluster_range);
 
-  int *CorrectResultFlag = syclcompat::malloc<int>(1);
-  syclcompat::memset(CorrectResultFlag, 0, sizeof(int));
+  int *correct_result_flag = syclcompat::malloc<int>(1);
+  syclcompat::memset(correct_result_flag, 0, sizeof(int));
 
-  compat_exp::launch_policy policy{GlobalRange, LocalRange,
-                                   compat_exp::launch_properties{ClusterDims}};
-  compat_exp::launch<cluster_launch_kernel<Dim>>(policy, ClusterRange,
-                                                 CorrectResultFlag);
+  compat_exp::launch_policy policy{global_range, local_range,
+                                   compat_exp::launch_properties{cluster_dims}};
+  compat_exp::launch<cluster_launch_kernel<Dim>>(policy, cluster_range,
+                                                 correct_result_flag);
 
-  int CorrectResultFlagHost = 0;
-  syclcompat::memcpy<int>(&CorrectResultFlagHost, CorrectResultFlag, 1);
-  return CorrectResultFlagHost;
+  int correct_result_flag_host = 0;
+  syclcompat::memcpy<int>(&correct_result_flag_host, correct_result_flag, 1);
+  return correct_result_flag_host;
 }
 
 int main() {
 
   sycl::queue Queue;
 
-  int HostCorrectFlag =
+  int host_correct_flag =
       test_cluster_launch_parallel_for(sycl::range{128, 128, 128},
                                        sycl::range{16, 16, 2},
                                        sycl::range{2, 4, 1}) &&
@@ -103,5 +102,5 @@ int main() {
       test_cluster_launch_parallel_for(sycl::range{16384}, sycl::range{32},
                                        sycl::range{16});
 
-  return !HostCorrectFlag;
+  return !host_correct_flag;
 }
