@@ -60,6 +60,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   }
 
   if (!isInOrderQueue()) {
+    UR_CALL(Queue->executeCommandList(CommandList, false));
     queueFinish();
     // queue finish will execute the command list. Open it again so that
     // `zeCommandListAppendSignalEvent` can be executed.
