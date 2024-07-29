@@ -3,6 +3,9 @@
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib
 // RUN: %{run} %t.out
 
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14679
+// UNSUPPORTED: windows, linux
+
 //==--------------- sampler.cpp - SYCL sampler basic test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

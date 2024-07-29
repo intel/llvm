@@ -8457,9 +8457,17 @@ class ToolSelector final {
     return dyn_cast<JobAction>(CurAction);
   }
 
+  // We need to collapse the separate compilation steps when performing
+  // a third party host compilation step for SYCL offloading.  We don't know
+  // what the third party compiler is capable of, so only allow for object
+  // creation when performing -save-temps.
+  bool SYCLHostCompiler =
+      BaseAction->isHostOffloading(Action::OFK_SYCL) &&
+      C.getArgs().hasArg(options::OPT_fsycl_host_compiler_EQ);
+
   /// Return true if an assemble action can be collapsed.
   bool canCollapseAssembleAction() const {
-    return TC.useIntegratedAs() && !SaveTemps &&
+    return TC.useIntegratedAs() && !(SaveTemps && !SYCLHostCompiler) &&
            !C.getArgs().hasArg(options::OPT_via_file_asm) &&
            !C.getArgs().hasArg(options::OPT__SLASH_FA) &&
            !C.getArgs().hasArg(options::OPT__SLASH_Fa) &&
@@ -8469,7 +8477,8 @@ class ToolSelector final {
   /// Return true if a preprocessor action can be collapsed.
   bool canCollapsePreprocessorAction() const {
     return !C.getArgs().hasArg(options::OPT_no_integrated_cpp) &&
-           !C.getArgs().hasArg(options::OPT_traditional_cpp) && !SaveTemps &&
+           !(SaveTemps && !SYCLHostCompiler) &&
+           !C.getArgs().hasArg(options::OPT_traditional_cpp) &&
            !C.getArgs().hasArg(options::OPT_rewrite_objc);
   }
 
@@ -9408,10 +9417,14 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
                                        StringRef OffloadingPrefix) const {
   std::string BoundArch = OrigBoundArch.str();
   if (is_style_windows(llvm::sys::path::Style::native)) {
-    // BoundArch may contains ':', which is invalid in file names on Windows,
-    // therefore replace it with '%'.
+    // BoundArch may contain ':' or '*', which is invalid in file names on
+    // Windows, therefore replace it with '@'.
     std::replace(BoundArch.begin(), BoundArch.end(), ':', '@');
+    std::replace(BoundArch.begin(), BoundArch.end(), '*', '@');
   }
+  // BoundArch may contain ',', which may create strings that interfere with
+  // the StringMap for the clang-offload-packager input values.
+  std::replace(BoundArch.begin(), BoundArch.end(), ',', '@');
 
   llvm::PrettyStackTraceString CrashInfo("Computing output path");
   // Output to a user requested destination?

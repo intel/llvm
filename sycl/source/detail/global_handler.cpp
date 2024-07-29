@@ -20,8 +20,8 @@
 #include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/spinlock.hpp>
+#include <sycl/detail/ur.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -207,6 +207,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
+
 std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
@@ -231,7 +232,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
-  // races with the detaching of the DLL object that calls piTearDown.
+  // races with the detaching of the DLL object that calls urLoaderTearDown.
 
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
@@ -267,15 +268,13 @@ void GlobalHandler::unloadPlugins() {
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
-    for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter for Teardown is the boolean tracking if a
-      // given plugin has been teardown successfully.
-      // This tracking prevents usage of this plugin after teardown
-      // has been completed to avoid invalid resource access.
-      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
-      Plugin->unload();
+    for (const auto &Plugin : getPlugins()) {
+      Plugin->release();
     }
   }
+
+  urLoaderTearDown();
+
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
 }
@@ -356,17 +355,18 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  bool PrintPiTrace = false;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
-    PrintPiTrace = true;
+  // TODO: Remove from public header files and implementation during the next
+  // ABI Breaking window.
+  if (std::getenv("SYCL_PI_TRACE")) {
+    std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
+    std::exit(1);
   }
 
+  bool PrintUrTrace = sycl::detail::ur::trace();
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -378,7 +378,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     shutdown_win();
     break;
   case DLL_PROCESS_ATTACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
     break;
   case DLL_THREAD_ATTACH:
