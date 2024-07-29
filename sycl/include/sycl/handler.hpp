@@ -1875,7 +1875,7 @@ private:
     setArgsToAssociatedAccessors();
 
     SetHostTask(std::move(Func));
-    setType(detail::CGType::CodeplayHostTask);
+    setType(detail::CGType::EnqueueNativeCommand);
   }
 
   /// @brief Get the command graph if any associated with this handler. It can
