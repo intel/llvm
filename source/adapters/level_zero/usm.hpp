@@ -85,11 +85,26 @@ public:
   virtual umf_result_t purge_force(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
-  umf_result_t allocation_merge(void *, void *, size_t) {
-    return UMF_RESULT_ERROR_UNKNOWN;
+  virtual umf_result_t allocation_merge(void *, void *, size_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
-  umf_result_t allocation_split(void *, size_t, size_t) {
-    return UMF_RESULT_ERROR_UNKNOWN;
+  virtual umf_result_t allocation_split(void *, size_t, size_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t get_ipc_handle_size(size_t *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t get_ipc_handle(const void *, size_t, void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t put_ipc_handle(void *) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t open_ipc_handle(void *, void **) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+  }
+  virtual umf_result_t close_ipc_handle(void *, size_t) {
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
   }
   virtual const char *get_name() { return ""; };
   virtual ~USMMemoryProviderBase() = default;
