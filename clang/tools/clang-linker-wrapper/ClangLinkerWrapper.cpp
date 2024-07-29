@@ -1294,7 +1294,6 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   StringRef Arch = Args.getLastArgValue(OPT_arch_EQ);
   if (Arch.empty())
     Arch = "native";
-
   // Create a new file to write the linked device image to. Assume that the
   // input filename already has the device and architecture.
   auto TempFileOrErr =
@@ -1303,19 +1302,13 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                        "img");
   if (!TempFileOrErr)
     return TempFileOrErr.takeError();
-  std::string TempFileName(*TempFileOrErr);
-  if (is_style_windows(llvm::sys::path::Style::native)) {
-    // Arch may contain ':' or '*', which is invalid in file names on
-    // Windows, therefore replace it with '@'.
-    std::replace(TempFileName.begin(), TempFileName.end(), ':', '@');
-    std::replace(TempFileName.begin(), TempFileName.end(), '*', '@');
-  }
+
   StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
   SmallVector<StringRef, 16> CmdArgs{
       *ClangPath,
       "--no-default-config",
       "-o",
-      TempFileName,
+      *TempFileOrErr,
       Args.MakeArgString("--target=" + Triple.getTriple()),
       Triple.isAMDGPU() ? Args.MakeArgString("-mcpu=" + Arch)
                         : Args.MakeArgString("-march=" + Arch),
@@ -1402,7 +1395,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
 
-  return TempFileName;
+  return *TempFileOrErr;
 }
 } // namespace generic
 
@@ -1533,12 +1526,6 @@ std::unique_ptr<lto::LTO> createLTO(
     std::string TempName = (sys::path::filename(ExecutableName) + "." +
                             Triple.getTriple() + "." + Arch)
                                .str();
-    if (is_style_windows(llvm::sys::path::Style::native)) {
-      // Arch may contain ':' or '*', which is invalid in file names on
-      // Windows, therefore replace it with '@'.
-      std::replace(TempName.begin(), TempName.end(), ':', '@');
-      std::replace(TempName.begin(), TempName.end(), '*', '@');
-    }
     Conf.PostInternalizeModuleHook = [=](size_t Task, const Module &M) {
       std::string File =
           !Task ? TempName + ".postlink.bc"
