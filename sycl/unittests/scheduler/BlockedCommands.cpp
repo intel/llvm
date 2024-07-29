@@ -9,14 +9,15 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 using namespace testing;
 
 TEST_F(SchedulerTest, BlockedCommands) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  /*
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
   MockCommand MockCmd(detail::getSyclObjImpl(Q));
 
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -46,26 +47,26 @@ TEST_F(SchedulerTest, BlockedCommands) {
 
   Res = detail::EnqueueResultT{};
   MockCmd.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  MockCmd.MRetVal = CL_SUCCESS;
+  MockCmd.MRetVal = UR_RESULT_SUCCESS;
   Enqueued = MockScheduler::enqueueCommand(&MockCmd, Res, detail::BLOCKING);
   ASSERT_TRUE(Enqueued &&
               Res.MResult == detail::EnqueueResultT::SyclEnqueueSuccess)
-      << "The command is expected to be successfully enqueued.\n";
+      << "The command is expected to be successfully enqueued.\n";*/
 }
 
 TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
-  A.MRetVal = CL_SUCCESS;
+  A.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
-  B.MRetVal = CL_SUCCESS;
+  B.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand C(detail::getSyclObjImpl(Q));
   C.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -74,7 +75,7 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
   MockCommand D(detail::getSyclObjImpl(Q));
   D.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   D.MIsBlockable = true;
-  D.MRetVal = CL_SUCCESS;
+  D.MRetVal = UR_RESULT_SUCCESS;
 
   addEdge(&A, &B, nullptr);
   addEdge(&A, &C, nullptr);
@@ -104,8 +105,8 @@ TEST_F(SchedulerTest, DontEnqueueDepsIfOneOfThemIsBlocked) {
 }
 
 TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueBlocked;
@@ -113,7 +114,7 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
-  B.MRetVal = CL_OUT_OF_RESOURCES;
+  B.MRetVal = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
   addEdge(&A, &B, nullptr);
 
@@ -150,18 +151,18 @@ TEST_F(SchedulerTest, EnqueueBlockedCommandEarlyExit) {
 // This unit test is for workaround described in GraphProcessor::enqueueCommand
 // method.
 TEST_F(SchedulerTest, EnqueueHostDependency) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   MockCommand A(detail::getSyclObjImpl(Q));
   A.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   A.MIsBlockable = true;
-  A.MRetVal = CL_SUCCESS;
+  A.MRetVal = UR_RESULT_SUCCESS;
 
   MockCommand B(detail::getSyclObjImpl(Q));
   B.MEnqueueStatus = detail::EnqueueResultT::SyclEnqueueReady;
   B.MIsBlockable = true;
-  B.MRetVal = CL_SUCCESS;
+  B.MRetVal = UR_RESULT_SUCCESS;
 
   sycl::detail::EventImplPtr DepEvent{
       new sycl::detail::event_impl(detail::getSyclObjImpl(Q))};

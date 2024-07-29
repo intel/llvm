@@ -34,7 +34,7 @@ void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
-std::tuple<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
+std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
 retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
                      CGExecKernel *KernelCG) {
   bool isNvidia =
@@ -51,7 +51,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
         [isNvidia](RTDeviceBinaryImage *DI) {
           const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
                                                    : std::string("llvm_amdgcn");
-          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+          return DI->getFormat() == SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
                  DI->getRawData().DeviceTargetSpec == TargetSpec;
         });
     if (DeviceImage == DeviceImages.end()) {
@@ -61,15 +61,14 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    sycl::detail::pi::PiProgram Program =
-        detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
+    ur_program_handle_t Program =
+        detail::ProgramManager::getInstance().createURProgram(**DeviceImage,
                                                               Context, Device);
     return {*DeviceImage, Program};
   }
 
-  assert(KernelCG && "CGExecKernel must be provided.");
   const RTDeviceBinaryImage *DeviceImage = nullptr;
-  sycl::detail::pi::PiProgram Program = nullptr;
+  ur_program_handle_t Program = nullptr;
   if (KernelCG->getKernelBundle() != nullptr) {
     // Retrieve the device image from the kernel bundle.
     auto KernelBundle = KernelCG->getKernelBundle();
@@ -80,10 +79,10 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
         KernelBundle->get_kernel(KernelID, KernelBundle));
 
     DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = SyclKernel->getDeviceImage()->get_program_ref();
+    Program = SyclKernel->getDeviceImage()->get_ur_program_ref();
   } else if (KernelCG->MSyclKernel != nullptr) {
     DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
+    Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
   } else {
     auto ContextImpl = Queue->getContextImplPtr();
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
@@ -91,7 +90,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
         KernelName, Context, Device);
-    Program = detail::ProgramManager::getInstance().createPIProgram(
+    Program = detail::ProgramManager::getInstance().createURProgram(
         *DeviceImage, Context, Device);
   }
   return {DeviceImage, Program};

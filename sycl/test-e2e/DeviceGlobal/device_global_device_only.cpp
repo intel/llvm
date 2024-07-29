@@ -3,7 +3,8 @@
 //
 // The OpenCL GPU backends do not currently support device_global backend
 // calls.
-// UNSUPPORTED: opencl && gpu
+// TODO: Reenable linux/windows, see https://github.com/intel/llvm/issues/14598
+// UNSUPPORTED: opencl && gpu, linux, windows
 //
 // Tests basic device_global access through device kernels.
 

@@ -13,13 +13,13 @@
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for get_spec_constant_symboli...
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
-#include <sycl/detail/pi.h>                // for pi_native_handle
-#include <sycl/detail/pi.hpp>              // for cast
 #include <sycl/detail/string_view.hpp>
+#include <sycl/detail/ur.hpp>           // for cast
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/property_list.hpp>       // for property_list
+#include <ur_api.h>                     // for ur_native_handle_t
 
 #include <sycl/ext/oneapi/experimental/free_function_traits.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>     // PropertyT
@@ -111,7 +111,7 @@ public:
 
   bool has_kernel(const kernel_id &KernelID, const device &Dev) const noexcept;
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
 protected:
   detail::DeviceImageImplPtr impl;
@@ -472,7 +472,7 @@ private:
 
     for (const device_image<State> &DevImg : *this) {
       ReturnValue.push_back(
-          detail::pi::cast<typename decltype(ReturnValue)::value_type>(
+          detail::ur::cast<typename decltype(ReturnValue)::value_type>(
               DevImg.getNative()));
     }
 

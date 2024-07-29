@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/pi.hpp>         // for PiProgram
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -253,7 +252,7 @@ template <size_t count, class F> void loop(F &&f) {
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 
-std::tuple<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
+std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
 retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
                      CGExecKernel *CGKernel = nullptr);
 } // namespace detail
