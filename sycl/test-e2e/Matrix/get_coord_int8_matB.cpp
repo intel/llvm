@@ -9,7 +9,6 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 // XFAIL: cpu, gpu-intel-dg2
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
