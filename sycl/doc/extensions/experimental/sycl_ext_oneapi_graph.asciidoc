@@ -1459,7 +1459,7 @@ Submitting a command-group to a queue in the executable state can implicitly
 change its state to `queue_state::recording`. This will occur when the
 command-group depends on an event that has been returned by a queue in the
 recording state. The change of state happens before the command-group is
-submitted (i.e. a new graph node will be created for that command-group).
+submitted to the device (i.e. a new graph node will be created for that command-group).
 
 A queue whose state has been set to `queue_state::recording` using this
 mechanism, will behave as if it had been passed as an argument to
