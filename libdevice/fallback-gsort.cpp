@@ -1136,4 +1136,10 @@ __devicelib_default_sub_group_private_sort_descending_f16(_Float16 value,
                               [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
+//========= default work grop joint sort for (uint32_t, uint32_t) ==============
+void __devicelib_default_work_group_joint_sort_ascending_p1u32_p1u32_u32_p1i8(
+    uint32_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less<uint32_t>{});
+}
+
 #endif // __SPIR__ || __SPIRV__
