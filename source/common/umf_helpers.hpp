@@ -33,6 +33,35 @@ using provider_unique_handle_t =
     std::unique_ptr<umf_memory_provider_t,
                     std::function<void(umf_memory_provider_handle_t)>>;
 
+#define DEFINE_CHECK_OP(op)                                                    \
+    template <typename T> class HAS_OP_##op {                                  \
+        typedef char check_success;                                            \
+        typedef long check_fail;                                               \
+        template <typename U> static check_success test(decltype(&U::op));     \
+        template <typename U> static check_fail test(...);                     \
+                                                                               \
+      public:                                                                  \
+        static constexpr bool value =                                          \
+            sizeof(test<T>(0)) == sizeof(check_success);                       \
+    };                                                                         \
+                                                                               \
+    template <typename T, typename... Args>                                    \
+    static inline                                                              \
+        typename std::enable_if<HAS_OP_##op<T>::value, umf_result_t>::type     \
+            CALL_OP_##op(T *t, Args &&...args) {                               \
+        return t->op(std::forward<Args>(args)...);                             \
+    };                                                                         \
+                                                                               \
+    static inline umf_result_t CALL_OP_##op(...) {                             \
+        return UMF_RESULT_ERROR_NOT_SUPPORTED;                                 \
+    }
+
+DEFINE_CHECK_OP(get_ipc_handle_size);
+DEFINE_CHECK_OP(get_ipc_handle);
+DEFINE_CHECK_OP(put_ipc_handle);
+DEFINE_CHECK_OP(open_ipc_handle);
+DEFINE_CHECK_OP(close_ipc_handle);
+
 #define UMF_ASSIGN_OP(ops, type, func, default_return)                         \
     ops.func = [](void *obj, auto... args) {                                   \
         try {                                                                  \
@@ -47,6 +76,15 @@ using provider_unique_handle_t =
         try {                                                                  \
             return reinterpret_cast<type *>(obj)->func(args...);               \
         } catch (...) {                                                        \
+        }                                                                      \
+    }
+
+#define UMF_ASSIGN_OP_OPT(ops, type, func, default_return)                     \
+    ops.func = [](void *obj, auto... args) {                                   \
+        try {                                                                  \
+            return CALL_OP_##func(reinterpret_cast<type *>(obj), args...);     \
+        } catch (...) {                                                        \
+            return default_return;                                             \
         }                                                                      \
     }
 
@@ -133,6 +171,12 @@ auto memoryProviderMakeUnique(Args &&...args) {
     UMF_ASSIGN_OP(ops.ext, T, purge_force, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, allocation_split, UMF_RESULT_ERROR_UNKNOWN);
+    UMF_ASSIGN_OP_OPT(ops.ipc, T, get_ipc_handle_size,
+                      UMF_RESULT_ERROR_UNKNOWN);
+    UMF_ASSIGN_OP_OPT(ops.ipc, T, get_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+    UMF_ASSIGN_OP_OPT(ops.ipc, T, put_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+    UMF_ASSIGN_OP_OPT(ops.ipc, T, open_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
+    UMF_ASSIGN_OP_OPT(ops.ipc, T, close_ipc_handle, UMF_RESULT_ERROR_UNKNOWN);
 
     umf_memory_provider_handle_t hProvider = nullptr;
     auto ret = umfMemoryProviderCreate(&ops, &argsTuple, &hProvider);
