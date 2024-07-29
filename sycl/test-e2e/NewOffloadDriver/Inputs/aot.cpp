@@ -18,7 +18,7 @@ template <typename T> class Vadd;
 
 template <typename T, size_t N>
 void vadd(const std::array<T, N> &A, const std::array<T, N> &B,
-                 std::array<T, N> &C) {
+          std::array<T, N> &C) {
   sycl::queue Queue([](sycl::exception_list ExceptionList) {
     for (std::exception_ptr ExceptionPtr : ExceptionList) {
       try {
@@ -58,13 +58,11 @@ int main() {
   vadd(D, E, F);
   for (unsigned int i = 0; i < array_size; i++) {
     if (C[i] != A[i] + B[i]) {
-      std::cout << "Incorrect result (element " << i << " is " << C[i]
-                << "!\n";
+      std::cout << "Incorrect result (element " << i << " is " << C[i] << "!\n";
       return 1;
     }
     if (F[i] != D[i] + E[i]) {
-      std::cout << "Incorrect result (element " << i << " is " << F[i]
-                << "!\n";
+      std::cout << "Incorrect result (element " << i << " is " << F[i] << "!\n";
       return 1;
     }
   }
