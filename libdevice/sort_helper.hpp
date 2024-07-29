@@ -157,4 +157,92 @@ Tp sub_group_merge_sort(Tp value, uint8_t *scratch, Compare comp) {
   return temp_buffer[idx];
 }
 
+static void __get_chunk_size(size_t group_id, size_t group_size, size_t n,
+                             size_t *beg, size_t *end) {
+  size_t tmp = n % group_size;
+  size_t chunk_size = n / group_size;
+  if (tmp) {
+    if (group_id < tmp) {
+      *beg = group_id * (chunk_size + 1);
+      *end = *beg + chunk_size + 1;
+    } else {
+      *beg = tmp * (chunk_size + 1) + (group_id - tmp) * chunk_size;
+      *end = *beg + chunk_size;
+    }
+  } else {
+    *beg = group_id * chunk_size;
+    *end = *beg + chunk_size;
+  }
+}
+
+template <typename KeyT, typename ValT, typename Compare>
+void merge_key_value(KeyT *keys_in, KeyT *keys_out, ValT *vals_in,
+                     ValT *vals_out, size_t widx, size_t iter_num,
+                     size_t chunks_to_merge, Compare comp) {
+  if (2 * widx >= chunks_to_merge)
+    return;
+
+  //
+}
+
+template <typename KeyT, typename ValT, typename Compare>
+void bubble_sort_key_value(KeyT *keys, ValT *vals, const size_t beg,
+                           const size_t end, Compare comp) {
+  if (beg < end) {
+    KeyT temp_key;
+    ValT temp_val;
+    for (size_t i = beg; i < end; ++i)
+      for (size_t j = i + 1; j < end; ++j) {
+        if (!comp(keys[i], keys[j])) {
+          temp_key = keys[i];
+          keys[i] = keys[j];
+          keys[j] = temp_key;
+          temp_val = vals[i];
+          vals[i] = vals[j];
+          vals[j] = temp_val;
+        }
+      }
+  }
+}
+
+// We have following assumption for scratch memory size for key-value
+// group sort: size of scratch > (sizeof(KeyT) + sizeof(ValT)) +
+// max(alignof(KeyT), alignof(ValT)).
+template <typename KeyT, typename ValT, typename Compare>
+void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
+                          Compare comp) {
+  const size_t idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
+  const size_t bubble_beg, bubble_end;
+  __get_chunk_size(idx, wg_size, n, &bubble_beg, &bubble_end);
+  bubble_sort(keys, vals, bubble_beg, bubble_end, comp);
+  group_barrier();
+  bool data_in_scratch = false;
+  KeyT *scratch_keys = reinterpret_cast<KeyT *>(scratch);
+  uint8_t *val_offset = scratch + sizeof(KeyT) * (n + 1);
+  val_offset += alignof(ValT) - val_offset % alignof(ValT);
+  ValT *scratch_vals = reinterpret_cast<ValT *>(val_offset);
+  // If n > work_group_size, each work item holds sorted elements to be merged.
+  // Otherwise, only n work items hold 1 element. Chunk size <= work group size.
+  size_t chunks_to_merge = (n > wg_size) ? wg_size : n;
+  size_t iter_num = 0;
+  while (chunks_to_merge > 1) {
+    // workitem 0 will merge chunk 0, 1.
+    // workitem 1 will merge chunk 2, 3.
+    // workitem idx will merge chunk 2 * idx and 2 * idx + 1
+    KeyT *keys_in = data_in_scratch ? scratch_keys : keys;
+    KeyT *keys_out = data_in_scratch ? keys : scratch_keys;
+    ValT *vals_in = data_in_scratch ? scratch_vals : vals;
+    ValT *vals_out = data_in_scratch ? vals : scratch_vals;
+    merge_key_value<KeyT, ValT, Compare>(keys_in, keys_out, vals_in, vals_out,
+                                         idx, iter_num, chunks_to_merge, comp);
+    // merge<Tp, Compare>(data_in, data_out, idx, merge_size, chunks_to_merge,
+    // n,
+    //                   comp);
+    group_barrier();
+    chunks_to_merge = (chunks_to_merge - 1) / 2 + 1;
+    data_in_scratch = !data_in_scratch;
+  }
+}
+
 #endif // __SPIR__ || __SPIRV__
