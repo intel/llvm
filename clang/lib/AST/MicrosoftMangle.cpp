@@ -3092,7 +3092,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC,
         // Currently we only allow this convention in
         // SYCLNativeCPU and raise the usual error otherwise.
         llvm_unreachable("Unsupported CC for mangling");
-      break;
+      return;
   }
 
   DiagnosticsEngine &Diags = Context.getDiags();
