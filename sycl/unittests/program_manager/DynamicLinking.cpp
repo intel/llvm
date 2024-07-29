@@ -59,8 +59,7 @@ sycl::unittest::UrImage generateImage(
     std::initializer_list<std::string> KernelNames,
     const std::vector<std::string> &ExportedSymbols,
     const std::vector<std::string> &ImportedSymbols, unsigned char Magic,
-    sycl::detail::ur::DeviceBinaryType BinType =
-        SYCL_DEVICE_BINARY_TYPE_SPIRV,
+    sycl::detail::ur::DeviceBinaryType BinType = SYCL_DEVICE_BINARY_TYPE_SPIRV,
     const char *DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64) {
   sycl::unittest::UrPropertySet PropSet;
   if (!ExportedSymbols.empty())
@@ -74,14 +73,13 @@ sycl::unittest::UrImage generateImage(
   sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::UrImage Img{
-      BinType,
-      DeviceTargetSpec,
-      "",                                  // Compile options
-      "",                                  // Link options
-      std::move(Bin),
-      std::move(Entries),
-      std::move(PropSet)};
+  sycl::unittest::UrImage Img{BinType,
+                              DeviceTargetSpec,
+                              "", // Compile options
+                              "", // Link options
+                              std::move(Bin),
+                              std::move(Entries),
+                              std::move(PropSet)};
 
   return Img;
 }

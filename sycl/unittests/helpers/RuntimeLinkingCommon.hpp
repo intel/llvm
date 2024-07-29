@@ -38,7 +38,6 @@ static ur_result_t redefined_urProgramCreateWithIL(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-
 static ur_result_t redefined_urProgramCreateWithBinary(void *pParams) {
   auto Params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
   auto *Magic = reinterpret_cast<const unsigned char *>(*Params.ppBinary);
@@ -81,8 +80,8 @@ static ur_result_t redefined_urKernelCreate(void *pParams) {
 static void setupRuntimeLinkingMock() {
   mock::getCallbacks().set_replace_callback("urProgramCreateWithIL",
                                             redefined_urProgramCreateWithIL);
-  mock::getCallbacks().set_replace_callback("urProgramCreateWithBinary",
-                                            redefined_urProgramCreateWithBinary);
+  mock::getCallbacks().set_replace_callback(
+      "urProgramCreateWithBinary", redefined_urProgramCreateWithBinary);
   mock::getCallbacks().set_replace_callback("urProgramLinkExp",
                                             redefined_urProgramLinkExp);
   mock::getCallbacks().set_replace_callback("urKernelCreate",
