@@ -13,7 +13,7 @@
 #include <fcntl.h>
 #include <string>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sys/stat.h>
@@ -186,7 +186,7 @@ public:
                 const std::vector<const RTDeviceBinaryImage *> &Imgs,
                 const SerializedObj &SpecConsts,
                 const std::string &BuildOptionsString,
-                const sycl::detail::pi::PiProgram &NativePrg);
+                const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
