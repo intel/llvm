@@ -12,6 +12,7 @@
 #include "../graph_common.hpp"
 
 int main() {
+  using T = int;
 
   device Dev;
   context Ctx{Dev};
@@ -19,7 +20,16 @@ int main() {
   queue Q2{Ctx, Dev};
   queue Q3{Ctx, Dev};
 
-  using T = int;
+  exp_ext::queue_state Recording = exp_ext::queue_state::recording;
+  exp_ext::queue_state Executing = exp_ext::queue_state::executing;
+
+  auto assertQueueState = [&](exp_ext::queue_state ExpectedQ1,
+                              exp_ext::queue_state ExpectedQ2,
+                              exp_ext::queue_state ExpectedQ3) {
+    assert(Q1.ext_oneapi_get_state() == ExpectedQ1);
+    assert(Q2.ext_oneapi_get_state() == ExpectedQ2);
+    assert(Q3.ext_oneapi_get_state() == ExpectedQ3);
+  };
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
 
@@ -41,10 +51,12 @@ int main() {
   exp_ext::command_graph Graph{Q1.get_context(), Q1.get_device()};
 
   Graph.begin_recording(Q1);
+  assertQueueState(Recording, Executing, Executing);
 
   auto GraphEventA = Q1.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { PtrA[Id]++; });
   });
+  assertQueueState(Recording, Executing, Executing);
 
   // Since there is a dependency on GraphEventA which is part of a graph,
   // this will change Q2 to the recording state.
@@ -58,6 +70,7 @@ int main() {
   auto GraphEventC = Q2.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { PtrB[Id]++; });
   });
+  assertQueueState(Recording, Recording, Executing);
 
   // Q2 is now in recording mode. Submitting a command group to Q3 with a
   // dependency on an event from Q2 should change it to recording mode as well.
@@ -65,33 +78,27 @@ int main() {
     CGH.depends_on(GraphEventB);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { PtrC[Id]++; });
   });
-
-  assert(Q1.ext_oneapi_get_state() == exp_ext::queue_state::recording);
-  assert(Q2.ext_oneapi_get_state() == exp_ext::queue_state::recording);
-  assert(Q3.ext_oneapi_get_state() == exp_ext::queue_state::recording);
+  assertQueueState(Recording, Recording, Recording);
 
   Graph.end_recording(Q1);
+  assertQueueState(Executing, Recording, Recording);
   Graph.end_recording(Q2);
-
-  assert(Q1.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  assert(Q2.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  assert(Q3.ext_oneapi_get_state() == exp_ext::queue_state::recording);
+  assertQueueState(Executing, Executing, Recording);
 
   auto GraphEventE = Q1.submit([&](handler &CGH) {
     CGH.depends_on(GraphEventD);
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { PtrC[Id]++; });
   });
-
-  assert(Q1.ext_oneapi_get_state() == exp_ext::queue_state::recording);
-  assert(Q2.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  assert(Q3.ext_oneapi_get_state() == exp_ext::queue_state::recording);
+  assertQueueState(Recording, Executing, Recording);
 
   Graph.end_recording(Q1);
+  assertQueueState(Executing, Executing, Recording);
 
   // Q2 is not recording anymore. So this will be submitted outside the graph.
   auto OutsideEventA = Q2.submit([&](handler &CGH) {
     CGH.parallel_for(range<1>(Size), [=](item<1> Id) { PtrC[Id] /= 2; });
   });
+  assertQueueState(Executing, Executing, Recording);
 
   try {
     // Q3 should still be recording. Adding a dependency from an event outside
@@ -102,6 +109,7 @@ int main() {
     });
   } catch (exception &E) {
     assert(E.code() == sycl::errc::invalid);
+    assertQueueState(Executing, Executing, Recording);
   }
 
   Q2.wait_and_throw();
@@ -119,9 +127,7 @@ int main() {
   }
 
   Graph.end_recording();
-  assert(Q1.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  assert(Q2.ext_oneapi_get_state() == exp_ext::queue_state::executing);
-  assert(Q3.ext_oneapi_get_state() == exp_ext::queue_state::executing);
+  assertQueueState(Executing, Executing, Executing);
 
   auto GraphExec = Graph.finalize();
 

@@ -1599,17 +1599,6 @@ void modifiable_command_graph::begin_recording(
                           "can NOT be recorded.");
   }
 
-  if (QueueImpl->get_context() != impl->getContext()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue whose context "
-                          "differs from the graph context.");
-  }
-  if (QueueImpl->get_device() != impl->getDevice()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue whose device "
-                          "differs from the graph device.");
-  }
-
   auto QueueGraph = QueueImpl->getCommandGraph();
   if (QueueGraph != nullptr && QueueGraph != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),

@@ -586,3 +586,50 @@ TEST_F(CommandGraphTest, AccessorModeEdges) {
       Queue);
   testAccessorModeCombo<access_mode::atomic, access_mode::atomic, true>(Queue);
 }
+
+// Tests the transitive queue recording behaviour with queue shortcuts.
+TEST_F(CommandGraphTest, TransitiveRecordingShortcuts) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx, Dev};
+  queue Q3{Ctx, Dev};
+
+  ext::oneapi::experimental::command_graph Graph1{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  Graph1.begin_recording(Q1);
+
+  auto GraphEvent1 = Q1.single_task<class Kernel1>([=] {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+
+  auto GraphEvent2 = Q2.single_task<class Kernel2>(GraphEvent1, [=] {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+
+  auto GraphEvent3 = Q3.parallel_for<class Kernel3>(range<1>{1024}, GraphEvent1,
+                                                    [=](item<1> Id) {});
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::recording);
+
+  Graph1.end_recording();
+  ASSERT_EQ(Q1.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q2.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+  ASSERT_EQ(Q3.ext_oneapi_get_state(),
+            ext::oneapi::experimental::queue_state::executing);
+}
