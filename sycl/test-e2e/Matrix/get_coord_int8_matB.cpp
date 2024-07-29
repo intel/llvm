@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: cpu, gpu-intel-dg2, arch-intel_gpu_pvc
+// XFAIL: cpu, gpu-intel-dg2
+// REQUIRES-INTEL-DRIVER: lin: 30049
 
 #include "common.hpp"
 #include "get_coord_int8_matB_impl.hpp"

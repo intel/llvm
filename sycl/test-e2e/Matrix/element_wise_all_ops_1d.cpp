@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
-
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
+// REQUIRES-INTEL-DRIVER: lin: 30049
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out

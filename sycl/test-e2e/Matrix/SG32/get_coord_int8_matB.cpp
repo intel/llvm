@@ -8,10 +8,7 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
-
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
+// REQUIRES-INTEL-DRIVER: lin: 30049, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
