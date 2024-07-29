@@ -20,9 +20,9 @@
  *    Tests for the enable_profiling property paths
  **************************************************************************/
 
-// RUN: %clangxx -DSYCLCOMPAT_PROFILING_ENABLED=1 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t-profiling.out
+// RUN: %{build} -DSYCLCOMPAT_PROFILING_ENABLED=1 -o %t-profiling.out
 // RUN: %{run} %t-profiling.out
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t-no-profiling.out
+// RUN: %{build} -o %t-no-profiling.out
 // RUN: %{run} %t-no-profiling.out
 
 #include <syclcompat/device.hpp>

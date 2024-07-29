@@ -66,6 +66,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLKernelParamOptInfo.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
 

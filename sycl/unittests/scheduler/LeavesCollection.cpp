@@ -10,7 +10,7 @@
 
 #include <detail/scheduler/leaves_collection.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <memory>
 #include <sycl/sycl.hpp>
 
@@ -44,8 +44,8 @@ std::shared_ptr<Command> createEmptyCommand(const Requirement &Req) {
 }
 
 TEST_F(LeavesCollectionTest, PushBack) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
@@ -113,8 +113,8 @@ TEST_F(LeavesCollectionTest, PushBack) {
 }
 
 TEST_F(LeavesCollectionTest, Remove) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   static constexpr size_t GenericCmdsCapacity = 8;
 
