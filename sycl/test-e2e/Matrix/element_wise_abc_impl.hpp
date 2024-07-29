@@ -88,7 +88,7 @@ void test() {
   big_matrix<Tc, TM, TK> MA((Tc *)&A);
   big_matrix<Tc, TK / VF, TN * VF> MB((Tc *)&B);
 
-  return matrix_elem_wise_ops<Ta, int8_t, TM, TN, TK, VF>(MC, MA, MB);
+  return matrix_elem_wise_ops<Ta, Tc, TM, TN, TK, VF>(MC, MA, MB);
 }
 
 int main() {
@@ -111,6 +111,7 @@ int main() {
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
       test<int32_t, int8_t, 8, 8, 32, 4>();
+      test<float, bfloat16, 32, 32, 16, 2>();
       break;
     }
   }
