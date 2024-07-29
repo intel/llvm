@@ -115,14 +115,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git")
-  # commit 2baf095188b235bb2b0a0140f0187d2041aef4b0
-  # Merge: 3d8fe8d2 58f85278
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
+  # Merge: b7b0c8b3 f772f907
   # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Jul 26 12:06:22 2024 +0200
-  #     Merge pull request #1900 from kswiecicki/umf-version-bump
-  #     Bump UMF version
-  set(UNIFIED_RUNTIME_TAG 723c04544697b55f86ba25474faab516a7727d59)
+  # Date:   Mon Jul 29 09:11:29 2024 +0200
+  #     Merge pull request #1905 from igchor/umf_hwloc_disable
+  #     Bump UMF version to allow disabling hwloc
+  set(UNIFIED_RUNTIME_TAG a985a81dc9ba8adfcc8b54e35ad287e97766fb3e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
