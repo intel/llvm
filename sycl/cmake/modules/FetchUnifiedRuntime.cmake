@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
-  # Merge: b7b0c8b3 f772f907
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Jul 29 09:11:29 2024 +0200
-  #     Merge pull request #1905 from igchor/umf_hwloc_disable
-  #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG a985a81dc9ba8adfcc8b54e35ad287e97766fb3e)
+  # commit 0f4e47e7900e3398c747af857ce9d875b45c2773
+  # Merge: 2e6c1de2 dac2a0fe
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Mon Jul 29 15:00:02 2024 +0100
+  #     Merge pull request #1844 from zhaomaosu/implement-symbolizer
+  #     [DeviceSanitizer] Implement symbolizer for more readable information
+  set(UNIFIED_RUNTIME_TAG 0f4e47e7900e3398c747af857ce9d875b45c2773)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
