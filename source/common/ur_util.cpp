@@ -41,16 +41,16 @@ int ur_duplicate_fd(int pid, int fd_in) {
 // pidfd_open(2) is supported since Linux 5.3
 #if defined(__NR_pidfd_open) && defined(__NR_pidfd_getfd)
     errno = 0;
-    int pid_fd = syscall(SYS_pidfd_open, pid, 0);
+    int pid_fd = syscall(__NR_pidfd_open, pid, 0);
     if (pid_fd == -1) {
-        logger::error("SYS_pidfd_open");
+        logger::error("__NR_pidfd_open");
         return -1;
     }
 
-    int fd_dup = syscall(SYS_pidfd_getfd, pid_fd, fd_in, 0);
+    int fd_dup = syscall(__NR_pidfd_getfd, pid_fd, fd_in, 0);
     close(pid_fd);
     if (fd_dup == -1) {
-        logger::error("SYS_pidfd_getfd");
+        logger::error("__NR_pidfd_getfd");
         return -1;
     }
 
