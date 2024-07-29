@@ -1,11 +1,11 @@
 // RUN: %{build} %{embed-ir} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // Test fusion of a kernel using a math function.
 
 // The two kernels are fused, so only a single, fused kernel is launched.
-// CHECK-COUNT-1: piEnqueueKernelLaunch
-// CHECK-NOT: piEnqueueKernelLaunch
+// CHECK-COUNT-1: urEnqueueKernelLaunch
+// CHECK-NOT: urEnqueueKernelLaunch
 
 #include <sycl/detail/core.hpp>
 

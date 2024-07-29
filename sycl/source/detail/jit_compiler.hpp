@@ -37,7 +37,7 @@ public:
   std::unique_ptr<detail::CG>
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
-  sycl::detail::pi::PiKernel
+  ur_kernel_handle_t
   materializeSpecConstants(QueueImplPtr Queue,
                            const RTDeviceBinaryImage *BinImage,
                            const std::string &KernelName,
@@ -71,7 +71,7 @@ private:
   // Indicate availability of the JIT compiler
   bool Available;
 
-  // Manages the lifetime of the PI structs for device binaries.
+  // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION

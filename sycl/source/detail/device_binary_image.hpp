@@ -10,9 +10,9 @@
 #include <detail/compiler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
-
-#include "pi_utils.hpp"
+#include <sycl/detail/ur.hpp>
+#include <ur_api.h>
+#include "ur_utils.hpp"
 
 #include <sycl/detail/iostream_proxy.hpp>
 
@@ -71,7 +71,7 @@ public:
   DeviceBinaryProperty(const _sycl_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
-  pi_uint32 asUint32() const;
+  uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
 
@@ -83,7 +83,7 @@ protected:
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
-// SYCL RT wrapper over PI binary image.
+// SYCL RT wrapper over UR binary image.
 class RTDeviceBinaryImage {
 public:
   // Represents a range of properties to enable iteration over them.
@@ -174,7 +174,7 @@ public:
   }
 
   /// Returns the format of the binary image
-  pi::PiDeviceBinaryType getFormat() const {
+  ur::DeviceBinaryType getFormat() const {
     assert(Bin && "binary image data not set");
     return Format;
   }
@@ -216,6 +216,9 @@ public:
   }
   const PropertyRange &getAssertUsed() const { return AssertUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
+  const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
+    return ProgramMetadataUR;
+  }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -236,7 +239,7 @@ protected:
 
   sycl_device_binary Bin;
 
-  pi::PiDeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
+  ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
@@ -249,6 +252,8 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+
+  std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
 private:
   static std::atomic<uintptr_t> ImageCounter;

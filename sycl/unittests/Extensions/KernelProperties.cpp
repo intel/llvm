@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
+#include "sycl/platform.hpp"
+#include "ur_mock_helpers.hpp"
+#include <helpers/UrMock.hpp>
 #include <helpers/TestKernel.hpp>
 
 #include <gtest/gtest.h>
@@ -19,27 +21,24 @@ namespace oneapiext = sycl::ext::oneapi::experimental;
 
 namespace {
 
-inline pi_result after_piKernelGetInfo(pi_kernel kernel,
-                                       pi_kernel_info param_name,
-                                       size_t param_value_size,
-                                       void *param_value,
-                                       size_t *param_value_size_ret) {
+inline ur_result_t after_urKernelGetInfo(void* pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t*>(pParams);
   constexpr char MockKernel[] = "TestKernel";
-  if (param_name == PI_KERNEL_INFO_FUNCTION_NAME) {
-    if (param_value) {
-      assert(param_value_size == sizeof(MockKernel));
-      std::memcpy(param_value, MockKernel, sizeof(MockKernel));
+  if (*params.ppropName == UR_KERNEL_INFO_FUNCTION_NAME) {
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(MockKernel));
+      std::memcpy(*params.ppPropValue, MockKernel, sizeof(MockKernel));
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(MockKernel);
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(MockKernel);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class KernelPropertiesTests : public ::testing::Test {
 public:
   KernelPropertiesTests()
-      : Mock{}, Q{sycl::context(Mock.getPlatform()), sycl::default_selector_v} {
+      : Mock{}, Q{sycl::context(sycl::platform()), sycl::default_selector_v} {
   }
 
   inline sycl::kernel GetTestKernel() {
@@ -66,11 +65,10 @@ public:
 
 protected:
   void SetUp() override {
-    Mock.redefineAfter<sycl::detail::PiApiKind::piKernelGetInfo>(
-        after_piKernelGetInfo);
+    mock::getCallbacks().set_after_callback("urKernelGetInfo", after_urKernelGetInfo);
   }
 
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::queue Q;
 };
 
