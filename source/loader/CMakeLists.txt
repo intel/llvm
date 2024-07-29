@@ -9,8 +9,13 @@ configure_file(
     @ONLY
 )
 
+set(LOADER_LIB_TYPE SHARED)
+if(UR_STATIC_LOADER)
+  set(LOADER_LIB_TYPE STATIC)
+endif()
+
 add_ur_library(ur_loader
-    SHARED
+    ${LOADER_LIB_TYPE}
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
@@ -18,7 +23,7 @@ add_ur_library(ur_loader
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
-    
+
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in ${LOADER_VERSION_SCRIPT} @ONLY)
     set_target_properties(ur_loader PROPERTIES
