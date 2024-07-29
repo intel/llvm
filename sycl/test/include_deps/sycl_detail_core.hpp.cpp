@@ -23,9 +23,7 @@
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/pi_error.def
-// CHECK-NEXT: detail/pi.def
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
@@ -144,8 +142,8 @@
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
-// CHECK-NEXT: detail/pi.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
+// CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp

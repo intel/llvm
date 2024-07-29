@@ -309,6 +309,10 @@ TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   try {
     Graph.begin_recording(Q);
   } catch (exception &Exception) {
+    // Ensure fusion wrapper references are released now, otherwise we can end
+    // up trying to release backend objects after the mock backend has been
+    // unloaded.
+    fw.cancel_fusion();
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);

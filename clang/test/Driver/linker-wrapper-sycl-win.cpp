@@ -90,10 +90,11 @@
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}llvm-link.exe" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[SECONDLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}clang.exe"{{.*}} -o [[CLANGOUT:.*]] --target=nvptx64-nvidia-cuda -march={{.*}}
-// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}ptxas"{{.*}} --output-file [[PTXASOUT:.*]] [[CLANGOUT]]
+// CHK-CMDS-AOT-NV-NEXT: "{{.*}}fatbinary"{{.*}} --create [[FATBINOUT:.*]] --image=profile={{.*}},file=[[CLANGOUT]] --image=profile={{.*}},file=[[PTXASOUT]]
+// CHK-CMDS-AOT-NV-NEXT: offload-wrapper: input: [[FATBINOUT]], output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}llc.exe" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-NV-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
-
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for AMD)
 // -------
 // Generate .o file as linker wrapper input.
@@ -107,6 +108,7 @@
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}llvm-link.exe" [[FIRSTLLVMLINKIN:.*]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}sycl-post-link.exe"{{.*}} SYCL_POST_LINK_OPTIONS -o [[SYCLPOSTLINKOUT:.*]].table [[FIRSTLLVMLINKOUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang.exe"{{.*}} -o [[CLANGOUT:.*]] --target=amdgcn-amd-amdhsa -mcpu={{.*}}
-// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: {{.*}}, output: [[WRAPPEROUT:.*]].bc
+// CHK-CMDS-AOT-AMD-NEXT: "{{.*}}clang-offload-bundler.exe"{{.*}} -input=[[CLANGOUT]] -output=[[BUNDLEROUT:.*]]
+// CHK-CMDS-AOT-AMD-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}llc.exe" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
 // CHK-CMDS-AOT-AMD-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
