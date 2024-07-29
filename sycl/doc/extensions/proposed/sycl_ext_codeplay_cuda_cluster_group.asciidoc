@@ -255,19 +255,19 @@ the various ids of the work-item and work-groups.
 |Description
 
 |`linear_id get_group_linear_id() const`
-|Returns the linearized id of the calling work-group within the cluster
+|Returns the linearized id of the calling work-group within the cluster.
 
 |`linear_id get_local_linear_id() const`
-|Returns the linearized index of the calling work-item within the cluster
+|Returns the linearized index of the calling work-item within the cluster.
 
 |`range_type get_group_range() const`
-|Returns the number of work-groups in each dimension within the cluster
+|Returns the number of work-groups in each dimension within the cluster.
 
 |`id_type get_group_id() const`
-|Returns the id of the calling work-group along each dimension within the cluster
+|Returns the id of the calling work-group along each dimension within the cluster.
 
 |`id_type get_local_id() const`;
-|Returns the id of calling work-item along each dimension within the cluster
+|Returns the id of calling work-item along each dimension within the cluster.
 
 |`range_type get_local_range() const`;
 |Returns the number of work-items along each dimension within the cluster.
@@ -311,7 +311,7 @@ which can then be dereferenced by the calling work-item.
 |T*  map_cluster_local_pointer(T* addr, size_t group_id)
 |Accepts the equivalent address to the memory location relative to the calling 
 work-item which is to be mapped from the local memory of the work-group, as 
-specified by the group_id, denoting the linear group_id within the cluster
+specified by `group_id`, denoting the linear group id within the cluster
 |===
 
 Conversely, `get_cluster_group_linear_id_for_local_pointer` will return the 
@@ -325,7 +325,7 @@ linearized id of the work-group a mapped local memory address belongs to.
 |size_t  get_cluster_group_linear_id_for_local_pointer(T* addr)
 |Accepts a mapped pointer to the local memory of another work-group and returns
 the linearized id of the work-group in the cluster from whom's local memory the
-mapped pointer was obtained
+mapped pointer was obtained.
 |===
 
 
