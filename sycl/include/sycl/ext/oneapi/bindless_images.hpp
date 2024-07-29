@@ -10,7 +10,6 @@
 
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                               // for pi_uint64
 #include <sycl/device.hpp>                                // for device
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
@@ -34,9 +33,9 @@ namespace ext::oneapi::experimental {
 
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  unsampled_image_handle() : raw_handle(~0) {}
+  unsampled_image_handle() : raw_handle(0) {}
 
   unsampled_image_handle(raw_image_handle_type raw_image_handle)
       : raw_handle(raw_image_handle) {}
@@ -46,9 +45,9 @@ struct unsampled_image_handle {
 
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  sampled_image_handle() : raw_handle(~0) {}
+  sampled_image_handle() : raw_handle(0) {}
 
   sampled_image_handle(raw_image_handle_type handle) : raw_handle(handle) {}
 
@@ -78,28 +77,6 @@ __SYCL_EXPORT image_mem_handle alloc_image_mem(const image_descriptor &desc,
                                                const sycl::queue &syclQueue);
 
 /**
- *  @brief   [Deprecated] Free image memory
- *
- *  @param   handle Memory handle to allocated memory on the device
- *  @param   syclDevice The device in which we create our memory handle
- *  @param   syclContext The context in which we created our memory handle
- */
-__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
-                         "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle handle, const sycl::device &syclDevice,
-                    const sycl::context &syclContext);
-
-/**
- *  @brief   [Deprecated] Free image memory
- *
- *  @param   handle Memory handle to allocated memory on the device
- *  @param   syclQueue The queue in which we create our memory handle
- */
-__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
-                         "Instead use overload that accepts image_type.")
-void free_image_mem(image_mem_handle handle, const sycl::queue &syclQueue);
-
-/**
  *  @brief   Free image memory
  *
  *  @param   handle Memory handle to allocated memory on the device
@@ -120,56 +97,6 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle handle, image_type imageType,
  */
 __SYCL_EXPORT void free_image_mem(image_mem_handle handle, image_type imageType,
                                   const sycl::queue &syclQueue);
-
-/**
- *  @brief   [Deprecated] Allocate mipmap memory based on image_descriptor
- *
- *  @param   desc The image descriptor
- *  @param   syclDevice The device in which we create our memory handle
- *  @param   syclContext The context in which we create our memory handle
- *  @return  Memory handle to allocated memory on the device
- */
-__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
-                         "Instead use alloc_image_mem().")
-image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                  const sycl::device &syclDevice,
-                                  const sycl::context &syclContext);
-
-/**
- *  @brief   [Deprecated] Allocate mipmap memory based on image_descriptor
- *
- *  @param   desc The image descriptor
- *  @param   syclQueue The queue in which we create our memory handle
- *  @return  Memory handle to allocated memory on the device
- */
-__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
-                         "Instead use alloc_image_mem().")
-image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                  const sycl::device &syclQueue);
-
-/**
- *  @brief   [Deprecated] Free mipmap memory
- *
- *  @param   handle The mipmap memory handle
- *  @param   syclDevice The device in which we created our memory handle
- *  @param   syclContext The context in which we created our memory handle
- */
-__SYCL_EXPORT_DEPRECATED(
-    "Distinct mipmap frees are deprecated. "
-    "Instead use free_image_mem() that accepts image_type.")
-void free_mipmap_mem(image_mem_handle handle, const sycl::device &syclDevice,
-                     const sycl::context &syclContext);
-
-/**
- *  @brief   [Deprecated] Free mipmap memory
- *
- *  @param   handle The mipmap memory handle
- *  @param   syclQueue The queue in which we created our memory handle
- */
-__SYCL_EXPORT_DEPRECATED(
-    "Distinct mipmap frees are deprecated. "
-    "Instead use free_image_mem() that accepts image_type.")
-void free_mipmap_mem(image_mem_handle handle, const sycl::queue &syclQueue);
 
 /**
  *  @brief   Retrieve the memory handle to an individual mipmap image
@@ -228,38 +155,6 @@ template <typename ExternalMemHandleType>
 __SYCL_EXPORT interop_mem_handle import_external_memory(
     external_mem_descriptor<ExternalMemHandleType> externalMem,
     const sycl::queue &syclQueue);
-
-/**
- *  @brief   [Deprecated] Maps an interop memory handle to an image memory
- *           handle (which may have a device optimized memory layout)
- *
- *  @param   memHandle   Interop memory handle
- *  @param   desc        The image descriptor
- *  @param   syclDevice The device in which we create our image memory handle
- *  @param   syclContext The conext in which we create our image memory handle
- *  @return  Memory handle to externally allocated memory on the device
- */
-__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
-                         "use map_external_image_memory")
-image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
-                                           const image_descriptor &desc,
-                                           const sycl::device &syclDevice,
-                                           const sycl::context &syclContext);
-
-/**
- *  @brief   [Deprecated] Maps an interop memory handle to an image memory
- *           handle (which may have a device optimized memory layout)
- *
- *  @param   memHandle   Interop memory handle
- *  @param   desc        The image descriptor
- *  @param   syclQueue   The queue in which we create our image memory handle
- *  @return  Memory handle to externally allocated memory on the device
- */
-__SYCL_EXPORT_DEPRECATED("map_external_memory_array is deprecated."
-                         "use map_external_image_memory")
-image_mem_handle map_external_memory_array(interop_mem_handle memHandle,
-                                           const image_descriptor &desc,
-                                           const sycl::queue &syclQueue);
 
 /**
  *  @brief   Maps an interop memory handle to an image memory handle (which may
@@ -328,7 +223,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
     const sycl::queue &syclQueue);
 
 /**
- *  @brief   Destroy the external semaphore handle
+ *  @brief   Release the external semaphore
  *
  *  @param   semaphoreHandle The interop semaphore handle to destroy
  *  @param   syclDevice The device in which the interop semaphore handle was
@@ -337,19 +232,19 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
  *           created
  */
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext);
 
 /**
- *  @brief   Destroy the external semaphore handle
+ *  @brief   Release the external semaphore
  *
  *  @param   semaphoreHandle The interop semaphore handle to destroy
  *  @param   syclQueue The queue in which the interop semaphore handle was
  *           created
  */
 __SYCL_EXPORT void
-destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(interop_semaphore_handle semaphoreHandle,
                            const sycl::queue &syclQueue);
 
 /**
@@ -686,7 +581,9 @@ get_image_num_channels(const image_mem_handle memHandle,
 namespace detail {
 
 // is sycl::vec
-template <typename T> struct is_vec { static constexpr bool value = false; };
+template <typename T> struct is_vec {
+  static constexpr bool value = false;
+};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> {
   static constexpr bool value = true;
 };
@@ -948,35 +845,6 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 /**
- *  @brief   [Deprecated] Read an unsampled image using its handle
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to fetch image data
- *  @return  Image data
- *
- *  __NVPTX__: Name mangling info
- *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
- *             for sampling, and integer coords (by bytes) for fetching
- *             The name mangling should therefore not interfere with one
- *             another
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for standard unsampled images is deprecated. "
-                  "Instead use fetch_image.")
-DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]]) {
-  return fetch_image<DataT>(imageHandle, coords);
-}
-
-/**
  *  @brief   Fetch data from a sampled image using its handle
  *
  *  @tparam  DataT The return type
@@ -1081,41 +949,6 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 /**
- *  @brief   [Deprecated] Read a sampled image using its handle
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to sample image data
- *  @return  Sampled image data
- *
- *  __NVPTX__: Name mangling info
- *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
- *             for sampling, and integer coords (by bytes) for fetching
- *             The name mangling should therefore not interfere with one
- *             another
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for standard sampled images is deprecated. "
-                  "Instead use sample_image with floating point coordinates or "
-                  "fetch_image with integer coordinates.")
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]]) {
-  detail::assert_coords_type<CoordT>();
-  if constexpr (detail::are_floating_coords<CoordT>()) {
-    return sample_image<DataT>(imageHandle, coords);
-  } else if constexpr (detail::are_integer_coords<CoordT>()) {
-    return fetch_image<DataT>(imageHandle, coords);
-  }
-}
-
-/**
  *  @brief   Sample a mipmap image using its handle with LOD filtering
  *
  *  @tparam  DataT The return type
@@ -1205,110 +1038,6 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
 #else
   assert(false); // Bindless images not yet implemented on host
 #endif
-}
-
-/**
- *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
- *           filtering
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to sample mipmap image data
- *  @param   level The mipmap level at which to sample
- *  @return  Mipmap image data with LOD filtering
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_mipmap has been deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
-                  const CoordT &coords [[maybe_unused]],
-                  const float level [[maybe_unused]]) {
-  return sample_mipmap<DataT>(imageHandle, coords, level);
-}
-
-/**
- *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
- *           filtering
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to sample mipmap image data
- *  @param   dX Screen space gradient in the x dimension
- *  @param   dY Screen space gradient in the y dimension
- *  @return  Mipmap image data with anisotropic filtering
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_mipmap has been deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
-                  const CoordT &coords [[maybe_unused]],
-                  const CoordT &dX [[maybe_unused]],
-                  const CoordT &dY [[maybe_unused]]) {
-  return sample_mipmap<DataT>(imageHandle, coords, dX, dY);
-}
-
-/**
- *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
- *           filtering
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to sample mipmap image data
- *  @param   level The mipmap level at which to sample
- *  @return  Mipmap image data with LOD filtering
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]],
-                 const float level [[maybe_unused]]) {
-  return sample_mipmap<DataT>(imageHandle, coords, level);
-}
-
-/**
- *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
- *           filtering
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to fetch mipmap image data
- *  @param   dX Screen space gradient in the x dimension
- *  @param   dY Screen space gradient in the y dimension
- *  @return  Mipmap image data with anisotropic filtering
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]],
-                 const CoordT &dX [[maybe_unused]],
-                 const CoordT &dY [[maybe_unused]]) {
-  return sample_mipmap<DataT>(imageHandle, coords, dX, dY);
 }
 
 /**
@@ -1620,7 +1349,7 @@ void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
 } // namespace ext::oneapi::experimental
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1630,7 +1359,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1644,7 +1373,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1657,7 +1386,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1673,7 +1402,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1686,7 +1415,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1702,7 +1431,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1712,7 +1441,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const detail::code_location &CodeLoc) {
@@ -1726,7 +1456,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1739,7 +1469,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, event DepEvent,
@@ -1755,7 +1486,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1768,7 +1499,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_mem_handle Src,
+    sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1784,7 +1516,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
@@ -1796,7 +1528,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const detail::code_location &CodeLoc) {
@@ -1810,7 +1543,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, event DepEvent,
     const detail::code_location &CodeLoc) {
@@ -1824,7 +1557,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1838,7 +1571,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {
@@ -1852,7 +1585,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &ImageDesc,
     const detail::code_location &CodeLoc) {
@@ -1863,7 +1596,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     event DepEvent, const detail::code_location &CodeLoc) {
@@ -1878,7 +1612,7 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, void *Dest,
+    const void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, const std::vector<event> &DepEvents,
     const detail::code_location &CodeLoc) {
@@ -1892,7 +1626,8 @@ inline event queue::ext_oneapi_copy(
 }
 
 inline event queue::ext_oneapi_copy(
-    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent, sycl::range<3> CopyExtent,
     const std::vector<event> &DepEvents, const detail::code_location &CodeLoc) {

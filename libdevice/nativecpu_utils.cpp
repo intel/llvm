@@ -77,9 +77,9 @@ __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory,
 
 namespace ncpu_types {
 template <class T> struct vtypes {
-  using v2 = typename sycl::detail::VecStorage<T, 2>::DataType;
-  using v4 = typename sycl::detail::VecStorage<T, 4>::DataType;
-  using v8 = typename sycl::detail::VecStorage<T, 8>::DataType;
+  using v2 = typename sycl::vec<T, 2>::vector_t;
+  using v4 = typename sycl::vec<T, 4>::vector_t;
+  using v8 = typename sycl::vec<T, 8>::vector_t;
 };
 } // namespace ncpu_types
 
@@ -252,8 +252,8 @@ DefShuffleINTEL_All(double, f64, double)
 DefShuffleINTEL_All(float, f32, float)
 
 #define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
-  using vt##T##N = sycl::detail::VecStorage<T, N>::DataType;                   \
-  using vt##MuxType##N = sycl::detail::VecStorage<MuxType, N>::DataType;       \
+  using vt##T##N = sycl::vec<T, N>::vector_t;                                  \
+  using vt##MuxType##N = sycl::vec<MuxType, N>::vector_t;                      \
   DefShuffleINTEL_All(vt##T##N, v##N##Sfx, vt##MuxType##N)
 
 #define DefineShuffleVec2to16(Type, Sfx, MuxType)                              \

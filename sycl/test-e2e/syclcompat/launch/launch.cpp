@@ -25,7 +25,7 @@
 // https://github.com/intel/llvm/issues/14826
 // XFAIL: arch-intel_gpu_pvc
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 #include <type_traits>
