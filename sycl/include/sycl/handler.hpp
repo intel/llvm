@@ -17,11 +17,10 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -1138,7 +1137,7 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
-  // PI APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
+  // UR APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
   constexpr static bool isBackendSupportedFillSize(size_t Size) {
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
@@ -2865,7 +2864,7 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // CG::Fill will result in urEnqueueMemBufferFill which requires that mem
     // data is contiguous. Thus we check range and offset when dim > 1
     // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&

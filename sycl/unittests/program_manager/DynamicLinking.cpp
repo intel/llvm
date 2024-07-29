@@ -1,9 +1,9 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
+#include <helpers/UrImage.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -37,47 +37,48 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::PiArray<sycl::unittest::PiProperty>
+sycl::unittest::UrArray<sycl::unittest::UrProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
-  sycl::unittest::PiPropertySet PropSet;
-  sycl::unittest::PiArray<sycl::unittest::PiProperty> Props;
+  sycl::unittest::UrPropertySet PropSet;
+  sycl::unittest::UrArray<sycl::unittest::UrProperty> Props;
   for (const std::string &Symbol : Symbols) {
-    std::vector<char> Storage(sizeof(pi_uint32));
+    std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
     auto *DataPtr = reinterpret_cast<char *>(&Val);
     std::uninitialized_copy(DataPtr, DataPtr + sizeof(uint32_t),
                             Storage.data());
-    sycl::unittest::PiProperty Prop(Symbol, Storage, PI_PROPERTY_TYPE_UINT32);
+
+    sycl::unittest::UrProperty Prop(Symbol, Storage, SYCL_PROPERTY_TYPE_UINT32);
 
     Props.push_back(Prop);
   }
   return Props;
 }
 
-sycl::unittest::PiImage
+sycl::unittest::UrImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::vector<std::string> &ExportedSymbols,
               const std::vector<std::string> &ImportedSymbols,
               unsigned char Magic,
-              sycl::detail::pi::PiDeviceBinaryType BinType =
-                  PI_DEVICE_BINARY_TYPE_SPIRV) {
-  sycl::unittest::PiPropertySet PropSet;
+              sycl::detail::ur::DeviceBinaryType BinType =
+                  SYCL_DEVICE_BINARY_TYPE_SPIRV) {
+  sycl::unittest::UrPropertySet PropSet;
   if (!ExportedSymbols.empty())
-    PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
                    createPropertySet(ExportedSymbols));
   if (!ImportedSymbols.empty())
-    PropSet.insert(__SYCL_PI_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
+    PropSet.insert(__SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS,
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::PiArray<sycl::unittest::PiOffloadEntry> Entries =
+  sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::PiImage Img{
+  sycl::unittest::UrImage Img{
       BinType,
-      __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                     // Compile options
-      "",                                     // Link options
+      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+      "",                                  // Compile options
+      "",                                  // Link options
       std::move(Bin),
       std::move(Entries),
       std::move(PropSet)};
@@ -95,14 +96,14 @@ static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
 static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
 
-static sycl::unittest::PiImage Imgs[] = {
+static sycl::unittest::UrImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
                   BASIC_CASE_PRG),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP_NATIVE,
-                  PI_DEVICE_BINARY_TYPE_NATIVE),
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE),
     generateImage({"BasicCaseKernelDepDep"}, {"BasicCaseKernelDepDep"}, {},
                   BASIC_CASE_PRG_DEP_DEP),
     generateImage({"UnresolvedDepKernel"}, {},
@@ -114,25 +115,26 @@ static sycl::unittest::PiImage Imgs[] = {
                   {"MutualDepKernelADep"}, {"MutualDepKernelBDep"},
                   MUTUAL_DEP_PRG_B),
     generateImage({"AOTCaseKernel"}, {}, {"AOTCaseKernelDep"},
-                  AOT_CASE_PRG_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE),
+                  AOT_CASE_PRG_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
-                  AOT_CASE_PRG_DEP_NATIVE, PI_DEVICE_BINARY_TYPE_NATIVE)};
+                  AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::PiImageArray<9> ImgArray{Imgs};
+static sycl::unittest::UrImageArray<9> ImgArray{Imgs};
 
 TEST(DynamicLinking, BasicCase) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
 
   Q.single_task<DynamicLinkingTest::BasicCaseKernel>([=]() {});
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 3u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {BASIC_CASE_PRG, BASIC_CASE_PRG_DEP, BASIC_CASE_PRG_DEP_DEP}));
   // And the linked program should be used to create a kernel.
@@ -142,8 +144,8 @@ TEST(DynamicLinking, BasicCase) {
 
 TEST(DynamicLinking, UnresolvedDep) {
   try {
-    sycl::unittest::PiMock Mock;
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     Q.single_task<DynamicLinkingTest::UnresolvedDepKernel>([=]() {});
     FAIL();
@@ -155,17 +157,18 @@ TEST(DynamicLinking, UnresolvedDep) {
 }
 
 TEST(DynamicLinking, MutualDependency) {
-  auto Mock = setupRuntimeLinkingMock();
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q(Plt.get_devices()[0]);
 
   CapturedLinkingData.clear();
 
   Q.single_task<DynamicLinkingTest::MutualDepKernelA>([=]() {});
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 2u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 2u);
   // Both programs should be linked together.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramLinkCalls, 1u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
   ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
       {MUTUAL_DEP_PRG_A, MUTUAL_DEP_PRG_B}));
   // And the linked program should be used to create a kernel.
@@ -177,13 +180,13 @@ TEST(DynamicLinking, MutualDependency) {
   Q.single_task<DynamicLinkingTest::MutualDepKernelB>([=]() {});
   // The program contianing this kernel should be taken from the
   // in-memory cache.
-  ASSERT_EQ(CapturedLinkingData.NumOfPiProgramCreateCalls, 0u);
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 0u);
 }
 
 TEST(DynamicLinking, AheadOfTime) {
   try {
-    sycl::unittest::PiMock Mock;
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
     FAIL();
