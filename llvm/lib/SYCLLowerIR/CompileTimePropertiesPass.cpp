@@ -600,12 +600,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
-  SmallPtrSet<Function *, 4> HIPOrCUDAKernels = TargetHelpers::getKernels(M);
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
 
   for (Function &F : M) {
     // Only consider kernels.
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
-        !HIPOrCUDAKernels.contains(&F))
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments
