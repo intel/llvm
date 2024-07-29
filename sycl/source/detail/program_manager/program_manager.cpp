@@ -216,7 +216,11 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
-  auto ProgMetadata = Img.getProgramMetadataUR();
+  std::vector<ur_program_metadata_t> ProgMetadataVector;
+  for (const auto &Prop : Img.getProgramMetadata()) {
+    ProgMetadataVector.push_back(
+        ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
+  }
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -224,7 +228,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
       Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize,
-                                ProgMetadata);
+                                ProgMetadataVector);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
