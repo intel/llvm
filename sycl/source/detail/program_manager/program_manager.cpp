@@ -216,11 +216,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
         "SPIR-V online compilation is not supported in this context");
 
   // Get program metadata from properties
-  std::vector<ur_program_metadata_t> ProgMetadataVector;
-  for (const auto &Prop : Img.getProgramMetadata()) {
-    ProgMetadataVector.push_back(
-        ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
-  }
+  auto ProgMetadata = Img.getProgramMetadataUR();
 
   // Load the image
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
@@ -228,7 +224,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
       Format == SYCL_DEVICE_BINARY_TYPE_SPIRV
           ? createSpirvProgram(Ctx, RawImg.BinaryStart, ImgSize)
           : createBinaryProgram(Ctx, Device, RawImg.BinaryStart, ImgSize,
-                                ProgMetadataVector);
+                                ProgMetadata);
 
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
@@ -504,11 +500,9 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto ProgMetadata = Img->getProgramMetadata();
-      for (const auto &Prop : ProgMetadata) {
-        ProgMetadataVector.push_back(
-            ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
-      }
+      auto &ImgProgMetadata = Img->getProgramMetadataUR();
+      ProgMetadataVector.insert(ProgMetadataVector.end(),
+                                ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     // TODO: Build for multiple devices once supported by program manager
     NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
