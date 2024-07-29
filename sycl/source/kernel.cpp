@@ -10,21 +10,27 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.h>
+#include <sycl/detail/ur.hpp>
 #include <sycl/kernel.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 
-kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
-    : impl(std::make_shared<detail::kernel_impl>(
-          detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr, nullptr)) {
+// TODO(pi2ur): Don't cast straight from cl_kernel below
+kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
+  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
+  ur_kernel_handle_t hKernel = nullptr;
+  ur_native_handle_t nativeHandle =
+      reinterpret_cast<ur_native_handle_t>(ClKernel);
+  Plugin->call(urKernelCreateWithNativeHandle, nativeHandle,
+               detail::getSyclObjImpl(SyclContext)->getHandleRef(), nullptr,
+               nullptr, &hKernel);
+  impl = std::make_shared<detail::kernel_impl>(
+      hKernel, detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
-        detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel));
+    impl->getPlugin()->call(urKernelRetain, hKernel);
   }
 }
 
@@ -113,9 +119,9 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
-pi_native_handle kernel::getNative() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNative() const { return impl->getNative(); }
 
-pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
+ur_native_handle_t kernel::getNativeImpl() const { return impl->getNative(); }
 
 } // namespace _V1
 } // namespace sycl

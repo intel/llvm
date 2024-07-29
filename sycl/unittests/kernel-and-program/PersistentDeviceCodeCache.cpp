@@ -11,7 +11,7 @@
 #include "detail/persistent_device_code_cache.hpp"
 #include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <llvm/Support/FileSystem.h>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
@@ -54,24 +54,21 @@ std::vector<std::vector<int>> Progs = {
 
 static unsigned char DeviceCodeID = 2;
 
-static pi_result redefinedProgramGetInfoAfter(pi_program program,
-                                              pi_program_info param_name,
-                                              size_t param_value_size,
-                                              void *param_value,
-                                              size_t *param_value_size_ret) {
-  if (param_name == PI_PROGRAM_INFO_NUM_DEVICES) {
-    auto value = reinterpret_cast<unsigned int *>(param_value);
+static ur_result_t redefinedProgramGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_program_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_PROGRAM_INFO_NUM_DEVICES) {
+    auto value = reinterpret_cast<unsigned int *>(*params.ppPropValue);
     *value = Progs[DeviceCodeID].size();
   }
 
-  if (param_name == PI_PROGRAM_INFO_BINARY_SIZES) {
-    auto value = reinterpret_cast<size_t *>(param_value);
+  if (*params.ppropName == UR_PROGRAM_INFO_BINARY_SIZES) {
+    auto value = reinterpret_cast<size_t *>(*params.ppPropValue);
     for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i)
       value[i] = Progs[DeviceCodeID][i];
   }
 
-  if (param_name == PI_PROGRAM_INFO_BINARIES) {
-    auto value = reinterpret_cast<unsigned char **>(param_value);
+  if (*params.ppropName == UR_PROGRAM_INFO_BINARIES) {
+    auto value = reinterpret_cast<unsigned char **>(*params.ppPropValue);
     for (size_t i = 0; i < Progs[DeviceCodeID].size(); ++i) {
       for (int j = 0; j < Progs[DeviceCodeID][i]; ++j) {
         value[i][j] = i;
@@ -79,11 +76,11 @@ static pi_result redefinedProgramGetInfoAfter(pi_program program,
     }
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class PersistentDeviceCodeCache
-    : public ::testing::TestWithParam<pi_device_binary_type> {
+    : public ::testing::TestWithParam<sycl_device_binary_type> {
 public:
 #ifdef _WIN32
   int setenv(const char *name, const char *value, int overwrite) {
@@ -162,7 +159,7 @@ public:
     ResetSYCLCacheDirEnv();
   }
 
-  PersistentDeviceCodeCache() : Mock{}, Plt{Mock.getPlatform()} {
+  PersistentDeviceCodeCache() : Mock{}, Plt{sycl::platform()} {
 
     char *SYCLCacheDir = getenv("SYCL_CACHE_DIR");
     if (!SYCLCacheDir) {
@@ -173,8 +170,8 @@ public:
     RootSYCLCacheDir = SYCLCacheDir;
 
     Dev = Plt.get_devices()[0];
-    Mock.redefineAfter<detail::PiApiKind::piProgramGetInfo>(
-        redefinedProgramGetInfoAfter);
+    mock::getCallbacks().set_after_callback("urProgramGetInfo",
+                                            &redefinedProgramGetInfoAfter);
   }
 
   /* Helper function for concurent cache item read/write from diffrent number
@@ -219,30 +216,30 @@ public:
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   platform Plt;
   device Dev;
   const char *EntryName = "Entry";
-  _pi_offload_entry_struct EntryStruct = {
+  _sycl_offload_entry_struct EntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(EntryName), strlen(EntryName),
       /*flags*/ 0, /*reserved*/ 0};
-  pi_device_binary_struct BinStruct{/*Version*/ 1,
-                                    /*Kind*/ 4,
-                                    /*Format*/ GetParam(),
-                                    /*DeviceTargetSpec*/ nullptr,
-                                    /*CompileOptions*/ nullptr,
-                                    /*LinkOptions*/ nullptr,
-                                    /*ManifestStart*/ nullptr,
-                                    /*ManifestEnd*/ nullptr,
-                                    /*BinaryStart*/ nullptr,
-                                    /*BinaryEnd*/ nullptr,
-                                    /*EntriesBegin*/ &EntryStruct,
-                                    /*EntriesEnd*/ &EntryStruct + 1,
-                                    /*PropertySetsBegin*/ nullptr,
-                                    /*PropertySetsEnd*/ nullptr};
-  pi_device_binary Bin = &BinStruct;
+  sycl_device_binary_struct BinStruct{/*Version*/ 1,
+                                      /*Kind*/ 4,
+                                      /*Format*/ GetParam(),
+                                      /*DeviceTargetSpec*/ nullptr,
+                                      /*CompileOptions*/ nullptr,
+                                      /*LinkOptions*/ nullptr,
+                                      /*ManifestStart*/ nullptr,
+                                      /*ManifestEnd*/ nullptr,
+                                      /*BinaryStart*/ nullptr,
+                                      /*BinaryEnd*/ nullptr,
+                                      /*EntriesBegin*/ &EntryStruct,
+                                      /*EntriesEnd*/ &EntryStruct + 1,
+                                      /*PropertySetsBegin*/ nullptr,
+                                      /*PropertySetsEnd*/ nullptr};
+  sycl_device_binary Bin = &BinStruct;
   detail::RTDeviceBinaryImage Img{Bin};
-  sycl::detail::pi::PiProgram NativeProg;
+  ur_program_handle_t NativeProg;
 };
 
 /* Checks that key values with \0 symbols are processed correctly
@@ -273,24 +270,24 @@ TEST_P(PersistentDeviceCodeCache, KeysWithNullTermSymbol) {
 
 TEST_P(PersistentDeviceCodeCache, MultipleImages) {
   const char *ExtraEntryName = "ExtraEntry";
-  _pi_offload_entry_struct ExtraEntryStruct = {
+  _sycl_offload_entry_struct ExtraEntryStruct = {
       /*addr*/ nullptr, const_cast<char *>(ExtraEntryName),
       strlen(ExtraEntryName), /*flags*/ 0, /*reserved*/ 0};
-  pi_device_binary_struct ExtraBinStruct{/*Version*/ 1,
-                                         /*Kind*/ 4,
-                                         /*Format*/ GetParam(),
-                                         /*DeviceTargetSpec*/ nullptr,
-                                         /*CompileOptions*/ nullptr,
-                                         /*LinkOptions*/ nullptr,
-                                         /*ManifestStart*/ nullptr,
-                                         /*ManifestEnd*/ nullptr,
-                                         /*BinaryStart*/ nullptr,
-                                         /*BinaryEnd*/ nullptr,
-                                         /*EntriesBegin*/ &ExtraEntryStruct,
-                                         /*EntriesEnd*/ &ExtraEntryStruct + 1,
-                                         /*PropertySetsBegin*/ nullptr,
-                                         /*PropertySetsEnd*/ nullptr};
-  pi_device_binary ExtraBin = &ExtraBinStruct;
+  sycl_device_binary_struct ExtraBinStruct{/*Version*/ 1,
+                                           /*Kind*/ 4,
+                                           /*Format*/ GetParam(),
+                                           /*DeviceTargetSpec*/ nullptr,
+                                           /*CompileOptions*/ nullptr,
+                                           /*LinkOptions*/ nullptr,
+                                           /*ManifestStart*/ nullptr,
+                                           /*ManifestEnd*/ nullptr,
+                                           /*BinaryStart*/ nullptr,
+                                           /*BinaryEnd*/ nullptr,
+                                           /*EntriesBegin*/ &ExtraEntryStruct,
+                                           /*EntriesEnd*/ &ExtraEntryStruct + 1,
+                                           /*PropertySetsBegin*/ nullptr,
+                                           /*PropertySetsEnd*/ nullptr};
+  sycl_device_binary ExtraBin = &ExtraBinStruct;
   detail::RTDeviceBinaryImage ExtraImg{ExtraBin};
   std::string BuildOptions{"--multiple-images"};
 
@@ -511,6 +508,6 @@ TEST_P(PersistentDeviceCodeCache, AccessDeniedForCacheDir) {
 
 INSTANTIATE_TEST_SUITE_P(PersistentDeviceCodeCacheImpl,
                          PersistentDeviceCodeCache,
-                         ::testing::Values(PI_DEVICE_BINARY_TYPE_SPIRV,
-                                           PI_DEVICE_BINARY_TYPE_NATIVE));
+                         ::testing::Values(SYCL_DEVICE_BINARY_TYPE_SPIRV,
+                                           SYCL_DEVICE_BINARY_TYPE_NATIVE));
 } // namespace

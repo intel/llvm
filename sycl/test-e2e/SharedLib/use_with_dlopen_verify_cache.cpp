@@ -5,18 +5,18 @@
 // DEFINE: %{compile} = %{build} -DFNAME=%basename_t -o %t.out -ldl -Wl,-rpath=%T
 
 // RUN: %{compile} -DRUN_FIRST
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
 
 // RUN: %{compile} -DRUN_MIDDLE_BEFORE
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-BEFORE,CHECK --implicit-check-not=piProgramBuild
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-BEFORE,CHECK --implicit-check-not=piProgramBuild
 
 // RUN: %{compile} -DRUN_MIDDLE_AFTER
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-AFTER,CHECK --implicit-check-not=piProgramBuild
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-MIDDLE-AFTER,CHECK --implicit-check-not=piProgramBuild
 
 // clang-format off
 // This causes SEG. FAULT.
 // RUNx: %{compile} -DRUN_LAST
-// RUNx: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
+// RUNx: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
 #include <sycl/detail/core.hpp>
@@ -61,7 +61,7 @@ void run() {
 }
 int main() {
 #ifdef RUN_FIRST
-  // CHECK-FIRST: piProgramBuild
+  // CHECK-FIRST: urProgramBuild
   // CHECK-FIRST: Main: 2
   // CHECK-FIRST: Main: 2
   run();
@@ -77,21 +77,21 @@ int main() {
   *(void **)(&func) = dlsym(handle, "_Z3foov");
 
 #ifdef RUN_MIDDLE_BEFORE
-  // CHECK-MIDDLE-BEFORE: piProgramBuild
+  // CHECK-MIDDLE-BEFORE: urProgramBuild
   // CHECK-MIDDLE-BEFORE: Main: 2
   // CHECK-MIDDLE-BEFORE: Main: 2
   run();
   run();
 #endif
 
-  // CHECK: piProgramBuild
+  // CHECK: urProgramBuild
   // CHECK: Foo: 1
   // CHECK: Foo: 1
   assert(func() == 1);
   assert(func() == 1);
 
 #ifdef RUN_MIDDLE_AFTER
-  // CHECK-MIDDLE-AFTER: piProgramBuild
+  // CHECK-MIDDLE-AFTER: urProgramBuild
   // CHECK-MIDDLE-AFTER: Main: 2
   // CHECK-MIDDLE-AFTER: Main: 2
   run();
@@ -101,7 +101,7 @@ int main() {
   dlclose(handle);
 
 #ifdef RUN_LAST
-  // CHECK-LAST: piProgramBuild
+  // CHECK-LAST: urProgramBuild
   // CHECK-LAST: Main: 2
   // CHECK-LAST: Main: 2
   run();

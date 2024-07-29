@@ -12,9 +12,9 @@
 #include "detail/graph_impl.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -25,8 +25,7 @@ using namespace sycl::ext::oneapi;
 class CommandGraphTest : public ::testing::Test {
 public:
   CommandGraphTest()
-      : Mock{}, Plat{Mock.getPlatform()}, Dev{Plat.get_devices()[0]},
-        Queue{Dev},
+      : Mock{}, Plat{sycl::platform()}, Dev{Plat.get_devices()[0]}, Queue{Dev},
         Graph{Queue.get_context(),
               Dev,
               {experimental::property::graph::assume_buffer_outlives_graph{}}} {
@@ -36,7 +35,7 @@ protected:
   void SetUp() override {}
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plat;
   sycl::device Dev;
   sycl::queue Queue;

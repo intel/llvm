@@ -25,11 +25,11 @@ include(AddSYCLUnitTest)
 
 add_custom_target(check-sycl-unittests)
 
-# TODO PI tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_PI_TESTS "Enable PI-specific unit tests" OFF)
+# TODO UR tests require real hardware and must be moved to sycl/test-e2e.
+option(SYCL_UR_TESTS "Enable UR-specific unit tests" OFF)
 
-if (SYCL_PI_TESTS)
-  add_subdirectory(pi)
+if (SYCL_UR_TESTS)
+    add_subdirectory(ur)
 endif()
 
 add_subdirectory(allowlist)
@@ -55,5 +55,5 @@ add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
-  add_subdirectory(xpti_trace)
+    add_subdirectory(xpti_trace)
 endif()

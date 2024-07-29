@@ -16,7 +16,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -409,10 +408,10 @@ public:
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
 
-    std::vector<pi::PiDevice> DeviceVec;
+    std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
-      pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       DeviceVec.push_back(Dev);
     }
 
@@ -423,11 +422,11 @@ public:
         const auto &SourceStr = std::get<std::string>(this->Source);
         std::vector<uint32_t> IPVersionVec(Devices.size());
         std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
-                       [&](pi::PiDevice d) {
+                       [&](ur_device_handle_t d) {
                          uint32_t ipVersion = 0;
-                         Plugin->call<PiApiKind::piDeviceGetInfo>(
-                             d, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION,
-                             sizeof(uint32_t), &ipVersion, nullptr);
+                         Plugin->call(urDeviceGetInfo, d,
+                                      UR_DEVICE_INFO_IP_VERSION,
+                                      sizeof(uint32_t), &ipVersion, nullptr);
                          return ipVersion;
                        });
         return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
@@ -452,32 +451,35 @@ public:
           "OpenCL C and SPIR-V are the only supported languages at this time");
     }();
 
-    sycl::detail::pi::PiProgram PiProgram = nullptr;
-    Plugin->call<PiApiKind::piProgramCreate>(
-        ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
-    // program created by piProgramCreate is implicitly retained.
+    ur_program_handle_t UrProgram = nullptr;
+    Plugin->call(urProgramCreateWithIL, ContextImpl->getHandleRef(),
+                 spirv.data(), spirv.size(), nullptr, &UrProgram);
+    // program created by urProgramCreateWithIL is implicitly retained.
 
     std::string XsFlags = extractXsFlags(BuildOptions);
-    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-        PiProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str(), nullptr,
-        nullptr);
+    auto Res =
+        Plugin->call_nocheck(urProgramBuildExp, UrProgram, DeviceVec.size(),
+                             DeviceVec.data(), XsFlags.c_str());
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Res = Plugin->call_nocheck(urProgramBuild, ContextImpl->getHandleRef(),
+                                 UrProgram, XsFlags.c_str());
+    }
+    Plugin->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
-        nullptr);
+    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_NUM_KERNELS,
+                 sizeof(size_t), &NumKernels, nullptr);
 
     // Get the kernel names.
     size_t KernelNamesSize;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0,
+                 nullptr, &KernelNamesSize);
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
-        &KernelNamesStr[0], nullptr);
+    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES,
+                 KernelNamesStr.size(), &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
 
@@ -485,7 +487,7 @@ public:
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
-        PiProgram);
+        UrProgram);
     device_image_plain DevImg{DevImgImpl};
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
@@ -525,16 +527,15 @@ public:
     assert(MDeviceImages.size() > 0);
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(MDeviceImages[0]);
-    sycl::detail::pi::PiProgram PiProgram = DeviceImageImpl->get_program_ref();
+    ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
-    sycl::detail::pi::PiKernel PiKernel = nullptr;
-    Plugin->call<PiApiKind::piKernelCreate>(PiProgram, AdjustedName.c_str(),
-                                            &PiKernel);
-    // Kernel created by piKernelCreate is implicitly retained.
+    ur_kernel_handle_t UrKernel = nullptr;
+    Plugin->call(urKernelCreate, UrProgram, AdjustedName.c_str(), &UrKernel);
+    // Kernel created by urKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        PiKernel, detail::getSyclObjImpl(MContext), Self);
+        UrKernel, detail::getSyclObjImpl(MContext), Self);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
@@ -627,11 +628,11 @@ public:
     auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
-            SelectedImage->get_program_ref());
+            SelectedImage->get_ur_program_ref());
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
-        SelectedImage->get_program_ref(), CacheMutex);
+        SelectedImage->get_ur_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
