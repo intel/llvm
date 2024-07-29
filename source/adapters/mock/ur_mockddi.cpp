@@ -7699,16 +7699,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     size_t size,                  ///< [in] size of the external memory
     ur_exp_external_mem_type_t
         memHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_mem_desc_t
-        *pInteropMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t
-        *phInteropMem ///< [out] interop memory handle to the external memory
+    ur_exp_external_mem_desc_t
+        *pExternalMemDesc, ///< [in] the external memory descriptor
+    ur_exp_external_mem_handle_t
+        *phExternalMem ///< [out] external memory handle to the external memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_bindless_images_import_external_memory_exp_params_t params = {
-        &hContext,      &hDevice,         &size,
-        &memHandleType, &pInteropMemDesc, &phInteropMem};
+        &hContext,      &hDevice,          &size,
+        &memHandleType, &pExternalMemDesc, &phExternalMem};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -7727,7 +7727,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         result = replaceCallback(&params);
     } else {
 
-        *phInteropMem = mock::createDummyHandle<ur_exp_interop_mem_handle_t>();
+        *phExternalMem =
+            mock::createDummyHandle<ur_exp_external_mem_handle_t>();
         result = UR_RESULT_SUCCESS;
     }
 
@@ -7755,16 +7756,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_bindless_images_map_external_array_exp_params_t params = {
-        &hContext,   &hDevice,     &pImageFormat,
-        &pImageDesc, &hInteropMem, &phImageMem};
+        &hContext,   &hDevice,      &pImageFormat,
+        &pImageDesc, &hExternalMem, &phImageMem};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -7805,21 +7806,21 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesReleaseInteropExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+    ur_exp_external_mem_handle_t
+        hExternalMem ///< [in][release] handle of external memory to be destroyed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    ur_bindless_images_release_interop_exp_params_t params = {
-        &hContext, &hDevice, &hInteropMem};
+    ur_bindless_images_release_external_memory_exp_params_t params = {
+        &hContext, &hDevice, &hExternalMem};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
-            "urBindlessImagesReleaseInteropExp"));
+            "urBindlessImagesReleaseExternalMemoryExp"));
     if (beforeCallback) {
         result = beforeCallback(&params);
         if (result != UR_RESULT_SUCCESS) {
@@ -7829,12 +7830,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
     auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_replace_callback(
-            "urBindlessImagesReleaseInteropExp"));
+            "urBindlessImagesReleaseExternalMemoryExp"));
     if (replaceCallback) {
         result = replaceCallback(&params);
     } else {
 
-        mock::releaseDummyHandle(hInteropMem);
+        mock::releaseDummyHandle(hExternalMem);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -7844,7 +7845,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
     auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_after_callback(
-            "urBindlessImagesReleaseInteropExp"));
+            "urBindlessImagesReleaseExternalMemoryExp"));
     if (afterCallback) {
         return afterCallback(&params);
     }
@@ -7861,16 +7862,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_external_semaphore_type_t
         semHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_semaphore_desc_t
-        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
-    ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
+    ur_exp_external_semaphore_desc_t
+        *pExternalSemaphoreDesc, ///< [in] the external semaphore descriptor
+    ur_exp_external_semaphore_handle_t *
+        phExternalSemaphore ///< [out] external semaphore handle to the external semaphore
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_bindless_images_import_external_semaphore_exp_params_t params = {
-        &hContext, &hDevice, &semHandleType, &pInteropSemaphoreDesc,
-        &phInteropSemaphore};
+        &hContext, &hDevice, &semHandleType, &pExternalSemaphoreDesc,
+        &phExternalSemaphore};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -7889,8 +7890,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         result = replaceCallback(&params);
     } else {
 
-        *phInteropSemaphore =
-            mock::createDummyHandle<ur_exp_interop_semaphore_handle_t>();
+        *phExternalSemaphore =
+            mock::createDummyHandle<ur_exp_external_semaphore_handle_t>();
         result = UR_RESULT_SUCCESS;
     }
 
@@ -7915,13 +7916,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
+    ur_exp_external_semaphore_handle_t
+        hExternalSemaphore ///< [in][release] handle of external semaphore to be destroyed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_bindless_images_release_external_semaphore_exp_params_t params = {
-        &hContext, &hDevice, &hInteropSemaphore};
+        &hContext, &hDevice, &hExternalSemaphore};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -7940,7 +7941,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
         result = replaceCallback(&params);
     } else {
 
-        mock::releaseDummyHandle(hInteropSemaphore);
+        mock::releaseDummyHandle(hExternalSemaphore);
         result = UR_RESULT_SUCCESS;
     }
 
@@ -7964,8 +7965,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
                       ///< certain value.
@@ -8034,8 +8035,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
                         ///< certain value.
@@ -10271,7 +10272,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnMapExternalArrayExp =
         driver::urBindlessImagesMapExternalArrayExp;
 
-    pDdiTable->pfnReleaseInteropExp = driver::urBindlessImagesReleaseInteropExp;
+    pDdiTable->pfnReleaseExternalMemoryExp =
+        driver::urBindlessImagesReleaseExternalMemoryExp;
 
     pDdiTable->pfnImportExternalSemaphoreExp =
         driver::urBindlessImagesImportExternalSemaphoreExp;
