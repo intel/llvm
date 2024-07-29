@@ -21,6 +21,10 @@
  **************************************************************************/
 // https://github.com/intel/llvm/issues/14387
 // UNSUPPORTED: gpu-intel-dg2
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 

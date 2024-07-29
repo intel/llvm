@@ -9,7 +9,9 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: cpu, gpu-intel-dg2
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: cpu, gpu-intel-dg2, arch-intel_gpu_pvc
 
 #include "common.hpp"
 #include "get_coord_int8_matB_impl.hpp"

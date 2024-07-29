@@ -8,6 +8,8 @@
 // REQUIRES: aspect-ext_intel_matrix
 // VNNI transform is not supported yet by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

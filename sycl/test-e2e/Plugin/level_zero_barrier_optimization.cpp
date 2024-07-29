@@ -1,4 +1,8 @@
 // REQUIRES: level_zero
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 

@@ -1,4 +1,8 @@
 // REQUIRES: cuda || hip || level_zero
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN:  %{build} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_61 %} -o %t.out
 // RUN:  %{run} %t.out
 

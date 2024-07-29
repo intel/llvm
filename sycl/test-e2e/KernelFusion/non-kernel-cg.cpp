@@ -1,3 +1,6 @@
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s
 
