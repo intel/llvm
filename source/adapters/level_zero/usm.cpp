@@ -827,7 +827,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   HostMemPool =
       umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+          umfDisjointPoolOps(), std::move(MemProvider),
           &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
@@ -838,7 +838,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Device])
                             .second));
@@ -849,7 +849,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
@@ -861,7 +861,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(
             umf::poolMakeUniqueFromOps(
-                &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                umfDisjointPoolOps(), std::move(MemProvider),
                 &this->DisjointPoolConfigs
                      .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));

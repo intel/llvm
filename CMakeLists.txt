@@ -37,7 +37,7 @@ option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
-option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
+option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" ON)
 option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" ON)
 option(UR_BUILD_ADAPTER_L0 "Build the Level-Zero adapter" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "Build the OpenCL adapter" OFF)
@@ -49,6 +49,7 @@ option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_ENABLE_ASSERTIONS "Enable assertions for all build types" OFF)
 option(UR_BUILD_XPTI_LIBS "Build the XPTI libraries when tracing is enabled" ON)
+option(UR_STATIC_LOADER "Build loader as a static library" OFF)
 set(UR_DPCXX "" CACHE FILEPATH "Path of the DPC++ compiler executable")
 set(UR_DPCXX_BUILD_FLAGS "" CACHE STRING "Build flags to pass to DPC++ when compiling device programs")
 set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
@@ -134,6 +135,15 @@ if(UR_ENABLE_TRACING)
         set_target_properties(xptifw PROPERTIES
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         )
+
+        if (UR_STATIC_LOADER)
+            install(TARGETS xpti xptifw
+                EXPORT ${PROJECT_NAME}-targets
+                ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+                LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            )
+        endif()
     endif()
 
     if (MSVC)
@@ -179,7 +189,7 @@ endif()
 if(UR_FORMAT_CPP_STYLE)
     find_program(CLANG_FORMAT NAMES clang-format-15 clang-format-15.0 clang-format)
 
-    if(CLANG_FORMAT)        
+    if(CLANG_FORMAT)
         get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
         message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
 

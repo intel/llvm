@@ -11,6 +11,10 @@ on:
         required: false
         type: string
         default: ""
+      static_loader:
+        required: false
+        type: string
+        default: OFF
 
 permissions:
   contents: read
@@ -29,13 +33,18 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: "${{inputs.name}}", platform: "${{inputs.platform}}"},
+          {name: "${{inputs.name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}"},
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
         # TODO: The latest L0 loader segfaults when built with clang.
         exclude:
          - adapter: {name: L0, platform: ""}
+           compiler: {c: clang, cxx: clang++}
+        # Exclude these configurations to avoid overloading the runners.
+         - adapter: {static_Loader: ON}
+           build_type: Release
+         - adapter: {static_Loader: ON}
            compiler: {c: clang, cxx: clang++}
 
     runs-on: ${{matrix.adapter.name}}
@@ -63,6 +72,7 @@ jobs:
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
