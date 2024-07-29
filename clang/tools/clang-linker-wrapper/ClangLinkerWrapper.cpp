@@ -14,6 +14,7 @@
 //
 //===---------------------------------------------------------------------===//
 
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/BinaryFormat/Magic.h"
@@ -407,6 +408,46 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
   if (Error Err = executeCommands(*FatBinaryPath, CmdArgs))
     return std::move(Err);
 
+  return *TempFileOrErr;
+}
+
+// ptxas binary
+Expected<StringRef> ptxas(StringRef InputFile, const ArgList &Args,
+                          StringRef Arch) {
+  llvm::TimeTraceScope TimeScope("NVPTX ptxas");
+  // NVPTX uses the ptxas program to process assembly files.
+  Expected<std::string> PtxasPath =
+      findProgram("ptxas", {CudaBinaryPath + "/bin"});
+  if (!PtxasPath)
+    return PtxasPath.takeError();
+
+  llvm::Triple Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+
+  // Create a new file to write the output to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName), "cubin");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  SmallVector<StringRef, 16> CmdArgs;
+  CmdArgs.push_back(*PtxasPath);
+  CmdArgs.push_back(Triple.isArch64Bit() ? "-m64" : "-m32");
+  // Pass -v to ptxas if it was passed to the driver.
+  if (Args.hasArg(OPT_verbose))
+    CmdArgs.push_back("-v");
+  StringRef OptLevel = Args.getLastArgValue(OPT_opt_level, "O2");
+  if (Args.hasArg(OPT_debug))
+    CmdArgs.push_back("-g");
+  else
+    CmdArgs.push_back(Args.MakeArgString("-" + OptLevel));
+  CmdArgs.push_back("--gpu-name");
+  CmdArgs.push_back(Arch);
+  CmdArgs.push_back("--output-file");
+  CmdArgs.push_back(*TempFileOrErr);
+  CmdArgs.push_back(InputFile);
+  if (Error Err = executeCommands(*PtxasPath, CmdArgs))
+    return std::move(Err);
   return *TempFileOrErr;
 }
 } // namespace nvptx
@@ -1240,7 +1281,8 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
 } // namespace sycl
 
 namespace generic {
-Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
+Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                          bool IsSYCLKind = false) {
   llvm::TimeTraceScope TimeScope("Clang");
   // Use `clang` to invoke the appropriate device tools.
   Expected<std::string> ClangPath =
@@ -1276,6 +1318,8 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   if (!Triple.isNVPTX())
     CmdArgs.push_back("-Wl,--no-undefined");
 
+  if (IsSYCLKind && Triple.isNVPTX())
+    CmdArgs.push_back("-S");
   for (StringRef InputFile : InputFiles)
     CmdArgs.push_back(InputFile);
 
@@ -1369,7 +1413,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::ppc64:
   case Triple::ppc64le:
   case Triple::systemz:
-    return generic::clang(InputFiles, Args);
+    return generic::clang(InputFiles, Args, IsSYCLKind);
   case Triple::spirv32:
   case Triple::spirv64:
   case Triple::spir:
@@ -2078,14 +2122,40 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
           return OutputFile.takeError();
         WrappedOutput.push_back(*OutputFile);
       }
-
       for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
         SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
-        auto LinkedFileFinalOrErr =
+        StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
+        if (Arch.empty())
+          Arch = "native";
+        SmallVector<std::pair<StringRef, StringRef>, 4> BundlerInputFiles;
+        auto ClangOutputOrErr =
             linkDevice(Files, LinkerArgs, true /* IsSYCLKind */);
-        if (!LinkedFileFinalOrErr)
-          return LinkedFileFinalOrErr.takeError();
-        SplitModules[I].ModuleFilePath = *LinkedFileFinalOrErr;
+        if (!ClangOutputOrErr)
+          return ClangOutputOrErr.takeError();
+        if (Triple.isNVPTX()) {
+          auto VirtualArch = StringRef(clang::CudaArchToVirtualArchString(
+              clang::StringToCudaArch(Arch)));
+          auto PtxasOutputOrErr =
+              nvptx::ptxas(*ClangOutputOrErr, LinkerArgs, Arch);
+          if (!PtxasOutputOrErr)
+            return PtxasOutputOrErr.takeError();
+          BundlerInputFiles.emplace_back(*ClangOutputOrErr, VirtualArch);
+          BundlerInputFiles.emplace_back(*PtxasOutputOrErr, Arch);
+          auto BundledFileOrErr =
+              nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
+          if (!BundledFileOrErr)
+            return BundledFileOrErr.takeError();
+          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+        } else if (Triple.isAMDGCN()) {
+          BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
+          auto BundledFileOrErr =
+              amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
+          if (!BundledFileOrErr)
+            return BundledFileOrErr.takeError();
+          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+        } else {
+          SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+        }
       }
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
       auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);

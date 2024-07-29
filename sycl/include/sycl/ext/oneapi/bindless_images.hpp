@@ -10,7 +10,6 @@
 
 #include <sycl/context.hpp>                               // for context
 #include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                               // for pi_uint64
 #include <sycl/device.hpp>                                // for device
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
@@ -34,9 +33,9 @@ namespace ext::oneapi::experimental {
 
 /// Opaque unsampled image handle type.
 struct unsampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  unsampled_image_handle() : raw_handle(~0) {}
+  unsampled_image_handle() : raw_handle(0) {}
 
   unsampled_image_handle(raw_image_handle_type raw_image_handle)
       : raw_handle(raw_image_handle) {}
@@ -46,9 +45,9 @@ struct unsampled_image_handle {
 
 /// Opaque sampled image handle type.
 struct sampled_image_handle {
-  using raw_image_handle_type = pi_uint64;
+  using raw_image_handle_type = uint64_t;
 
-  sampled_image_handle() : raw_handle(~0) {}
+  sampled_image_handle() : raw_handle(0) {}
 
   sampled_image_handle(raw_image_handle_type handle) : raw_handle(handle) {}
 

@@ -7,66 +7,62 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 int check = 0;
 
-pi_result redefinedDevicesGet(pi_platform platform, pi_device_type device_type,
-                              pi_uint32 num_entries, pi_device *devices,
-                              pi_uint32 *num_devices) {
-  if (num_devices)
-    *num_devices = 2;
-  if (devices && num_entries > 0) {
-    devices[0] = reinterpret_cast<pi_device>(1);
-    devices[1] = reinterpret_cast<pi_device>(2);
+ur_result_t redefinedDeviceGet(void *pParams) {
+  auto params = *static_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 2;
+  if (*params.pphDevices && *params.pNumEntries > 0) {
+    (*params.pphDevices)[0] = reinterpret_cast<ur_device_handle_t>(1);
+    (*params.pphDevices)[1] = reinterpret_cast<ur_device_handle_t>(2);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnablePeerAccess(pi_device command_device,
-                                    pi_device peer_device) {
+ur_result_t redefinedEnablePeerAccess(void *) {
   check = 3;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedDisablePeerAccess(pi_device command_device,
-                                     pi_device peer_device) {
+ur_result_t redefinedDisablePeerAccess(void *) {
   check = 4;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedPeerAccessGetInfo(pi_device command_device,
-                                     pi_device peer_device, pi_peer_attr attr,
-                                     size_t param_value_size, void *param_value,
-                                     size_t *param_value_size_ret) {
+ur_result_t redefinedPeerAccessGetInfo(void *pParams) {
+  auto params =
+      *static_cast<ur_usm_p2p_peer_access_get_info_exp_params_t *>(pParams);
 
-  if (param_value)
-    *static_cast<pi_int32 *>(param_value) = 1;
-  if (param_value_size_ret)
-    *param_value_size_ret = sizeof(pi_int32);
+  if (*params.ppPropValue)
+    *static_cast<int32_t *>(*params.ppPropValue) = 1;
+  if (*params.ppPropSizeRet)
+    **params.ppPropSizeRet = sizeof(int32_t);
 
-  if (attr == PI_PEER_ACCESS_SUPPORTED) {
+  if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED) {
     check = 1;
-  } else if (attr == PI_PEER_ATOMICS_SUPPORTED) {
+  } else if (*params.ppropName == UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED) {
     check = 2;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(USMP2PTest, USMP2PTest) {
 
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  Mock.redefine<sycl::detail::PiApiKind::piDevicesGet>(redefinedDevicesGet);
-  Mock.redefine<sycl::detail::PiApiKind::piextEnablePeerAccess>(
-      redefinedEnablePeerAccess);
-  Mock.redefine<sycl::detail::PiApiKind::piextDisablePeerAccess>(
-      redefinedDisablePeerAccess);
-  Mock.redefine<sycl::detail::PiApiKind::piextPeerAccessGetInfo>(
-      redefinedPeerAccessGetInfo);
+  mock::getCallbacks().set_replace_callback("urDeviceGet", &redefinedDeviceGet);
+  mock::getCallbacks().set_replace_callback("urUsmP2PEnablePeerAccessExp",
+                                            &redefinedEnablePeerAccess);
+  mock::getCallbacks().set_replace_callback("urUsmP2PDisablePeerAccessExp",
+                                            &redefinedDisablePeerAccess);
+  mock::getCallbacks().set_replace_callback("urUsmP2PPeerAccessGetInfoExp",
+                                            &redefinedPeerAccessGetInfo);
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
 
   auto Dev1 = Plt.get_devices()[0];
   auto Dev2 = Plt.get_devices()[1];

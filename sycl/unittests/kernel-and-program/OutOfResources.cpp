@@ -12,8 +12,8 @@
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrImage.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -27,56 +27,52 @@ class OutOfResourcesKernel2;
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel1)
 MOCK_INTEGRATION_HEADER(OutOfResourcesKernel2)
 
-static sycl::unittest::PiImage Img[2] = {
+static sycl::unittest::UrImage Img[2] = {
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel1"}),
     sycl::unittest::generateDefaultImage({"OutOfResourcesKernel2"})};
 
-static sycl::unittest::PiImageArray<2> ImgArray{Img};
+static sycl::unittest::UrImageArray<2> ImgArray{Img};
 
 static int nProgramCreate = 0;
 static volatile bool outOfResourcesToggle = false;
 static volatile bool outOfHostMemoryToggle = false;
 
-static pi_result redefinedProgramCreate(pi_context context, const void *il,
-                                        size_t length,
-                                        pi_program *res_program) {
+static ur_result_t redefinedProgramCreateWithIL(void *) {
   ++nProgramCreate;
   if (outOfResourcesToggle) {
     outOfResourcesToggle = false;
-    return PI_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result
-redefinedProgramCreateOutOfHostMemory(pi_context context, const void *il,
-                                      size_t length, pi_program *res_program) {
+static ur_result_t redefinedProgramCreateWithILOutOfHostMemory(void *) {
   ++nProgramCreate;
   if (outOfHostMemoryToggle) {
     outOfHostMemoryToggle = false;
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-TEST(OutOfResourcesTest, piProgramCreate) {
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
-      redefinedProgramCreate);
+TEST(OutOfResourcesTest, urProgramCreate) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                           &redefinedProgramCreateWithIL);
 
-  sycl::platform Plt{Mock.getPlatform()};
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
-  // Cache is empty, so one piProgramCreate call.
+  // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class OutOfResourcesKernel1>([] {});
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
-  // Now, we make the next piProgramCreate call fail with
-  // PI_ERROR_OUT_OF_RESOURCES. The caching mechanism should catch this,
-  // clear the cache, and retry the piProgramCreate.
+  // Now, we make the next urProgramCreateWithIL call fail with
+  // UR_RESULT_ERROR_OUT_OF_RESOURCES. The caching mechanism should catch this,
+  // clear the cache, and retry the urProgramCreateWithIL.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfResourcesToggle);
@@ -87,9 +83,9 @@ TEST(OutOfResourcesTest, piProgramCreate) {
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
-  // The next piProgramCreate call will fail with
-  // PI_ERROR_OUT_OF_RESOURCES. But OutOfResourcesKernel2 is in
-  // the cache, so we expect no new piProgramCreate calls.
+  // The next urProgramCreateWithIL call will fail with
+  // UR_RESULT_ERROR_OUT_OF_RESOURCES. But OutOfResourcesKernel2 is in
+  // the cache, so we expect no new urProgramCreateWithIL calls.
   outOfResourcesToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_TRUE(outOfResourcesToggle);
@@ -108,7 +104,7 @@ TEST(OutOfResourcesTest, piProgramCreate) {
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
-  // OutOfResourceKenel2 will not, so one more piProgramCreate.
+  // OutOfResourceKenel2 will not, so one more urProgramCreateWithIL.
   // Toggle is not set, so this should succeed.
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
@@ -120,27 +116,27 @@ TEST(OutOfResourcesTest, piProgramCreate) {
   }
 }
 
-TEST(OutOfHostMemoryTest, piProgramCreate) {
+TEST(OutOfHostMemoryTest, urProgramCreate) {
   // Reset to zero.
   nProgramCreate = 0;
 
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramCreate>(
-      redefinedProgramCreateOutOfHostMemory);
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback(
+      "urProgramCreateWithIL", &redefinedProgramCreateWithILOutOfHostMemory);
 
-  sycl::platform Plt{Mock.getPlatform()};
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
 
   int runningTotal = 0;
-  // Cache is empty, so one piProgramCreate call.
+  // Cache is empty, so one urProgramCreateWithIL call.
   q.single_task<class OutOfResourcesKernel1>([] {});
   EXPECT_EQ(nProgramCreate, runningTotal += 1);
 
-  // Now, we make the next piProgramCreate call fail with
-  // PI_ERROR_OUT_OF_HOST_MEMORY. The caching mechanism should catch this,
-  // clear the cache, and retry the piProgramCreate.
+  // Now, we make the next urProgramCreateWithIL call fail with
+  // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. The caching mechanism should catch
+  // this, clear the cache, and retry the urProgramCreateWithIL.
   outOfHostMemoryToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_FALSE(outOfHostMemoryToggle);
@@ -151,9 +147,9 @@ TEST(OutOfHostMemoryTest, piProgramCreate) {
     EXPECT_EQ(Cache.size(), 1U) << "Expected 1 program in the cache";
   }
 
-  // The next piProgramCreate call will fail with
-  // PI_ERROR_OUT_OF_HOST_MEMORY. But OutOfResourcesKernel2 is in
-  // the cache, so we expect no new piProgramCreate calls.
+  // The next urProgramCreateWithIL call will fail with
+  // UR_RESULT_ERROR_OUT_OF_HOST_MEMORY. But OutOfResourcesKernel2 is in the
+  // cache, so we expect no new urProgramCreateWithIL calls.
   outOfHostMemoryToggle = true;
   q.single_task<class OutOfResourcesKernel2>([] {});
   EXPECT_TRUE(outOfHostMemoryToggle);
@@ -172,7 +168,7 @@ TEST(OutOfHostMemoryTest, piProgramCreate) {
   }
 
   // Finally, OutOfResourcesKernel1 will be in the cache, but
-  // OutOfResourceKenel2 will not, so one more piProgramCreate.
+  // OutOfResourceKenel2 will not, so one more urProgramCreateWithIL.
   // Toggle is not set, so this should succeed.
   q.single_task<class OutOfResourcesKernel1>([] {});
   q.single_task<class OutOfResourcesKernel2>([] {});
@@ -186,40 +182,30 @@ TEST(OutOfHostMemoryTest, piProgramCreate) {
 
 static int nProgramLink = 0;
 
-static pi_result
-redefinedProgramLink(pi_context context, pi_uint32 num_devices,
-                     const pi_device *device_list, const char *options,
-                     pi_uint32 num_input_programs,
-                     const pi_program *input_programs,
-                     void (*pfn_notify)(pi_program program, void *user_data),
-                     void *user_data, pi_program *ret_program) {
+static ur_result_t redefinedProgramLink(void *) {
   ++nProgramLink;
   if (outOfResourcesToggle) {
     outOfResourcesToggle = false;
-    return PI_ERROR_OUT_OF_RESOURCES;
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedProgramLinkOutOfHostMemory(
-    pi_context context, pi_uint32 num_devices, const pi_device *device_list,
-    const char *options, pi_uint32 num_input_programs,
-    const pi_program *input_programs,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data,
-    pi_program *ret_program) {
+static ur_result_t redefinedProgramLinkOutOfHostMemory(void *) {
   ++nProgramLink;
   if (outOfHostMemoryToggle) {
     outOfHostMemoryToggle = false;
-    return PI_ERROR_OUT_OF_HOST_MEMORY;
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-TEST(OutOfResourcesTest, piProgramLink) {
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(redefinedProgramLink);
+TEST(OutOfResourcesTest, urProgramLink) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
 
-  sycl::platform Plt{Mock.getPlatform()};
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
@@ -250,15 +236,15 @@ TEST(OutOfResourcesTest, piProgramLink) {
   }
 }
 
-TEST(OutOfHostMemoryTest, piProgramLink) {
+TEST(OutOfHostMemoryTest, urProgramLink) {
   // Reset to zero.
   nProgramLink = 0;
 
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piProgramLink>(
-      redefinedProgramLinkOutOfHostMemory);
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback(
+      "urProgramLinkExp", &redefinedProgramLinkOutOfHostMemory);
 
-  sycl::platform Plt{Mock.getPlatform()};
+  sycl::platform Plt{sycl::platform()};
   sycl::context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
   queue q(Ctx, default_selector_v);
