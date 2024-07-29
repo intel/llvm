@@ -69,7 +69,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   }
   ScopedCommandList Active{Queue, CommandList->first};
 
-  // Execute interop func
+  // Call interop func which enqueues native async work
   pfnNativeEnqueue(Queue, data);
 
   if (!isInOrderQueue()) {
