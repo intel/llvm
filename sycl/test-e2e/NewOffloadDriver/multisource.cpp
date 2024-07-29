@@ -18,7 +18,7 @@
 // RUN: %{build} --offload-new-driver -c -o %t.init.o -DINIT_KERNEL
 // RUN: %{build} --offload-new-driver -c -o %t.calc.o -DCALC_KERNEL
 // RUN: %{build} --offload-new-driver -c -o %t.main.o -DMAIN_APP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t.fat
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl -fsycl-targets=%{sycl_triple} --offload-new-driver %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: %{run} %t.fat
 
 #include <sycl/detail/core.hpp>
