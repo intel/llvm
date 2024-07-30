@@ -30,6 +30,7 @@ struct PlatformEnvironment : ::testing::Environment {
 
     PlatformOptions platform_options;
     std::vector<ur_adapter_handle_t> adapters{};
+    ur_adapter_handle_t adapter = nullptr;
     ur_platform_handle_t platform = nullptr;
     std::string error;
     static PlatformEnvironment *instance;

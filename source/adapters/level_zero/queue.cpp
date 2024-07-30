@@ -1180,9 +1180,7 @@ ur_queue_handle_legacy_t_::ur_queue_handle_legacy_t_(
   static const bool useDriverCounterBasedEvents = [Device] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
     if (!UrRet) {
-      if (Device->isPVC())
-        return true;
-      return false;
+      return true;
     }
     return std::atoi(UrRet) != 0;
   }();

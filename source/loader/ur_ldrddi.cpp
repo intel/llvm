@@ -1044,10 +1044,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
-        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+        phDevices, ///< [in][optional][range(0, numDevices)] list of devices associated with
+                   ///< the context
     const ur_context_native_properties_t *
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
@@ -1058,13 +1061,15 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     [[maybe_unused]] auto context = getContext();
 
     // extract platform's function pointer table
-    auto dditable =
-        reinterpret_cast<ur_device_object_t *>(*phDevices)->dditable;
+    auto dditable = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->dditable;
     auto pfnCreateWithNativeHandle =
         dditable->ur.Context.pfnCreateWithNativeHandle;
     if (nullptr == pfnCreateWithNativeHandle) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
+
+    // convert loader handle to platform handle
+    hAdapter = reinterpret_cast<ur_adapter_object_t *>(hAdapter)->handle;
 
     // convert loader handles to platform handles
     auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
@@ -1074,7 +1079,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     // forward to device-platform
-    result = pfnCreateWithNativeHandle(hNativeContext, numDevices,
+    result = pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
                                        phDevicesLocal.data(), pProperties,
                                        phContext);
 
@@ -3592,7 +3597,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
-        hProgram, ///< [in] handle of the program associated with the kernel
+        hProgram, ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
@@ -3614,7 +3619,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
-    hProgram = reinterpret_cast<ur_program_object_t *>(hProgram)->handle;
+    hProgram = (hProgram)
+                   ? reinterpret_cast<ur_program_object_t *>(hProgram)->handle
+                   : nullptr;
 
     // forward to device-platform
     result = pfnCreateWithNativeHandle(hNativeKernel, hContext, hProgram,
@@ -3908,7 +3915,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_device_handle_t hDevice, ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3930,7 +3937,9 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
     // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    hDevice = (hDevice)
+                  ? reinterpret_cast<ur_device_object_t *>(hDevice)->handle
+                  : nullptr;
 
     // forward to device-platform
     result = pfnCreateWithNativeHandle(hNativeQueue, hContext, hDevice,
@@ -6543,10 +6552,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     size_t size,                  ///< [in] size of the external memory
     ur_exp_external_mem_type_t
         memHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_mem_desc_t
-        *pInteropMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t
-        *phInteropMem ///< [out] interop memory handle to the external memory
+    ur_exp_external_mem_desc_t
+        *pExternalMemDesc, ///< [in] the external memory descriptor
+    ur_exp_external_mem_handle_t
+        *phExternalMem ///< [out] external memory handle to the external memory
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6568,7 +6577,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 
     // forward to device-platform
     result = pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
-                                        pInteropMemDesc, phInteropMem);
+                                        pExternalMemDesc, phExternalMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6576,9 +6585,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 
     try {
         // convert platform handle to loader handle
-        *phInteropMem = reinterpret_cast<ur_exp_interop_mem_handle_t>(
-            context->factories.ur_exp_interop_mem_factory.getInstance(
-                *phInteropMem, dditable));
+        *phExternalMem = reinterpret_cast<ur_exp_external_mem_handle_t>(
+            context->factories.ur_exp_external_mem_factory.getInstance(
+                *phExternalMem, dditable));
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -6594,8 +6603,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
@@ -6618,12 +6627,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // convert loader handle to platform handle
-    hInteropMem =
-        reinterpret_cast<ur_exp_interop_mem_object_t *>(hInteropMem)->handle;
+    hExternalMem =
+        reinterpret_cast<ur_exp_external_mem_object_t *>(hExternalMem)->handle;
 
     // forward to device-platform
     result = pfnMapExternalArrayExp(hContext, hDevice, pImageFormat, pImageDesc,
-                                    hInteropMem, phImageMem);
+                                    hExternalMem, phImageMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6661,10 +6670,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
-    // convert loader handle to platform handle
-    hInteropMem =
-        reinterpret_cast<ur_exp_interop_mem_object_t *>(hInteropMem)->handle;
-
     // forward to device-platform
     result = pfnMapExternalLinearMemoryExp(hContext, hDevice, offset, size,
                                            hInteropMem, ppRetMem);
@@ -6673,12 +6678,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesReleaseInteropExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+    ur_exp_external_mem_handle_t
+        hExternalMem ///< [in][release] handle of external memory to be destroyed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6686,9 +6691,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
-    auto pfnReleaseInteropExp =
-        dditable->ur.BindlessImagesExp.pfnReleaseInteropExp;
-    if (nullptr == pfnReleaseInteropExp) {
+    auto pfnReleaseExternalMemoryExp =
+        dditable->ur.BindlessImagesExp.pfnReleaseExternalMemoryExp;
+    if (nullptr == pfnReleaseExternalMemoryExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6699,11 +6704,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // convert loader handle to platform handle
-    hInteropMem =
-        reinterpret_cast<ur_exp_interop_mem_object_t *>(hInteropMem)->handle;
+    hExternalMem =
+        reinterpret_cast<ur_exp_external_mem_object_t *>(hExternalMem)->handle;
 
     // forward to device-platform
-    result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
+    result = pfnReleaseExternalMemoryExp(hContext, hDevice, hExternalMem);
 
     return result;
 }
@@ -6715,10 +6720,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_external_semaphore_type_t
         semHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_semaphore_desc_t
-        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
-    ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
+    ur_exp_external_semaphore_desc_t
+        *pExternalSemaphoreDesc, ///< [in] the external semaphore descriptor
+    ur_exp_external_semaphore_handle_t *
+        phExternalSemaphore ///< [out] external semaphore handle to the external semaphore
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6740,8 +6745,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 
     // forward to device-platform
     result = pfnImportExternalSemaphoreExp(hContext, hDevice, semHandleType,
-                                           pInteropSemaphoreDesc,
-                                           phInteropSemaphore);
+                                           pExternalSemaphoreDesc,
+                                           phExternalSemaphore);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -6749,10 +6754,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 
     try {
         // convert platform handle to loader handle
-        *phInteropSemaphore =
-            reinterpret_cast<ur_exp_interop_semaphore_handle_t>(
-                context->factories.ur_exp_interop_semaphore_factory.getInstance(
-                    *phInteropSemaphore, dditable));
+        *phExternalSemaphore =
+            reinterpret_cast<ur_exp_external_semaphore_handle_t>(
+                context->factories.ur_exp_external_semaphore_factory
+                    .getInstance(*phExternalSemaphore, dditable));
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -6765,8 +6770,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
+    ur_exp_external_semaphore_handle_t
+        hExternalSemaphore ///< [in][release] handle of external semaphore to be destroyed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6787,13 +6792,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
     // convert loader handle to platform handle
-    hInteropSemaphore =
-        reinterpret_cast<ur_exp_interop_semaphore_object_t *>(hInteropSemaphore)
-            ->handle;
+    hExternalSemaphore = reinterpret_cast<ur_exp_external_semaphore_object_t *>(
+                             hExternalSemaphore)
+                             ->handle;
 
     // forward to device-platform
     result =
-        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hExternalSemaphore);
 
     return result;
 }
@@ -6802,8 +6807,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
                       ///< certain value.
@@ -6838,7 +6843,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
     // convert loader handle to platform handle
     hSemaphore =
-        reinterpret_cast<ur_exp_interop_semaphore_object_t *>(hSemaphore)
+        reinterpret_cast<ur_exp_external_semaphore_object_t *>(hSemaphore)
             ->handle;
 
     // convert loader handles to platform handles
@@ -6876,8 +6881,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
                         ///< certain value.
@@ -6912,7 +6917,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 
     // convert loader handle to platform handle
     hSemaphore =
-        reinterpret_cast<ur_exp_interop_semaphore_object_t *>(hSemaphore)
+        reinterpret_cast<ur_exp_external_semaphore_object_t *>(hSemaphore)
             ->handle;
 
     // convert loader handles to platform handles
@@ -8724,8 +8729,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
                 ur_loader::urBindlessImagesMapExternalArrayExp;
             pDdiTable->pfnMapExternalLinearMemoryExp =
                 ur_loader::urBindlessImagesMapExternalLinearMemoryExp;
-            pDdiTable->pfnReleaseInteropExp =
-                ur_loader::urBindlessImagesReleaseInteropExp;
+            pDdiTable->pfnReleaseExternalMemoryExp =
+                ur_loader::urBindlessImagesReleaseExternalMemoryExp;
             pDdiTable->pfnImportExternalSemaphoreExp =
                 ur_loader::urBindlessImagesImportExternalSemaphoreExp;
             pDdiTable->pfnReleaseExternalSemaphoreExp =

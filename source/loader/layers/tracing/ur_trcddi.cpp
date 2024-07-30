@@ -966,10 +966,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
-        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+        phDevices, ///< [in][optional][range(0, numDevices)] list of devices associated with
+                   ///< the context
     const ur_context_native_properties_t *
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
@@ -983,15 +986,17 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     ur_context_create_with_native_handle_params_t params = {
-        &hNativeContext, &numDevices, &phDevices, &pProperties, &phContext};
+        &hNativeContext, &hAdapter,    &numDevices,
+        &phDevices,      &pProperties, &phContext};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
         "urContextCreateWithNativeHandle", &params);
 
     getContext()->logger.info("---> urContextCreateWithNativeHandle");
 
-    ur_result_t result = pfnCreateWithNativeHandle(
-        hNativeContext, numDevices, phDevices, pProperties, phContext);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
+                                  phDevices, pProperties, phContext);
 
     getContext()->notify_end(UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE,
                              "urContextCreateWithNativeHandle", &params,
@@ -3428,7 +3433,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
-        hProgram, ///< [in] handle of the program associated with the kernel
+        hProgram, ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
@@ -3695,7 +3700,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_device_handle_t hDevice, ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -5961,10 +5966,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     size_t size,                  ///< [in] size of the external memory
     ur_exp_external_mem_type_t
         memHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_mem_desc_t
-        *pInteropMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t
-        *phInteropMem ///< [out] interop memory handle to the external memory
+    ur_exp_external_mem_desc_t
+        *pExternalMemDesc, ///< [in] the external memory descriptor
+    ur_exp_external_mem_handle_t
+        *phExternalMem ///< [out] external memory handle to the external memory
 ) {
     auto pfnImportExternalMemoryExp =
         getContext()->urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
@@ -5974,16 +5979,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     }
 
     ur_bindless_images_import_external_memory_exp_params_t params = {
-        &hContext,      &hDevice,         &size,
-        &memHandleType, &pInteropMemDesc, &phInteropMem};
+        &hContext,      &hDevice,          &size,
+        &memHandleType, &pExternalMemDesc, &phExternalMem};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
         "urBindlessImagesImportExternalMemoryExp", &params);
 
     getContext()->logger.info("---> urBindlessImagesImportExternalMemoryExp");
 
-    ur_result_t result = pfnImportExternalMemoryExp(
-        hContext, hDevice, size, memHandleType, pInteropMemDesc, phInteropMem);
+    ur_result_t result =
+        pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
+                                   pExternalMemDesc, phExternalMem);
 
     getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_MEMORY_EXP,
@@ -6006,8 +6012,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
@@ -6019,8 +6025,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     }
 
     ur_bindless_images_map_external_array_exp_params_t params = {
-        &hContext,   &hDevice,     &pImageFormat,
-        &pImageDesc, &hInteropMem, &phImageMem};
+        &hContext,   &hDevice,      &pImageFormat,
+        &pImageDesc, &hExternalMem, &phImageMem};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
         "urBindlessImagesMapExternalArrayExp", &params);
@@ -6028,7 +6034,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     getContext()->logger.info("---> urBindlessImagesMapExternalArrayExp");
 
     ur_result_t result = pfnMapExternalArrayExp(
-        hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+        hContext, hDevice, pImageFormat, pImageDesc, hExternalMem, phImageMem);
 
     getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
                              "urBindlessImagesMapExternalArrayExp", &params,
@@ -6088,37 +6094,39 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesReleaseInteropExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+    ur_exp_external_mem_handle_t
+        hExternalMem ///< [in][release] handle of external memory to be destroyed
 ) {
-    auto pfnReleaseInteropExp =
-        getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+    auto pfnReleaseExternalMemoryExp =
+        getContext()->urDdiTable.BindlessImagesExp.pfnReleaseExternalMemoryExp;
 
-    if (nullptr == pfnReleaseInteropExp) {
+    if (nullptr == pfnReleaseExternalMemoryExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_release_interop_exp_params_t params = {
-        &hContext, &hDevice, &hInteropMem};
+    ur_bindless_images_release_external_memory_exp_params_t params = {
+        &hContext, &hDevice, &hExternalMem};
     uint64_t instance = getContext()->notify_begin(
-        UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
-        "urBindlessImagesReleaseInteropExp", &params);
+        UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP,
+        "urBindlessImagesReleaseExternalMemoryExp", &params);
 
-    getContext()->logger.info("---> urBindlessImagesReleaseInteropExp");
+    getContext()->logger.info("---> urBindlessImagesReleaseExternalMemoryExp");
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
+    ur_result_t result =
+        pfnReleaseExternalMemoryExp(hContext, hDevice, hExternalMem);
 
-    getContext()->notify_end(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
-                             "urBindlessImagesReleaseInteropExp", &params,
-                             &result, instance);
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP,
+        "urBindlessImagesReleaseExternalMemoryExp", &params, &result, instance);
 
     std::ostringstream args_str;
     ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP, &params);
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP,
+        &params);
     getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
 
     return result;
@@ -6131,10 +6139,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_external_semaphore_type_t
         semHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_semaphore_desc_t
-        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
-    ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
+    ur_exp_external_semaphore_desc_t
+        *pExternalSemaphoreDesc, ///< [in] the external semaphore descriptor
+    ur_exp_external_semaphore_handle_t *
+        phExternalSemaphore ///< [out] external semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreExp =
         getContext()
@@ -6145,8 +6153,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     }
 
     ur_bindless_images_import_external_semaphore_exp_params_t params = {
-        &hContext, &hDevice, &semHandleType, &pInteropSemaphoreDesc,
-        &phInteropSemaphore};
+        &hContext, &hDevice, &semHandleType, &pExternalSemaphoreDesc,
+        &phExternalSemaphore};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesImportExternalSemaphoreExp", &params);
@@ -6155,8 +6163,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
         "---> urBindlessImagesImportExternalSemaphoreExp");
 
     ur_result_t result = pfnImportExternalSemaphoreExp(
-        hContext, hDevice, semHandleType, pInteropSemaphoreDesc,
-        phInteropSemaphore);
+        hContext, hDevice, semHandleType, pExternalSemaphoreDesc,
+        phExternalSemaphore);
 
     getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP,
@@ -6177,8 +6185,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
+    ur_exp_external_semaphore_handle_t
+        hExternalSemaphore ///< [in][release] handle of external semaphore to be destroyed
 ) {
     auto pfnReleaseExternalSemaphoreExp =
         getContext()
@@ -6189,7 +6197,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     }
 
     ur_bindless_images_release_external_semaphore_exp_params_t params = {
-        &hContext, &hDevice, &hInteropSemaphore};
+        &hContext, &hDevice, &hExternalSemaphore};
     uint64_t instance = getContext()->notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesReleaseExternalSemaphoreExp", &params);
@@ -6198,7 +6206,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
         "---> urBindlessImagesReleaseExternalSemaphoreExp");
 
     ur_result_t result =
-        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hExternalSemaphore);
 
     getContext()->notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP,
@@ -6218,8 +6226,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
                       ///< certain value.
@@ -6275,8 +6283,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
                         ///< certain value.
@@ -8168,9 +8176,10 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnMapExternalLinearMemoryExp =
         ur_tracing_layer::urBindlessImagesMapExternalLinearMemoryExp;
 
-    dditable.pfnReleaseInteropExp = pDdiTable->pfnReleaseInteropExp;
-    pDdiTable->pfnReleaseInteropExp =
-        ur_tracing_layer::urBindlessImagesReleaseInteropExp;
+    dditable.pfnReleaseExternalMemoryExp =
+        pDdiTable->pfnReleaseExternalMemoryExp;
+    pDdiTable->pfnReleaseExternalMemoryExp =
+        ur_tracing_layer::urBindlessImagesReleaseExternalMemoryExp;
 
     dditable.pfnImportExternalSemaphoreExp =
         pDdiTable->pfnImportExternalSemaphoreExp;

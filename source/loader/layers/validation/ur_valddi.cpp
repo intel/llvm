@@ -976,10 +976,13 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in][nocheck] the native handle of the context.
+        hNativeContext, ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
-        phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
+        phDevices, ///< [in][optional][range(0, numDevices)] list of devices associated with
+                   ///< the context
     const ur_context_native_properties_t *
         pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *
@@ -993,8 +996,8 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     }
 
     if (getContext()->enableParameterValidation) {
-        if (NULL == phDevices) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
         if (NULL == phContext) {
@@ -1002,8 +1005,14 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(
-        hNativeContext, numDevices, phDevices, pProperties, phContext);
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+        getContext()->refCountContext->logInvalidReference(hAdapter);
+    }
+
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
+                                  phDevices, pProperties, phContext);
 
     if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
         getContext()->refCountContext->createRefCount(*phContext);
@@ -3855,7 +3864,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
-        hProgram, ///< [in] handle of the program associated with the kernel
+        hProgram, ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
         pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t
@@ -3870,10 +3879,6 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
     if (getContext()->enableParameterValidation) {
         if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -4179,7 +4184,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t
         hNativeQueue, ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_device_handle_t hDevice, ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -4194,10 +4199,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 
     if (getContext()->enableParameterValidation) {
         if (NULL == hContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7431,10 +7432,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     size_t size,                  ///< [in] size of the external memory
     ur_exp_external_mem_type_t
         memHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_mem_desc_t
-        *pInteropMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t
-        *phInteropMem ///< [out] interop memory handle to the external memory
+    ur_exp_external_mem_desc_t
+        *pExternalMemDesc, ///< [in] the external memory descriptor
+    ur_exp_external_mem_handle_t
+        *phExternalMem ///< [out] external memory handle to the external memory
 ) {
     auto pfnImportExternalMemoryExp =
         getContext()->urDdiTable.BindlessImagesExp.pfnImportExternalMemoryExp;
@@ -7452,11 +7453,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pInteropMemDesc) {
+        if (NULL == pExternalMemDesc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phInteropMem) {
+        if (NULL == phExternalMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -7475,8 +7476,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         getContext()->refCountContext->logInvalidReference(hDevice);
     }
 
-    ur_result_t result = pfnImportExternalMemoryExp(
-        hContext, hDevice, size, memHandleType, pInteropMemDesc, phInteropMem);
+    ur_result_t result =
+        pfnImportExternalMemoryExp(hContext, hDevice, size, memHandleType,
+                                   pExternalMemDesc, phExternalMem);
 
     return result;
 }
@@ -7489,8 +7491,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
@@ -7510,7 +7512,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hInteropMem) {
+        if (NULL == hExternalMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7542,7 +7544,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     }
 
     ur_result_t result = pfnMapExternalArrayExp(
-        hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+        hContext, hDevice, pImageFormat, pImageDesc, hExternalMem, phImageMem);
 
     return result;
 }
@@ -7601,17 +7603,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urBindlessImagesReleaseInteropExp
-__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+/// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t
-        hInteropMem ///< [in][release] handle of interop memory to be destroyed
+    ur_exp_external_mem_handle_t
+        hExternalMem ///< [in][release] handle of external memory to be destroyed
 ) {
-    auto pfnReleaseInteropExp =
-        getContext()->urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
+    auto pfnReleaseExternalMemoryExp =
+        getContext()->urDdiTable.BindlessImagesExp.pfnReleaseExternalMemoryExp;
 
-    if (nullptr == pfnReleaseInteropExp) {
+    if (nullptr == pfnReleaseExternalMemoryExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -7624,7 +7626,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hInteropMem) {
+        if (NULL == hExternalMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -7639,7 +7641,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         getContext()->refCountContext->logInvalidReference(hDevice);
     }
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
+    ur_result_t result =
+        pfnReleaseExternalMemoryExp(hContext, hDevice, hExternalMem);
 
     return result;
 }
@@ -7651,10 +7654,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_external_semaphore_type_t
         semHandleType, ///< [in] type of external memory handle
-    ur_exp_interop_semaphore_desc_t
-        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
-    ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
+    ur_exp_external_semaphore_desc_t
+        *pExternalSemaphoreDesc, ///< [in] the external semaphore descriptor
+    ur_exp_external_semaphore_handle_t *
+        phExternalSemaphore ///< [out] external semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreExp =
         getContext()
@@ -7673,11 +7676,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == pInteropSemaphoreDesc) {
+        if (NULL == pExternalSemaphoreDesc) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == phInteropSemaphore) {
+        if (NULL == phExternalSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -7698,8 +7701,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     }
 
     ur_result_t result = pfnImportExternalSemaphoreExp(
-        hContext, hDevice, semHandleType, pInteropSemaphoreDesc,
-        phInteropSemaphore);
+        hContext, hDevice, semHandleType, pExternalSemaphoreDesc,
+        phExternalSemaphore);
 
     return result;
 }
@@ -7709,8 +7712,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t
-        hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
+    ur_exp_external_semaphore_handle_t
+        hExternalSemaphore ///< [in][release] handle of external semaphore to be destroyed
 ) {
     auto pfnReleaseExternalSemaphoreExp =
         getContext()
@@ -7729,7 +7732,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hInteropSemaphore) {
+        if (NULL == hExternalSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
     }
@@ -7745,7 +7748,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     }
 
     ur_result_t result =
-        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
+        pfnReleaseExternalSemaphoreExp(hContext, hDevice, hExternalSemaphore);
 
     return result;
 }
@@ -7754,8 +7757,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesWaitExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasWaitValue, ///< [in] indicates whether the samephore is capable and should wait on a
                       ///< certain value.
@@ -7814,8 +7817,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 /// @brief Intercept function for urBindlessImagesSignalExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t
-        hSemaphore, ///< [in] interop semaphore handle
+    ur_exp_external_semaphore_handle_t
+        hSemaphore, ///< [in] external semaphore handle
     bool
         hasSignalValue, ///< [in] indicates whether the samephore is capable and should signal on a
                         ///< certain value.
@@ -9806,9 +9809,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     pDdiTable->pfnMapExternalLinearMemoryExp =
         ur_validation_layer::urBindlessImagesMapExternalLinearMemoryExp;
 
-    dditable.pfnReleaseInteropExp = pDdiTable->pfnReleaseInteropExp;
-    pDdiTable->pfnReleaseInteropExp =
-        ur_validation_layer::urBindlessImagesReleaseInteropExp;
+    dditable.pfnReleaseExternalMemoryExp =
+        pDdiTable->pfnReleaseExternalMemoryExp;
+    pDdiTable->pfnReleaseExternalMemoryExp =
+        ur_validation_layer::urBindlessImagesReleaseExternalMemoryExp;
 
     dditable.pfnImportExternalSemaphoreExp =
         pDdiTable->pfnImportExternalSemaphoreExp;
