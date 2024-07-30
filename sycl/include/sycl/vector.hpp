@@ -705,13 +705,21 @@ inline constexpr bool is_assignable_swizzle =
 
 template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
 
-template <typename Self, typename DataT, int N, bool AllowAssignOps>
-struct SwizzleBase {
+template <typename Self, typename VecT, int N, bool AllowAssignOps>
+class SwizzleBase {
+public:
   const Self &operator=(const Self &) = delete;
+
+protected:
+  SwizzleBase(VecT &Vec) : Vec(Vec) {}
+  VecT &Vec;
 };
 
-template <typename Self, typename DataT, int N>
-struct SwizzleBase<Self, DataT, N, true> {
+template <typename Self, typename VecT, int N>
+class SwizzleBase<Self, VecT, N, true> {
+  using DataT = typename VecT::element_type;
+
+public:
   template <access::address_space AddressSpace, access::decorated IsDecorated>
   void load(size_t offset,
             multi_ptr<const DataT, AddressSpace, IsDecorated> ptr) const {
@@ -741,12 +749,26 @@ struct SwizzleBase<Self, DataT, N, true> {
 
     return *static_cast<const Self *>(this);
   }
+
+  // Default copy-assignment. Self's implicitly generated copy-assignment uses this.
+  //
+  // We're templated on "Self", so each Swizzle has its own SwizzleBase and the
+  // following is ok (1-to-1 bidirectional mapping between Self and its
+  // SwizzleBase instantiation) even if a bit counterintuitive.
+  const SwizzleBase &operator=(const SwizzleBase &rhs) const {
+    const Self &self = (*static_cast<const Self *>(this));
+    self = static_cast<vec<DataT, N>>(static_cast<const Self &>(rhs));
+    return self;
+  }
+
+protected:
+  SwizzleBase(VecT &Vec) : Vec(Vec) {}
+  VecT &Vec;
 };
 
 template <typename VecT, int... Indexes>
 class __SYCL_EBO Swizzle
-    : public SwizzleBase<Swizzle<VecT, Indexes...>, typename VecT::element_type,
-                         sizeof...(Indexes),
+    : public SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
                          is_assignable_swizzle<VecT, Indexes...>>,
       public ScalarConversionOperatorMixIn<Swizzle<VecT, Indexes...>,
                                            typename VecT::element_type,
@@ -761,6 +783,8 @@ class __SYCL_EBO Swizzle
       public SwizzleMixins<Swizzle<VecT, Indexes...>, VecT,
                            typename VecT::element_type, sizeof...(Indexes),
                            is_assignable_swizzle<VecT, Indexes...>> {
+  using Base = SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
+                           is_assignable_swizzle<VecT, Indexes...>>;
   using DataT = typename VecT::element_type;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
@@ -774,9 +798,7 @@ class __SYCL_EBO Swizzle
   }
 
 public:
-  using SwizzleBase<Swizzle<VecT, Indexes...>, typename VecT::element_type,
-                    sizeof...(Indexes),
-                    is_assignable_swizzle<VecT, Indexes...>>::operator=;
+  using Base::operator=;
 
   using element_type = DataT;
   using value_type = DataT;
@@ -788,7 +810,7 @@ public:
   Swizzle() = delete;
   Swizzle(const Swizzle &) = delete;
 
-  explicit Swizzle(VecT &Vec) : Vec(Vec) {}
+  explicit Swizzle(VecT &Vec) : Base(Vec) {}
 
 #ifdef __SYCL_DEVICE_ONLY__
   operator vector_t() const {
@@ -827,16 +849,13 @@ public:
     return static_cast<ResultVec>(*this).store(offset, ptr);
   }
 
-  operator ResultVec() const { return ResultVec{Vec[Indexes]...}; }
+  operator ResultVec() const { return ResultVec{this->Vec[Indexes]...}; }
 
   template <int... swizzleIndexes> auto swizzle() const {
-    return Vec.template swizzle<get_vec_idx(swizzleIndexes)...>();
+    return this->Vec.template swizzle<get_vec_idx(swizzleIndexes)...>();
   }
 
-  auto &operator[](int index) const { return Vec[get_vec_idx(index)]; }
-
-public:
-  VecT &Vec;
+  auto &operator[](int index) const { return this->Vec[get_vec_idx(index)]; }
 };
 } // namespace detail
 
