@@ -413,8 +413,8 @@ generic and local memory address spaces, which might not be the most efficient.
 [options="header"]
 |========================================
 |Rev|Date|Authors|Changes
-|4|2024-06-26|Atharva Dubey, Jack Kirk|*Added device query and aspects, 
-                  review comments and additional cluster group member functions*
-|2|2024-05-09|Atharva Dubey|*Using enqueue functions to launch with properties*
-|1|2024-04-29|Atharva Dubey|*Initial public working draft*
+|4|2024-06-26|Atharva Dubey, Jack Kirk|Added device query and aspects, 
+                  review comments and additional cluster group member functions
+|2|2024-05-09|Atharva Dubey|Using enqueue functions to launch with properties
+|1|2024-04-29|Atharva Dubey|Initial public working draft
 |========================================
