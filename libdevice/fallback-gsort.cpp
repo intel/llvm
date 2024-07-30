@@ -1137,9 +1137,40 @@ __devicelib_default_sub_group_private_sort_descending_f16(_Float16 value,
 }
 
 //========= default work grop joint sort for (uint32_t, uint32_t) ==============
+DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p1u32_p1u32_u32_p1i8(
     uint32_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::less<uint32_t>{});
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_joint_sort_descending_p1u32_p1u32_u32_p1i8(
+    uint32_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_joint_sort_ascending_p1u8_p1u32_u32_p1i8(
+    uint8_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_joint_sort_descending_p1u8_p1u32_u32_p1i8(
+    uint8_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_joint_sort_ascending_p1u32_p1u8_u32_p1i8(
+    uint32_t *keys, uint8_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_joint_sort_descending_p1u32_p1u8_u32_p1i8(
+    uint32_t *keys, uint8_t *vals, uint32_t n, uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
 }
 
 #endif // __SPIR__ || __SPIRV__

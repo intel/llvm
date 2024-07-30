@@ -229,7 +229,7 @@ void merge_key_value(KeyT *keys_in, KeyT *keys_out, ValT *vals_in,
 }
 
 // We have following assumption for scratch memory size for key-value
-// group sort: size of scratch > (sizeof(KeyT) + sizeof(ValT)) +
+// group sort: size of scratch > n * (sizeof(KeyT) + sizeof(ValT)) +
 // max(alignof(KeyT), alignof(ValT)).
 template <typename KeyT, typename ValT, typename Compare>
 void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
