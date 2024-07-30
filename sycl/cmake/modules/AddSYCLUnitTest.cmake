@@ -72,8 +72,11 @@ macro(add_sycl_unittest test_dirname link_variant)
     PRIVATE
       LLVMTestingSupport
       OpenCL-Headers
+      unified-runtime::mock
       ${SYCL_LINK_LIBS}
     )
+
+  add_dependencies(${test_dirname} ur_adapter_mock)
 
   if(SYCL_ENABLE_KERNEL_FUSION)
     target_link_libraries(${test_dirname} PRIVATE sycl-fusion)

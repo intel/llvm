@@ -483,3 +483,25 @@ void DiagnosticInfoAspectsMismatch::print(DiagnosticPrinter &DP) const {
      << "\" but does not specify that aspect as available in its "
         "\"sycl::device_has\" attribute";
 }
+
+void llvm::diagnoseSYCLIllegalVirtualFunctionCall(
+    const SmallVector<const Function *> &CallChain) {
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> LoweredCallChain;
+  for (const Function *Callee : CallChain) {
+    unsigned CalleeLocCookie = 0;
+    if (MDNode *MD = Callee->getMetadata("srcloc"))
+      CalleeLocCookie =
+          mdconst::extract<ConstantInt>(MD->getOperand(0))->getZExtValue();
+    LoweredCallChain.push_back(
+        std::make_pair(Callee->getName(), CalleeLocCookie));
+  }
+
+  DiagnosticInfoIllegalVirtualCall D(LoweredCallChain);
+  CallChain.front()->getContext().diagnose(D);
+}
+
+void DiagnosticInfoIllegalVirtualCall::print(DiagnosticPrinter &DP) const {
+  DP << CallChain.front().first
+     << " performs virtual function call, but a kernel that is called from is "
+        "not submitted with \"calls_indirectly\" property";
+}

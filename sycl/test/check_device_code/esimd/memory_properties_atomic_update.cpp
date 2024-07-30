@@ -596,11 +596,11 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       auto compare = swap * 2;
       auto pred = simd_mask<VL>(1);
       // Do not pass the properties.
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
+      // CHECK: call <8 x float> @llvm.genx.lsc.xatomic.stateless.v8f32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x float> {{[^)]+}}, <8 x float> {{[^)]+}}, i32 0, <8 x float> undef)
       auto atomic_res0 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           ptrf, offsets, swap, compare, pred);
       // Now with cache hints.
-      // CHECK: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
+      // CHECK: call <8 x float> @llvm.genx.lsc.xatomic.stateless.v8f32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x float> {{[^)]+}}, <8 x float> {{[^)]+}}, i32 0, <8 x float> undef)
       auto atomic_res1 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           ptrf, offsets, swap, compare, pred, props_a);
     }
@@ -824,13 +824,13 @@ test_atomic_update(AccType &acc, LocalAccTypeInt local_acc, float *ptrf,
       auto compare = swap * 2;
       auto pred = simd_mask<VL>(1);
       // Do not pass the properties.
-      // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
-      // CHECK-STATELESS: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
+      // CHECK-STATEFUL:  call <8 x float> @llvm.genx.lsc.xatomic.bti.v8f32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x float> {{[^)]+}} <8 x float> {{[^)]+}}, i32 {{[^)]+}}, <8 x float> undef)
+      // CHECK-STATELESS: call <8 x float> @llvm.genx.lsc.xatomic.stateless.v8f32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 0, i8 0, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x float> {{[^)]+}}, <8 x float> {{[^)]+}}, i32 0, <8 x float> undef)
       auto atomic_res0 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           acc, offsets, swap, compare, pred);
       // Now with cache hints.
-      // CHECK-STATEFUL:  call <8 x i32> @llvm.genx.lsc.xatomic.bti.v8i32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}} <8 x i32> {{[^)]+}}, i32 {{[^)]+}}, <8 x i32> undef)
-      // CHECK-STATELESS: call <8 x i32> @llvm.genx.lsc.xatomic.stateless.v8i32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x i32> {{[^)]+}}, <8 x i32> {{[^)]+}}, i32 0, <8 x i32> undef)
+      // CHECK-STATEFUL:  call <8 x float> @llvm.genx.lsc.xatomic.bti.v8f32.v8i1.v8i32(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i32> {{[^)]+}}, <8 x float> {{[^)]+}} <8 x float> {{[^)]+}}, i32 {{[^)]+}}, <8 x float> undef)
+      // CHECK-STATELESS: call <8 x float> @llvm.genx.lsc.xatomic.stateless.v8f32.v8i1.v8i64(<8 x i1> {{[^)]+}}, i8 23, i8 1, i8 3, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <8 x i64> {{[^)]+}}, <8 x float> {{[^)]+}}, <8 x float> {{[^)]+}}, i32 0, <8 x float> undef)
       auto atomic_res1 = atomic_update<atomic_op::fcmpxchg, float, VL>(
           acc, offsets, swap, compare, pred, props_a);
     }

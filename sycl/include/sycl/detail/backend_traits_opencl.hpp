@@ -19,7 +19,7 @@
 #include <sycl/context.hpp>               // for context
 #include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
 #include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
-#include <sycl/detail/pi.hpp>             // for assertion, PiDevice, PiPro...
+#include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
 #include <sycl/handler.hpp>               // for buffer
@@ -139,26 +139,25 @@ template <> struct InteropFeatureSupportMap<backend::opencl> {
   static constexpr bool MakeImage = false;
 };
 
-namespace pi {
+namespace ur {
 // Cast for std::vector<cl_event>, according to the spec, make_event
 // should create one(?) event from a vector of cl_event
 template <class To> inline To cast(std::vector<cl_event> value) {
-  sycl::detail::pi::assertion(
-      value.size() == 1,
-      "Temporary workaround requires that the "
-      "size of the input vector for make_event be equal to one.");
+  assert(value.size() == 1 &&
+         "Temporary workaround requires that the "
+         "size of the input vector for make_event be equal to one.");
   return cast<To>(value[0]);
 }
 
-// These conversions should use PI interop API.
+// These conversions should use UR interop API.
 template <>
-inline PiProgram
-    cast(cl_program) = delete; // Use piextCreateProgramWithNativeHandle
+inline ur_program_handle_t
+    cast(cl_program) = delete; // Use urProgramCreateWithNativeHandle
 
 template <>
-inline PiDevice
-    cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
-} // namespace pi
+inline ur_device_handle_t
+    cast(cl_device_id) = delete; // Use urDeviceCreateWithNativeHandle
+} // namespace ur
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -1,4 +1,4 @@
-//==- jit_device_binaries.cpp - Runtime construction of PI device binaries -==//
+//==- jit_device_binaries.cpp - Runtime construction of UR device binaries -==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -22,9 +22,9 @@ OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
   std::memcpy(KernelName.get(), Name.c_str(), Name.length() + 1);
 }
 
-_pi_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
-  return _pi_offload_entry_struct{Address, KernelName.get(), EntrySize,
-                                  EntryFlags, EntryReserved};
+_sycl_offload_entry_struct OffloadEntryContainer::getPIOffloadEntry() {
+  return _sycl_offload_entry_struct{Address, KernelName.get(), EntrySize,
+                                    EntryFlags, EntryReserved};
 }
 
 PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
@@ -37,13 +37,13 @@ PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
 
 PropertyContainer::PropertyContainer(const std::string &Name, uint32_t Data)
     : PropName{new char[Name.length() + 1]}, Value{}, ValueSize{Data},
-      PropType{PI_PROPERTY_TYPE_UINT32} {
+      PropType{SYCL_PROPERTY_TYPE_UINT32} {
   std::memcpy(PropName.get(), Name.c_str(), Name.length() + 1);
 }
 
-_pi_device_binary_property_struct PropertyContainer::getPIProperty() {
-  return _pi_device_binary_property_struct{PropName.get(), Value.get(),
-                                           PropType, ValueSize};
+_sycl_device_binary_property_struct PropertyContainer::getPIProperty() {
+  return _sycl_device_binary_property_struct{PropName.get(), Value.get(),
+                                             PropType, ValueSize};
 }
 
 PropertySetContainer::PropertySetContainer(const std::string &Name)
@@ -53,47 +53,48 @@ PropertySetContainer::PropertySetContainer(const std::string &Name)
 
 void PropertySetContainer::addProperty(PropertyContainer &&Prop) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIPropertySet(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIProperties.push_back(Prop.getPIProperty());
   Properties.push_back(std::move(Prop));
 }
 
-_pi_device_binary_property_set_struct PropertySetContainer::getPIPropertySet() {
+_sycl_device_binary_property_set_struct
+PropertySetContainer::getPIPropertySet() {
   Fused = false;
-  return _pi_device_binary_property_set_struct{
+  return _sycl_device_binary_property_set_struct{
       const_cast<char *>(SetName.get()), PIProperties.data(),
       PIProperties.data() + Properties.size()};
 }
 
 void DeviceBinaryContainer::addOffloadEntry(OffloadEntryContainer &&Cont) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceBinary(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIOffloadEntries.push_back(Cont.getPIOffloadEntry());
   OffloadEntries.push_back(std::move(Cont));
 }
 
 void DeviceBinaryContainer::addProperty(PropertySetContainer &&Cont) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceBinary(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIPropertySets.push_back(Cont.getPIPropertySet());
   PropertySets.push_back(std::move(Cont));
 }
 
-pi_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
+sycl_device_binary_struct DeviceBinaryContainer::getPIDeviceBinary(
     const unsigned char *BinaryStart, size_t BinarySize, const char *TargetSpec,
-    pi_device_binary_type Format) {
-  pi_device_binary_struct DeviceBinary;
-  DeviceBinary.Version = PI_DEVICE_BINARY_VERSION;
-  DeviceBinary.Kind = PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
+    sycl_device_binary_type Format) {
+  sycl_device_binary_struct DeviceBinary;
+  DeviceBinary.Version = SYCL_DEVICE_BINARY_VERSION;
+  DeviceBinary.Kind = SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL;
   DeviceBinary.Format = Format;
   DeviceBinary.CompileOptions = "";
   DeviceBinary.LinkOptions = "";
@@ -116,24 +117,24 @@ void DeviceBinariesCollection::addDeviceBinary(DeviceBinaryContainer &&Cont,
                                                const unsigned char *BinaryStart,
                                                size_t BinarySize,
                                                const char *TargetSpec,
-                                               pi_device_binary_type Format) {
+                                               sycl_device_binary_type Format) {
   // Adding to the vectors might trigger reallocation, which would invalidate
-  // the pointers used for PI structs if a PI struct has already been created
+  // the pointers used for UR structs if a UR struct has already been created
   // via getPIDeviceStruct(). Forbid calls to this method after the first PI
   // struct has been created.
-  assert(Fused && "Adding to container would invalidate existing PI structs");
+  assert(Fused && "Adding to container would invalidate existing UR structs");
   PIBinaries.push_back(
       Cont.getPIDeviceBinary(BinaryStart, BinarySize, TargetSpec, Format));
   Binaries.push_back(std::move(Cont));
 }
 
-pi_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
+sycl_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
 
-  PIStruct = std::make_unique<pi_device_binaries_struct>();
-  PIStruct->Version = PI_DEVICE_BINARIES_VERSION;
+  PIStruct = std::make_unique<sycl_device_binaries_struct>();
+  PIStruct->Version = SYCL_DEVICE_BINARIES_VERSION;
   PIStruct->NumDeviceBinaries = PIBinaries.size();
   PIStruct->DeviceBinaries = PIBinaries.data();
-  // According to documentation in pi.h, the HostEntries are not used and
+  // According to documentation in ur.hpp, the HostEntries are not used and
   // can therefore be null.
   PIStruct->HostEntriesBegin = nullptr;
   PIStruct->HostEntriesEnd = nullptr;

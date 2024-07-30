@@ -105,7 +105,7 @@ on:
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
-          - 'ext_oneapi_level_zero:gpu'
+          - 'level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
         type: choice
@@ -261,7 +261,7 @@ jobs:
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
-    - run: SYCL_PI_TRACE=-1 sycl-ls
+    - run: SYCL_UR_TRACE=1 sycl-ls
     - run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
@@ -303,14 +303,27 @@ jobs:
     - name: List excluded SYCL CTS categories
       if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
       run: |
-        cat $PWD/devops/cts_exclude_filter
+        if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+          cat $PWD/devops/cts_exclude_filter_OCL_CPU
+        fi
+        if [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
+          cat $PWD/devops/cts_exclude_filter_L0_GPU
+        fi
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
         # Do not exclude any category if passing the CTS_TESTS_TO_BUILD variable.
-        cts_exclude_filter=$([ -n "$CTS_TESTS_TO_BUILD" ] && echo "" || echo "$PWD/devops/cts_exclude_filter")
+        cts_exclude_filter=""
+        if [ -z "$CTS_TESTS_TO_BUILD" ]; then
+          if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
+          fi
+          if [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
+          fi
+        fi
 
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
@@ -318,7 +331,6 @@ jobs:
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
         -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
-        -DCMAKE_CXX_FLAGS="-Wno-missing-template-arg-list-after-template-kw" \
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a
         # chance to finish and be executed at the run stage. Note that
