@@ -589,7 +589,6 @@ public:
             N>;
     if constexpr (is_host || std::is_same_v<DataT, ext::oneapi::bfloat16> ||
                   std::is_same_v<DataT, bool> || N == 1) {
-      // TODO: Optimized device impl for `is_logical`.
       ResultVec tmp{};
       for (int i = 0; i < N; ++i)
         if constexpr (is_logical)
