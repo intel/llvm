@@ -8841,14 +8841,20 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_1<MsgT, IOp, L1H, L2H, AddressScale,
-                                      ImmOffset, EDS, VS, Transposed, N>(
-          pred.data(), addrs.data(), Msg_data.data());
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+    return __esimd_lsc_xatomic_stateless_1<T, IOp, L1H, L2H, AddressScale,
+                                           ImmOffset, EDS, VS, Transposed, N>(
+        pred.data(), addrs.data(), src0.data());
+  } else {
+    simd<MsgT, N> Msg_data = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_stateless_1<MsgT, IOp, L1H, L2H, AddressScale,
+                                        ImmOffset, EDS, VS, Transposed, N>(
+            pred.data(), addrs.data(), Msg_data.data());
+    return lsc_format_ret<T>(Tmp);
+  }
 }
 
 /// USM pointer atomic.
@@ -8885,15 +8891,22 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
-  simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
   simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
   addrs += convert<uintptr_t>(offsets);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_stateless_2<MsgT, IOp, L1H, L2H, AddressScale,
-                                      ImmOffset, EDS, VS, Transposed, N>(
-          pred.data(), addrs.data(), Msg_data0.data(), Msg_data1.data());
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+    return __esimd_lsc_xatomic_stateless_2<T, IOp, L1H, L2H, AddressScale,
+                                           ImmOffset, EDS, VS, Transposed, N>(
+        pred.data(), addrs.data(), src0.data(), src1.data());
+  } else {
+    simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
+
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_stateless_2<MsgT, IOp, L1H, L2H, AddressScale,
+                                        ImmOffset, EDS, VS, Transposed, N>(
+            pred.data(), addrs.data(), Msg_data0.data(), Msg_data1.data());
+    return lsc_format_ret<T>(Tmp);
+  }
 }
 
 /// Accessor-based atomic.
@@ -8992,13 +9005,19 @@ __ESIMD_API
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Src0Msg = lsc_format_input<MsgT>(src0);
   auto si = get_surface_index(acc);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
-                                EDS, VS, Transposed, N>(
-          pred.data(), byte_offset.data(), Src0Msg.data(), si);
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+    return __esimd_lsc_xatomic_bti_1<T, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                     EDS, VS, Transposed, N>(
+        pred.data(), byte_offset.data(), src0.data(), si);
+  } else {
+    simd<MsgT, N> Src0Msg = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_bti_1<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                  EDS, VS, Transposed, N>(
+            pred.data(), byte_offset.data(), Src0Msg.data(), si);
+    return lsc_format_ret<T>(Tmp);
+  }
 #endif
 }
 
@@ -9047,15 +9066,21 @@ __ESIMD_API
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
   constexpr int IOp = lsc_to_internal_atomic_op<T, Op>();
-  simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
-  simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
   auto si = get_surface_index(acc);
-  simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_2<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
-                                EDS, VS, Transposed, N>(
-          pred.data(), byte_offset.data(), Msg_data0.data(), Msg_data1.data(),
-          si);
-  return lsc_format_ret<T>(Tmp);
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>) {
+    return __esimd_lsc_xatomic_bti_2<T, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                     EDS, VS, Transposed, N>(
+        pred.data(), byte_offset.data(), src0.data(), src1.data(), si);
+  } else {
+    simd<MsgT, N> Msg_data0 = lsc_format_input<MsgT>(src0);
+    simd<MsgT, N> Msg_data1 = lsc_format_input<MsgT>(src1);
+    simd<MsgT, N> Tmp =
+        __esimd_lsc_xatomic_bti_2<MsgT, IOp, L1H, L2H, AddressScale, ImmOffset,
+                                  EDS, VS, Transposed, N>(
+            pred.data(), byte_offset.data(), Msg_data0.data(), Msg_data1.data(),
+            si);
+    return lsc_format_ret<T>(Tmp);
+  }
 #endif
 }
 } // namespace detail

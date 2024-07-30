@@ -74,17 +74,29 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
 int test_dump(std::string &dump_dir) {
   // If this has been run with the shader dump environment variables set, then
   // the output files we are looking for should be in ./dump
+  // There are two files whose name ends in _options. We do NOT want
+  // the file that ends in _internal_options.txt
 
-  std::string command_one = "grep -q -e '-doubleGRF' " + dump_dir +
-                            "/OCL_asmaf99e2d4667ef6d3_options.txt";
-  std::string command_two = "grep -q -e '-Xfinalizer \"-printregusage\"' " +
-                            dump_dir + "/OCL_asmaf99e2d4667ef6d3_options.txt";
+  std::string command_one =
+      "find " + dump_dir +
+      " -name \"*_options.txt\" -not -name \"*_internal_options.txt\" -type f "
+      "-exec grep -q -e "
+      "'-doubleGRF' {} +";
+  std::string command_two =
+      "find " + dump_dir +
+      " -name \"*_options.txt\" -not -name \"*_internal_options.txt\" -type f "
+      "-exec grep -q -e "
+      "'-Xfinalizer \"-printregusage\"' {} +";
+
+  // 0 means success, any other value is a failure
   int result_one = std::system(command_one.c_str());
   int result_two = std::system(command_two.c_str());
 
   if (result_one == 0 && result_two == 0) {
     return 0;
   } else {
+    std::cout << "result_one: " << result_one << " result_two: " << result_two
+              << std::endl;
     return -1;
   }
 }

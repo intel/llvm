@@ -14,6 +14,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/TargetParser/Triple.h>
 
 #define DEBUG_TYPE "sycl-spec-const-materializer"
 
@@ -285,7 +286,9 @@ PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
   if (const char *DebugEnv = std::getenv("SYCL_JIT_COMPILER_DEBUG"))
     if (strstr(DebugEnv, DEBUG_TYPE)) {
       DebugFlag = true;
+#ifndef NDEBUG
       llvm::setCurrentDebugType(DEBUG_TYPE);
+#endif
     }
 
   Mod = F.getParent();
@@ -296,9 +299,8 @@ PreservedAnalyses SYCLSpecConstMaterializer::run(Function &F,
   // Invariant: This pass is only intended to operate on SYCL kernels being
   // compiled to either `nvptx{,64}-nvidia-cuda`, or `amdgcn-amd-amdhsa`
   // triples.
-  auto AT = TargetHelpers::getArchType(*Mod);
-  if (TargetHelpers::ArchType::Cuda != AT &&
-      TargetHelpers::ArchType::AMDHSA != AT) {
+  Triple T(Mod->getTargetTriple());
+  if (!T.isNVPTX() && !T.isAMDGCN()) {
     LLVM_DEBUG(dbgs() << "Unsupported architecture\n");
     return PreservedAnalyses::all();
   }

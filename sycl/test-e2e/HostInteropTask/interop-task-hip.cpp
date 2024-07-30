@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <sycl/backend.hpp>
+#include <sycl/detail/backend_traits_hip.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/interop_handle.hpp>
 

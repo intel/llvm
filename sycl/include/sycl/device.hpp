@@ -14,7 +14,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
@@ -23,6 +22,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/platform.hpp>
+#include <ur_api.h>
 
 #include <cstddef>
 #include <memory>
@@ -347,7 +347,7 @@ private:
   std::shared_ptr<detail::device_impl> impl;
   device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   template <class Obj>
   friend const decltype(Obj::impl) &
