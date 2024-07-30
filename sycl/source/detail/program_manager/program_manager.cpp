@@ -1509,14 +1509,9 @@ ProgramManager::ProgramPtr ProgramManager::build(
   LinkPrograms.push_back(Program.get());
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
-    auto Result =
-        Plugin->call_nocheck(urProgramCompileExp, Prg, /* num devices =*/1,
-                             &Device, CompileOptions.c_str());
-    if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Plugin->call(urProgramCompile, Context->getHandleRef(), Prg,
-                   CompileOptions.c_str());
-    }
-    Plugin->checkUrResult(Result);
+    auto Res = doCompile(Plugin, Prg, /*num devices =*/1, &Device,
+                         Context->getHandleRef(), CompileOptions.c_str());
+    Plugin->checkUrResult(Res);
 
     LinkPrograms.push_back(Prg);
   }
