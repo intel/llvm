@@ -217,7 +217,7 @@ struct UnaryPlus {
 template <class T>
 static constexpr bool not_fp =
     !std::is_same_v<T, float> && !std::is_same_v<T, double> &&
-    !std::is_same_v<T, half>;
+    !std::is_same_v<T, half> && !std::is_same_v<T, ext::oneapi::bfloat16>;
 
 // To provide information about operators availability depending on vec/swizzle
 // element type.
