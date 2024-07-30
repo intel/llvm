@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
 //
-// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
-// XFAIL: hip_nvidia, windows
 
 #include <sycl/detail/core.hpp>
 int main() {
