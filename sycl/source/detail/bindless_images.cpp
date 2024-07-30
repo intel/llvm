@@ -431,8 +431,8 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
-    external_mem_descriptor<resource_fd> externalMem,
+__SYCL_EXPORT external_mem import_external_memory<resource_fd>(
+    external_mem_descriptor<resource_fd> externalMemDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -442,36 +442,36 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  ur_exp_interop_mem_handle_t urInteropMem = nullptr;
+  ur_exp_external_mem_handle_t urExternalMem = nullptr;
   ur_exp_file_descriptor_t urFileDescriptor = {};
   urFileDescriptor.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
-  urFileDescriptor.fd = externalMem.external_resource.file_descriptor;
-  ur_exp_interop_mem_desc_t urExternalMemDescriptor = {};
-  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+  urFileDescriptor.fd = externalMemDesc.external_resource.file_descriptor;
+  ur_exp_external_mem_desc_t urExternalMemDescriptor = {};
+  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
   urExternalMemDescriptor.pNext = &urFileDescriptor;
 
   // For `resource_fd` external memory type, the handle type is always
   // `OPAQUE_FD`. No need for a switch statement like we have for win32
   // resources.
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalMemoryExp, C,
-                                    Device, externalMem.size_in_bytes,
+                                    Device, externalMemDesc.size_in_bytes,
                                     UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD,
-                                    &urExternalMemDescriptor, &urInteropMem);
+                                    &urExternalMemDescriptor, &urExternalMem);
 
-  return interop_mem_handle{urInteropMem};
+  return external_mem{urExternalMem};
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<resource_fd>(
-    external_mem_descriptor<resource_fd> externalMem,
+__SYCL_EXPORT external_mem import_external_memory<resource_fd>(
+    external_mem_descriptor<resource_fd> externalMemDesc,
     const sycl::queue &syclQueue) {
   return import_external_memory<resource_fd>(
-      externalMem, syclQueue.get_device(), syclQueue.get_context());
+      externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
-    external_mem_descriptor<resource_win32_handle> externalMem,
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
+    external_mem_descriptor<resource_win32_handle> externalMemDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -481,17 +481,17 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  ur_exp_interop_mem_handle_t urInteropMem = nullptr;
+  ur_exp_external_mem_handle_t urExternalMem = nullptr;
   ur_exp_win32_handle_t urWin32Handle = {};
   urWin32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
-  urWin32Handle.handle = externalMem.external_resource.handle;
-  ur_exp_interop_mem_desc_t urExternalMemDescriptor{};
-  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC;
+  urWin32Handle.handle = externalMemDesc.external_resource.handle;
+  ur_exp_external_mem_desc_t urExternalMemDescriptor{};
+  urExternalMemDescriptor.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC;
   urExternalMemDescriptor.pNext = &urWin32Handle;
 
   // Select appropriate memory handle type.
   ur_exp_external_mem_type_t urHandleType;
-  switch (externalMem.handle_type) {
+  switch (externalMemDesc.handle_type) {
   case external_mem_handle_type::win32_nt_handle:
     urHandleType = UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT;
     break;
@@ -504,23 +504,23 @@ __SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
   }
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalMemoryExp, C,
-                                    Device, externalMem.size_in_bytes,
+                                    Device, externalMemDesc.size_in_bytes,
                                     urHandleType, &urExternalMemDescriptor,
-                                    &urInteropMem);
+                                    &urExternalMem);
 
-  return interop_mem_handle{urInteropMem};
+  return external_mem{urExternalMem};
 }
 
 template <>
-__SYCL_EXPORT interop_mem_handle import_external_memory<resource_win32_handle>(
-    external_mem_descriptor<resource_win32_handle> externalMem,
+__SYCL_EXPORT external_mem import_external_memory<resource_win32_handle>(
+    external_mem_descriptor<resource_win32_handle> externalMemDesc,
     const sycl::queue &syclQueue) {
   return import_external_memory<resource_win32_handle>(
-      externalMem, syclQueue.get_device(), syclQueue.get_context());
+      externalMemDesc, syclQueue.get_device(), syclQueue.get_context());
 }
 
 __SYCL_EXPORT
-image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
@@ -538,25 +538,25 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
   ur_image_format_t urFormat;
   populate_ur_structs(desc, urDesc, urFormat);
 
-  ur_exp_interop_mem_handle_t urInteropMem{memHandle.raw_handle};
+  ur_exp_external_mem_handle_t urExternalMem{extMem.raw_handle};
 
   image_mem_handle retHandle;
   Plugin->call<sycl::errc::invalid>(urBindlessImagesMapExternalArrayExp, C,
-                                    Device, &urFormat, &urDesc, urInteropMem,
+                                    Device, &urFormat, &urDesc, urExternalMem,
                                     &retHandle.raw_handle);
 
   return image_mem_handle{retHandle};
 }
 
 __SYCL_EXPORT
-image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
+image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::queue &syclQueue) {
-  return map_external_image_memory(memHandle, desc, syclQueue.get_device(),
+  return map_external_image_memory(extMem, desc, syclQueue.get_device(),
                                    syclQueue.get_context());
 }
 
-__SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
+__SYCL_EXPORT void release_external_memory(external_mem extMem,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -567,18 +567,18 @@ __SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
   ur_device_handle_t Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
-  Plugin->call<sycl::errc::invalid>(urBindlessImagesReleaseInteropExp, C,
-                                    Device, interopMem.raw_handle);
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesReleaseExternalMemoryExp, C,
+                                    Device, extMem.raw_handle);
 }
 
-__SYCL_EXPORT void release_external_memory(interop_mem_handle interopMem,
+__SYCL_EXPORT void release_external_memory(external_mem extMem,
                                            const sycl::queue &syclQueue) {
-  release_external_memory(interopMem, syclQueue.get_device(),
+  release_external_memory(extMem, syclQueue.get_device(),
                           syclQueue.get_context());
 }
 
 template <>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+__SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -589,27 +589,27 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
 
-  ur_exp_interop_semaphore_handle_t urInteropSemaphore;
+  ur_exp_external_semaphore_handle_t urExternalSemaphore;
   ur_exp_file_descriptor_t urFileDescriptor = {};
   urFileDescriptor.stype = UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR;
   urFileDescriptor.fd = externalSemaphoreDesc.external_resource.file_descriptor;
-  ur_exp_interop_semaphore_desc_t urInteropSemDesc = {};
-  urInteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
-  urInteropSemDesc.pNext = &urFileDescriptor;
+  ur_exp_external_semaphore_desc_t urExternalSemDesc = {};
+  urExternalSemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC;
+  urExternalSemDesc.pNext = &urFileDescriptor;
 
   // For this specialization of `import_external_semaphore` the handleType is
   // always `OPAQUE_FD`.
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalSemaphoreExp,
                                     C, Device,
                                     UR_EXP_EXTERNAL_SEMAPHORE_TYPE_OPAQUE_FD,
-                                    &urInteropSemDesc, &urInteropSemaphore);
+                                    &urExternalSemDesc, &urExternalSemaphore);
 
-  return interop_semaphore_handle{urInteropSemaphore,
+  return external_semaphore{urExternalSemaphore,
                                   external_semaphore_handle_type::opaque_fd};
 }
 
 template <>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+__SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_fd> externalSemaphoreDesc,
     const sycl::queue &syclQueue) {
   return import_external_semaphore(
@@ -617,7 +617,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
 }
 
 template <>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+__SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
     const sycl::device &syclDevice, const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -628,13 +628,13 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
 
-  ur_exp_interop_semaphore_handle_t urInteropSemaphore;
+  ur_exp_external_semaphore_handle_t urExternalSemaphore;
   ur_exp_win32_handle_t urWin32Handle = {};
   urWin32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
   urWin32Handle.handle = externalSemaphoreDesc.external_resource.handle;
-  ur_exp_interop_semaphore_desc_t urInteropSemDesc = {};
-  urInteropSemDesc.stype = UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC;
-  urInteropSemDesc.pNext = &urWin32Handle;
+  ur_exp_external_semaphore_desc_t urExternalSemDesc = {};
+  urExternalSemDesc.stype = UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC;
+  urExternalSemDesc.pNext = &urWin32Handle;
 
   // Select appropriate semaphore handle type.
   ur_exp_external_semaphore_type_t urHandleType;
@@ -651,15 +651,15 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
   }
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesImportExternalSemaphoreExp,
-                                    C, Device, urHandleType, &urInteropSemDesc,
-                                    &urInteropSemaphore);
+                                    C, Device, urHandleType, &urExternalSemDesc,
+                                    &urExternalSemaphore);
 
-  return interop_semaphore_handle{urInteropSemaphore,
+  return external_semaphore{urExternalSemaphore,
                                   externalSemaphoreDesc.handle_type};
 }
 
 template <>
-__SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
+__SYCL_EXPORT external_semaphore import_external_semaphore(
     external_semaphore_descriptor<resource_win32_handle> externalSemaphoreDesc,
     const sycl::queue &syclQueue) {
   return import_external_semaphore(
@@ -667,7 +667,7 @@ __SYCL_EXPORT interop_semaphore_handle import_external_semaphore(
 }
 
 __SYCL_EXPORT void
-release_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(external_semaphore externalSemaphore,
                            const sycl::device &syclDevice,
                            const sycl::context &syclContext) {
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
@@ -679,13 +679,13 @@ release_external_semaphore(interop_semaphore_handle semaphoreHandle,
   ur_device_handle_t Device = DevImpl->getHandleRef();
 
   Plugin->call<sycl::errc::invalid>(urBindlessImagesReleaseExternalSemaphoreExp,
-                                    C, Device, semaphoreHandle.raw_handle);
+                                    C, Device, externalSemaphore.raw_handle);
 }
 
 __SYCL_EXPORT void
-release_external_semaphore(interop_semaphore_handle semaphoreHandle,
+release_external_semaphore(external_semaphore externalSemaphore,
                            const sycl::queue &syclQueue) {
-  release_external_semaphore(semaphoreHandle, syclQueue.get_device(),
+  release_external_semaphore(externalSemaphore, syclQueue.get_device(),
                              syclQueue.get_context());
 }
 
