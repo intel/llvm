@@ -127,9 +127,6 @@ attributes #0 = { nocallback nofree nosync nounwind speculatable willreturn memo
 attributes #1 = { nounwind speculatable memory(none) }
 attributes #3 = { "frame-pointer"="all" "target-cpu"="gfx1031" "target-features"="+16-bit-insts,+ci-insts,+dl-insts,+dot1-insts,+dot10-insts,+dot2-insts,+dot5-insts,+dot6-insts,+dot7-insts,+dpp,+gfx10-3-insts,+gfx10-insts,+gfx8-insts,+gfx9-insts,+s-memrealtime,+s-memtime-inst,+wavefrontsize32" "uniform-work-group-size"="true" }
 
-!amdgcn.annotations = !{!9}
-
-!9 = !{ptr @fused_0, !"kernel", i32 1}
 !12 = !{!"private", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"private", !"none", !"none", !"none", !"none", !"none", !"none", !"none"}
 !13 = !{i64 3, !"", !"", !"", !"", !"", !"", !"", i64 3, !"", !"", !"", !"", !"", !"", !""}
 !14 = !{i64 32, !"", !"", !"", !"", !"", !"", !"", i64 1, !"", !"", !"", !"", !"", !"", !""}

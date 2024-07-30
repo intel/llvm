@@ -825,13 +825,8 @@ class AMDGCNTargetFusionInfo final : public NVPTXAMDGCNTargetFusionInfoBase {
 public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
-  void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    removeDeletedKernelsFromMD("amdgcn.annotations", Funcs);
-  }
-
   void addKernelFunction(Function *KernelFunc) const override {
     KernelFunc->setCallingConv(CallingConv::AMDGPU_KERNEL);
-    addKernelToMD("amdgcn.annotations", KernelFunc);
   }
 
   void createBarrierCall(IRBuilderBase &Builder,
