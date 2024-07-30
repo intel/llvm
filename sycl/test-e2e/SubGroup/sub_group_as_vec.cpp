@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < N; ++i) {
     if (i != host_mem[i].s0() || i != host_mem[i].s1()) {
       printf("Unexpected result [%02d,%02d] vs [%02d,%02d]\n", i, i,
-             host_mem[i].s0(), host_mem[i].s1());
+             host_mem[i][0], host_mem[i][1]);
       return 1;
     }
   }

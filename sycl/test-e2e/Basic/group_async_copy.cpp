@@ -57,13 +57,13 @@ typename std::enable_if_t<!is_vec<T>::value, bool> checkEqual(T A, size_t B) {
 
 template <typename T> std::string toString(vec<T, 1> A) {
   std::string R("(");
-  return R + std::to_string(A.s0()) + ")";
+  return R + std::to_string(A[0]) + ")";
 }
 
 template <typename T> std::string toString(vec<T, 4> A) {
   std::string R("(");
-  R += std::to_string(A.x()) + "," + std::to_string(A.y()) + "," +
-       std::to_string(A.z()) + "," + std::to_string(A.w()) + ")";
+  R += std::to_string(A[0]) + "," + std::to_string(A[1]) + "," +
+       std::to_string(A[2]) + "," + std::to_string(A[3]) + ")";
   return R;
 }
 

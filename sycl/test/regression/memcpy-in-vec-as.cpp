@@ -19,7 +19,7 @@ int main() {
     });
   }
 
-  if (res.s0() != 513 || res.s1() != 1027 || res.s2() != 1541 || res.s3() != 2055) {
+  if (res[0] != 513 || res[1] != 1027 || res[2] != 1541 || res[3] != 2055) {
     std::cerr << "Incorrect result" << std::endl;
     return 1;
   }

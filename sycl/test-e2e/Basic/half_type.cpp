@@ -95,7 +95,7 @@ void verify_vec(queue &q) {
   q.submit([&](sycl::handler &cgh) {
     auto E = e.get_access<access::mode::write>(cgh);
     cgh.single_task<class vec_of_half>([=]() {
-      if (int(hvec.s0()) != 999 || int(hvec.s1()) != 999)
+      if (int(hvec[0]) != 999 || int(hvec[1]) != 999)
         E[0] = 1;
     });
   });

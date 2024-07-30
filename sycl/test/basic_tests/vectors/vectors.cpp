@@ -27,15 +27,15 @@ template <typename From, typename To> void check_convert() {
   sycl::vec<From, 4> vec{1, 2, 3, 4};
   sycl::vec<To, 4> result = vec.template convert<To>();
   if constexpr (std::is_same_v<To, bool>) {
-    assert((bool)result.x() == (bool)vec.x());
-    assert((bool)result.y() == (bool)vec.y());
-    assert((bool)result.z() == (bool)vec.z());
-    assert((bool)result.w() == (bool)vec.w());
+    assert((bool)result.x() == (bool)((From)vec.x()));
+    assert((bool)result.y() == (bool)((From)vec.y()));
+    assert((bool)result.z() == (bool)((From)vec.z()));
+    assert((bool)result.w() == (bool)((From)vec.w()));
   } else {
-    assert((int)result.x() == (int)vec.x());
-    assert((int)result.y() == (int)vec.y());
-    assert((int)result.z() == (int)vec.z());
-    assert((int)result.w() == (int)vec.w());
+    assert((To)result.x() == (From)vec.x());
+    assert((To)result.y() == (From)vec.y());
+    assert((To)result.z() == (From)vec.z());
+    assert((To)result.w() == (From)vec.w());
   }
 }
 
