@@ -42,9 +42,12 @@ void testRootGroup() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class RootGroupKernel>();
-  const auto maxWGs = kernel.ext_oneapi_get_info<
-      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-          max_num_work_group_sync>(q);
+  // TODO: Uncomment following lines after
+  // https://github.com/intel/llvm/pull/14333 is merged.
+  // const auto maxWGs = kernel.ext_oneapi_get_info<
+  //     sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+  //         max_num_work_group_sync>(q);
+  const auto maxWGs = 4;
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
