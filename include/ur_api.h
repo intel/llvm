@@ -7964,7 +7964,7 @@ urBindlessImagesMapExternalArrayExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Map an interop memory handle to a device memory region described by
+/// @brief Map an external memory handle to a device memory region described by
 ///        void*
 ///
 /// @returns
@@ -7975,7 +7975,7 @@ urBindlessImagesMapExternalArrayExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hInteropMem`
+///         + `NULL == hExternalMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == ppRetMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
@@ -7985,12 +7985,12 @@ urBindlessImagesMapExternalArrayExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMapExternalLinearMemoryExp(
-    ur_context_handle_t hContext,            ///< [in] handle of the context object
-    ur_device_handle_t hDevice,              ///< [in] handle of the device object
-    uint64_t offset,                         ///< [in] offset into memory region to map
-    uint64_t size,                           ///< [in] size of memory region to map
-    ur_exp_interop_mem_handle_t hInteropMem, ///< [in] interop memory handle to the external memory
-    void **ppRetMem                          ///< [out] pointer of the externally allocated memory
+    ur_context_handle_t hContext,              ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                ///< [in] handle of the device object
+    uint64_t offset,                           ///< [in] offset into memory region to map
+    uint64_t size,                             ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem                            ///< [out] pointer of the externally allocated memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11271,7 +11271,7 @@ typedef struct ur_bindless_images_map_external_linear_memory_exp_params_t {
     ur_device_handle_t *phDevice;
     uint64_t *poffset;
     uint64_t *psize;
-    ur_exp_interop_mem_handle_t *phInteropMem;
+    ur_exp_external_mem_handle_t *phExternalMem;
     void ***pppRetMem;
 } ur_bindless_images_map_external_linear_memory_exp_params_t;
 

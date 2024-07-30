@@ -737,7 +737,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Map an interop memory handle to a device memory region described by void*"
+desc: "Map an external memory handle to a device memory region described by void*"
 class: $xBindlessImages
 name: MapExternalLinearMemoryExp
 ordinal: "0"
@@ -754,9 +754,9 @@ params:
     - type: uint64_t
       name: size
       desc: "[in] size of memory region to map"
-    - type: $x_exp_interop_mem_handle_t
-      name: hInteropMem
-      desc: "[in] interop memory handle to the external memory"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
     - type: void**
       name: ppRetMem
       desc: "[out] pointer of the externally allocated memory"

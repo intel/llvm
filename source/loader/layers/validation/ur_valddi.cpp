@@ -7556,9 +7556,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint64_t offset,              ///< [in] offset into memory region to map
     uint64_t size,                ///< [in] size of memory region to map
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
-    void **ppRetMem  ///< [out] pointer of the externally allocated memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
 ) {
     auto pfnMapExternalLinearMemoryExp =
         getContext()
@@ -7577,7 +7577,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hInteropMem) {
+        if (NULL == hExternalMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -7597,7 +7597,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     }
 
     ur_result_t result = pfnMapExternalLinearMemoryExp(
-        hContext, hDevice, offset, size, hInteropMem, ppRetMem);
+        hContext, hDevice, offset, size, hExternalMem, ppRetMem);
 
     return result;
 }

@@ -1171,7 +1171,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_interop_mem_handle_t hInteropMem, void **ppRetMem) {
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **ppRetMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1187,7 +1187,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
 
     CUdeviceptr retMem;
     UR_CHECK_ERROR(cuExternalMemoryGetMappedBuffer(
-        &retMem, (CUexternalMemory)hInteropMem, &BufferDesc));
+        &retMem, (CUexternalMemory)hExternalMem, &BufferDesc));
 
     *ppRetMem = (void *)retMem;
 
