@@ -556,7 +556,7 @@ public:
                 DataT>,
             N>;
     if constexpr (is_host || std::is_same_v<DataT, ext::oneapi::bfloat16> ||
-                  std::is_same_v<DataT, bool> || is_logical) {
+                  std::is_same_v<DataT, bool> || N == 1) {
       // TODO: Optimized device impl for `is_logical`.
       ResultVec tmp{};
       for (int i = 0; i < N; ++i)
@@ -569,9 +569,41 @@ public:
       using vec_t = vec<DataT, N>;
       using vector_t = typename vec_t::vector_t;
       if constexpr (is_logical) {
-        return ResultVec{static_cast<typename ResultVec::vector_t>(
-            Op(static_cast<vector_t>(vec_t{Lhs}),
-               static_cast<vector_t>(vec_t{Rhs})))};
+        // Workaround a crash in the C++ front end, reported internally.
+        constexpr bool no_crash =
+            std::is_same_v<OpTy, std::logical_and<void>> ||
+            std::is_same_v<OpTy, std::logical_or<void>>;
+        if constexpr (no_crash) {
+          auto res = Op(static_cast<vector_t>(vec_t{Lhs}),
+                        static_cast<vector_t>(vec_t{Rhs}));
+          // bit_cast is needed to cast between char/signed char
+          // `ext_vector_type`s.
+          //
+          // TODO: Can we just change `vector_t`, or is that some mismatch
+          // between clang/SPIR-V?
+          return ResultVec{sycl::bit_cast<typename ResultVec::vector_t>(res)};
+        } else {
+          auto vec_lhs = static_cast<vector_t>(vec_t{Lhs});
+          auto vec_rhs = static_cast<vector_t>(vec_t{Rhs});
+          auto res = [&]() {
+            if constexpr (std::is_same_v<OpTy, std::equal_to<void>>)
+              return vec_lhs == vec_rhs;
+            else if constexpr (std::is_same_v<OpTy, std::not_equal_to<void>>)
+              return vec_lhs != vec_rhs;
+            else if constexpr (std::is_same_v<OpTy, std::less<void>>)
+              return vec_lhs < vec_rhs;
+            else if constexpr (std::is_same_v<OpTy, std::greater<void>>)
+              return vec_lhs > vec_rhs;
+            else if constexpr (std::is_same_v<OpTy, std::less_equal<void>>)
+              return vec_lhs <= vec_rhs;
+            else if constexpr (std::is_same_v<OpTy, std::greater_equal<void>>)
+              return vec_lhs >= vec_rhs;
+            else
+              static_assert(!std::is_same_v<OpTy, OpTy>, "Must be unreachable");
+          }();
+          // See the comment above.
+          return ResultVec{sycl::bit_cast<typename ResultVec::vector_t>(res)};
+        }
       } else {
         return ResultVec{Op(static_cast<vector_t>(vec_t{Lhs}),
                             static_cast<vector_t>(vec_t{Rhs}))};
