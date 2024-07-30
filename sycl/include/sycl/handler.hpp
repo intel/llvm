@@ -3303,45 +3303,45 @@ public:
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support waiting on an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param WaitValue is the value that this semaphore will wait upon, until it
   ///                  allows any further commands to execute on the queue.
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands submitted to the queue have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Instruct the queue to set the state of the external semaphore to
   /// \p SignalValue once all previous commands submitted to the queue have
   /// completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support signalling an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object.
   /// \param SignalValue is the value that this semaphore signal, once all
   ///                    prior opeartions on the queue complete.
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t SignalValue);
 
 private:

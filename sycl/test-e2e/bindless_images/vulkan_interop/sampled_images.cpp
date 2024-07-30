@@ -17,7 +17,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 struct handles_t {
   syclexp::sampled_image_handle imgInput;
   syclexp::image_mem_handle imgMem;
-  syclexp::interop_mem_handle inputInteropMemHandle;
+  syclexp::external_mem inputExternalMem;
 };
 
 template <typename InteropHandleT>
@@ -37,20 +37,19 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
       interopHandle, syclexp::external_mem_handle_type::opaque_fd, imgSize};
 #endif
 
-  // Extension: interop mem handle imported from file descriptor
-  syclexp::interop_mem_handle inputInteropMemHandle =
+  // Extension: external memory imported from file descriptor
+  syclexp::external_mem inputExternalMem =
       syclexp::import_external_memory(inputExtMemDesc, dev, ctxt);
 
-  // Extension: interop mem handle imported from file descriptor
+  // Extension: mapped memory handle from external memory
   syclexp::image_mem_handle inputMappedMemHandle =
-      syclexp::map_external_image_memory(inputInteropMemHandle, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(inputExternalMem, desc, dev, ctxt);
 
   // Extension: create the image and return the handle
   syclexp::sampled_image_handle imgInput =
       syclexp::create_image(inputMappedMemHandle, samp, desc, dev, ctxt);
 
-  return {imgInput, inputMappedMemHandle, inputInteropMemHandle};
+  return {imgInput, inputMappedMemHandle, inputExternalMem};
 }
 
 template <typename InteropHandleT, int NDims, typename DType, int NChannels,
@@ -140,7 +139,7 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
     syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
                             ctxt);
-    syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
+    syclexp::release_external_memory(handles.inputExternalMem, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
