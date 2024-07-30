@@ -54,29 +54,27 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   (*Event)->WaitList = TmpWaitList;
 
   const auto &WaitList = (*Event)->WaitList;
-  const auto &ZeCommandList = CommandList->first;
   if (WaitList.Length) {
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-               (ZeCommandList, WaitList.Length, WaitList.ZeEventList));
+               (CommandList->first, WaitList.Length, WaitList.ZeEventList));
   }
 
-  if (!isInOrderQueue()) {
-    UR_CALL(Queue->executeCommandList(CommandList, false, false));
-    UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, 0, nullptr));
-  }
-  ScopedCommandList Active{Queue, CommandList->first};
+  UR_CALL(Queue->executeCommandList(CommandList, false, false));
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                  UseCopyEngine, 0, nullptr));
 
-  // Call interop func which enqueues native async work
-  pfnNativeEnqueue(Queue, data);
+  {
+    ScopedCommandList Active{Queue, CommandList->first};
 
-  if (!isInOrderQueue()) {
-    UR_CALL(Queue->executeCommandList(CommandList, false, false));
-    UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, 0, nullptr));
+    // Call interop func which enqueues native async work
+    pfnNativeEnqueue(Queue, data);
   }
 
-  ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
+  UR_CALL(Queue->executeCommandList(CommandList, false, false));
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                  UseCopyEngine, 0, nullptr));
+
+  ZE2UR_CALL(zeCommandListAppendSignalEvent, (CommandList->first, ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, false));
   return UR_RESULT_SUCCESS;
