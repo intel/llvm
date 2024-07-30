@@ -162,8 +162,8 @@ The property list can the be constructed as follows -
 properties  cluster_launch_property{cluster_size({1, 2, 1})};
 ----
 
-Note that the total number of work-groups in the kernel must be a multiple of
-the cluster size in each dimension.
+[_Note:_ the total number of work-groups in the kernel must be a multiple of
+the cluster size in each dimension. _{endnote}_]
 
 The launch functions introduced in `sycl_ext_oneapi_enqueue_functions` can then
 be used to launch the kernel with the `cluster_size` property.
@@ -323,9 +323,8 @@ linearized id of the work-group a mapped local memory address belongs to.
 |Description
 
 |size_t  get_cluster_group_linear_id_for_local_pointer(T* addr)
-|Accepts a mapped pointer to the local memory of another work-group and returns
-the linearized id of the work-group in the cluster from whom's local memory the
-mapped pointer was obtained.
+|Accepts a pointer pointing to a valid local memory space, and the returns the 
+linearized id of the work-group in the cluster that address belongs to. 
 |===
 
 
@@ -391,12 +390,20 @@ sycl::event launch_kernel_with_cluster() {
 
 == Known Issues
 
-This Specification does not mention the forward progress guarantees of the 
+. Forward Progress Guarantees
++ 
+--
+*UNRESOLVED* This Specification does not discuss the forward progress guarantees of the 
    cluster_group. 
+--
 
-The functions `map_cluster_local_pointer` and 
+. Differentiating between decorated and generic address spaces
++
+--
+*UNRESOLVED* The functions `map_cluster_local_pointer` and 
 `get_cluster_group_linear_id_for_local_pointer` do not differentiate between
-generic and local memory address space.
+generic and local memory address spaces, which might not be the most efficient.
+--
 
 
 == Revision History
