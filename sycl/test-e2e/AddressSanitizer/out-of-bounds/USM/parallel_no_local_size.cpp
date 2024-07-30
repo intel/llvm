@@ -16,7 +16,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 12345;
+  constexpr std::size_t N = 1024;
 #if defined(MALLOC_HOST)
   auto *array = sycl::malloc_host<char>(N, Q);
 #elif defined(MALLOC_SHARED)

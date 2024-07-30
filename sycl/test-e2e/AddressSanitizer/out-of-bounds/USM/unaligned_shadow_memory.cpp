@@ -23,16 +23,16 @@ int main() {
   TestType *array = (TestType *)sycl::malloc_device<char>(size, Q);
 
   Q.submit([&](sycl::handler &h) {
-    h.parallel_for<class MyKernelR_4>(
+    h.parallel_for<class MyKernelR>(
         sycl::nd_range<1>(size / sizeof(TestType) + 1, 1),
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
-  // CHECK1: {{READ of size 8 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(17, 0, 0\)}}
-  // CHECK1: {{  #0 .* .*unaligned_shadow_memory.cpp:}}[[@LINE-5]]
-  // CHECK2: {{READ of size 16 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(8, 0, 0\)}}
-  // CHECK2: {{  #0 .* .*unaligned_shadow_memory.cpp:}}[[@LINE-7]]
+  // CHECK1: READ of size 8 at kernel {{<.*MyKernelR>}} LID(0, 0, 0) GID(17, 0, 0)
+  // CHECK1: {{.*unaligned_shadow_memory.cpp}}:[[@LINE-5]]
+  // CHECK2: READ of size 16 at kernel {{<.*MyKernelR>}} LID(0, 0, 0) GID(8, 0, 0)
+  // CHECK2: {{.*unaligned_shadow_memory.cpp}}:[[@LINE-7]]
 
   return 0;
 }

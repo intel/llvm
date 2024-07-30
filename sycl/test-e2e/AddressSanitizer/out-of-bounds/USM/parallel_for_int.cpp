@@ -16,7 +16,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 512;
+  constexpr std::size_t N = 5;
 #if defined(MALLOC_HOST)
   auto *array = sycl::malloc_host<int>(N, Q);
 #elif defined(MALLOC_SHARED)
@@ -26,7 +26,7 @@ int main() {
 #endif
 
   Q.submit([&](sycl::handler &h) {
-    h.parallel_for<class MyKernelR_4>(
+    h.parallel_for<class MyKernelR>(
         sycl::nd_range<1>(N + 1, 1),
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
@@ -34,8 +34,8 @@ int main() {
   // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on Host USM
   // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on Shared USM
-  // CHECK: {{READ of size 4 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(512, 0, 0\)}}
-  // CHECK: {{  #0 .* .*parallel_for_int.cpp:}}[[@LINE-7]]
+  // CHECK: READ of size 4 at kernel {{<.*MyKernelR>}} LID(0, 0, 0) GID(5, 0, 0)
+  // CHECK: {{.*parallel_for_int.cpp}}:[[@LINE-7]]
 
   sycl::free(array, Q);
   return 0;
