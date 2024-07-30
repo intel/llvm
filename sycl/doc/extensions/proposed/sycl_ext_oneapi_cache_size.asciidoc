@@ -107,19 +107,20 @@ enum class cache_level : /* unspecified */
 
 === Device Queries
 
-[%header,cols="1,5,5"]
-|===
-|Device Descriptor
-|Return Type
-|Description
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+template <ext::oneapi::cache_level CacheLevel>
+struct cache_size {
+  using return_type = size_t;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
 
-|`template <ext::oneapi::cache_level CacheLevel>
- ext::oneapi::info::device::cache_size`
-|`size_t`
-|Return the size in bytes of the cache at the requested `cache_level` for this
-device, or 0 if this level of cache does not exist on this device.
+_Remarks_: Template parameter to `device::get_info`.
 
-|===
+_Returns_: The size in bytes of the cache at the requested `cache_level` for
+this device, or 0 if this level of cache does not exist on this device.
 
 The set of cache levels for which a device returns a non-zero value is not
 required to be continuous (e.g., a device may report an L1 and L3 cache without
