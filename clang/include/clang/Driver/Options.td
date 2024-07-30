@@ -4041,12 +4041,6 @@ def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
 def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
   Group<Link_Group>, HelpText<"Do not generate or use a custom linker script"
   " for huge device code sections (default)">;
-def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
-  Group<sycl_Group>, Alias<flink_huge_device_code>, HelpText<"Generate and use a custom linker script for huge"
-  " device code sections (deprecated)">, Flags<[Deprecated]>;
-def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
-  Group<sycl_Group>, Alias<fno_link_huge_device_code>, HelpText<"Do not generate or use a custom linker script"
-  " for huge device code sections (default) (deprecated)">, Flags<[Deprecated]>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], [ClangOption], "Assume">, NegFlag<SetFalse, [], [ClangOption], "Do not assume">,

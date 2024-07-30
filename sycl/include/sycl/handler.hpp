@@ -17,11 +17,10 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -970,28 +969,11 @@ private:
     }
   }
 
-  /// Process kernel properties.
+  /// Process runtime kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
-  template <
-      typename KernelName,
-      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
-  void processProperties(PropertiesT Props) {
-    using KI = detail::KernelInfo<KernelName>;
-    static_assert(
-        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-        "Template type is not a property list.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::intel::experimental::fp_control_key>() ||
-            (PropertiesT::template has_property<
-                 sycl::ext::intel::experimental::fp_control_key>() &&
-             KI::isESIMD()),
-        "Floating point control property is supported for ESIMD kernels only.");
-    static_assert(
-        !PropertiesT::template has_property<
-            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
-        "indirectly_callable property cannot be applied to SYCL kernels");
+  template <typename PropertiesT>
+  void processLaunchProperties(PropertiesT Props) {
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1040,6 +1022,32 @@ private:
     }
 
     checkAndSetClusterRange(Props);
+  }
+
+  /// Process kernel properties.
+  ///
+  /// Stores information about kernel properties into the handler.
+  template <
+      typename KernelName,
+      typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
+  void processProperties(PropertiesT Props) {
+    using KI = detail::KernelInfo<KernelName>;
+    static_assert(
+        ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+        "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
+        "Floating point control property is supported for ESIMD kernels only.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::oneapi::experimental::indirectly_callable_key>(),
+        "indirectly_callable property cannot be applied to SYCL kernels");
+
+    processLaunchProperties(Props);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1129,7 +1137,7 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
-  // PI APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
+  // UR APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
   constexpr static bool isBackendSupportedFillSize(size_t Size) {
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
@@ -1440,14 +1448,40 @@ private:
   ///
   /// \param NumWorkItems is a range defining indexing space.
   /// \param Kernel is a SYCL kernel function.
-  template <int Dims>
-  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
+  /// \param Properties is the properties.
+  template <int Dims, typename PropertiesT>
+  void parallel_for_impl(range<Dims> NumWorkItems, PropertiesT Props,
+                         kernel Kernel) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
     setNDRangeDescriptor(std::move(NumWorkItems));
+    processLaunchProperties<PropertiesT>(Props);
     setType(detail::CGType::Kernel);
     setNDRangeUsed(false);
+    extractArgsAndReqs();
+    MKernelName = getKernelName();
+  }
+
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// \param NDRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// \param Properties is the properties.
+  /// \param Kernel is a SYCL kernel function.
+  template <int Dims, typename PropertiesT>
+  void parallel_for_impl(nd_range<Dims> NDRange, PropertiesT Props,
+                         kernel Kernel) {
+    throwIfActionIsCreated();
+    MKernel = detail::getSyclObjImpl(std::move(Kernel));
+    detail::checkValueRange<Dims>(NDRange);
+    setNDRangeDescriptor(std::move(NDRange));
+    processLaunchProperties(Props);
+    setType(detail::CGType::Kernel);
+    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1841,7 +1875,7 @@ private:
     setArgsToAssociatedAccessors();
 
     SetHostTask(std::move(Func));
-    setType(detail::CGType::CodeplayHostTask);
+    setType(detail::CGType::EnqueueNativeCommand);
   }
 
   /// @brief Get the command graph if any associated with this handler. It can
@@ -2163,15 +2197,18 @@ public:
   }
 
   void parallel_for(range<1> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<2> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   void parallel_for(range<3> NumWorkItems, kernel Kernel) {
-    parallel_for_impl(NumWorkItems, Kernel);
+    parallel_for_impl(NumWorkItems,
+                      ext::oneapi::experimental::empty_properties_t{}, Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -2205,14 +2242,8 @@ public:
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims> void parallel_for(nd_range<Dims> NDRange, kernel Kernel) {
-    throwIfActionIsCreated();
-    MKernel = detail::getSyclObjImpl(std::move(Kernel));
-    detail::checkValueRange<Dims>(NDRange);
-    setNDRangeDescriptor(std::move(NDRange));
-    setType(detail::CGType::Kernel);
-    setNDRangeUsed(true);
-    extractArgsAndReqs();
-    MKernelName = getKernelName();
+    parallel_for_impl(NDRange, ext::oneapi::experimental::empty_properties_t{},
+                      Kernel);
   }
 
   /// Defines and invokes a SYCL kernel function.
@@ -2833,7 +2864,7 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // CG::Fill will result in urEnqueueMemBufferFill which requires that mem
     // data is contiguous. Thus we check range and offset when dim > 1
     // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
@@ -3272,45 +3303,45 @@ public:
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support waiting on an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param WaitValue is the value that this semaphore will wait upon, until it
   ///                  allows any further commands to execute on the queue.
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands submitted to the queue have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Instruct the queue to set the state of the external semaphore to
   /// \p SignalValue once all previous commands submitted to the queue have
   /// completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support signalling an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object.
   /// \param SignalValue is the value that this semaphore signal, once all
   ///                    prior opeartions on the queue complete.
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t SignalValue);
 
 private:
@@ -3740,6 +3771,12 @@ class HandlerAccess {
 public:
   static void internalProfilingTagImpl(handler &Handler) {
     Handler.internalProfilingTagImpl();
+  }
+
+  template <typename RangeT, typename PropertiesT>
+  static void parallelForImpl(handler &Handler, RangeT Range, PropertiesT Props,
+                              kernel Kernel) {
+    Handler.parallel_for_impl(Range, Props, Kernel);
   }
 };
 } // namespace detail

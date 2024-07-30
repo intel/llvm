@@ -17,7 +17,7 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 struct handles_t {
   syclexp::sampled_image_handle imgInput;
   void *imgMem;
-  syclexp::interop_mem_handle inputInteropMemHandle;
+  syclexp::external_mem inputInteropMemHandle;
 };
 
 template <typename InteropHandleT>
@@ -39,7 +39,7 @@ handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
 #endif
 
   // Extension: interop mem handle imported from file descriptor
-  syclexp::interop_mem_handle inputInteropMemHandle =
+  syclexp::external_mem inputInteropMemHandle =
       syclexp::import_external_memory(inputExtMemDesc, dev, ctxt);
 
   // Extension: interop mem handle imported from file descriptor

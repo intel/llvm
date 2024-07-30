@@ -22,10 +22,27 @@ if (NOT DEFINED SYCL_ENABLE_PLUGINS)
   set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
 endif()
 
+# Option to enable online kernel fusion via a JIT compiler
+option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
+if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
+  message(WARNING "Kernel fusion not yet supported on Windows")
+  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE
+      BOOL "Kernel fusion not yet supported on Windows" FORCE)
+endif()
+
+if (NOT XPTI_INCLUDES)
+  set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
+endif()
+
+if (NOT XPTI_PROXY_SRC)
+  set(XPTI_PROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp)
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
 include(SYCLUtils)
+include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -144,32 +161,26 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
         DESTINATION ${SYCL_INCLUDE_DIR}/sycl
         COMPONENT OpenCL-Headers)
 
-# Option to enable online kernel fusion via a JIT compiler
-option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
-if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
-  message(WARNING "Kernel fusion not yet supported on Windows")
-  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE 
-      BOOL "Kernel fusion not yet supported on Windows" FORCE)
-endif()
-
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
 
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_CUDA ON)
+  set(SYCL_BUILD_BACKEND_CUDA ON)
+  set(SYCL_EXT_ONEAPI_BACKEND_CUDA ON)
 endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_HIP ON)
+  set(SYCL_BUILD_BACKEND_HIP ON)
+  set(SYCL_EXT_ONEAPI_BACKEND_HIP ON)
 endif()
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_OPENCL ON)
+  set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+  set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
 endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  set(SYCL_BUILD_NATIVE_CPU ON)
+  set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
 
 # Configure SYCL version macro
@@ -229,6 +240,8 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
@@ -238,6 +251,10 @@ install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONEN
 install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+  COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+  COMPONENT sycl-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})
@@ -352,7 +369,7 @@ add_custom_target( sycl-toolchain ALL
 )
 
 if (WIN32)
-  add_dependencies(sycl-toolchain pi_win_proxy_loader)
+  add_dependencies(sycl-toolchain ur_win_proxy_loader)
 endif()
 
 # Enable new IN_LIST operator.
@@ -382,13 +399,10 @@ if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
   string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
 endif()
 
-# Plugin Library
-add_subdirectory( plugins )
-
 add_subdirectory(tools)
 
 if (WIN32)
-  add_subdirectory(pi_win_proxy_loader)
+  add_subdirectory(ur_win_proxy_loader)
 endif()
 
 if(SYCL_INCLUDE_TESTS)
@@ -439,7 +453,7 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
 )
 
 if (WIN32)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_win_proxy_loader)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_win_proxy_loader)
 endif()
 
 if (TARGET sycl-prof)
@@ -475,8 +489,8 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain pi_cuda)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_cuda)
+  add_dependencies(sycl-toolchain ur_adapter_cuda)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -492,8 +506,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain pi_hip)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
+  add_dependencies(sycl-toolchain ur_adapter_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

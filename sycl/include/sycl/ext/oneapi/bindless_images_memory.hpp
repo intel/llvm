@@ -45,7 +45,7 @@ public:
   sycl::context get_context() const { return syclContext; }
 
 private:
-  raw_handle_type handle{nullptr};
+  raw_handle_type handle{0};
   image_descriptor descriptor;
   sycl::device syclDevice;
   sycl::context syclContext;

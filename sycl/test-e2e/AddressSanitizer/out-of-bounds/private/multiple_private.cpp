@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux
 // RUN: %{build} %device_asan_flags -DVAR=1 -O2 -g -o %t1
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t1 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR1 %s
 // RUN: %{build} %device_asan_flags -DVAR=2 -O2 -g -o %t2
