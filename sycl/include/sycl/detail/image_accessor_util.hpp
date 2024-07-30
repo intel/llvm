@@ -761,9 +761,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                ImgChannelType);
     break;
   case image_channel_type::fp16:
-    writePixel(
-        convertWriteData<half>(Color, ImgChannelType),
-        reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
+    writePixel(convertWriteData<half>(Color, ImgChannelType),
+               reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::fp32:
     writePixel(convertWriteData<float>(Color, ImgChannelType),

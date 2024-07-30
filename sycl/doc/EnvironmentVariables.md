@@ -196,7 +196,7 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_UR_TRACE` | Integer | If non-0 then enable Unified Runtime tracing. Default is 0. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
@@ -230,16 +230,6 @@ variables in production code.</span>
 | before_addHostAcc | print graph before addHostAccessor method |
 | after_addHostAcc | print graph after addHostAccessor method |
 | always | print graph before and after each of the above methods |
-
-### `SYCL_PI_TRACE` Options
-
-`SYCL_PI_TRACE` accepts a bit-mask. Supported tracing levels are in the table below
-
-| Option | Description |
-| ------ | ----------- |
-| 1 | Enable basic tracing, which is tracing of PI plugins/devices discovery |
-| 2 | Enable tracing of the PI calls |
-| -1 | Enable all levels of tracing |
 
 ## Debugging variables for Level Zero Plugin
 
