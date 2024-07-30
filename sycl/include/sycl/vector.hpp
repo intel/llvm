@@ -118,8 +118,9 @@ template <typename SelfOperandTy, typename DataT, bool EnablePostfix,
 struct IncDecMixin {};
 
 template <typename SelfOperandTy, typename DataT>
-struct IncDecMixin<SelfOperandTy, DataT, false,
-                   std::enable_if_t<!std::is_same_v<bool, DataT>>> {
+struct IncDecMixin<SelfOperandTy, DataT, true,
+                   std::enable_if_t<!std::is_same_v<bool, DataT>>>
+    : public IncDecMixin<SelfOperandTy, DataT, false> {
   friend SelfOperandTy &operator++(SelfOperandTy &x) {
     x += DataT{1};
     return x;
@@ -128,12 +129,6 @@ struct IncDecMixin<SelfOperandTy, DataT, false,
     x -= DataT{1};
     return x;
   }
-};
-
-template <typename SelfOperandTy, typename DataT>
-struct IncDecMixin<SelfOperandTy, DataT, true,
-                   std::enable_if_t<!std::is_same_v<bool, DataT>>>
-    : public IncDecMixin<SelfOperandTy, DataT, false> {
   friend auto operator++(SelfOperandTy &x, int) {
     auto tmp = +x;
     x += DataT{1};
