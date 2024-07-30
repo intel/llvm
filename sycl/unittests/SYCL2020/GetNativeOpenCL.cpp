@@ -13,8 +13,8 @@
 #include <sycl/backend/opencl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -26,79 +26,78 @@ using namespace sycl;
 int TestCounter = 0;
 int DeviceRetainCounter = 0;
 
-static pi_result redefinedContextRetain(pi_context c) {
+static ur_result_t redefinedContextRetain(void *) {
   ++TestCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedQueueRetain(pi_queue c) {
+static ur_result_t redefinedQueueRetain(void *) {
   ++TestCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedDeviceRetain(pi_device c) {
+static ur_result_t redefinedDeviceRetain(void *) {
   ++TestCounter;
   ++DeviceRetainCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedProgramRetain(pi_program c) {
+static ur_result_t redefinedProgramRetain(void *) {
   ++TestCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEventRetain(pi_event c) {
+static ur_result_t redefinedEventRetain(void *) {
   ++TestCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedMemRetain(pi_mem c) {
+static ur_result_t redefinedMemRetain(void *) {
   ++TestCounter;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
-                                   void *, pi_mem *,
-                                   const pi_mem_properties *) {
-  return PI_SUCCESS;
-}
+ur_result_t redefinedMemBufferCreate(void *) { return UR_RESULT_SUCCESS; }
 
-pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  EXPECT_EQ(param_name, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+ur_result_t redefinedEventGetInfo(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unexpected event info requested";
   // Report half of events as complete
   static int Counter = 0;
-  auto *Result = reinterpret_cast<pi_event_status *>(param_value);
-  *Result = (++Counter % 2 == 0) ? PI_EVENT_COMPLETE : PI_EVENT_RUNNING;
-  return PI_SUCCESS;
+  auto *Result = reinterpret_cast<ur_event_status_t *>(*params.ppPropValue);
+  *Result =
+      (++Counter % 2 == 0) ? UR_EVENT_STATUS_COMPLETE : UR_EVENT_STATUS_RUNNING;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, const void *,
-                                           size_t, size_t, pi_uint32,
-                                           const pi_event *, pi_event *event) {
-  *event = reinterpret_cast<pi_event>(new int{});
-  return PI_SUCCESS;
+static ur_result_t redefinedEnqueueUSMFill(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
+  **params.pphEvent = reinterpret_cast<ur_event_handle_t>(new int{});
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(GetNative, GetNativeHandle) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
-  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  Mock.redefineBefore<detail::PiApiKind::piContextRetain>(
-      redefinedContextRetain);
-  Mock.redefineBefore<detail::PiApiKind::piQueueRetain>(redefinedQueueRetain);
-  Mock.redefineBefore<detail::PiApiKind::piDeviceRetain>(redefinedDeviceRetain);
-  Mock.redefineBefore<detail::PiApiKind::piProgramRetain>(
-      redefinedProgramRetain);
-  Mock.redefineBefore<detail::PiApiKind::piEventRetain>(redefinedEventRetain);
-  Mock.redefineBefore<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
-      redefinedMemBufferCreate);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
-      redefinedUSMEnqueueMemset);
+  mock::getCallbacks().set_before_callback("urEventGetInfo",
+                                           &redefinedEventGetInfo);
+  mock::getCallbacks().set_before_callback("urContextRetain",
+                                           &redefinedContextRetain);
+  mock::getCallbacks().set_before_callback("urQueueRetain",
+                                           &redefinedQueueRetain);
+  mock::getCallbacks().set_before_callback("urDeviceRetain",
+                                           &redefinedDeviceRetain);
+  mock::getCallbacks().set_before_callback("urProgramRetain",
+                                           &redefinedProgramRetain);
+  mock::getCallbacks().set_before_callback("urEventRetain",
+                                           &redefinedEventRetain);
+  mock::getCallbacks().set_before_callback("urMemRetain", &redefinedMemRetain);
+  mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                           &redefinedMemBufferCreate);
+  mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
+                                           &redefinedEnqueueUSMFill);
 
   context Context(Plt);
   queue Queue(Context, default_selector_v);
@@ -122,7 +121,7 @@ TEST(GetNative, GetNativeHandle) {
   get_native<backend::opencl>(Event);
   get_native<backend::opencl>(Buffer);
 
-  // Depending on global caches state, piDeviceRetain is called either once or
+  // Depending on global caches state, urDeviceRetain is called either once or
   // twice, so there'll be 6 or 7 calls.
   ASSERT_EQ(TestCounter, 6 + DeviceRetainCounter - 1)
       << "Not all the retain methods were called";

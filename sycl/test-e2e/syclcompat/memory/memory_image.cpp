@@ -20,7 +20,7 @@
  *    3D memory copy tests for new image/memcpy_parameter API
  **************************************************************************/
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // FIXME(@intel/syclcompat-lib-reviewers): These are some limited tests for the

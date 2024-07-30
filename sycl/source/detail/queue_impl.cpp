@@ -11,7 +11,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <cstring>
@@ -44,23 +44,22 @@ public:
   ~NestedCallsTracker() { NestedCallsDetector = false; }
 };
 
-static std::vector<sycl::detail::pi::PiEvent>
-getPIEvents(const std::vector<sycl::event> &DepEvents) {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+static std::vector<ur_event_handle_t>
+getUrEvents(const std::vector<sycl::event> &DepEvents) {
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
     const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
     if (EventImpl->getHandleRef() != nullptr)
-      RetPiEvents.push_back(EventImpl->getHandleRef());
+      RetUrEvents.push_back(EventImpl->getHandleRef());
   }
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
-  sycl::detail::pi::PiResult result = PI_SUCCESS;
-  getPlugin()->call<PiApiKind::piQueueGetInfo>(
-      MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-      nullptr);
+  ur_result_t result = UR_RESULT_SUCCESS;
+  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
+                    sizeof(result), &result, nullptr);
   return result;
 }
 
@@ -234,7 +233,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice,
+                             ur_usm_advice_flags_t Advice,
                              const std::vector<event> &DepEvents,
                              bool CallerNeedsEvent) {
   return submitMemOpHelper(
@@ -302,11 +301,11 @@ void queue_impl::addEvent(const event &Event) {
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
-    // unable to call piQueueFinish during wait.
+    // unable to call urQueueFinish during wait.
     if (MEmulateOOO)
       addSharedEvent(Event);
   }
-  // As long as the queue supports piQueueFinish we only need to store events
+  // As long as the queue supports urQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
   else if (MEmulateOOO || EImpl->getHandleRef() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
@@ -365,15 +364,15 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   // Scheduler will later omit events, that are not required to execute tasks.
   // Host and interop tasks, however, are not submitted to low-level runtimes
   // and require separate dependency management.
-  const CG::CGTYPE Type = Handler.getType();
+  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
   event Event = detail::createSyclObjFromImpl<event>(
       std::make_shared<detail::event_impl>());
   std::vector<StreamImplPtr> Streams;
-  if (Type == CG::Kernel)
+  if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
   if (PostProcess) {
-    bool IsKernel = Type == CG::Kernel;
+    bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
     if (IsKernel)
@@ -439,7 +438,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       if ((MDiscardEvents || !CallerNeedsEvent) &&
           supportsDiscardingPiEvents()) {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
         return createDiscardedEvent();
       }
@@ -448,7 +447,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   &EventImpl->getHandleRef(), EventImpl);
       }
 
@@ -457,7 +456,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
                                                 : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
-      // Track only if we won't be able to handle it with piQueueFinish.
+      // Track only if we won't be able to handle it with urQueueFinish.
       if (MEmulateOOO)
         addSharedEvent(ResEvent);
       return discard_or_return(ResEvent);
@@ -596,13 +595,13 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   // multiple in-order queues as a result of that), wait for each event
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
-  // then handle the rest with piQueueFinish.
+  // then handle the rest with urQueueFinish.
   const bool SupportsPiFinish = !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock()) {
-      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
       if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
@@ -611,7 +610,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   }
   if (SupportsPiFinish) {
     const PluginPtr &Plugin = getPlugin();
-    Plugin->call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    Plugin->call(urQueueFinish, getHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -632,13 +631,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
+ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
   const PluginPtr &Plugin = getPlugin();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
-  pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
-                                                     &NativeHandleDesc);
+    Plugin->call(urQueueRetain, MQueues[0]);
+  ur_native_handle_t Handle{};
+  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
+                                      nullptr, nullptr};
+  UrNativeDesc.pNativeData = &NativeHandleDesc;
+
+  Plugin->call(urQueueGetNativeHandle, MQueues[0], &UrNativeDesc, &Handle);
   return Handle;
 }
 
@@ -666,11 +668,10 @@ bool queue_impl::ext_oneapi_empty() const {
              info::event_command_status::complete;
   }
 
-  // Check the status of the backend queue.
-  pi_bool IsReady = false;
-  getPlugin()->call<PiApiKind::piQueueGetInfo>(
-      MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
-      nullptr);
+  // Check the status of the backend queue if this is not a host queue.
+  ur_bool_t IsReady = false;
+  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_EMPTY,
+                    sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;
 
