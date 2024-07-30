@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES:  gpu-intel-pvc
+// REQUIRES:  arch-intel_gpu_pvc
 // RUN: %{build} -fsycl-device-code-split=per_kernel -D__ESIMD_GATHER_SCATTER_LLVM_IR  -o %t.out
 // RUN: %{run} %t.out
 // The test verifies esimd::prefetch() functions accepting accessor

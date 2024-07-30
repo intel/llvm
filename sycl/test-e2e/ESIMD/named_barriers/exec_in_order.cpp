@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -o %t1.out -DEXP
-// RUN: %{run} %t1.out
+
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Threads are executed in ascending order of their local ID and each thread
@@ -19,11 +18,7 @@
 
 #include "../esimd_test_utils.hpp"
 
-#ifdef EXP
-#define NS __ESIMD_ENS
-#else
 #define NS __ESIMD_NS
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

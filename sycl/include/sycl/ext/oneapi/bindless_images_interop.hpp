@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_uint64
+#include <ur_api.h>
 
 #include <stddef.h> // for size_t
 
@@ -32,13 +32,13 @@ enum class external_semaphore_handle_type {
 
 /// Opaque interop memory handle type
 struct interop_mem_handle {
-  using raw_handle_type = pi_uint64;
+  using raw_handle_type = ur_exp_interop_mem_handle_t;
   raw_handle_type raw_handle;
 };
 
 /// Opaque interop semaphore handle type
 struct interop_semaphore_handle {
-  using raw_handle_type = pi_uint64;
+  using raw_handle_type = ur_exp_interop_semaphore_handle_t;
   raw_handle_type raw_handle;
   external_semaphore_handle_type handle_type;
 };
@@ -69,24 +69,6 @@ template <typename ResourceType> struct external_mem_descriptor {
 template <typename ResourceType> struct external_semaphore_descriptor {
   ResourceType external_resource;
   external_semaphore_handle_type handle_type;
-};
-
-/// EVERYTHING BELOW IS DEPRECATED
-
-/// External memory file descriptor type
-struct external_mem_fd {
-  int file_descriptor;
-};
-
-/// Windows external memory type
-struct external_mem_win32 {
-  void *handle;
-  const void *name;
-};
-
-/// External semaphore file descriptor type
-struct external_semaphore_fd {
-  int file_descriptor;
 };
 
 } // namespace ext::oneapi::experimental

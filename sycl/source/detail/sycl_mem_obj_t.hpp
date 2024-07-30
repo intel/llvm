@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
@@ -65,27 +66,26 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+      : SYCLMemObjT(ur::cast<ur_native_handle_t>(MemObject), SyclContext,
                     /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              sycl::detail::pi::PiMemImageChannelOrder Order,
-              sycl::detail::pi::PiMemImageChannelType Type,
-              range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
+              ur_image_format_t Format, range<3> Range3WithOnes,
+              unsigned Dimensions, size_t ElementSize);
 
   virtual ~SYCLMemObjT() = default;
 
@@ -249,10 +249,9 @@ public:
     MHostPtrReadOnly = IsConstPtr;
     setAlign(RequiredAlign);
     if (useHostPtr())
-      throw runtime_error(
-          "Buffer constructor from a pair of iterator values does not support "
-          "use_host_ptr property.",
-          PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::invalid),
+                      "Buffer constructor from a pair of iterator values does "
+                      "not support use_host_ptr property.");
 
     setAlign(RequiredAlign);
     MShadowCopy = allocateHostMem();
@@ -266,18 +265,17 @@ public:
   }
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     pi_native_handle MemObject);
+                                     ur_native_handle_t MemObject);
 
   void handleWriteAccessorCreation();
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr,
-                    sycl::detail::pi::PiEvent &InteropEvent) override {
+                    void *HostPtr, ur_event_handle_t &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
     (void)InteropEvent;
-    throw runtime_error("Not implemented", PI_ERROR_INVALID_OPERATION);
+    throw exception(make_error_code(errc::runtime), "Not implemented");
   }
 
   MemObjType getType() const override { return MemObjType::Undefined; }
@@ -324,7 +322,9 @@ public:
 
   /// Returns true if any graphs are currently using this memory object.
   bool isUsedInGraph() const { return MGraphUseCount > 0; }
-
+ 
+  const property_list &getPropList() const { return MProps; }
+ 
 protected:
   // An allocateMem helper that determines which host ptr to use
   void determineHostPtr(bool InitFromUserData, void *&HostPtr,
@@ -341,7 +341,7 @@ protected:
   ContextImplPtr MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  sycl::detail::pi::PiMem MInteropMemObject;
+  ur_mem_handle_t MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;

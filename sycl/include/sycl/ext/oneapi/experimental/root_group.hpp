@@ -115,8 +115,8 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
 #else
   (void)G;
   (void)FenceScope;
-  throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::runtime),
+                        "Barriers are not supported on host");
 #endif
 }
 

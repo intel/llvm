@@ -17,15 +17,9 @@ themselves with the core SYCL API.
 * Clear distinction between core SYCL API and the compatibility interface via
 separate namespaces.
 
-## Important Disclaimer
-
-SYCLcompat state is experimental. Its functionalities have been implemented but
-are not assured to remain consistent in the future. The API is subject to
-potential disruptions with new updates, so exercise caution when using it.
-
 ## Notice
 
-Copyright © 2023-2023 Codeplay Software Limited. All rights reserved.
+Copyright © 2023-2024 Codeplay Software Limited. All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
 The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
@@ -71,6 +65,55 @@ import the <sycl/sycl.hpp> header.
 This document presents the public API under the [Features](#features) section,
 and provides a working [Sample code](#sample-code) using this library. Refer to
 those to learn to use the library.
+
+## Versioning
+
+SYCLcompat adopts [semantic versioning](https://semver.org/)
+(`major.minor.patch`) in a manner which aligns with oneAPI releases. Each oneAPI
+product release has an associated SYCLcompat release. Between oneAPI releases,
+there will be at most one `major` or `minor` bump. In other words, if a given
+oneAPI release has SYCLcompat version `1.0.0`, the next release will have either
+`1.1.0` or, if breaking changes have been made, `2.0.0`. This guarantee has
+implications for code merged to the `sycl` branch, described below.
+
+Between release cycles, ongoing updates to SYCLcompat (including possibly
+breaking changes) are merged into DPC++ via PRs to the
+[`sycl`](https://github.com/intel/llvm/tree/sycl) branch. If a PR introduces the
+*first* breaking changes since the last release, that PR must bump to the next
+`major` version. Otherwise, if the PR introduces *new functionality* and neither
+the `major` nor `minor` have been bumped since the last release, it must bump to
+the next `minor` release. If a PR introduces important bugfixes to existing
+functionality, `patch` should be bumped, and there are no limits to how many
+`patch` bumps can occur between release cycles.
+
+### Release Process
+
+Once all changes planned for a release have been merged, the release process is
+defined as:
+
+1. Check the `major.minor` version associated with the *previous* release.
+2. Confirm the version bump process outlined above has been followed.
+3. If no version bump has occurred since previous release, bump to next `minor`.
+4. oneAPI release is delivered.
+5. Tag the SYCLcompat release on DPC++ repo: `SYCLcompat-major.minor.0`.
+
+### Deprecation Process/Breaking Changes
+
+As outlined above, SYCLcompat may sometimes make API breaking changes, indicated
+with a `major` version bump. Advanced notice (at least one major oneAPI release)
+will be provided via a deprecation warning on the relevant APIs, indicating to
+the user which alternative API should be used instead.
+
+Note that SYCLcompat is currently in pre-release, and until version `1.0.0` we
+do not consider our API to be stable, and may change it with shorter notice.
+
+### Changelog
+
+Since SYCLcompat releases are aligned with oneAPI product releases, the changelog for SYCLcompat is incorporated into [SYCL's Release Notes](https://github.com/intel/llvm/blob/sycl/sycl/ReleaseNotes.md).
+
+### Experimental Namespace
+
+SYCLcompat provides some new experimental features in the `syclcompat::experimental` namespace. This serves as a testing ground for new features which are expected to migrate to `syclcompat::` in time, but the developers do not guarantee either API stability or continued existence of these features; they may be modified or removed without notice. When features are migrated from `syclcompat::experimental` to `syclcompat::`, this will be treated as a `minor` version bump.
 
 ## Features
 

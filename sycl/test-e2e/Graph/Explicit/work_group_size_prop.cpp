@@ -6,14 +6,16 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 
-// Temporarily disabled for CUDA and OpenCL
+// Temporarily disabled for CUDA and HIP
+// Note: failing negative test with HIP in the original test
+// XFAIL: cuda, hip
+
+// Intended OpenCL fail due to backend:
 // The OpenCL emulation layer does not return `CL_INVALID_WORK_GROUP_SIZE` as it
 // should. So the Sycl graph support cannot correctly catch the error and throw
-// the approriate exception for negative test. An issue has been reported
+// the appropriate exception for negative test. An issue has been reported
 // https://github.com/bashbaug/SimpleOpenCLSamples/issues/95
-// XFAIL: cuda, hip
 // UNSUPPORTED: opencl
-// Note: failing negative test with HIP in the original test
 
 #define GRAPH_E2E_EXPLICIT
 
