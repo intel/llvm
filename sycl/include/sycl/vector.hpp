@@ -37,7 +37,6 @@
 #include <sycl/detail/type_list.hpp>      // for is_contained
 #include <sycl/detail/type_traits.hpp>    // for is_floating_point
 #include <sycl/detail/vector_convert.hpp> // for convertImpl
-#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
 #include <sycl/half_type.hpp>             // for StorageT, half, Vec16...
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
