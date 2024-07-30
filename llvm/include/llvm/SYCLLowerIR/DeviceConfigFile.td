@@ -53,8 +53,8 @@ def AspectExt_oneapi_bindless_images : Aspect<"ext_oneapi_bindless_images">;
 def AspectExt_oneapi_bindless_images_shared_usm : Aspect<"ext_oneapi_bindless_images_shared_usm">;
 def AspectExt_oneapi_bindless_images_1d_usm : Aspect<"ext_oneapi_bindless_images_1d_usm">;
 def AspectExt_oneapi_bindless_images_2d_usm : Aspect<"ext_oneapi_bindless_images_2d_usm">;
-def AspectExt_oneapi_interop_memory_import : Aspect<"ext_oneapi_interop_memory_import">;
-def AspectExt_oneapi_interop_semaphore_import : Aspect<"ext_oneapi_interop_semaphore_import">;
+def AspectExt_oneapi_external_memory_import : Aspect<"ext_oneapi_external_memory_import">;
+def AspectExt_oneapi_external_semaphore_import : Aspect<"ext_oneapi_external_semaphore_import">;
 def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
 def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
 def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
@@ -129,9 +129,9 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
     AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
-    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_semaphore_import,
+    AspectExt_oneapi_external_memory_import, AspectExt_oneapi_external_semaphore_import,
     AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference,
-    AspectExt_oneapi_bindless_sampled_image_fetch_3d, AspectExt_oneapi_cubemap, 
+    AspectExt_oneapi_cubemap, 
     AspectExt_oneapi_cubemap_seamless_filtering, 
     AspectExt_oneapi_image_array,
     AspectExt_oneapi_unique_addressing_per_dim,
@@ -139,6 +139,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_images_sample_2d_usm,
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
+    AspectExt_oneapi_bindless_sampled_image_fetch_3d,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component, 
@@ -218,8 +219,8 @@ defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, Aspec
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
 // Bindless images aspects are partially supported on CUDA and disabled by default at the moment.
 defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images, AspectExt_oneapi_bindless_images_shared_usm,
-    AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_interop_memory_import,
-    AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy,
+    AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_external_memory_import,
+    AspectExt_oneapi_external_semaphore_import, AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy,
     AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, AspectExt_oneapi_cubemap_seamless_filtering,
     AspectExt_oneapi_image_array, AspectExt_oneapi_unique_addressing_per_dim, AspectExt_oneapi_bindless_images_sample_2d_usm,
     AspectExt_oneapi_bindless_images_sample_2d_usm];

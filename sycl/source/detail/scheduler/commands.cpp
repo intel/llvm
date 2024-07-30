@@ -3313,7 +3313,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
                  OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
@@ -3327,7 +3327,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
                  OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;

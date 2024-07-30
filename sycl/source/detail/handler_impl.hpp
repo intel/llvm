@@ -134,7 +134,7 @@ public:
   ur_rect_region_t MCopyExtent;
 
   // Extra information for semaphore interoperability
-  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 

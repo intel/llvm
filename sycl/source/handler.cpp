@@ -483,14 +483,14 @@ event handler::finalize() {
         std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::SemaphoreWait:
-    CommandGroup.reset(new detail::CGSemaphoreWait(
-        impl->MInteropSemaphoreHandle, impl->MWaitValue,
-        std::move(impl->CGData), MCodeLoc));
+    CommandGroup.reset(
+        new detail::CGSemaphoreWait(impl->MExternalSemaphore, impl->MWaitValue,
+                                    std::move(impl->CGData), MCodeLoc));
     break;
   case detail::CGType::SemaphoreSignal:
     CommandGroup.reset(new detail::CGSemaphoreSignal(
-        impl->MInteropSemaphoreHandle, impl->MSignalValue,
-        std::move(impl->CGData), MCodeLoc));
+        impl->MExternalSemaphore, impl->MSignalValue, std::move(impl->CGData),
+        MCodeLoc));
     break;
   case detail::CGType::None:
     if (detail::ur::trace()) {
@@ -1417,14 +1417,14 @@ void handler::ext_oneapi_copy(
 }
 
 void handler::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+    sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (SemaphoreHandle.handle_type !=
+  if (ExtSemaphore.handle_type !=
           sycl::ext::oneapi::experimental::external_semaphore_handle_type::
               opaque_fd &&
-      SemaphoreHandle.handle_type !=
+      ExtSemaphore.handle_type !=
           sycl::ext::oneapi::experimental::external_semaphore_handle_type::
               win32_nt_handle) {
     throw sycl::exception(
@@ -1432,19 +1432,19 @@ void handler::ext_oneapi_wait_external_semaphore(
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed wait value.");
   }
-  impl->MInteropSemaphoreHandle =
-      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
+  impl->MExternalSemaphore =
+      (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = {};
   setType(detail::CGType::SemaphoreWait);
 }
 
 void handler::ext_oneapi_wait_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore,
     uint64_t WaitValue) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (SemaphoreHandle.handle_type !=
+  if (ExtSemaphore.handle_type !=
       sycl::ext::oneapi::experimental::external_semaphore_handle_type::
           win32_nt_dx12_fence) {
     throw sycl::exception(
@@ -1452,21 +1452,21 @@ void handler::ext_oneapi_wait_external_semaphore(
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed wait values.");
   }
-  impl->MInteropSemaphoreHandle =
-      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
+  impl->MExternalSemaphore =
+      (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MWaitValue = WaitValue;
   setType(detail::CGType::SemaphoreWait);
 }
 
 void handler::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+    sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (SemaphoreHandle.handle_type !=
+  if (ExtSemaphore.handle_type !=
           sycl::ext::oneapi::experimental::external_semaphore_handle_type::
               opaque_fd &&
-      SemaphoreHandle.handle_type !=
+      ExtSemaphore.handle_type !=
           sycl::ext::oneapi::experimental::external_semaphore_handle_type::
               win32_nt_handle) {
     throw sycl::exception(
@@ -1474,19 +1474,19 @@ void handler::ext_oneapi_signal_external_semaphore(
         "Invalid type of semaphore for this operation. The "
         "type of semaphore used needs a user passed signal value.");
   }
-  impl->MInteropSemaphoreHandle =
-      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
+  impl->MExternalSemaphore =
+      (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = {};
   setType(detail::CGType::SemaphoreSignal);
 }
 
 void handler::ext_oneapi_signal_external_semaphore(
-    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+    sycl::ext::oneapi::experimental::external_semaphore ExtSemaphore,
     uint64_t SignalValue) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  if (SemaphoreHandle.handle_type !=
+  if (ExtSemaphore.handle_type !=
       sycl::ext::oneapi::experimental::external_semaphore_handle_type::
           win32_nt_dx12_fence) {
     throw sycl::exception(
@@ -1494,8 +1494,8 @@ void handler::ext_oneapi_signal_external_semaphore(
         "Invalid type of semaphore for this operation. The "
         "type of semaphore does not support user passed signal values.");
   }
-  impl->MInteropSemaphoreHandle =
-      (ur_exp_interop_semaphore_handle_t)SemaphoreHandle.raw_handle;
+  impl->MExternalSemaphore =
+      (ur_exp_external_semaphore_handle_t)ExtSemaphore.raw_handle;
   impl->MSignalValue = SignalValue;
   setType(detail::CGType::SemaphoreSignal);
 }

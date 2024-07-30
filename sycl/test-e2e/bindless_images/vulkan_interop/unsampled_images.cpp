@@ -19,12 +19,12 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 // Helpers and utilities
 namespace util {
 struct handles_t {
-  syclexp::interop_mem_handle input_interop_mem_handle_1,
-      input_interop_mem_handle_2, output_interop_mem_handle;
+  syclexp::external_mem input_external_mem_1, input_external_mem_2,
+      output_external_mem;
   syclexp::image_mem_handle input_mem_handle_1, input_mem_handle_2,
       output_mem_handle;
-  syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle,
-      sycl_done_interop_semaphore_handle;
+  syclexp::external_semaphore sycl_wait_external_semaphore,
+      sycl_done_external_semaphore;
   syclexp::unsampled_image_handle input_1, input_2, output;
 };
 
@@ -66,23 +66,20 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 #endif
 
   // Extension: create interop memory handles
-  syclexp::interop_mem_handle input_interop_mem_handle_1 =
+  syclexp::external_mem input_external_mem_1 =
       syclexp::import_external_memory(input_ext_mem_desc_1, dev, ctxt);
-  syclexp::interop_mem_handle input_interop_mem_handle_2 =
+  syclexp::external_mem input_external_mem_2 =
       syclexp::import_external_memory(input_ext_mem_desc_2, dev, ctxt);
-  syclexp::interop_mem_handle output_interop_mem_handle =
+  syclexp::external_mem output_external_mem =
       syclexp::import_external_memory(output_ext_mem_desc, dev, ctxt);
 
   // Extension: map image memory handles
   syclexp::image_mem_handle input_mapped_mem_handle_1 =
-      syclexp::map_external_image_memory(input_interop_mem_handle_1, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(input_external_mem_1, desc, dev, ctxt);
   syclexp::image_mem_handle input_mapped_mem_handle_2 =
-      syclexp::map_external_image_memory(input_interop_mem_handle_2, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(input_external_mem_2, desc, dev, ctxt);
   syclexp::image_mem_handle output_mapped_mem_handle =
-      syclexp::map_external_image_memory(output_interop_mem_handle, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(output_external_mem, desc, dev, ctxt);
 
   // Extension: create the image and return the handle
   syclexp::unsampled_image_handle input_1 =
@@ -113,31 +110,31 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
           syclexp::external_semaphore_handle_type::opaque_fd};
 #endif
 
-  syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle =
+  syclexp::external_semaphore sycl_wait_external_semaphore =
       syclexp::import_external_semaphore(sycl_wait_external_semaphore_desc, dev,
                                          ctxt);
-  syclexp::interop_semaphore_handle sycl_done_interop_semaphore_handle =
+  syclexp::external_semaphore sycl_done_external_semaphore =
       syclexp::import_external_semaphore(sycl_done_external_semaphore_desc, dev,
                                          ctxt);
 
-  return {input_interop_mem_handle_1,
-          input_interop_mem_handle_2,
-          output_interop_mem_handle,
+  return {input_external_mem_1,
+          input_external_mem_2,
+          output_external_mem,
           input_mapped_mem_handle_1,
           input_mapped_mem_handle_2,
           output_mapped_mem_handle,
-          sycl_wait_interop_semaphore_handle,
-          sycl_done_interop_semaphore_handle,
+          sycl_wait_external_semaphore,
+          sycl_done_external_semaphore,
           input_1,
           input_2,
           output};
 }
 
 void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
-  syclexp::release_external_semaphore(
-      handles.sycl_wait_interop_semaphore_handle, dev, ctxt);
-  syclexp::release_external_semaphore(
-      handles.sycl_done_interop_semaphore_handle, dev, ctxt);
+  syclexp::release_external_semaphore(handles.sycl_wait_external_semaphore, dev,
+                                      ctxt);
+  syclexp::release_external_semaphore(handles.sycl_done_external_semaphore, dev,
+                                      ctxt);
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
@@ -147,12 +144,9 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
                           syclexp::image_type::standard, dev, ctxt);
   syclexp::free_image_mem(handles.output_mem_handle,
                           syclexp::image_type::standard, dev, ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
-                                   ctxt);
+  syclexp::release_external_memory(handles.input_external_mem_1, dev, ctxt);
+  syclexp::release_external_memory(handles.input_external_mem_2, dev, ctxt);
+  syclexp::release_external_memory(handles.output_external_mem, dev, ctxt);
 }
 
 template <typename InteropMemHandleT, typename InteropSemHandleT, int NDims,
@@ -182,8 +176,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
       sycl_done_semaphore_handle, img_size, desc);
 
   // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(
-      handles.sycl_wait_interop_semaphore_handle);
+  q.ext_oneapi_wait_external_semaphore(handles.sycl_wait_external_semaphore);
 
   try {
     q.submit([&](sycl::handler &cgh) {
@@ -246,7 +239,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
     // Extension: signal imported semaphore
     q.submit([&](sycl::handler &cgh) {
       cgh.ext_oneapi_signal_external_semaphore(
-          handles.sycl_done_interop_semaphore_handle);
+          handles.sycl_done_external_semaphore);
     });
 
     // Wait for kernel completion before destroying external objects
