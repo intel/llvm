@@ -11,6 +11,7 @@ add_adapter_test(hip
         urDeviceGetNativeHandle.cpp
         urEventGetNativeHandle.cpp
         test_context.cpp
+        test_event.cpp
     ENVIRONMENT
         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_hip>\""
 )
