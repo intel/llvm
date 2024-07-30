@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <type_traits>
 
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
