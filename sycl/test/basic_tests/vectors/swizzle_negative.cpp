@@ -1,4 +1,3 @@
-// REQUIRES: preview-breaking-changes-supported
 // RUN: %clangxx -fsycl-device-only -ferror-limit=0 -Xclang -fsycl-is-device -fsyntax-only -fpreview-breaking-changes -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 #include <sycl/detail/core.hpp>
@@ -93,6 +92,14 @@ int main() {
     X.swizzle<0>().load(
         0, sycl::address_space_cast<sycl::access::address_space::private_space,
                                     sycl::access::decorated::no>(&I));
+
+    sycl::vec<int, 4> v2;
+    // expected-error@+1 {{no viable overloaded '+='}}
+    v2.swizzle<0, 0>() += 1;
+    // expected-error@+1 {{cannot increment value of type}}
+    v2.swizzle<0, 0>()++;
+    // expected-error@+1 {{cannot increment value of type}}
+    ++v2.swizzle<0, 0>();
   });
   return 0;
 }
