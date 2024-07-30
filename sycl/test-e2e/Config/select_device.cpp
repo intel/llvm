@@ -1,5 +1,5 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=return-type -o %t.out
 //
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
