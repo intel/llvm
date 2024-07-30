@@ -121,7 +121,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon Jul 29 16:44:58 2024 +0100
   #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
   #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG 6935b17da9a0529c3db2098ab2a63a73e63edac1)
+  set(UNIFIED_RUNTIME_TAG c86beb60ba9c210011635f030e418289f221e2cb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
