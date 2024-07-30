@@ -34,18 +34,17 @@ sycl/doc/design/ @intel/llvm-reviewers-runtime
 sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
-# Unified Runtime 
-sycl/plugins @intel/unified-runtime-reviewers
+# Unified Runtime
+sycl/cmake/modules/FetchUnifiedRuntime.cmake @intel/unified-runtime-reviewers
+sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
+sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
+sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
+sycl/source/detail/windows_ur.cpp @intel/unified-runtime-reviewers
 sycl/test-e2e/Plugin/ @intel/unified-runtime-reviewers
 
 # Win Proxy Loader
 sycl/pi_win_proxy_loader @intel/llvm-reviewers-runtime
-sycl/plugins/common_win_pi_trace @intel/llvm-reviewers-runtime
 sycl/test-e2e/Plugin/dll-detach-order.cpp @intel/llvm-reviewers-runtime
-
-# CUDA and HIP plugins
-sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
-sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
@@ -149,7 +148,6 @@ sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
 sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
 sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
-sycl/plugins/unified_runtime/ur/adapters/**/image.* @intel/bindless-images-reviewers
 sycl/test/check_device_code/extensions/bindless_images.cpp @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
 
