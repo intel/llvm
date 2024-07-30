@@ -300,16 +300,6 @@ jobs:
           awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
         fi
         exit $exit_code
-    - name: List excluded SYCL CTS categories
-      if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
-      run: |
-        cts_exclude_filter=""
-        if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
-          cts_exclude_filter=cts_exclude_filter_OCL_CPU
-        elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
-          cts_exclude_filter=cts_exclude_filter_L0_GPU
-        fi
-        cat $PWD/devops/$cts_exclude_filter
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
@@ -323,6 +313,9 @@ jobs:
           elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
           fi
+
+          # List excluded SYCL CTS categories
+          cat $cts_exclude_filter
         fi
 
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
