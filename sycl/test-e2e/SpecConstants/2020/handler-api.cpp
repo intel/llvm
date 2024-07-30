@@ -7,7 +7,7 @@
 // - test that specialization constant values can be set within command group
 //   scope and correctly retrieved within a kernel
 
-// RUN: %{build} -o %t.out -fsycl-dead-args-optimization
+// RUN: %{build} -Wno-error=unused-command-line-argument -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 
 // FIXME: ACC devices use emulation path, which is not yet supported
