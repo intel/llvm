@@ -1092,7 +1092,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
   std::ignore = offset;
   std::ignore = hExternalMem;
   std::ignore = phRetMem;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+  logger::error("[UR][L0] {} function not implemented!",
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
