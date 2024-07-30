@@ -425,7 +425,6 @@ struct UnaryOpMixin {};
   __SYCL_BINARY_OP_MIXIN(std::logical_and<void>             , &&)
   __SYCL_BINARY_OP_MIXIN(std::logical_or<void>              , ||)
 
-  // TODO: versions for std::byte
   __SYCL_BINARY_OP_AND_OPASSIGN_MIXIN(ShiftLeft             , <<, <<=)
   __SYCL_BINARY_OP_AND_OPASSIGN_MIXIN(ShiftRight            , >>, >>=)
 
@@ -580,7 +579,7 @@ public:
     }
   }
   template <typename T, typename OpTy> auto operator()(const T &X, OpTy &&Op) {
-    // TODO: optimized device impl.
+    static_assert(is_vec_v<T>);
     constexpr bool is_logical = std::is_same_v<OpTy, std::logical_not<void>>;
     if constexpr (is_logical) {
       vec<detail::select_cl_scalar_integral_signed_t<typename T::element_type>,
@@ -589,11 +588,14 @@ public:
       for (int i = 0; i < T::size(); ++i)
         tmp[i] = Op(X[i]) ? -1 : 0;
       return tmp;
-    } else {
+    } else if constexpr (is_host ||
+                         std::is_same_v<bool, typename T::element_type>) {
       T tmp;
       for (int i = 0; i < T::size(); ++i)
         tmp[i] = Op(X[i]);
       return tmp;
+    } else {
+      return T{Op(static_cast<typename T::vector_t>(X))};
     }
   }
 };
