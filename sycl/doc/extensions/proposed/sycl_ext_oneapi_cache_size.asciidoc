@@ -82,7 +82,8 @@ supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 
@@ -92,6 +93,7 @@ A new `enum` is added to describe the four levels of cache:
 
 [source,c++]
 ----
+namespace sycl::ext::oneapi::experimental {
 enum class cache_level : /* unspecified */
 {
     L1 = 1,
@@ -99,6 +101,7 @@ enum class cache_level : /* unspecified */
     L3 = 3,
     L4 = 4,
 };
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 
