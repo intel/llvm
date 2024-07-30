@@ -670,7 +670,6 @@ TEST_F(CommandGraphTest, TransitiveRecordingWrongDevice) {
   queue Q1{Ctx, Dev1};
   queue Q2{Ctx, Dev2};
 
-  ASSERT_EQ(Dev1, Dev2);
   ext::oneapi::experimental::command_graph Graph{Q1.get_context(),
                                                  Q1.get_device()};
   Graph.begin_recording(Q1);

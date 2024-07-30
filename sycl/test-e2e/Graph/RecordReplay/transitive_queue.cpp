@@ -20,8 +20,8 @@ int main() {
   queue Q2{Ctx, Dev};
   queue Q3{Ctx, Dev};
 
-  exp_ext::queue_state Recording = exp_ext::queue_state::recording;
-  exp_ext::queue_state Executing = exp_ext::queue_state::executing;
+  const exp_ext::queue_state Recording = exp_ext::queue_state::recording;
+  const exp_ext::queue_state Executing = exp_ext::queue_state::executing;
 
   auto assertQueueState = [&](exp_ext::queue_state ExpectedQ1,
                               exp_ext::queue_state ExpectedQ2,
