@@ -136,7 +136,8 @@ implementation of this extension.  It is not part of the specification of the
 extension's API.
 
 CUDA exposes an `l2CacheSize` property via the `cudaDeviceProp` struct, which
-could be used to implement the size query for `cache_level::L2`.
+could be used to implement the size query for `cache_level::L2`. Other sizes
+could be derived from the Compute Capability.
 
 
 == Issues
