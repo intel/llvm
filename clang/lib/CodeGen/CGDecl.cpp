@@ -216,7 +216,8 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
   if (D.getType().getAddressSpace() == LangAS::opencl_local)
     return CGM.getOpenCLRuntime().EmitWorkGroupLocalVarDecl(*this, D);
 
-  if (D.getAttr<SYCLScopeAttr>() && D.getAttr<SYCLScopeAttr>()->isWorkGroup())
+  if ((D.getAttr<SYCLScopeAttr>() && D.getAttr<SYCLScopeAttr>()->isWorkGroup()) ||
+       D.getType().getAddressSpace() == LangAS::sycl_local)
     return CGM.getSYCLRuntime().emitWorkGroupLocalVarDecl(*this, D);
 
   assert(D.hasLocalStorage());

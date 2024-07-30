@@ -257,6 +257,7 @@ public:
   ur_kernel_cache_config_t MKernelCacheConfig;
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
+  size_t MKernelWorkGroupMemorySize = 0;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -267,6 +268,7 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
+               size_t KernelWorkGroupMemorySize,
                detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
@@ -276,7 +278,8 @@ public:
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
-        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
+        MKernelUsesClusterLaunch(MKernelUsesClusterLaunch),
+        MKernelWorkGroupMemorySize(KernelWorkGroupMemorySize) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
   }
 

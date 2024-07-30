@@ -12,6 +12,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
@@ -19,7 +20,9 @@ using namespace llvm;
 #define DEBUG_TYPE "LowerWGLocalMemory"
 
 static constexpr char SYCL_ALLOCLOCALMEM_CALL[] = "__sycl_allocateLocalMemory";
+static constexpr char SYCL_DYNAMIC_LOCALMEM_CALL[] = "__sycl_dynamicLocalMemoryPlaceholder";
 static constexpr char LOCALMEMORY_GV_PREF[] = "WGLocalMem";
+static constexpr char DYNAMIC_LOCALMEM_GV[] = "__sycl_dynamicLocalMemoryPlaceholder_GV";
 
 namespace {
 class SYCLLowerWGLocalMemoryLegacy : public ModulePass {
@@ -90,17 +93,38 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   CI->replaceAllUsesWith(GVPtr);
 }
 
-static bool allocaWGLocalMemory(Module &M) {
-  Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
-  if (!ALMFunc)
-    return false;
+static void lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT, GlobalVariable *LocalMemPlaceholder) {
+  assert(CI);
 
-  assert(ALMFunc->isDeclaration() && "should have declaration only");
+  Value *GVPtr = [&]() -> Value* {
+    IRBuilder<> Builder(CI);
+    if (TT.isSPIROrSPIRV()) {
 
+      return Builder.CreateLoad(
+          CI->getType(),
+          LocalMemPlaceholder);
+    } else {
+      Value *ArgAlign = CI->getArgOperand(0);
+      Align RequestedAlignment{
+          cast<llvm::ConstantInt>(ArgAlign)->getZExtValue()};
+      MaybeAlign CurrentAlignment = LocalMemPlaceholder->getAlign();
+      if (!CurrentAlignment.has_value() ||
+          (CurrentAlignment.value() < RequestedAlignment))
+        LocalMemPlaceholder->setAlignment(RequestedAlignment);
+
+      return Builder.CreatePointerCast(LocalMemPlaceholder,
+                                       CI->getType());
+    }
+  }();
+  CI->replaceAllUsesWith(GVPtr);
+}
+
+static void lowerLocalMemCall(Function *LocalMemAllocFunc,
+                              std::function<void(CallInst *CI)> TransformCall) {
   SmallVector<CallInst *, 4> DelCalls;
-  for (User *U : ALMFunc->users()) {
+  for (User *U : LocalMemAllocFunc->users()) {
     auto *CI = cast<CallInst>(U);
-    lowerAllocaLocalMemCall(CI, M);
+    TransformCall(CI);
     DelCalls.push_back(CI);
   }
 
@@ -110,15 +134,66 @@ static bool allocaWGLocalMemory(Module &M) {
   }
 
   // Remove __sycl_allocateLocalMemory declaration.
-  assert(ALMFunc->use_empty() && "__sycl_allocateLocalMemory is still in use");
-  ALMFunc->eraseFromParent();
+  assert(LocalMemAllocFunc->use_empty() &&
+         "local mem allocation function is still in use");
+  LocalMemAllocFunc->eraseFromParent();
+}
+
+static bool allocaWGLocalMemory(Module &M) {
+  Function *ALMFunc = M.getFunction(SYCL_ALLOCLOCALMEM_CALL);
+  if (!ALMFunc)
+    return false;
+
+  assert(ALMFunc->isDeclaration() && "should have declaration only");
+
+  lowerLocalMemCall(ALMFunc,
+                    [&](CallInst *CI) { lowerAllocaLocalMemCall(CI, M); });
+
+  return true;
+}
+
+// For dynamic memory we have 2 case:
+//   - Direct for CUDA/HIP: we create a placeholder and set the memory on launch
+//   - Indirect for OpenCL/Level0: we create a shared value holding the pointer to the buffer passed as argument
+static bool dynamicWGLocalMemory(Module &M) {
+  Function *DLMFunc = M.getFunction(SYCL_DYNAMIC_LOCALMEM_CALL);
+  if (!DLMFunc)
+    return false;
+
+
+  GlobalVariable *LocalMemArrayGV = M.getGlobalVariable(DYNAMIC_LOCALMEM_GV);
+  Triple TT(M.getTargetTriple());
+
+  if (!LocalMemArrayGV) {
+
+    assert(DLMFunc->isDeclaration() && "should have declaration only");
+    unsigned LocalAS = DLMFunc->getReturnType()->getPointerAddressSpace();
+    Type *LocalMemArrayTy = TT.isSPIROrSPIRV() ? static_cast<Type*>(PointerType::get(M.getContext(), LocalAS)) :
+    static_cast<Type*>(ArrayType::get(Type::getInt8Ty(M.getContext()), 0));
+    LocalMemArrayGV =
+        new GlobalVariable(M,                             // module
+                          LocalMemArrayTy,                // type
+                          false,                          // isConstant
+                          GlobalValue::ExternalLinkage,   // Linkage
+                          nullptr,                        // Initializer
+                          DYNAMIC_LOCALMEM_GV,            // Name prefix
+                          nullptr,                        // InsertBefore
+                          GlobalVariable::NotThreadLocal, // ThreadLocalMode
+                          LocalAS                         // AddressSpace
+        );
+  }
+  lowerLocalMemCall(DLMFunc, [&](CallInst *CI) {
+    lowerDynamicLocalMemCallDirect(CI, TT, LocalMemArrayGV);
+  });
 
   return true;
 }
 
 PreservedAnalyses SYCLLowerWGLocalMemoryPass::run(Module &M,
                                                   ModuleAnalysisManager &) {
-  if (allocaWGLocalMemory(M))
+  bool MadeChanges = allocaWGLocalMemory(M);
+  MadeChanges = dynamicWGLocalMemory(M) || MadeChanges;
+  if (MadeChanges)
     return PreservedAnalyses::none();
   return PreservedAnalyses::all();
 }

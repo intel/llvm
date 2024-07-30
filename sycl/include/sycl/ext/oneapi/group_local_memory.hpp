@@ -16,12 +16,6 @@
 
 #include <type_traits> // for enable_if_t
 
-#ifdef __SYCL_DEVICE_ONLY__
-// Request a fixed-size allocation in local address space at kernel scope.
-extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
-__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {

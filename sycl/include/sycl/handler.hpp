@@ -36,6 +36,7 @@
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
@@ -1019,6 +1020,13 @@ private:
           prop.guarantee,
           sycl::ext::oneapi::experimental::execution_scope::work_item,
           prop.coordinationScope);
+    }
+
+    if constexpr (PropertiesT::template has_property<
+                      sycl::ext::oneapi::experimental::work_group_static_size_key>()) {
+      auto WorkGroupMemSize =
+          Props.template get_property<sycl::ext::oneapi::experimental::work_group_static_size_key>();
+      setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 
     checkAndSetClusterRange(Props);
@@ -3672,6 +3680,10 @@ private:
 
   // Set using cuda thread block cluster launch flag and set the launch bounds.
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
+
+  // Set the request work group memory size (work_group_static ext).
+  void setKernelWorkGroupMem(uint32_t Size);
+
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
