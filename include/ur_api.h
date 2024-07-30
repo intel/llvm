@@ -163,7 +163,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141,               ///< Enumerator for ::urBindlessImagesMipmapGetLevelExp
     UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                    ///< Enumerator for ::urBindlessImagesMipmapFreeExp
     UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,             ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
-    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                ///< Enumerator for ::urBindlessImagesReleaseInteropExp
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP = 147,     ///< Enumerator for ::urBindlessImagesReleaseExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,        ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
     UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,      ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
@@ -227,7 +226,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP = 227,      ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreExp
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
-    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 230,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
+    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,        ///< Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 231,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -278,8 +278,8 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC = 0x1003,   ///< ::ur_exp_command_buffer_update_pointer_arg_desc_t
     UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC = 0x1004,     ///< ::ur_exp_command_buffer_update_value_arg_desc_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,                   ///< ::ur_exp_sampler_mip_properties_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,                         ///< ::ur_exp_interop_mem_desc_t
-    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,                   ///< ::ur_exp_interop_semaphore_desc_t
+    UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC = 0x2001,                        ///< ::ur_exp_external_mem_desc_t
+    UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC = 0x2002,                  ///< ::ur_exp_external_semaphore_desc_t
     UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,                          ///< ::ur_exp_file_descriptor_t
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,                             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2005,                       ///< ::ur_exp_sampler_addr_modes_t
@@ -1656,14 +1656,10 @@ typedef enum ur_device_info_t {
                                                                      ///< device
     UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B,      ///< [::ur_bool_t] returns true if the device supports using images created
                                                                      ///< from individual mipmap levels
-    UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C,       ///< [::ur_bool_t] returns true if the device supports importing external
+    UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP = 0x200C,      ///< [::ur_bool_t] returns true if the device supports importing external
                                                                      ///< memory resources
-    UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D,       ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                     ///< memory resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E,    ///< [::ur_bool_t] returns true if the device supports importing external
+    UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E,   ///< [::ur_bool_t] returns true if the device supports importing external
                                                                      ///< semaphore resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,    ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                     ///< event resources
     UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP = 0x2010,                     ///< [::ur_bool_t] returns true if the device supports allocating and
                                                                      ///< accessing cubemap resources
     UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP = 0x2011,  ///< [::ur_bool_t] returns true if the device supports sampling cubemapped
@@ -1676,11 +1672,17 @@ typedef enum ur_device_info_t {
                                                                      ///< backed 2D sampled image data.
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP = 0x2015,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 2D sampled image data.
-    UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP = 0x2016, ///< [::ur_bool_t] returns true if the device is capable of fetching USM
-                                                                     ///< backed 3D sampled image data.
     UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP = 0x2017,     ///< [::ur_bool_t] returns true if the device is capable of fetching
                                                                      ///< non-USM backed 3D sampled image data.
     UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP = 0x2018,         ///< [::ur_bool_t] returns true if the device supports timestamp recording
+    UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP = 0x2019,                 ///< [::ur_bool_t] returns true if the device supports allocating and
+                                                                     ///< accessing image array resources.
+    UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP = 0x201A,  ///< [::ur_bool_t] returns true if the device supports unique addressing
+                                                                     ///< per dimension.
+    UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP = 0x201B,              ///< [::ur_bool_t] returns true if the device is capable of sampling USM
+                                                                     ///< backed 1D sampled image data.
+    UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP = 0x201C,              ///< [::ur_bool_t] returns true if the device is capable of sampling USM
+                                                                     ///< backed 2D sampled image data.
     UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP = 0x2020,      ///< [::ur_bool_t] returns true if the device supports enqueueing of native
                                                                      ///< work
     /// @cond
@@ -2400,16 +2402,19 @@ typedef struct ur_context_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phDevices`
 ///         + `NULL == phContext`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext,                 ///< [in][nocheck] the native handle of the context.
+    ur_adapter_handle_t hAdapter,                      ///< [in] handle of the adapter that owns the native handle
     uint32_t numDevices,                               ///< [in] number of devices associated with the context
-    const ur_device_handle_t *phDevices,               ///< [in][range(0, numDevices)] list of devices associated with the context
+    const ur_device_handle_t *phDevices,               ///< [in][optional][range(0, numDevices)] list of devices associated with
+                                                       ///< the context
     const ur_context_native_properties_t *pProperties, ///< [in][optional] pointer to native context properties struct
     ur_context_handle_t *phContext                     ///< [out] pointer to the handle of the context object created.
 );
@@ -5277,6 +5282,8 @@ typedef struct ur_kernel_native_properties_t {
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
+///     - The implementation may require a valid program handle to return the
+///       native kernel handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -5285,7 +5292,7 @@ typedef struct ur_kernel_native_properties_t {
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == hProgram`
+///         + If `hProgram == NULL` and the implementation requires a valid program.
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -5294,7 +5301,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel,                 ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext,                     ///< [in] handle of the context object
-    ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
+    ur_program_handle_t hProgram,                     ///< [in][optional] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *pProperties, ///< [in][optional] pointer to native kernel properties struct
     ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
 );
@@ -5624,7 +5631,6 @@ typedef struct ur_queue_native_properties_t {
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -5633,7 +5639,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue,                 ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext,                    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                      ///< [in] handle of the device object
+    ur_device_handle_t hDevice,                      ///< [in][optional] handle of the device object
     const ur_queue_native_properties_t *pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t *phQueue                       ///< [out] pointer to the handle of the queue object created.
 );
@@ -5705,36 +5711,36 @@ urQueueFlush(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command type
 typedef enum ur_command_t {
-    UR_COMMAND_KERNEL_LAUNCH = 0,                     ///< Event created by ::urEnqueueKernelLaunch
-    UR_COMMAND_EVENTS_WAIT = 1,                       ///< Event created by ::urEnqueueEventsWait
-    UR_COMMAND_EVENTS_WAIT_WITH_BARRIER = 2,          ///< Event created by ::urEnqueueEventsWaitWithBarrier
-    UR_COMMAND_MEM_BUFFER_READ = 3,                   ///< Event created by ::urEnqueueMemBufferRead
-    UR_COMMAND_MEM_BUFFER_WRITE = 4,                  ///< Event created by ::urEnqueueMemBufferWrite
-    UR_COMMAND_MEM_BUFFER_READ_RECT = 5,              ///< Event created by ::urEnqueueMemBufferReadRect
-    UR_COMMAND_MEM_BUFFER_WRITE_RECT = 6,             ///< Event created by ::urEnqueueMemBufferWriteRect
-    UR_COMMAND_MEM_BUFFER_COPY = 7,                   ///< Event created by ::urEnqueueMemBufferCopy
-    UR_COMMAND_MEM_BUFFER_COPY_RECT = 8,              ///< Event created by ::urEnqueueMemBufferCopyRect
-    UR_COMMAND_MEM_BUFFER_FILL = 9,                   ///< Event created by ::urEnqueueMemBufferFill
-    UR_COMMAND_MEM_IMAGE_READ = 10,                   ///< Event created by ::urEnqueueMemImageRead
-    UR_COMMAND_MEM_IMAGE_WRITE = 11,                  ///< Event created by ::urEnqueueMemImageWrite
-    UR_COMMAND_MEM_IMAGE_COPY = 12,                   ///< Event created by ::urEnqueueMemImageCopy
-    UR_COMMAND_MEM_BUFFER_MAP = 14,                   ///< Event created by ::urEnqueueMemBufferMap
-    UR_COMMAND_MEM_UNMAP = 16,                        ///< Event created by ::urEnqueueMemUnmap
-    UR_COMMAND_USM_FILL = 17,                         ///< Event created by ::urEnqueueUSMFill
-    UR_COMMAND_USM_MEMCPY = 18,                       ///< Event created by ::urEnqueueUSMMemcpy
-    UR_COMMAND_USM_PREFETCH = 19,                     ///< Event created by ::urEnqueueUSMPrefetch
-    UR_COMMAND_USM_ADVISE = 20,                       ///< Event created by ::urEnqueueUSMAdvise
-    UR_COMMAND_USM_FILL_2D = 21,                      ///< Event created by ::urEnqueueUSMFill2D
-    UR_COMMAND_USM_MEMCPY_2D = 22,                    ///< Event created by ::urEnqueueUSMMemcpy2D
-    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 23,     ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
-    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,      ///< Event created by ::urEnqueueDeviceGlobalVariableRead
-    UR_COMMAND_READ_HOST_PIPE = 25,                   ///< Event created by ::urEnqueueReadHostPipe
-    UR_COMMAND_WRITE_HOST_PIPE = 26,                  ///< Event created by ::urEnqueueWriteHostPipe
-    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,   ///< Event created by ::urCommandBufferEnqueueExp
-    UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
-    UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
-    UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,      ///< Event created by ::urEnqueueTimestampRecordingExp
-    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,           ///< Event created by ::urEnqueueNativeCommandExp
+    UR_COMMAND_KERNEL_LAUNCH = 0,                      ///< Event created by ::urEnqueueKernelLaunch
+    UR_COMMAND_EVENTS_WAIT = 1,                        ///< Event created by ::urEnqueueEventsWait
+    UR_COMMAND_EVENTS_WAIT_WITH_BARRIER = 2,           ///< Event created by ::urEnqueueEventsWaitWithBarrier
+    UR_COMMAND_MEM_BUFFER_READ = 3,                    ///< Event created by ::urEnqueueMemBufferRead
+    UR_COMMAND_MEM_BUFFER_WRITE = 4,                   ///< Event created by ::urEnqueueMemBufferWrite
+    UR_COMMAND_MEM_BUFFER_READ_RECT = 5,               ///< Event created by ::urEnqueueMemBufferReadRect
+    UR_COMMAND_MEM_BUFFER_WRITE_RECT = 6,              ///< Event created by ::urEnqueueMemBufferWriteRect
+    UR_COMMAND_MEM_BUFFER_COPY = 7,                    ///< Event created by ::urEnqueueMemBufferCopy
+    UR_COMMAND_MEM_BUFFER_COPY_RECT = 8,               ///< Event created by ::urEnqueueMemBufferCopyRect
+    UR_COMMAND_MEM_BUFFER_FILL = 9,                    ///< Event created by ::urEnqueueMemBufferFill
+    UR_COMMAND_MEM_IMAGE_READ = 10,                    ///< Event created by ::urEnqueueMemImageRead
+    UR_COMMAND_MEM_IMAGE_WRITE = 11,                   ///< Event created by ::urEnqueueMemImageWrite
+    UR_COMMAND_MEM_IMAGE_COPY = 12,                    ///< Event created by ::urEnqueueMemImageCopy
+    UR_COMMAND_MEM_BUFFER_MAP = 14,                    ///< Event created by ::urEnqueueMemBufferMap
+    UR_COMMAND_MEM_UNMAP = 16,                         ///< Event created by ::urEnqueueMemUnmap
+    UR_COMMAND_USM_FILL = 17,                          ///< Event created by ::urEnqueueUSMFill
+    UR_COMMAND_USM_MEMCPY = 18,                        ///< Event created by ::urEnqueueUSMMemcpy
+    UR_COMMAND_USM_PREFETCH = 19,                      ///< Event created by ::urEnqueueUSMPrefetch
+    UR_COMMAND_USM_ADVISE = 20,                        ///< Event created by ::urEnqueueUSMAdvise
+    UR_COMMAND_USM_FILL_2D = 21,                       ///< Event created by ::urEnqueueUSMFill2D
+    UR_COMMAND_USM_MEMCPY_2D = 22,                     ///< Event created by ::urEnqueueUSMMemcpy2D
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_WRITE = 23,      ///< Event created by ::urEnqueueDeviceGlobalVariableWrite
+    UR_COMMAND_DEVICE_GLOBAL_VARIABLE_READ = 24,       ///< Event created by ::urEnqueueDeviceGlobalVariableRead
+    UR_COMMAND_READ_HOST_PIPE = 25,                    ///< Event created by ::urEnqueueReadHostPipe
+    UR_COMMAND_WRITE_HOST_PIPE = 26,                   ///< Event created by ::urEnqueueWriteHostPipe
+    UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP = 0x1000,    ///< Event created by ::urCommandBufferEnqueueExp
+    UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP = 0x2000,   ///< Event created by ::urBindlessImagesWaitExternalSemaphoreExp
+    UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP = 0x2001, ///< Event created by ::urBindlessImagesSignalExternalSemaphoreExp
+    UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,       ///< Event created by ::urEnqueueTimestampRecordingExp
+    UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,            ///< Event created by ::urEnqueueNativeCommandExp
     /// @cond
     UR_COMMAND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7359,12 +7365,12 @@ typedef uintptr_t ur_exp_image_native_handle_t;
 typedef uintptr_t ur_exp_image_mem_native_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of interop memory
-typedef struct ur_exp_interop_mem_handle_t_ *ur_exp_interop_mem_handle_t;
+/// @brief Handle of external memory
+typedef struct ur_exp_external_mem_handle_t_ *ur_exp_external_mem_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Handle of interop semaphore
-typedef struct ur_exp_interop_semaphore_handle_t_ *ur_exp_interop_semaphore_handle_t;
+/// @brief Handle of external semaphore
+typedef struct ur_exp_external_semaphore_handle_t_ *ur_exp_external_semaphore_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Dictates the type of memory copy.
@@ -7486,22 +7492,22 @@ typedef struct ur_exp_sampler_cubemap_properties_t {
 } ur_exp_sampler_cubemap_properties_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes an interop memory resource descriptor
-typedef struct ur_exp_interop_mem_desc_t {
+/// @brief Describes an external memory resource descriptor
+typedef struct ur_exp_external_mem_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
+                               ///< ::UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
 
-} ur_exp_interop_mem_desc_t;
+} ur_exp_external_mem_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Describes an interop semaphore resource descriptor
-typedef struct ur_exp_interop_semaphore_desc_t {
+/// @brief Describes an external semaphore resource descriptor
+typedef struct ur_exp_external_semaphore_desc_t {
     ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+                               ///< ::UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC
     const void *pNext;         ///< [in][optional] pointer to extension-specific structure
 
-} ur_exp_interop_semaphore_desc_t;
+} ur_exp_external_semaphore_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes the (sub-)regions and the extent to be copied
@@ -7909,23 +7915,23 @@ urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_MEM_TYPE_WIN32_NT_DX12_RESOURCE < memHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pInteropMemDesc`
-///         + `NULL == phInteropMem`
+///         + `NULL == pExternalMemDesc`
+///         + `NULL == phExternalMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportExternalMemoryExp(
-    ur_context_handle_t hContext,               ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                 ///< [in] handle of the device object
-    size_t size,                                ///< [in] size of the external memory
-    ur_exp_external_mem_type_t memHandleType,   ///< [in] type of external memory handle
-    ur_exp_interop_mem_desc_t *pInteropMemDesc, ///< [in] the interop memory descriptor
-    ur_exp_interop_mem_handle_t *phInteropMem   ///< [out] interop memory handle to the external memory
+    ur_context_handle_t hContext,                 ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                   ///< [in] handle of the device object
+    size_t size,                                  ///< [in] size of the external memory
+    ur_exp_external_mem_type_t memHandleType,     ///< [in] type of external memory handle
+    ur_exp_external_mem_desc_t *pExternalMemDesc, ///< [in] the external memory descriptor
+    ur_exp_external_mem_handle_t *phExternalMem   ///< [out] external memory handle to the external memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Map an interop memory handle to an image memory handle
+/// @brief Map an external memory handle to an image memory handle
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -7935,7 +7941,7 @@ urBindlessImagesImportExternalMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hInteropMem`
+///         + `NULL == hExternalMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -7953,7 +7959,7 @@ urBindlessImagesMapExternalArrayExp(
     ur_device_handle_t hDevice,                  ///< [in] handle of the device object
     const ur_image_format_t *pImageFormat,       ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,           ///< [in] pointer to image description
-    ur_exp_interop_mem_handle_t hInteropMem,     ///< [in] interop memory handle to the external memory
+    ur_exp_external_mem_handle_t hExternalMem,   ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *phImageMem ///< [out] image memory handle to the externally allocated memory
 );
 
@@ -7988,7 +7994,7 @@ urBindlessImagesMapExternalLinearMemoryExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Release interop memory
+/// @brief Release external memory
 ///
 /// @remarks
 ///   _Analogues_
@@ -8002,14 +8008,14 @@ urBindlessImagesMapExternalLinearMemoryExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hInteropMem`
+///         + `NULL == hExternalMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesReleaseInteropExp(
-    ur_context_handle_t hContext,           ///< [in] handle of the context object
-    ur_device_handle_t hDevice,             ///< [in] handle of the device object
-    ur_exp_interop_mem_handle_t hInteropMem ///< [in][release] handle of interop memory to be destroyed
+urBindlessImagesReleaseExternalMemoryExp(
+    ur_context_handle_t hContext,             ///< [in] handle of the context object
+    ur_device_handle_t hDevice,               ///< [in] handle of the device object
+    ur_exp_external_mem_handle_t hExternalMem ///< [in][release] handle of external memory to be destroyed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8030,17 +8036,17 @@ urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_EXTERNAL_SEMAPHORE_TYPE_WIN32_NT_DX12_FENCE < semHandleType`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pInteropSemaphoreDesc`
-///         + `NULL == phInteropSemaphore`
+///         + `NULL == pExternalSemaphoreDesc`
+///         + `NULL == phExternalSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreExp(
-    ur_context_handle_t hContext,                           ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                             ///< [in] handle of the device object
-    ur_exp_external_semaphore_type_t semHandleType,         ///< [in] type of external memory handle
-    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
-    ur_exp_interop_semaphore_handle_t *phInteropSemaphore   ///< [out] interop semaphore handle to the external semaphore
+    ur_context_handle_t hContext,                             ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                               ///< [in] handle of the device object
+    ur_exp_external_semaphore_type_t semHandleType,           ///< [in] type of external memory handle
+    ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc, ///< [in] the external semaphore descriptor
+    ur_exp_external_semaphore_handle_t *phExternalSemaphore   ///< [out] external semaphore handle to the external semaphore
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8058,14 +8064,14 @@ urBindlessImagesImportExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
-///         + `NULL == hInteropSemaphore`
+///         + `NULL == hExternalSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesReleaseExternalSemaphoreExp(
-    ur_context_handle_t hContext,                       ///< [in] handle of the context object
-    ur_device_handle_t hDevice,                         ///< [in] handle of the device object
-    ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in][release] handle of interop semaphore to be destroyed
+    ur_context_handle_t hContext,                         ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                           ///< [in] handle of the device object
+    ur_exp_external_semaphore_handle_t hExternalSemaphore ///< [in][release] handle of external semaphore to be destroyed
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8087,21 +8093,21 @@ urBindlessImagesReleaseExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue,                     ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t hSemaphore, ///< [in] interop semaphore handle
-    bool hasWaitValue,                            ///< [in] indicates whether the samephore is capable and should wait on a
-                                                  ///< certain value.
-                                                  ///< Otherwise the semaphore is treated like a binary state, and
-                                                  ///< `waitValue` is ignored.
-    uint64_t waitValue,                           ///< [in] the value to be waited on
-    uint32_t numEventsInWaitList,                 ///< [in] size of the event wait list
-    const ur_event_handle_t *phEventWaitList,     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-                                                  ///< events that must be complete before this command can be executed.
-                                                  ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
-                                                  ///< previously enqueued commands
-                                                  ///< must be complete.
-    ur_event_handle_t *phEvent                    ///< [out][optional] return an event object that identifies this particular
-                                                  ///< command instance.
+    ur_queue_handle_t hQueue,                      ///< [in] handle of the queue object
+    ur_exp_external_semaphore_handle_t hSemaphore, ///< [in] external semaphore handle
+    bool hasWaitValue,                             ///< [in] indicates whether the samephore is capable and should wait on a
+                                                   ///< certain value.
+                                                   ///< Otherwise the semaphore is treated like a binary state, and
+                                                   ///< `waitValue` is ignored.
+    uint64_t waitValue,                            ///< [in] the value to be waited on
+    uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                   ///< events that must be complete before this command can be executed.
+                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+                                                   ///< previously enqueued commands
+                                                   ///< must be complete.
+    ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
+                                                   ///< command instance.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8124,21 +8130,21 @@ urBindlessImagesWaitExternalSemaphoreExp(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue,                     ///< [in] handle of the queue object
-    ur_exp_interop_semaphore_handle_t hSemaphore, ///< [in] interop semaphore handle
-    bool hasSignalValue,                          ///< [in] indicates whether the samephore is capable and should signal on a
-                                                  ///< certain value.
-                                                  ///< Otherwise the semaphore is treated like a binary state, and
-                                                  ///< `signalValue` is ignored.
-    uint64_t signalValue,                         ///< [in] the value to be signalled
-    uint32_t numEventsInWaitList,                 ///< [in] size of the event wait list
-    const ur_event_handle_t *phEventWaitList,     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
-                                                  ///< events that must be complete before this command can be executed.
-                                                  ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
-                                                  ///< previously enqueued commands
-                                                  ///< must be complete.
-    ur_event_handle_t *phEvent                    ///< [out][optional] return an event object that identifies this particular
-                                                  ///< command instance.
+    ur_queue_handle_t hQueue,                      ///< [in] handle of the queue object
+    ur_exp_external_semaphore_handle_t hSemaphore, ///< [in] external semaphore handle
+    bool hasSignalValue,                           ///< [in] indicates whether the samephore is capable and should signal on a
+                                                   ///< certain value.
+                                                   ///< Otherwise the semaphore is treated like a binary state, and
+                                                   ///< `signalValue` is ignored.
+    uint64_t signalValue,                          ///< [in] the value to be signalled
+    uint32_t numEventsInWaitList,                  ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList,      ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                   ///< events that must be complete before this command can be executed.
+                                                   ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+                                                   ///< previously enqueued commands
+                                                   ///< must be complete.
+    ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
+                                                   ///< command instance.
 );
 
 #if !defined(__GNUC__)
@@ -9851,6 +9857,7 @@ typedef struct ur_context_get_native_handle_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_context_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeContext;
+    ur_adapter_handle_t *phAdapter;
     uint32_t *pnumDevices;
     const ur_device_handle_t **pphDevices;
     const ur_context_native_properties_t **ppProperties;
@@ -11238,8 +11245,8 @@ typedef struct ur_bindless_images_import_external_memory_exp_params_t {
     ur_device_handle_t *phDevice;
     size_t *psize;
     ur_exp_external_mem_type_t *pmemHandleType;
-    ur_exp_interop_mem_desc_t **ppInteropMemDesc;
-    ur_exp_interop_mem_handle_t **pphInteropMem;
+    ur_exp_external_mem_desc_t **ppExternalMemDesc;
+    ur_exp_external_mem_handle_t **pphExternalMem;
 } ur_bindless_images_import_external_memory_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11251,7 +11258,7 @@ typedef struct ur_bindless_images_map_external_array_exp_params_t {
     ur_device_handle_t *phDevice;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
-    ur_exp_interop_mem_handle_t *phInteropMem;
+    ur_exp_external_mem_handle_t *phExternalMem;
     ur_exp_image_mem_native_handle_t **pphImageMem;
 } ur_bindless_images_map_external_array_exp_params_t;
 
@@ -11269,14 +11276,14 @@ typedef struct ur_bindless_images_map_external_linear_memory_exp_params_t {
 } ur_bindless_images_map_external_linear_memory_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urBindlessImagesReleaseInteropExp
+/// @brief Function parameters for urBindlessImagesReleaseExternalMemoryExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_bindless_images_release_interop_exp_params_t {
+typedef struct ur_bindless_images_release_external_memory_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_interop_mem_handle_t *phInteropMem;
-} ur_bindless_images_release_interop_exp_params_t;
+    ur_exp_external_mem_handle_t *phExternalMem;
+} ur_bindless_images_release_external_memory_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesImportExternalSemaphoreExp
@@ -11286,8 +11293,8 @@ typedef struct ur_bindless_images_import_external_semaphore_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
     ur_exp_external_semaphore_type_t *psemHandleType;
-    ur_exp_interop_semaphore_desc_t **ppInteropSemaphoreDesc;
-    ur_exp_interop_semaphore_handle_t **pphInteropSemaphore;
+    ur_exp_external_semaphore_desc_t **ppExternalSemaphoreDesc;
+    ur_exp_external_semaphore_handle_t **pphExternalSemaphore;
 } ur_bindless_images_import_external_semaphore_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11297,7 +11304,7 @@ typedef struct ur_bindless_images_import_external_semaphore_exp_params_t {
 typedef struct ur_bindless_images_release_external_semaphore_exp_params_t {
     ur_context_handle_t *phContext;
     ur_device_handle_t *phDevice;
-    ur_exp_interop_semaphore_handle_t *phInteropSemaphore;
+    ur_exp_external_semaphore_handle_t *phExternalSemaphore;
 } ur_bindless_images_release_external_semaphore_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11306,7 +11313,7 @@ typedef struct ur_bindless_images_release_external_semaphore_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_wait_external_semaphore_exp_params_t {
     ur_queue_handle_t *phQueue;
-    ur_exp_interop_semaphore_handle_t *phSemaphore;
+    ur_exp_external_semaphore_handle_t *phSemaphore;
     bool *phasWaitValue;
     uint64_t *pwaitValue;
     uint32_t *pnumEventsInWaitList;
@@ -11320,7 +11327,7 @@ typedef struct ur_bindless_images_wait_external_semaphore_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_signal_external_semaphore_exp_params_t {
     ur_queue_handle_t *phQueue;
-    ur_exp_interop_semaphore_handle_t *phSemaphore;
+    ur_exp_external_semaphore_handle_t *phSemaphore;
     bool *phasSignalValue;
     uint64_t *psignalValue;
     uint32_t *pnumEventsInWaitList;

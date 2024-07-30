@@ -389,7 +389,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
   pDdiTable->pfnMapExternalArrayExp = urBindlessImagesMapExternalArrayExp;
   pDdiTable->pfnMapExternalLinearMemoryExp =
       urBindlessImagesMapExternalLinearMemoryExp;
-  pDdiTable->pfnReleaseInteropExp = urBindlessImagesReleaseInteropExp;
+  pDdiTable->pfnReleaseExternalMemoryExp =
+      urBindlessImagesReleaseExternalMemoryExp;
   pDdiTable->pfnImportExternalSemaphoreExp =
       urBindlessImagesImportExternalSemaphoreExp;
   pDdiTable->pfnReleaseExternalSemaphoreExp =

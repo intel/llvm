@@ -28,4 +28,4 @@ target_include_directories(test-adapter-cuda PRIVATE
     ${PROJECT_SOURCE_DIR}/source/adapters/cuda
 )
 
-target_link_libraries(test-adapter-cuda PRIVATE cudadrv)
+target_link_libraries(test-adapter-cuda PRIVATE cudadrv ${PROJECT_NAME}::umf)
