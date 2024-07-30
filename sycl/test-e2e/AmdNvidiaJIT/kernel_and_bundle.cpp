@@ -3,7 +3,7 @@
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.
-// REQUIRES: asserts
+// REQUIRES: has_ndebug
 
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_JIT_AMDGCN_PTX_KERNELS=1 env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
