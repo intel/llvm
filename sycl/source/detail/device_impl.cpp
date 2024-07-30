@@ -525,21 +525,21 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_import: {
+  case aspect::ext_oneapi_external_memory_import: {
     ur_bool_t support = false;
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
+            UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
             &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_semaphore_import: {
+  case aspect::ext_oneapi_external_semaphore_import: {
     ur_bool_t support = false;
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP,
+            UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
