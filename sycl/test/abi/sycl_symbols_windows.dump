@@ -4126,18 +4126,10 @@
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?map@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBAPEAX_K0W4address_access_mode@23456@0@Z
-<<<<<<< HEAD
-?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
-?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
-?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUinterop_mem_handle@12345@_K1AEBVdevice@45@AEBVcontext@45@@Z
-?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUinterop_mem_handle@12345@_K1AEBVqueue@45@@Z
-||||||| 4240ef0d9db3
-?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
-?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
-=======
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
->>>>>>> origin/sycl
+?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUexternal_mem@12345@_K1AEBVdevice@45@AEBVcontext@45@@Z
+?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUexternal_mem@12345@_K1AEBVqueue@45@@Z
 ?markBufferAsInternal@detail@_V1@sycl@@YAXAEBV?$shared_ptr@Vbuffer_impl@detail@_V1@sycl@@@std@@@Z
 ?mem_advise@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@PEAX_KHAEBUcode_location@detail@45@@Z
 ?mem_advise@handler@_V1@sycl@@QEAAXPEBX_KH@Z
