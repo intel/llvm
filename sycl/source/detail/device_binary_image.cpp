@@ -185,6 +185,11 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
   VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
+  for (const auto &Prop : ProgramMetadata) {
+    ProgramMetadataUR.push_back(
+        ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
+  }
+
   ImageId = ImageCounter++;
 }
 

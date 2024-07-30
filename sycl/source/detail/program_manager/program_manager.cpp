@@ -500,10 +500,9 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto ProgMetadata = Img->getProgramMetadata();
+      auto ProgMetadata = Img->getProgramMetadataUR();
       for (const auto &Prop : ProgMetadata) {
-        ProgMetadataVector.push_back(
-            ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
+        ProgMetadataVector.push_back(Prop);
       }
     }
     // TODO: Build for multiple devices once supported by program manager
