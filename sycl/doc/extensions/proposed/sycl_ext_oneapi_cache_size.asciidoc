@@ -142,4 +142,17 @@ could be derived from the Compute Capability.
 
 == Issues
 
-None.
+. Should devices be able to signal an "unknown"/"unsupported" cache size?
++
+--
+*UNRESOLVED*:
+There are many mechanisms that could be used to signal that an implementation
+simply does not know anything about a specific level of cache (e.g.,
+an exception, a special return value, an orthogonal query). However, requiring
+implementations to determine and return an accurate size would make the query
+significantly easier for developers to use.
+
+We should revisit this issue once we have implementation experience across
+multiple backends, which should give us a better idea of how hard it is to
+return accurate cache sizes in practice.
+--
