@@ -21,6 +21,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
     uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventList,
     ur_event_handle_t *phEvent) {
   auto Queue = this;
+  std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   bool UseCopyEngine = false;
 
@@ -60,12 +61,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   }
 
   if (!isInOrderQueue()) {
-    UR_CALL(Queue->executeCommandList(CommandList, false));
-    queueFinish();
-    // queue finish will execute the command list. Open it again so that
-    // `zeCommandListAppendSignalEvent` can be executed.
+    UR_CALL(Queue->executeCommandList(CommandList, false, false));
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
+        Queue, CommandList, UseCopyEngine, 0, nullptr));
   }
   ScopedCommandList Active{Queue, CommandList->first};
 
@@ -73,9 +71,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
   pfnNativeEnqueue(Queue, data);
 
   if (!isInOrderQueue()) {
-    queueFinish();
+    UR_CALL(Queue->executeCommandList(CommandList, false, false));
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, phEventList));
+        Queue, CommandList, UseCopyEngine, 0, nullptr));
   }
 
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
