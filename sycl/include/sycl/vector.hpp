@@ -302,6 +302,18 @@ DELIMITER PROCESS_OP(UnaryPlus)
 
 // Need to separate binop/opassign because const vec swizzles don't have the
 // latter.
+
+// NonTemplate* mixin - implement overloads like
+//
+//   class vec {
+//     friend vec operator+(const vec &, const vec &)
+//     friend vec operator+(const vec &, const DataT &)
+//     friend vec operator+(const DataT &, const vec &)
+//   };
+//
+// where operator's arguments don't require template paramters on the operator
+// itself. We implement all of the above with a single mixin that is
+// instantiated with different Lhs/Rhs types.
 template <typename Lhs, typename Rhs, typename Impl, typename DataT,
           typename Op, typename = void>
 struct NonTemplateBinaryOpMixin {};
@@ -311,6 +323,17 @@ struct NonTemplateBinaryOpAssignMixin {};
 
 template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
 
+// Swizzles require template parameters on the operators (e.g., if another
+// swizzle shuffles a vec using different indices that are part of the swizzle's
+// compile time type).
+//
+//   class swizzle {
+//     template <... swizzle's template params ...>
+//     friend <...> operator+(const swizzle &self,
+//                            const swizzle<...> &other_swizzle)
+//   }
+//
+// SwizzleTemplate* mixins implement these templates.
 template <typename Self, typename VecT, typename DataT, int N, typename Op,
           typename = void>
 struct SwizzleTemplateBinaryOpMixin {};
@@ -341,6 +364,9 @@ struct SwizzleTemplateBinaryOpAssignMixin {};
       using ResultVec = vec<DataT, N>;                                         \
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
+    /* Can't have both (Self, Swizzle) and (Swizzle, Self) enabled at the same \
+     * time if they use the same `const` as that would be ambiguous. As such,  \
+     * only enable the latter if "constness" differs. */                       \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
                   std::is_same_v<DataT, typename VecT::element_type> &&        \
@@ -392,6 +418,7 @@ struct SwizzleTemplateBinaryOpAssignMixin {};
     }                                                                          \
   };
 
+// Similar to binops above, but unary operations require a simpler mixin.
 template <typename T, typename Impl, typename DataT, typename Op,
           typename = void>
 struct UnaryOpMixin {};
@@ -439,22 +466,24 @@ struct UnaryOpMixin {};
 
 #define __SYCL_COMMA ,
 
+// Now use individual per-operation mixins to create aggregated mixins that are
+// easier to use.
+
 // clang-format off
 #define __SYCL_MIXIN_FOR_BINARY(OP)                                            \
-public NonTemplateBinaryOpMixin<Lhs, Rhs, Impl, DataT, OP>
+  public NonTemplateBinaryOpMixin<Lhs, Rhs, Impl, DataT, OP>
 
 #define __SYCL_MIXIN_FOR_BINARY_OPASSIGN(OP)                                   \
-public NonTemplateBinaryOpAssignMixin<Lhs, Rhs, DataT, OP>
+  public NonTemplateBinaryOpAssignMixin<Lhs, Rhs, DataT, OP>
 
 #define __SYCL_MIXIN_FOR_TEMPLATE_BINARY(OP)                                   \
-public SwizzleTemplateBinaryOpMixin<Self, VecT, DataT, N, OP>
+  public SwizzleTemplateBinaryOpMixin<Self, VecT, DataT, N, OP>
 
 #define __SYCL_MIXIN_FOR_TEMPLATE_BINARY_OPASSIGN(OP)                          \
-public SwizzleTemplateBinaryOpAssignMixin<Self, VecT, DataT, N, OP>
+  public SwizzleTemplateBinaryOpAssignMixin<Self, VecT, DataT, N, OP>
 
 #define __SYCL_MIXIN_FOR_UNARY(OP)                                             \
-public UnaryOpMixin<T, Impl, DataT, OP>
-// clang-format on
+  public UnaryOpMixin<T, Impl, DataT, OP>
 
 template <typename Lhs, typename Rhs, typename Impl, typename DataT>
 struct __SYCL_EBO NonTemplateBinaryOpsMixin
@@ -478,6 +507,7 @@ struct __SYCL_EBO SwizzleTemplateBinaryOpAssignOpsMixin
 template <typename T, typename Impl, typename DataT>
 struct __SYCL_EBO UnaryOpsMixin
     : __SYCL_PROCESS_UNARY_OPS(__SYCL_MIXIN_FOR_UNARY, __SYCL_COMMA) {};
+// clang-format on
 
 #undef __SYCL_MIXIN_FOR_UNARY
 #undef __SYCL_MIXIN_FOR_TEMPLATE_BINARY_OPASSIGN
@@ -489,6 +519,10 @@ struct __SYCL_EBO UnaryOpsMixin
 #undef __SYCL_PROCESS_BINARY_OPS
 #undef __SYCL_PROCESS_UNARY_OPS
 
+// Implement `<typename Impl>` parameters for the mixins above. These differ
+// between vec and swizzle.
+
+// Swizzle-specific part of the mixins' implementation.
 struct SwizzleImpl {
 private:
   template <typename T> static constexpr int num_elements() {
@@ -499,6 +533,7 @@ private:
   }
 
 public:
+  // Binop:
   template <typename T0, typename T1, typename OpTy>
   auto operator()(const T0 &Lhs, const T1 &Rhs, OpTy &&Op) {
     static_assert(std::is_same_v<get_elem_type_t<T0>, get_elem_type_t<T1>>);
@@ -506,12 +541,14 @@ public:
     using ResultVec = vec<get_elem_type_t<T0>, N>;
     return Op(static_cast<ResultVec>(Lhs), static_cast<ResultVec>(Rhs));
   }
+  // Unary op:
   template <typename T, typename OpTy> auto operator()(const T &X, OpTy &&Op) {
     using ResultVec = vec<typename T::element_type, T::size()>;
     return Op(static_cast<ResultVec>(X));
   }
 };
 
+// Vector-specific part of the mixins' implementation.
 struct VectorImpl {
 private:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -528,6 +565,7 @@ private:
   }
 
 public:
+  // Binop:
   template <typename T0, typename T1, typename OpTy>
   auto operator()(const T0 &Lhs, const T1 &Rhs, OpTy &&Op) {
     static_assert(std::is_same_v<get_elem_type_t<T0>, get_elem_type_t<T1>>);
@@ -609,6 +647,8 @@ public:
       }
     }
   }
+
+  // Unary op:
   template <typename T, typename OpTy> auto operator()(const T &X, OpTy &&Op) {
     static_assert(is_vec_v<T>);
     constexpr bool is_logical = std::is_same_v<OpTy, std::logical_not<void>>;
@@ -630,6 +670,9 @@ public:
     }
   }
 };
+
+// Mixins infrastructure above is complete, now use these shared (vec/swizzle)
+// mixins to define swizzle class.
 
 template <typename Self, typename VecT, typename DataT, int N,
           bool AllowAssignOps>
