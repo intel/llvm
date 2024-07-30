@@ -11197,6 +11197,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
+    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+      SmallString<128> DumpDir;
+      Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      DumpDir = A ? A->getValue() : "";
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
+    }
+
     auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
       if (!OptString.empty())
         OptString += " ";
