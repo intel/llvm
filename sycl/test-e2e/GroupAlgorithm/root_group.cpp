@@ -1,6 +1,6 @@
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu && !accelerator)
-// RUN: %{build} -I . -o %t.out
+// RUN: %{build} -I . -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
@@ -43,12 +43,9 @@ void testRootGroup() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class RootGroupKernel>();
-  // TODO: Uncomment following lines after
-  // https://github.com/intel/llvm/pull/14333 is merged.
-  // const auto maxWGs = kernel.ext_oneapi_get_info<
-  //     sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-  //         max_num_work_group_sync>(q);
-  const auto maxWGs = 4;
+  const auto maxWGs = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
@@ -62,6 +59,8 @@ void testRootGroup() {
       auto root = it.ext_oneapi_get_root_group();
       data[root.get_local_id()] = root.get_local_id();
       sycl::group_barrier(root);
+      // Delay half of the workgroups with extra work to check that the barrier
+      // synchronizes the whole device.
       if (it.get_group(0) % 2 == 0) {
         X += sycl::sin(X);
         Y += sycl::cos(Y);
