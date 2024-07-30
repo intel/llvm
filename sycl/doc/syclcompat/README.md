@@ -42,7 +42,14 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
-* [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+* [sycl_ext_oneapi_usm_device_read_only](
+    ../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+* [sycl_ext_oneapi_properties](
+    ../extensions/experimental/sycl_ext_oneapi_properties.asciidoc)
+* [sycl_ext_oneapi_enqueue_functions](
+    ../extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc)
+* [sycl_ext_oneapi_kernel_properties](
+    ../extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc)
 
 If available, the following extensions extend SYCLcompat functionality:
 
@@ -206,44 +213,6 @@ These translate any kernel dimensions from one convention to the other. An
 example of an equivalent SYCL call for a 3D kernel using `compat` is
 `syclcompat::global_id::x() == get_global_id(2)`.
 
-### Local Memory
-
-When using `compat` functions, there are two distinct interfaces to allocate
-device local memory. The first interface uses the _sycl_ext_oneapi_local_memory_
-extension to leverage local memory defined at compile time.
-_sycl_ext_oneapi_local_memory_ is accessed through the following wrapper:
-
-``` c++
-namespace syclcompat {
-
-template <typename AllocT> auto *local_mem();
-
-} // syclcompat
-```
-
-`syclcompat::local_mem<AllocT>()` can be used as illustrated in the example
-below.
-
-```c++
-// Sample kernel
-using namespace syclcompat;
-template <int BLOCK_SIZE>
-void local_mem_2d(int *d_A) {
-  // Local memory extension wrapper, size defined at compile-time
-  auto As = local_mem<int[BLOCK_SIZE][BLOCK_SIZE]>();
-  int id_x = local_id::x();
-  int id_y = local_id::y();
-  As[id_y][id_x] = id_x * BLOCK_SIZE + id_y;
-  wg_barrier();
-  int val = As[BLOCK_SIZE - id_y - 1][BLOCK_SIZE - id_x - 1];
-  d_A[global_id::y() * BLOCK_SIZE + global_id::x()] = val;
-}
-```
-
-The second interface allows users to allocate device local memory at runtime.
-SYCLcompat provides this functionality through its kernel launch interface,
-`launch<function>`, defined in the following section.
-
 ### launch<function>
 
 SYCLcompat provides a kernel `launch` interface which accepts a function that
@@ -254,7 +223,7 @@ device _function_ with the use of an `auto F` template parameter, and a variadic
 `Args` for the function's arguments.
 
 Various overloads for `launch<function>` exist to permit the user to launch on a
-specific `queue`, or to define dynamically sized device local memory.
+specific `queue`, or to describe the range as either `nd_range` or `dim3, dim3`.
 
 ``` c++
 namespace syclcompat {
@@ -272,22 +241,6 @@ sycl::event launch(const sycl::nd_range<Dim> &range,
 template <auto F, typename... Args>
 sycl::event launch(const dim3 &grid, const dim3 &threads,
                    sycl::queue q, Args... args);
-
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   sycl::queue q, Args... args);
-
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   Args... args);
-
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads,
-                   size_t mem_size, sycl::queue q, Args... args);
-
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads,
-                   size_t mem_size, Args... args);
 
 } // syclcompat
 ```
@@ -313,9 +266,112 @@ auto range = sycl::nd_range<3>{blocksPerGrid * threadsPerBlock,
 syclcompat::launch<vectorAdd>(range, d_A, d_B, d_C, n);
 ```
 
-For dynamic local memory allocation, `launch<function>` injects a pointer to a
-local `char *` accessor of `mem_size` as the last argument of the kernel
-function. For example, the previous function named `vectorAdd` can be modified
+Note that since `syclcompat::launch` accepts a device function, the kernel
+lambda is constructed by SYCLcompat internally. This means that, for
+example, `sycl::local_accessor`s cannot be declared. Instead, users wishing to
+use local memory should launch with a `launch_policy` object as described below.
+
+#### launch_policy
+
+In addition to the simple `syclcompat::launch` interface described above,
+SYCLcompat provides a more flexible (`experimental`) interface to `launch` a
+kernel with a given `launch_policy`. By constructing and passing a
+`launch_policy`, users can pass `sycl::ext::oneapi::experimental::properties`
+associated with the kernel or launch, as well as request **local memory** for
+the kernel.
+
+In order to disambiguate the variadic constructor of `launch_policy`, the
+following wrapper structs are defined. The `kernel_properties` and
+`launch_properties` wrappers can be constructed *either* with a variadc set of
+properties, or with an existing `sycl_exp::properties` object.
+
+```cpp
+namespace syclcompat::experimental {
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+// Wrapper for kernel sycl_exp::properties
+template <typename Properties> struct kernel_properties {
+  using Props = Properties;
+  template <typename... Props>
+  kernel_properties(Props... properties);
+  template <typename... Props>
+  kernel_properties(sycl_exp::properties<Props...> properties)
+  Properties props;
+};
+
+// Wrapper for launch sycl_exp::properties
+template <typename Properties> struct launch_properties {
+  using Props = Properties;
+  template <typename... Props>
+  launch_properties(Props... properties);
+  template <typename... Props>
+  launch_properties(sycl_exp::properties<Props...> properties)
+  Properties props;
+};
+
+// Wrapper for local memory size
+struct local_mem_size {
+  local_mem_size(size_t size = 0);
+  size_t size;
+};
+
+} //namespace syclcompat::experimental
+```
+
+The constructors of `launch_policy` are variadic, accepting any form of range
+(`nd_range`, `range`, `dim3`, `dim3, dim3`), followed by zero or more of
+`local_memory_size`, `kernel_properties`, and `launch_properties`:
+
+``` c++
+namespace syclcompat::experimental {
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+// launch_policy is constructed by the user & passed to `compat_exp::launch`
+template <typename Range, typename KProps, typename LProps, bool LocalMem>
+class launch_policy {
+public:
+  using KPropsT = KProps;
+  using LPropsT = LProps;
+  using RangeT = Range;
+  static constexpr bool HasLocalMem = LocalMem;
+
+  template <typename... Ts>
+  launch_policy(Range range, Ts... ts);
+
+  template <typename... Ts>
+  launch_policy(dim3 global_range, Ts... ts);
+
+  template <typename... Ts>
+  launch_policy(dim3 global_range, dim3 local_range, Ts... ts);
+
+  KProps get_kernel_properties();
+  LProps get_launch_properties();
+  size_t get_local_mem_size();
+  Range get_range();
+};
+} //namespace syclcompat::experimental
+```
+
+The `launch` overloads accepting a `launch_policy` are:
+
+```cpp
+namespace syclcompat::experimental {
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args);
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, Args... args);
+} //namespace syclcompat::experimental
+
+```
+
+For local memory, `launch<function>` injects a `char *` pointer to the beginning
+of a local accessor of the requested `local_mem_size` as the last argument of
+the kernel function. This `char *` can then be reinterpreted as the datatype
+required by the user within the kernel function.
+
+For example, the previous function named `vectorAdd` can be modified
 with the following signature, which adds a `char *` pointer to access local
 memory inside the kernel:
 
@@ -324,56 +380,42 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
                char *local_mem);
 ```
 
-Then, `vectorAdd` can be launched like this:
+Then, the new `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A,
-                              d_B, d_C, n);
+using syclcompat::experimental;
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                      local_mem_size(nbytes)};
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
-or this:
+To request a different cache/local memory split on supported hardware:
 
-``` c++
-auto range = sycl::nd_range<3>{globalSize, localSize};
-syclcompat::launch<vectorAdd>(range, mem_size, d_A, d_B, d_C, n);
+```c++
+using syclcompat::experimental;
+namespace sycl_intel_exp = sycl::ext::intel::experimental;
+
+sycl_intel_exp::cache_config cache_config{
+    sycl_intel_exp::large_slm};
+kernel_properties kernel_props{cache_config};
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                      local_mem_size(nbytes), kernel_props};
+
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
-This `launch` interface allows users to define an internal memory pool, or
-scratchpad, that can then be reinterpreted as the datatype required by the user
-within the kernel function.
+To request a certain cluster dimension on supported hardware:
 
-To launch a kernel with a specified sub-group size, overloads similar to above
-`launch` functions are present in the `syclcompat::experimental` namespace,
-which accept SubgroupSize as a template parameter and can be called as
-`launch<Function, SubgroupSize>`
+```c++
+using syclcompat::experimental;
+namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-```cpp
+sycl_exp::cuda::cluster_size cluster_dims(cluster_range);
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                                  local_mem_size(nbytes), 
+                                  launch_properties{cluster_dims}};
 
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
-       sycl::queue queue, Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
-       std::size_t local_memory_size, Args... args);
-
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<Dim> launch_range,
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
-       Args... args);
-
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
 ### Utilities
