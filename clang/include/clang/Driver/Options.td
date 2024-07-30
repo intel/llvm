@@ -4028,18 +4028,19 @@ defm sycl_instrument_device_code
           BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " Instrumentation and Tracing "
                     "Technology (ITT) instrumentation intrinsics calls "
                     "(experimental)">>;
+defm sycl_decompose_functor
+    : BoolFOption<"sycl-decompose-functor",
+          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
+          PosFlag<SetTrue, [], [ClangOption], "Do">,
+          NegFlag<SetFalse, [], [ClangOption], "Do not">,
+          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option],
+           " decompose SYCL functor if possible (experimental, CUDA only)">>;
 def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
   Group<Link_Group>, HelpText<"Generate and use a custom linker script for huge"
   " device code sections">;
 def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
   Group<Link_Group>, HelpText<"Do not generate or use a custom linker script"
   " for huge device code sections (default)">;
-def fsycl_link_huge_device_code : Flag<["-"], "fsycl-link-huge-device-code">,
-  Group<sycl_Group>, Alias<flink_huge_device_code>, HelpText<"Generate and use a custom linker script for huge"
-  " device code sections (deprecated)">, Flags<[Deprecated]>;
-def fno_sycl_link_huge_device_code : Flag<["-"], "fno-sycl-link-huge-device-code">,
-  Group<sycl_Group>, Alias<fno_link_huge_device_code>, HelpText<"Do not generate or use a custom linker script"
-  " for huge device code sections (default) (deprecated)">, Flags<[Deprecated]>;
 defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
   LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
   PosFlag<SetTrue, [], [ClangOption], "Assume">, NegFlag<SetFalse, [], [ClangOption], "Do not assume">,
@@ -8447,9 +8448,6 @@ def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
   HelpText<"Tells compiler that -main-file-name contains an absolute path and "
            "file specified there should be used for checksum calculation.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLUseMainFileName">>;
-def fsycl_allow_virtual_functions : Flag<["-"], "fsycl-allow-virtual-functions">,
-  HelpText<"Allow virtual functions calls in code for SYCL device">,
-  MarshallingInfoFlag<LangOpts<"SYCLAllowVirtualFunctions">>;
 def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,

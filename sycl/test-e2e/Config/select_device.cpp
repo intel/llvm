@@ -529,7 +529,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -555,7 +555,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -588,7 +588,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -616,7 +616,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
