@@ -1646,7 +1646,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalLinearMemoryExp_t
     ur_device_handle_t,
     uint64_t,
     uint64_t,
-    ur_exp_interop_mem_handle_t,
+    ur_exp_external_mem_handle_t,
     void **);
 
 ///////////////////////////////////////////////////////////////////////////////

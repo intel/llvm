@@ -1085,12 +1085,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
-    uint64_t size, ur_exp_interop_mem_handle_t hInteropMem, void **phRetMem) {
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = size;
   std::ignore = offset;
-  std::ignore = hInteropMem;
+  std::ignore = hExternalMem;
   std::ignore = phRetMem;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);

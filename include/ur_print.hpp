@@ -15221,10 +15221,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->psize);
 
     os << ", ";
-    os << ".hInteropMem = ";
+    os << ".hExternalMem = ";
 
     ur::details::printPtr(os,
-                          *(params->phInteropMem));
+                          *(params->phExternalMem));
 
     os << ", ";
     os << ".ppRetMem = ";

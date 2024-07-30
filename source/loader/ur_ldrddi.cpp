@@ -6648,9 +6648,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint64_t offset,              ///< [in] offset into memory region to map
     uint64_t size,                ///< [in] size of memory region to map
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
-    void **ppRetMem  ///< [out] pointer of the externally allocated memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6670,9 +6670,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     // convert loader handle to platform handle
     hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
 
+    // convert loader handle to platform handle
+    hExternalMem =
+        reinterpret_cast<ur_exp_external_mem_object_t *>(hExternalMem)->handle;
+
     // forward to device-platform
     result = pfnMapExternalLinearMemoryExp(hContext, hDevice, offset, size,
-                                           hInteropMem, ppRetMem);
+                                           hExternalMem, ppRetMem);
 
     return result;
 }

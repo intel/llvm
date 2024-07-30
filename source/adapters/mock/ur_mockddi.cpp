@@ -7812,14 +7812,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     uint64_t offset,              ///< [in] offset into memory region to map
     uint64_t size,                ///< [in] size of memory region to map
-    ur_exp_interop_mem_handle_t
-        hInteropMem, ///< [in] interop memory handle to the external memory
-    void **ppRetMem  ///< [out] pointer of the externally allocated memory
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_bindless_images_map_external_linear_memory_exp_params_t params = {
-        &hContext, &hDevice, &offset, &size, &hInteropMem, &ppRetMem};
+        &hContext, &hDevice, &offset, &size, &hExternalMem, &ppRetMem};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
