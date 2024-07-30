@@ -53,10 +53,15 @@ void testRootGroup() {
     sycl::accessor data{dataBuf, h};
     h.parallel_for<
         class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
+      volatile float X = 1.0f;
+      volatile float Y = 1.0f;
       auto root = it.ext_oneapi_get_root_group();
       data[root.get_local_id()] = root.get_local_id();
       sycl::group_barrier(root);
-
+      if (it.get_group(0) % 2 == 0) {
+        X += sycl::sin(X);
+        Y += sycl::cos(Y);
+      }
       root =
           sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
       int sum = data[root.get_local_id()] +
