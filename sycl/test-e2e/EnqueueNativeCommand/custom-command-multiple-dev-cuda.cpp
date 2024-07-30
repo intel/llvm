@@ -3,7 +3,6 @@
 // RUN: %{run} %t.out
 
 
-
 #include <cuda.h>
 
 #include <iostream>
