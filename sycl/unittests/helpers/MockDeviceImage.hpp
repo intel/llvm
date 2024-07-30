@@ -1,9 +1,13 @@
-//==------------- MockDeviceImage.hpp --- UR mock image unit testing library
-//-------==//
+//==------------------------ MockDeviceImage.hpp ---------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// Collection of helper classes which allow to mock device images in unit-tests
+// that are provided by the SYCL compiler in regular flow.
 //
 //===----------------------------------------------------------------------===//
 
@@ -13,7 +17,6 @@
 #include <detail/platform_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/ur.hpp>
 
 #include <sycl/detail/defines_elementary.hpp>
 
@@ -22,16 +25,16 @@ inline namespace _V1 {
 namespace unittest {
 using namespace sycl::detail;
 
-/// Convinience wrapper around _ur_device_binary_property_struct.
+/// Convinience wrapper around _sycl_device_binary_property_struct.
 class MockProperty {
 public:
   using NativeType = _sycl_device_binary_property_struct;
 
-  /// Constructs a UR property.
+  /// Constructs a property.
   ///
   /// \param Name is a property name.
   /// \param Data is a vector of raw property value bytes.
-  /// \param Type is one of ur_property_type values.
+  /// \param Type is one of sycl_property_type values.
   MockProperty(const std::string &Name, std::vector<char> Data, uint32_t Type)
       : MName(Name), MData(std::move(Data)), MType(Type) {
     updateNativeType();
@@ -71,7 +74,7 @@ private:
   NativeType MNative;
 };
 
-/// Convinience wrapper for _ur_offload_entry_struct.
+/// Convinience wrapper for _sycl_offload_entry_struct.
 class MockOffloadEntry {
 public:
   using NativeType = _sycl_offload_entry_struct;
@@ -111,7 +114,7 @@ private:
   NativeType MNative;
 };
 
-/// Generic array of UR entries.
+/// Generic array of Mock entries.
 template <typename T> class Array {
 public:
   explicit Array(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
@@ -194,7 +197,8 @@ public:
 
   /// Adds a new array of properties to the set.
   ///
-  /// \param Name is a property array name. See ur.hpp for list of known names.
+  /// \param Name is a property array name. See compiler.hpp for list of known
+  /// names.
   /// \param Props is an array of property values.
   void insert(const std::string &Name, Array<MockProperty> Props) {
     MNames.push_back(Name);
@@ -222,7 +226,7 @@ private:
   std::vector<_sycl_device_binary_property_set_struct> MProperties;
 };
 
-/// Convenience wrapper around UR internal structures, that manages UR binary
+/// Convenience wrapper around internal structures, that manages binary
 /// image data lifecycle.
 class MockDeviceImage {
 public:
