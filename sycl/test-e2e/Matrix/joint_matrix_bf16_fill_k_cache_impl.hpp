@@ -32,10 +32,10 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <size_t TM, size_t TN, size_t TK> class MatMul;
 
-template <size_t rowsA, size_t colsA, size_t rowsB, size_t colsB, size_t VNNI,
-          typename TOperand, typename TResult, size_t TM, size_t TN, size_t TK,
-          size_t MCache1, size_t NCache1, size_t KCache1, size_t MCache2,
-          size_t NCache2, size_t KCache2>
+template <size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+          size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
+          size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
+          size_t MCache2, size_t NCache2, size_t KCache2>
 double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   size_t sgSize = get_sg_size<MatMul<TM, TN, TK>>(q);
   range<2> global{rowsA / MCache1, (colsB / NCache1) * sgSize};
@@ -74,6 +74,40 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           auto m1 = it.get_local_id(0);
           auto n1 = it.get_local_id(1) / sgSize;
           auto sg = it.get_sub_group();
+#ifdef PREFETCH
+          size_t sgId = sg.get_group_id()[0];
+#ifdef VNNI
+          // each warp gets 8x32. But 16 warps are needed for each row (512)
+          size_t pm1 = sgId / 16;   // prefetch m1 (sgId/16)
+          size_t pn1 = sgId & 0x15; // prefetch n1 (sgId%16)
+#else
+          size_t pm1 = sgId / 8;   // prefetch m1 (sgId/8)
+          size_t pn1 = sgId & 0x7; // prefetch n1 (sgId%8)
+#endif
+          namespace syclex = sycl::ext::oneapi::experimental;
+          for (int p = 0; p < 3; p++)
+            joint_matrix_prefetch<8, 32>(
+                sg, A + (m2 * MCache2 + sgId * 8) * colsA + p * 32, colsA,
+                layout::row_major,
+                syclex::properties{syclex::prefetch_hint_L1});
+
+#ifdef VNNI
+          for (int p = 0; p < 3; p++)
+            joint_matrix_prefetch<8, 32>(
+                sg,
+                B + (p * 16 + pm1 * 8) * colsB * vnniFactor +
+                    (n2 * NCache2 + pn1 * 16) * vnniFactor,
+                colsB * vnniFactor, layout::row_major,
+                syclex::properties{syclex::prefetch_hint_L1});
+#else
+          for (int p = 0; p < 3; p++)
+            joint_matrix_prefetch<8, 32>(
+                sg, B + (p * 32 + pm1 * 8) * colsB + n2 * NCache2 + pn1 * 32,
+                colsB, layout::row_major,
+                syclex::properties{syclex::prefetch_hint_L1});
+#endif
+#endif
+
           joint_matrix<sub_group, TResult, use::accumulator, TM, TN>
               tC[MCache1 / TM][NCache1 / TN]
 #ifdef INIT_LIST
@@ -106,10 +140,15 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #else
                 ; // no initialization
 #endif
-
+#ifdef VNNI
             joint_matrix<sub_group, TOperand, use::b, TK, TN,
                          layout::ext_intel_packed>
                 tB[NCache1 / TN][KCache2 / KCache1]
+#else
+            joint_matrix<sub_group, TOperand, use::b, TK, TN,
+                         layout::row_major>
+                tB[NCache1 / TN][KCache2 / KCache1]
+#endif
 #ifdef INIT_LIST
                 = {}; // default initialization of all array elements
 #else
@@ -150,16 +189,30 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
               for (unsigned int n = 0; n < NCache1 / TN; n++) {
 #endif
 #ifdef OOB
+#ifdef VNNI
                 ext::intel::experimental::matrix::joint_matrix_load_checked(
-                    sg, tB[n][k1], pB, colsB * VNNI, rowsB / VNNI, colsB * VNNI,
-                    k * TK / VNNI,
-                    (n2 * NCache2 + n1 * NCache1 + n * TN) * VNNI);
+                    sg, tB[n][k1], pB, colsB * vnniFactor, rowsB / vnniFactor,
+                    colsB * vnniFactor, k * TK / vnniFactor,
+                    (n2 * NCache2 + n1 * NCache1 + n * TN) * vnniFactor);
+#else
+                ext::intel::experimental::matrix::joint_matrix_load_checked(
+                    sg, tB[n][k1], pB, colsB, rowsB, colsB, k * TK,
+                    n2 * NCache2 + n1 * NCache1 + n * TN);
+
+#endif
+#else
+#ifdef VNNI
+                joint_matrix_load(
+                    sg, tB[n][k1],
+                    pB + (k * TK / vnniFactor) * (colsB * vnniFactor) +
+                        (n2 * NCache2 + n1 * NCache1 + n * TN) * vnniFactor,
+                    colsB * vnniFactor);
 #else
                 joint_matrix_load(sg, tB[n][k1],
-                                  pB + (k * TK / VNNI) * (colsB * VNNI) +
-                                      (n2 * NCache2 + n1 * NCache1 + n * TN) *
-                                          VNNI,
-                                  colsB * VNNI);
+                                  pB + (k * TK) * (colsB) +
+                                      (n2 * NCache2 + n1 * NCache1 + n * TN),
+                                  colsB);
+#endif
 #endif
 #ifdef MANUAL_UNROLL
               });
@@ -182,7 +235,36 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #ifdef MANUAL_UNROLL
                 }); // n
               });   // m
-            });     // for k1
+#ifdef PREFETCH
+              auto prefetch_offsetA =
+                  (m2 * MCache2 + sgId * 8) * colsA + (k + 3) * 32;
+              if ((prefetch_offsetA + (8 * MATRIX_SIZE) + 32) <
+                  (MATRIX_SIZE * MATRIX_SIZE))
+                joint_matrix_prefetch<8, 32>(
+                    sg, A + prefetch_offsetA, colsA, layout::row_major,
+                    syclex::properties{syclex::prefetch_hint_L1});
+
+#ifdef VNNI
+              auto prefetch_offsetB =
+                  ((k + 3) * 16 + pm1 * 8) * (colsB)*vnniFactor +
+                  (n2 * NCache2 + pn1 * 16) * vnniFactor;
+              if ((prefetch_offsetB + (8 * MATRIX_SIZE * vnniFactor) + 32) <
+                  (MATRIX_SIZE * MATRIX_SIZE))
+                joint_matrix_prefetch<8, 32>(
+                    sg, B + prefetch_offsetB, colsB * vnniFactor,
+                    layout::row_major,
+                    syclex::properties{syclex::prefetch_hint_L1});
+#else
+              auto prefetch_offsetB = ((k + 3) * 32 + pm1 * 8) * (colsB) +
+                                      (n2 * NCache2 + pn1 * 32);
+              if ((prefetch_offsetB + (8 * MATRIX_SIZE) + 32) <
+                  (MATRIX_SIZE * MATRIX_SIZE))
+                joint_matrix_prefetch<8, 32>(
+                    sg, B + prefetch_offsetB, colsB, layout::row_major,
+                    syclex::properties{syclex::prefetch_hint_L1});
+#endif
+#endif
+            }); // for k1
 #else
                 } // n
               } // m
@@ -229,7 +311,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   return duration.count();
 }
 
-template <typename T, typename TResult, size_t VNNI, size_t TM, size_t TN,
+template <typename T, typename TResult, size_t vnniFactor, size_t TM, size_t TN,
           size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
 void test() {
@@ -245,24 +327,30 @@ void test() {
   queue q;
   T *A = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
   T *B = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
+#ifdef VNNI
   T *vnniB = malloc_shared<T>(MATRIX_SIZE * MATRIX_SIZE, q);
+#endif
   TResult *C = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
   TResult *refC = malloc_shared<TResult>(MATRIX_SIZE * MATRIX_SIZE, q);
 
   matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, A, T(1));
   matrix_rand<T>(MATRIX_SIZE, MATRIX_SIZE, B, T(1));
-  matrix_vnni<T>(MATRIX_SIZE, MATRIX_SIZE, B, vnniB, VNNI);
 
   matrix_multiply_ref<T, T, TResult, 1>(A, B, refC, MATRIX_SIZE, MATRIX_SIZE,
                                         MATRIX_SIZE);
+
+#ifdef VNNI
+  matrix_vnni<T>(MATRIX_SIZE, MATRIX_SIZE, B, vnniB, vnniFactor);
+  B = vnniB;
+#endif
 
   // run testIterations time, aggregate and calculate average run time
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
     double duration =
-        joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, VNNI,
-                     T, TResult, TM, TN, TK, MCache1, NCache1, KCache1, MCache2,
-                     NCache2, KCache2>(A, vnniB, C, q, i);
+        joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
+                     vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
+                     KCache1, MCache2, NCache2, KCache2>(A, B, C, q, i);
     if (i >= recordThresh) {
       totalDuration += duration;
     }
@@ -280,7 +368,6 @@ void test() {
 
   free(A, q);
   free(B, q);
-  free(vnniB, q);
   free(C, q);
   free(refC, q);
 }

@@ -10,6 +10,9 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
+// RUN: %{build} -o %t_vnni.out -DVNNI -ffp-model=precise
+// RUN: %{run} %t_vnni.out
+
 // RUN: %{build} -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
 
