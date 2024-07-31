@@ -1,0 +1,15 @@
+urCommandBufferAppendKernelLaunchExpTest.Basic{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__1__patternSize__1{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__256{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__1024__patternSize__256{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__4{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__8{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__16{{.*}}
+urCommandBufferFillCommandsTest.Buffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__32{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__1__patternSize__1{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__256{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__1024__patternSize__256{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__4{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__8{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__16{{.*}}
+urCommandBufferFillCommandsTest.USM/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_size__256__patternSize__32{{.*}}
