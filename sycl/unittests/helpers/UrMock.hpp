@@ -424,6 +424,10 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+inline ur_result_t mock_urAdapterRelease(void *pParams) {
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace MockAdapter
 
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
@@ -469,6 +473,7 @@ public:
     ADD_DEFAULT_OVERRIDE(urUsmP2PPeerAccessGetInfoExp,
                          mock_urUsmP2PPeerAccessGetInfoExp)
     ADD_DEFAULT_OVERRIDE(urVirtualMemReserve, mock_urVirtualMemReserve)
+    ADD_DEFAULT_OVERRIDE(urAdapterRelease, mock_urAdapterRelease)
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;
