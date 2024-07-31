@@ -1,0 +1,63 @@
+---
+name: Multi Device testing
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  examples:
+    name: Multi Device testing
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    strategy:
+      matrix:
+        adapter: [
+          {name: L0}
+        ]
+        build_type: [Debug, Release]
+        compiler: [{c: gcc, cxx: g++}] # TODO: investigate why memory-adapter-level_zero hangs with clang
+
+    runs-on: "${{matrix.adapter.name}}_2T"
+
+    steps:
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - name: Install pip packages
+      run: pip install -r third_party/requirements.txt
+
+    # TODO: enable once test failure are fixed/ignored
+    # - name: Download DPC++
+    #   run: |
+    #     wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
+    #     mkdir dpcpp_compiler
+    #     tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+
+    - name: Configure CMake
+      shell: bash -el {0}
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=ON
+        -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        -DUR_TEST_DEVICES_COUNT=2
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    - name: Test adapter specific
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" -E "test-adapter-level_zero_multi_queue" --timeout 180
+      # TODO: investigate why test-adapter-level_zero_multi_queue fails on newer driver
+
+    - name: Test adapters
+      working-directory: ${{github.workspace}}/build
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180

@@ -5,7 +5,6 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
-		urBindlessImagesDestroyExternalSemaphoreExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -15,7 +14,8 @@
 		urBindlessImagesMapExternalArrayExp;
 		urBindlessImagesMipmapFreeExp;
 		urBindlessImagesMipmapGetLevelExp;
-		urBindlessImagesReleaseInteropExp;
+		urBindlessImagesReleaseExternalMemoryExp;
+		urBindlessImagesReleaseExternalSemaphoreExp;
 		urBindlessImagesSampledImageCreateExp;
 		urBindlessImagesSampledImageHandleDestroyExp;
 		urBindlessImagesSignalExternalSemaphoreExp;
@@ -174,7 +174,6 @@
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
-		urPrintBindlessImagesDestroyExternalSemaphoreExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;
@@ -184,7 +183,8 @@
 		urPrintBindlessImagesMapExternalArrayExpParams;
 		urPrintBindlessImagesMipmapFreeExpParams;
 		urPrintBindlessImagesMipmapGetLevelExpParams;
-		urPrintBindlessImagesReleaseInteropExpParams;
+		urPrintBindlessImagesReleaseExternalMemoryExpParams;
+		urPrintBindlessImagesReleaseExternalSemaphoreExpParams;
 		urPrintBindlessImagesSampledImageCreateExpParams;
 		urPrintBindlessImagesSampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesSignalExternalSemaphoreExpParams;
@@ -305,12 +305,13 @@
 		urPrintExpCommandBufferUpdateValueArgDesc;
 		urPrintExpEnqueueNativeCommandFlags;
 		urPrintExpEnqueueNativeCommandProperties;
+		urPrintExpExternalMemDesc;
 		urPrintExpExternalMemType;
+		urPrintExpExternalSemaphoreDesc;
 		urPrintExpExternalSemaphoreType;
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
-		urPrintExpInteropMemDesc;
-		urPrintExpInteropSemaphoreDesc;
+		urPrintExpImageCopyRegion;
 		urPrintExpLaunchProperty;
 		urPrintExpLaunchPropertyId;
 		urPrintExpPeerInfo;

@@ -5,7 +5,6 @@ EXPORTS
 	urAdapterGetLastError
 	urAdapterRelease
 	urAdapterRetain
-	urBindlessImagesDestroyExternalSemaphoreExp
 	urBindlessImagesImageAllocateExp
 	urBindlessImagesImageCopyExp
 	urBindlessImagesImageFreeExp
@@ -15,7 +14,8 @@ EXPORTS
 	urBindlessImagesMapExternalArrayExp
 	urBindlessImagesMipmapFreeExp
 	urBindlessImagesMipmapGetLevelExp
-	urBindlessImagesReleaseInteropExp
+	urBindlessImagesReleaseExternalMemoryExp
+	urBindlessImagesReleaseExternalSemaphoreExp
 	urBindlessImagesSampledImageCreateExp
 	urBindlessImagesSampledImageHandleDestroyExp
 	urBindlessImagesSignalExternalSemaphoreExp
@@ -174,7 +174,6 @@ EXPORTS
 	urPrintApiVersion
 	urPrintBaseDesc
 	urPrintBaseProperties
-	urPrintBindlessImagesDestroyExternalSemaphoreExpParams
 	urPrintBindlessImagesImageAllocateExpParams
 	urPrintBindlessImagesImageCopyExpParams
 	urPrintBindlessImagesImageFreeExpParams
@@ -184,7 +183,8 @@ EXPORTS
 	urPrintBindlessImagesMapExternalArrayExpParams
 	urPrintBindlessImagesMipmapFreeExpParams
 	urPrintBindlessImagesMipmapGetLevelExpParams
-	urPrintBindlessImagesReleaseInteropExpParams
+	urPrintBindlessImagesReleaseExternalMemoryExpParams
+	urPrintBindlessImagesReleaseExternalSemaphoreExpParams
 	urPrintBindlessImagesSampledImageCreateExpParams
 	urPrintBindlessImagesSampledImageHandleDestroyExpParams
 	urPrintBindlessImagesSignalExternalSemaphoreExpParams
@@ -305,12 +305,13 @@ EXPORTS
 	urPrintExpCommandBufferUpdateValueArgDesc
 	urPrintExpEnqueueNativeCommandFlags
 	urPrintExpEnqueueNativeCommandProperties
+	urPrintExpExternalMemDesc
 	urPrintExpExternalMemType
+	urPrintExpExternalSemaphoreDesc
 	urPrintExpExternalSemaphoreType
 	urPrintExpFileDescriptor
 	urPrintExpImageCopyFlags
-	urPrintExpInteropMemDesc
-	urPrintExpInteropSemaphoreDesc
+	urPrintExpImageCopyRegion
 	urPrintExpLaunchProperty
 	urPrintExpLaunchPropertyId
 	urPrintExpPeerInfo

@@ -503,7 +503,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   // optimized path for immediate, in-order command lists
   if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Flags);
+    *Queue = v2::createQueue(Context, Device, Props);
     return UR_RESULT_SUCCESS;
   }
 
@@ -1180,9 +1180,7 @@ ur_queue_handle_legacy_t_::ur_queue_handle_legacy_t_(
   static const bool useDriverCounterBasedEvents = [Device] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
     if (!UrRet) {
-      if (Device->isPVC())
-        return true;
-      return false;
+      return true;
     }
     return std::atoi(UrRet) != 0;
   }();

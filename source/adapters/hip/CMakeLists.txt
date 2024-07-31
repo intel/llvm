@@ -140,6 +140,7 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::umf
     rocmdrv
     )
 
@@ -174,6 +175,7 @@ elseif("${UR_HIP_PLATFORM}" STREQUAL "NVIDIA")
     target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
     cudart
