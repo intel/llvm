@@ -1048,25 +1048,16 @@ public:
   /****************** Assignment Operators **************/
   constexpr vec &operator=(const vec &Rhs) = default;
 
-  // Template required to prevent ambiguous overload with the copy assignment
-  // when NumElements == 1. The template prevents implicit conversion from
-  // vec<_, 1> to DataT.
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<Ty> ||
-          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
-      vec &>
-  operator=(const DataT &Rhs) {
+  vec &operator=(const DataT &Rhs) {
     *this = vec{Rhs};
     return *this;
   }
 
-  // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
-  template <typename Ty = DataT>
-  typename std::enable_if_t<
-      !std::is_same_v<Ty, rel_t> && std::is_convertible_v<Ty, rel_t>, vec &>
-  operator=(const vec<rel_t, NumElements> &Rhs) {
-    *this = Rhs.template as<vec>();
+  // TODO: This is not part of the specification yet.
+  template <typename VecT, int SingleIndex>
+  std::enable_if_t<std::is_same_v<DataT, typename VecT::element_type>, vec &>
+  operator=(const detail::Swizzle<VecT, SingleIndex> &Rhs) {
+    *this = static_cast<DataT>(Rhs);
     return *this;
   }
 

@@ -44,9 +44,10 @@ int main() {
 
   {
     using vec_type = s::vec<char, 1>;
-    vec_type res;
+    using res_type = s::vec<signed char, 1>;
+    res_type res;
     {
-      s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
+      s::buffer<res_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isequal_vec_op_1_elem>([=]() {
@@ -57,16 +58,17 @@ int main() {
       });
     }
     // 1-element vector operators follow vector 0/-1 logic
-    vec_type expected_res(-1);
+    res_type expected_res(-1);
     assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
                              expected_res.template swizzle<sycl::elem::s0>()));
   }
 
   {
     using vec_type = s::vec<char, 1>;
-    vec_type res;
+    using res_type = s::vec<signed char, 1>;
+    res_type res;
     {
-      s::buffer<vec_type, 1> Buf(&res, s::range<1>(1));
+      s::buffer<res_type, 1> Buf(&res, s::range<1>(1));
       Queue.submit([&](s::handler &cgh) {
         auto Acc = Buf.get_access<s::access::mode::write>(cgh);
         cgh.single_task<class isequal_vec_op_1_elem_scalar>([=]() {
@@ -77,7 +79,7 @@ int main() {
       });
     }
     // 1-element vector operators follow vector 0/-1 logic
-    vec_type expected_res(-1);
+    res_type expected_res(-1);
     assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
                              expected_res.template swizzle<sycl::elem::s0>()));
   }
