@@ -116,12 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit bc1a28ede0df7f837047b632e00437587672c134
+  # commit 99489ad46853c24a078d7ad35259cc6278498fe5
+  # Merge: 3e762e00 3f13f69e
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Jul 29 16:44:58 2024 +0100
-  #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
-  #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG bc1a28ede0df7f837047b632e00437587672c134)
+  # Date:   Wed Jul 31 13:23:29 2024 +0100
+  #    Merge pull request #1880 from hdelan/l0-native-enqueue
+  #    [L0] L0 impl for enqueue native command
+  set(UNIFIED_RUNTIME_TAG 99489ad46853c24a078d7ad35259cc6278498fe5)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
