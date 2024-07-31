@@ -938,28 +938,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
   }
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
-    /* CL_DEVICE_SUB_GROUP_SIZES_INTEL is only supported if the device has the
-     * cl_intel_required_subgroup_size extension.
-     * */
-    bool Supported = false;
-    CL_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
-        cl_adapter::cast<cl_device_id>(hDevice),
-        {"cl_intel_required_subgroup_size"}, Supported));
-    if (Supported) {
-      // Have to convert size_t to uint32_t
-      size_t SubGroupSizesSize = 0;
-      CL_RETURN_ON_FAILURE(
-          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                          0, nullptr, &SubGroupSizesSize));
-      std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
-      CL_RETURN_ON_FAILURE(
-          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
-                          SubGroupSizesSize, SubGroupSizes.data(), nullptr));
-      return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
-                                                       SubGroupSizes.size());
-    } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-    }
+    // Have to convert size_t to uint32_t
+    size_t SubGroupSizesSize = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName, 0,
+                        nullptr, &SubGroupSizesSize));
+    std::vector<size_t> SubGroupSizes(SubGroupSizesSize / sizeof(size_t));
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                        SubGroupSizesSize, SubGroupSizes.data(), nullptr));
+    return ReturnValue.template operator()<uint32_t>(SubGroupSizes.data(),
+                                                     SubGroupSizes.size());
   }
   case UR_DEVICE_INFO_EXTENSIONS: {
     cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);

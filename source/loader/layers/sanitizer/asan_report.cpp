@@ -124,7 +124,7 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     getContext()->logger.always("  #0 {} {}:{}", Func, File, Report.Line);
     getContext()->logger.always("");
 
-    if (Options().MaxQuarantineSizeMB > 0) {
+    if (Options(getContext()->logger).MaxQuarantineSizeMB > 0) {
         auto AllocInfoItOp =
             getContext()->interceptor->findAllocInfoByAddress(Report.Address);
 

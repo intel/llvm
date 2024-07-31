@@ -27,8 +27,8 @@ struct AsanOptions {
     AsanOptions(AsanOptions &other) = delete;
     void operator=(const AsanOptions &) = delete;
 
-    static AsanOptions &getInstance() {
-        static AsanOptions instance;
+    static AsanOptions &getInstance(logger::Logger &logger) {
+        static AsanOptions instance(logger);
         return instance;
     }
 
@@ -40,7 +40,7 @@ struct AsanOptions {
     bool DetectPrivates = true;
 
   private:
-    AsanOptions() {
+    AsanOptions(logger::Logger &logger) {
         auto OptionsEnvMap = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
         if (!OptionsEnvMap.has_value()) {
             return;
@@ -117,9 +117,8 @@ struct AsanOptions {
                 MinRZSize = std::stoul(Value);
                 if (MinRZSize < 16) {
                     MinRZSize = 16;
-                    getContext()->logger.warning(
-                        "Trying to set redzone size to a "
-                        "value less than 16 is ignored");
+                    logger.warning("Trying to set redzone size to a "
+                                   "value less than 16 is ignored");
                 }
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
@@ -133,9 +132,8 @@ struct AsanOptions {
                 MaxRZSize = std::stoul(Value);
                 if (MaxRZSize > 2048) {
                     MaxRZSize = 2048;
-                    getContext()->logger.warning(
-                        "Trying to set max redzone size to a "
-                        "value greater than 2048 is ignored");
+                    logger.warning("Trying to set max redzone size to a "
+                                   "value greater than 2048 is ignored");
                 }
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
@@ -144,6 +142,8 @@ struct AsanOptions {
     }
 };
 
-inline const AsanOptions &Options() { return AsanOptions::getInstance(); }
+inline const AsanOptions &Options(logger::Logger &logger) {
+    return AsanOptions::getInstance(logger);
+}
 
 } // namespace ur_sanitizer_layer

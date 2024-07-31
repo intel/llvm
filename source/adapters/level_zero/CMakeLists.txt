@@ -115,6 +115,8 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_factory.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
@@ -135,6 +137,8 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
 )
 
 if(NOT WIN32)
@@ -162,6 +166,7 @@ endif()
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::umf
     LevelZeroLoader
     LevelZeroLoader-Headers
 )
