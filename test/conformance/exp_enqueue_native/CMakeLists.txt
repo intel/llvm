@@ -15,4 +15,21 @@ if (UR_BUILD_ADAPTER_CUDA)
   target_link_libraries(test-exp_enqueue_native PRIVATE cudadrv)
 endif()
 
+if (UR_BUILD_ADAPTER_L0)
+  add_conformance_test_with_kernels_environment(
+    exp_enqueue_native
+    enqueue_native_level_zero.cpp
+  )
+  target_link_libraries(test-exp_enqueue_native PRIVATE
+      LevelZeroLoader
+      LevelZeroLoader-Headers
+  )
+
+  target_include_directories(test-exp_enqueue_native PRIVATE
+      ${PROJECT_SOURCE_DIR}/source
+      ${PROJECT_SOURCE_DIR}/source/adapters/level_zero
+      LevelZeroLoader-Headers
+  )
+endif()
+
 # TODO: Add more tests for different triples

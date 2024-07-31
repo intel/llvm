@@ -705,6 +705,15 @@ ur_result_t ur_queue_handle_legacy_t_::queueGetNativeHandle(
 ) {
   auto Queue = this;
 
+  // Needed for EnqueueNativeCommandExp, so that the native queue 'got' in the
+  // interop func is the as the native queue used to manage dependencies
+  // before the interop func invocation
+  if (Queue->getThreadLocalCommandList() != ze_command_list_handle_t{0}) {
+    auto ZeCmdList = ur_cast<ze_command_list_handle_t *>(NativeQueue);
+    *ZeCmdList = Queue->getThreadLocalCommandList();
+    return UR_RESULT_SUCCESS;
+  }
+
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);
 
