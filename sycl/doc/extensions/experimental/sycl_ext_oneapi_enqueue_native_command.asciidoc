@@ -54,10 +54,10 @@ specification.*
 == Backend support status
 
 This extension is currently implemented in {dpcpp} only for GPU devices and
-only when using the CUDA or HIP backends.  Attempting to use this extension in
-kernels that run on other devices or backends may result in undefined
-behavior.  Be aware that the compiler is not able to issue a diagnostic to
-warn you if this happens.
+only when using the Level Zero, CUDA, HIP backends.  Attempting to use this
+extension in kernels that run on other devices or backends may result in
+undefined behavior.  Be aware that the compiler is not able to issue a
+diagnostic to warn you if this happens.
 
 
 == Overview
@@ -86,16 +86,14 @@ execution once all of its dependent events have completed.
 
 In this example:
 
-```
+```c++
 q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(dep_event);
     cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
-      printf("This will print before dep_event has completed.\n");
-      // This stream has been synchronized with dep_event's underlying
-      // hipEvent_t
-      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
-      hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
-                      hipMemcpyDeviceToHost, stream);
+      printf("This may print before dep_event has completed.\n");
+      auto command_list = h.get_native_queue<sycl::backend::level_zero>();
+      zeCommandListAppendMemoryCopy(
+              command_list, dstmem, srcmem, sz, nullptr, 0, nullptr);
     });
   });
 q.wait()
@@ -180,6 +178,27 @@ queue, aside from the queue that is associated with this handler. If it does
 any of these things, the behavior is undefined.
 
 == Example
+
+```c++
+sycl::queue q;
+q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc{buf, cgh};
+    cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
+      // Can extract device mem from accessor
+      auto src = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc);
+      auto command_list = h.get_native_queue<sycl::backend::level_zero>();
+
+      // Can enqueue arbitrary backend operations. This could also be a kernel
+      // launch or call to a library that enqueues operations on the stream etc
+      //
+      // Important: Enqueuing a *synchronous* backend operation results in
+      // undefined behavior.
+      zeCommandListAppendMemoryCopy(
+              command_list, dst, src, sz, nullptr, 0, nullptr);
+    });
+  });
+q.wait();
+```
 
 This example demonstrates how to use this extension to enqueue asynchronous
 native tasks on the HIP backend.
