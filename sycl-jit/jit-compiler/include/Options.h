@@ -13,7 +13,13 @@
 
 namespace jit_compiler {
 
-enum OptionID { VerboseOutput, EnableCaching, TargetDeviceInfo };
+enum OptionID {
+  VerboseOutput,
+  EnableCaching,
+  TargetDeviceInfo,
+  TargetCPU,
+  TargetFeatures
+};
 
 class OptionPtrBase {
 protected:
@@ -87,6 +93,17 @@ struct JITEnableCaching
 
 struct JITTargetInfo
     : public OptionBase<JITTargetInfo, OptionID::TargetDeviceInfo, TargetInfo> {
+  using OptionBase::OptionBase;
+};
+
+struct JITTargetCPU
+    : public OptionBase<JITTargetCPU, OptionID::TargetCPU, std::string> {
+  using OptionBase::OptionBase;
+};
+
+struct JITTargetFeatures
+    : public OptionBase<JITTargetFeatures, OptionID::TargetFeatures,
+                        std::string> {
   using OptionBase::OptionBase;
 };
 

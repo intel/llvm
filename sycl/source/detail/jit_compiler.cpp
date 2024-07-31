@@ -666,12 +666,14 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
 
   std::string TargetCPU =
       detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get();
+  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPU));
   std::string TargetFeatures =
       detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get();
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetFeatures::set(TargetFeatures));
 
   auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob,
-                                 TargetCPU.c_str(), TargetFeatures.c_str());
+      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());
