@@ -322,6 +322,8 @@ LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for rang
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
+LANGOPT(SYCLUseIntegrationHeaders, 1, 1, "Use integration headers for "
+        "communication between device and host compilation phases")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 LANGOPT(OffloadUniformBlock, 1, 0, "Assume that kernels are launched with uniform block sizes (default true for CUDA/HIP and false otherwise)")
