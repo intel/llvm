@@ -171,7 +171,7 @@ image_mem_handle map_external_image_memory(external_mem extMem,
                                            const sycl::context &syclContext);
 
 /**
- *  @brief   Maps an external memory handle to an image memory handle (which may
+ *  @brief   Maps an external memory object to an image memory handle (which may
  *           have a device optimized memory layout)
  *
  *  @param   extMem      External memory object
