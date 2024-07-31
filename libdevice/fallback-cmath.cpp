@@ -39,9 +39,11 @@ float __devicelib_copysignf(float x, float y) {
 DEVICE_EXTERN_C_INLINE
 float __devicelib_cospif(float x) { return __spirv_ocl_cospi(x); }
 
+SYCL_EXTERNAL
 DEVICE_EXTERN_C_INLINE
-SYCL_EXTERNAL float __devicelib_scalblnf(float x, long int y) {
-  return __spirv_ocl_ldexp(x, (int)y);
+ float __devicelib_scalblnf(float x, long int y) {
+  return x * __spirv_ocl_pow(2.0f, int(y));
+//}//__spirv_ocl_ldexp(x, (int)y);
 }
 
 DEVICE_EXTERN_C_INLINE
