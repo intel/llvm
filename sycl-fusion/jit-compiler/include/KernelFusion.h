@@ -19,19 +19,18 @@
 
 namespace jit_compiler {
 
-class FusionResult {
+class JITResult {
 public:
-  explicit FusionResult(const char *ErrorMessage)
-      : Type{FusionResultType::FAILED}, KernelInfo{},
-        ErrorMessage{ErrorMessage} {}
+  explicit JITResult(const char *ErrorMessage)
+      : Type{JITResultType::FAILED}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit FusionResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
-      : Type{(Cached) ? FusionResultType::CACHED : FusionResultType::NEW},
+  explicit JITResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
+      : Type{(Cached) ? JITResultType::CACHED : JITResultType::NEW},
         KernelInfo(KernelInfo), ErrorMessage{} {}
 
-  bool failed() const { return Type == FusionResultType::FAILED; }
+  bool failed() const { return Type == JITResultType::FAILED; }
 
-  bool cached() const { return Type == FusionResultType::CACHED; }
+  bool cached() const { return Type == JITResultType::CACHED; }
 
   const char *getErrorMessage() const {
     assert(failed() && "No error message present");
@@ -44,9 +43,9 @@ public:
   }
 
 private:
-  enum class FusionResultType { FAILED, CACHED, NEW };
+  enum class JITResultType { FAILED, CACHED, NEW };
 
-  FusionResultType Type;
+  JITResultType Type;
   SYCLKernelInfo KernelInfo;
   sycl::detail::string ErrorMessage;
 };
@@ -56,12 +55,18 @@ extern "C" {
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
 #endif // __clang__
-FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                         const char *FusedKernelName,
-                         View<ParameterIdentity> Identities,
-                         BarrierFlags BarriersFlags,
-                         View<ParameterInternalization> Internalization,
-                         View<jit_compiler::JITConstant> JITConstants);
+JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                      const char *FusedKernelName,
+                      View<ParameterIdentity> Identities,
+                      BarrierFlags BarriersFlags,
+                      View<ParameterInternalization> Internalization,
+                      View<jit_compiler::JITConstant> JITConstants);
+
+JITResult materializeSpecConstants(const char *KernelName,
+                                   jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+                                   View<unsigned char> SpecConstBlob,
+                                   const char *TargetCPU,
+                                   const char *TargetFeatures);
 
 /// Clear all previously set options.
 void resetJITConfiguration();

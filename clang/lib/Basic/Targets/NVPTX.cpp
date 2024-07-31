@@ -175,6 +175,9 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
+  // PTXVersion is the value as parsed so 70 if +ptx70 is given.
+  // For symmetry with __CUDA_ARCH__, make it in the Major * 100 + Minor * 10.
+  Builder.defineMacro("__PTX_VERSION__", Twine(PTXVersion*10));
 
   // Skip setting architecture dependent macros if undefined.
   if (GPU == CudaArch::UNUSED && !HostTarget)

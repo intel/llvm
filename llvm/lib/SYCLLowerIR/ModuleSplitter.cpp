@@ -29,6 +29,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/Internalize.h"
@@ -442,6 +443,19 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
+  static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
+                                                {"source", SPLIT_PER_TU},
+                                                {"auto", SPLIT_AUTO},
+                                                {"none", SPLIT_NONE}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
@@ -1213,6 +1227,61 @@ static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
   SM.ModuleFilePath = Prefix;
   SM.Symbols = MD.makeSymbolTable();
   return SM;
+}
+
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
+  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
+
+  if (!EntriesMBOrErr)
+    return createFileError(File, EntriesMBOrErr.getError());
+
+  line_iterator LI(**EntriesMBOrErr);
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
+  std::vector<module_split::SplitModule> Modules;
+  while (!LI.is_at_eof()) {
+    StringRef Line = *LI;
+    if (Line.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL table row.");
+
+    SmallVector<StringRef, 3> Parts;
+    Line.split(Parts, "|");
+    if (Parts.size() != 3)
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
+        std::tie(Parts[0], Parts[1], Parts[2]);
+    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
+    if (!MBOrErr)
+      return createFileError(PropertyFilePath, MBOrErr.getError());
+
+    auto &MB = **MBOrErr;
+    auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
+    if (!PropSetOrErr)
+      return PropSetOrErr.takeError();
+
+    llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
+    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
+    if (!MBOrErr)
+      return createFileError(SymbolsFilePath, MBOrErr.getError());
+
+    auto &MB2 = *MBOrErr;
+    std::string Symbols =
+        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
+    ++LI;
+  }
+
+  return Modules;
 }
 
 Expected<std::vector<SplitModule>>
