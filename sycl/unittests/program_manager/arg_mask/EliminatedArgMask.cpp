@@ -13,7 +13,7 @@
 #include <sycl/sycl.hpp>
 
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -43,57 +43,57 @@ struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateEAMTestKernelImage() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
 
   // Eliminated arguments are 1st and 3rd.
   std::vector<unsigned char> KernelEAM{0b00000101};
-  UrProperty EAMKernelPOI = makeKernelParamOptInfo(
+  MockProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernelName, EAMTestKernelNumArgs, KernelEAM);
-  UrArray<UrProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateEAMTestKernel2Image() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernel2Image() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
+  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "",                                  // Compile options
+                      "",                                  // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::UrImage EAMImg = generateEAMTestKernelImage();
-static sycl::unittest::UrImage EAM2Img = generateEAMTestKernel2Image();
-static sycl::unittest::UrImageArray<1> EAMImgArray{&EAMImg};
-static sycl::unittest::UrImageArray<1> EAM2ImgArray{&EAM2Img};
+static sycl::unittest::MockDeviceImage EAMImg = generateEAMTestKernelImage();
+static sycl::unittest::MockDeviceImage EAM2Img = generateEAMTestKernel2Image();
+static sycl::unittest::MockDeviceImageArray<1> EAMImgArray{&EAMImg};
+static sycl::unittest::MockDeviceImageArray<1> EAM2ImgArray{&EAM2Img};
 
 // ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
 // storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.
