@@ -211,7 +211,7 @@ void *map_external_linear_memory(external_mem extMem, uint64_t offset,
  *  @return  Memory handle to externally allocated memory on the device
  */
 __SYCL_EXPORT
-void *map_external_linear_memory(external_mem memHandle, uint64_t offset,
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
                                  uint64_t size, const sycl::queue &syclQueue);
 
 /**
