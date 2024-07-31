@@ -899,11 +899,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
 
-  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external memory.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external semaphores.
     return ReturnValue(true);
   }
