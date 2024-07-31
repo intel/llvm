@@ -7550,6 +7550,59 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    uint64_t offset,              ///< [in] offset into memory region to map
+    uint64_t size,                ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
+) {
+    auto pfnMapExternalLinearMemoryExp =
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnMapExternalLinearMemoryExp;
+
+    if (nullptr == pfnMapExternalLinearMemoryExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hExternalMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == ppRetMem) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hContext)) {
+        getContext()->refCountContext->logInvalidReference(hContext);
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hDevice)) {
+        getContext()->refCountContext->logInvalidReference(hDevice);
+    }
+
+    ur_result_t result = pfnMapExternalLinearMemoryExp(
+        hContext, hDevice, offset, size, hExternalMem, ppRetMem);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -9750,6 +9803,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     dditable.pfnMapExternalArrayExp = pDdiTable->pfnMapExternalArrayExp;
     pDdiTable->pfnMapExternalArrayExp =
         ur_validation_layer::urBindlessImagesMapExternalArrayExp;
+
+    dditable.pfnMapExternalLinearMemoryExp =
+        pDdiTable->pfnMapExternalLinearMemoryExp;
+    pDdiTable->pfnMapExternalLinearMemoryExp =
+        ur_validation_layer::urBindlessImagesMapExternalLinearMemoryExp;
 
     dditable.pfnReleaseExternalMemoryExp =
         pDdiTable->pfnReleaseExternalMemoryExp;
