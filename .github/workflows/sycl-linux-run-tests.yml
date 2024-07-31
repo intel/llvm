@@ -314,8 +314,12 @@ jobs:
             cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
           fi
 
-          # List excluded SYCL CTS categories
+          # List excluded SYCL CTS categories:
+          # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
+          # of test categories to be excluded from the build.
+          echo "::group::Excluded test categories"
           cat $cts_exclude_filter
+          echo "::endgroup::"
         fi
 
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
