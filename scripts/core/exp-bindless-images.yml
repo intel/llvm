@@ -23,14 +23,14 @@ class: $xBindlessImages
 name: "$x_exp_image_mem_native_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
-desc: "Handle of interop memory"
+desc: "Handle of external memory"
 class: $xBindlessImages
-name: "$x_exp_interop_mem_handle_t"
+name: "$x_exp_external_mem_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
-desc: "Handle of interop semaphore"
+desc: "Handle of external semaphore"
 class: $xBindlessImages
-name: "$x_exp_interop_semaphore_handle_t"
+name: "$x_exp_external_semaphore_handle_t"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -74,10 +74,10 @@ etors:
     - name: MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP
       value: "0x200B"
       desc: "[$x_bool_t] returns true if the device supports using images created from individual mipmap levels"
-    - name: INTEROP_MEMORY_IMPORT_SUPPORT_EXP
+    - name: EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP
       value: "0x200C"
       desc: "[$x_bool_t] returns true if the device supports importing external memory resources"
-    - name: INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
+    - name: EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP
       value: "0x200E"
       desc: "[$x_bool_t] returns true if the device supports importing external semaphore resources"
     - name: CUBEMAP_SUPPORT_EXP
@@ -122,11 +122,11 @@ etors:
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
       value: "0x2000"
-    - name: EXP_INTEROP_MEM_DESC
-      desc: $x_exp_interop_mem_desc_t
+    - name: EXP_EXTERNAL_MEM_DESC
+      desc: $x_exp_external_mem_desc_t
       value: "0x2001"
-    - name: EXP_INTEROP_SEMAPHORE_DESC
-      desc: $x_exp_interop_semaphore_desc_t
+    - name: EXP_EXTERNAL_SEMAPHORE_DESC
+      desc: $x_exp_external_semaphore_desc_t
       value: "0x2002"
     - name: EXP_FILE_DESCRIPTOR
       desc: $x_exp_file_descriptor_t
@@ -149,10 +149,10 @@ extend: true
 desc: "Command Type experimental enumerations."
 name: $x_command_t
 etors:
-    - name: INTEROP_SEMAPHORE_WAIT_EXP
+    - name: EXTERNAL_SEMAPHORE_WAIT_EXP
       value: "0x2000"
       desc: Event created by $xBindlessImagesWaitExternalSemaphoreExp
-    - name: INTEROP_SEMAPHORE_SIGNAL_EXP
+    - name: EXTERNAL_SEMAPHORE_SIGNAL_EXP
       value: "0x2001"
       desc: Event created by $xBindlessImagesSignalExternalSemaphoreExp
 --- #--------------------------------------------------------------------------
@@ -278,16 +278,16 @@ members:
       desc: "[in] enables or disables seamless cubemap filtering between cubemap faces"
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Describes an interop memory resource descriptor"
+desc: "Describes an external memory resource descriptor"
 class: $xBindlessImages
-name: $x_exp_interop_mem_desc_t
+name: $x_exp_external_mem_desc_t
 base: $x_base_desc_t
 members: []
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Describes an interop semaphore resource descriptor"
+desc: "Describes an external semaphore resource descriptor"
 class: $xBindlessImages
-name: $x_exp_interop_semaphore_desc_t
+name: $x_exp_external_semaphore_desc_t
 base: $x_base_desc_t
 members: []
 --- #--------------------------------------------------------------------------
@@ -692,19 +692,19 @@ params:
     - type: $x_exp_external_mem_type_t
       name: memHandleType
       desc: "[in] type of external memory handle"
-    - type: $x_exp_interop_mem_desc_t*
-      name: pInteropMemDesc
-      desc: "[in] the interop memory descriptor"
-    - type: $x_exp_interop_mem_handle_t*
-      name: phInteropMem
-      desc: "[out] interop memory handle to the external memory"
+    - type: $x_exp_external_mem_desc_t*
+      name: pExternalMemDesc
+      desc: "[in] the external memory descriptor"
+    - type: $x_exp_external_mem_handle_t*
+      name: phExternalMem
+      desc: "[out] external memory handle to the external memory"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Map an interop memory handle to an image memory handle"
+desc: "Map an external memory handle to an image memory handle"
 class: $xBindlessImages
 name: MapExternalArrayExp
 ordinal: "0"
@@ -721,9 +721,9 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_exp_interop_mem_handle_t
-      name: hInteropMem
-      desc: "[in] interop memory handle to the external memory"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
     - type: $x_exp_image_mem_native_handle_t*
       name: phImageMem
       desc: "[out] image memory handle to the externally allocated memory"
@@ -737,9 +737,9 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Release interop memory"
+desc: "Release external memory"
 class: $xBindlessImages
-name: ReleaseInteropExp
+name: ReleaseExternalMemoryExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalMemory**"
@@ -750,9 +750,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_interop_mem_handle_t
-      name: hInteropMem
-      desc: "[in][release] handle of interop memory to be destroyed"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in][release] handle of external memory to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -774,12 +774,12 @@ params:
     - type: $x_exp_external_semaphore_type_t
       name: semHandleType
       desc: "[in] type of external memory handle"
-    - type: $x_exp_interop_semaphore_desc_t*
-      name: pInteropSemaphoreDesc
-      desc: "[in] the interop semaphore descriptor"
-    - type: $x_exp_interop_semaphore_handle_t*
-      name: phInteropSemaphore
-      desc: "[out] interop semaphore handle to the external semaphore"
+    - type: $x_exp_external_semaphore_desc_t*
+      name: pExternalSemaphoreDesc
+      desc: "[in] the external semaphore descriptor"
+    - type: $x_exp_external_semaphore_handle_t*
+      name: phExternalSemaphore
+      desc: "[out] external semaphore handle to the external semaphore"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -798,9 +798,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_interop_semaphore_handle_t
-      name: hInteropSemaphore
-      desc: "[in][release] handle of interop semaphore to be destroyed"
+    - type: $x_exp_external_semaphore_handle_t
+      name: hExternalSemaphore
+      desc: "[in][release] handle of external semaphore to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -816,9 +816,9 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: $x_exp_interop_semaphore_handle_t
+    - type: $x_exp_external_semaphore_handle_t
       name: hSemaphore
-      desc: "[in] interop semaphore handle"
+      desc: "[in] external semaphore handle"
     - type: bool
       name: hasWaitValue
       desc: |
@@ -855,9 +855,9 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: $x_exp_interop_semaphore_handle_t
+    - type: $x_exp_external_semaphore_handle_t
       name: hSemaphore
-      desc: "[in] interop semaphore handle"
+      desc: "[in] external semaphore handle"
     - type: bool
       name: hasSignalValue
       desc: | 
