@@ -14,6 +14,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/TargetParser/Triple.h>
 
 #define DEBUG_TYPE "sycl-spec-const-materializer"
 

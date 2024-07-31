@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -fsycl-device-code-split=per_kernel -o %t.out
 
 // REQUIRES: gpu
 

@@ -30,15 +30,15 @@ enum class external_semaphore_handle_type {
   win32_nt_dx12_fence = 2,
 };
 
-/// Opaque interop memory handle type
-struct interop_mem_handle {
-  using raw_handle_type = ur_exp_interop_mem_handle_t;
+/// Opaque external memory handle type
+struct external_mem {
+  using raw_handle_type = ur_exp_external_mem_handle_t;
   raw_handle_type raw_handle;
 };
 
-/// Opaque interop semaphore handle type
-struct interop_semaphore_handle {
-  using raw_handle_type = ur_exp_interop_semaphore_handle_t;
+/// Imported opaque external semaphore
+struct external_semaphore {
+  using raw_handle_type = ur_exp_external_semaphore_handle_t;
   raw_handle_type raw_handle;
   external_semaphore_handle_type handle_type;
 };

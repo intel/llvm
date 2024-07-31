@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 //
 // RUN: env SYCL_UR_TRACE=1 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
