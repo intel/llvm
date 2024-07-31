@@ -1,11 +1,12 @@
-// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out
-// REQUIRES: level_zero
+
+// REQUIRES: level_zero, level_zero_dev_kit
 
 // TODO: Reenable, see https://github.com/intel/llvm/issues/14598
 // UNSUPPORTED: windows
 
-#include "ze_api.h"
+#include <level_zero/ze_api.h>
 
 #include <iostream>
 #include <sycl/backend.hpp>
