@@ -7,8 +7,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "event_pool.hpp"
 #include "ur_api.h"
-#include <event_pool.hpp>
 
 namespace v2 {
 

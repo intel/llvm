@@ -1,3 +1,4 @@
+urQueueCreateTestMultipleDevices.ContextFromWrongDevice
 urQueueCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urQueueCreateTest.CheckContext/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urQueueFinishTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

@@ -24,8 +24,6 @@
 #include "ur_util.hpp"
 #include "ze_api.h"
 
-#include "v2/queue_factory.hpp"
-
 // Hard limit for the event completion batches.
 static const uint64_t CompletionBatchesMax = [] {
   // Default value chosen empirically to maximize the number of asynchronous
@@ -500,12 +498,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   }
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
-
-  // optimized path for immediate, in-order command lists
-  if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Props);
-    return UR_RESULT_SUCCESS;
-  }
 
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.

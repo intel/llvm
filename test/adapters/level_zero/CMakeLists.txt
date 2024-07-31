@@ -81,4 +81,6 @@ target_link_libraries(test-adapter-level_zero_ipc PRIVATE
     ur_umf
 )
 
-add_subdirectory(v2)
+if(UR_BUILD_ADAPTER_L0_V2)
+    add_subdirectory(v2)
+endif()

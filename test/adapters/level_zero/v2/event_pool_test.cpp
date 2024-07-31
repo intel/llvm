@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "command_list_cache.hpp"
-#include "common.hpp"
+
+#include "level_zero/common.hpp"
+#include "level_zero/device.hpp"
 
 #include "context.hpp"
-#include "device.hpp"
-
 #include "event_pool.hpp"
 #include "event_pool_cache.hpp"
 #include "event_provider.hpp"
