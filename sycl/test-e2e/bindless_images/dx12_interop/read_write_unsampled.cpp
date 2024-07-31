@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (windows && level_zero && gpu-intel-dg2)
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 // REQUIRES: windows
 
 // RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
