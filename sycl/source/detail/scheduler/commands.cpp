@@ -3196,7 +3196,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
         sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
-    assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "
+    assert(NativeCommandSupport && "ext_oneapi_enqueue_native_command is not "
                                    "supported on this device");
     MQueue->getPlugin()->call(urEnqueueNativeCommandExp, MQueue->getHandleRef(),
                               InteropFreeFunc, &CustomOpData, ReqMems.size(),
