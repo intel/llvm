@@ -10,6 +10,9 @@
 // NOTE: must be run with %clang_O0, as optimizer optimizes away some of the
 // code
 
+// just running CI
+// UNSUPPORTED: linux || windows
+
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

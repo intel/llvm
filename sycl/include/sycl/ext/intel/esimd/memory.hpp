@@ -201,6 +201,9 @@ __ESIMD_API void scatter_impl(T *p, simd<Toffset, N> offsets,
 // those operations in SPIR-V when they are used in mixed (scalar and vector)
 // kernels using invoke_simd() API.
 constexpr bool isMaskedGatherScatterLLVMAvailable() {
+#ifndef __ESIMD_GATHER_SCATTER_LLVM_IR
+#define __ESIMD_GATHER_SCATTER_LLVM_IR
+#endif
 #ifdef __ESIMD_GATHER_SCATTER_LLVM_IR
   return true;
 #else
