@@ -958,63 +958,20 @@ private:
     }
   }
 
-  // SizeChecker is needed for vec(const argTN &... args) ctor to validate
-  // args.
-  template <int Counter, int MaxValue, class...>
-  struct SizeChecker : std::conditional_t<Counter == MaxValue, std::true_type,
-                                          std::false_type> {};
-
-  template <int Counter, int MaxValue, typename DataT_, class... tail>
-  struct SizeChecker<Counter, MaxValue, DataT_, tail...>
-      : std::conditional_t<Counter + 1 <= MaxValue,
-                           SizeChecker<Counter + 1, MaxValue, tail...>,
-                           std::false_type> {};
-
   // Utility trait for creating an std::array from an vector argument.
-  template <typename DataT_, typename T, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const vec<T, sizeof...(Is)> &V, std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V[Is])...};
-  }
-  template <typename DataT_, typename T, int N, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::Swizzle<vec<T, N>, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V[Is])...};
-  }
-  template <typename DataT_, typename T, int N, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::Swizzle<const vec<T, N>, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V[Is])...};
-  }
+  template <typename DataT_, typename T> class FlattenVecArg {
+    template <std::size_t... Is>
+    static constexpr auto helper(const T &V, std::index_sequence<Is...>) {
+      return std::array{static_cast<DataT_>(V[Is])...};
+    }
 
-  template <typename DataT_, typename T, int N>
-  static constexpr std::array<DataT_, N>
-  FlattenVecArgHelper(const vec<T, N> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<N>());
-  }
-  template <typename DataT_, typename T, int N, int... Indexes_>
-  static constexpr std::array<DataT_, sizeof...(Indexes_)>
-  FlattenVecArgHelper(const detail::Swizzle<vec<T, N>, Indexes_...> &A) {
-    return VecToArray<DataT_>(A,
-                              std::make_index_sequence<sizeof...(Indexes_)>());
-  }
-  template <typename DataT_, typename T, int N, int... Indexes_>
-  static constexpr std::array<DataT_, sizeof...(Indexes_)>
-  FlattenVecArgHelper(const detail::Swizzle<const vec<T, N>, Indexes_...> &A) {
-    return VecToArray<DataT_>(A,
-                              std::make_index_sequence<sizeof...(Indexes_)>());
-  }
-  template <typename DataT_, typename T>
-  static constexpr auto FlattenVecArgHelper(const T &A) {
-    // static_cast required to avoid narrowing conversion warning
-    // when T = unsigned long int and DataT_ = int.
-    return std::array<DataT_, 1>{static_cast<DataT_>(A)};
-  }
-  template <typename DataT_, typename T> struct FlattenVecArg {
+  public:
     constexpr auto operator()(const T &A) const {
-      return FlattenVecArgHelper<DataT_>(A);
+      if constexpr (detail::is_vec_or_swizzle_v<T>) {
+        return helper(A, std::make_index_sequence<T ::size()>());
+      } else {
+        return std::array{static_cast<DataT_>(A)};
+      }
     }
   };
 
@@ -1023,76 +980,34 @@ private:
   using VecArgArrayCreator =
       detail::ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
 
-#define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
-  template <int Counter, int MaxValue, typename DataT_, class... tail>         \
-  struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
-      : std::conditional_t<                                                    \
-            Counter + (num_elements) <= MaxValue,                              \
-            SizeChecker<Counter + (num_elements), MaxValue, tail...>,          \
-            std::false_type> {};                                               \
-  template <int Counter, int MaxValue, typename DataT_, int... Indexes_,       \
-            class... tail>                                                     \
-  struct SizeChecker<Counter, MaxValue,                                        \
-                     detail::Swizzle<vec<DataT_, num_elements>, Indexes_...>,  \
-                     tail...>                                                  \
-      : std::conditional_t<                                                    \
-            Counter + sizeof...(Indexes_) <= MaxValue,                         \
-            SizeChecker<Counter + sizeof...(Indexes_), MaxValue, tail...>,     \
-            std::false_type> {};                                               \
-  template <int Counter, int MaxValue, typename DataT_, int... Indexes_,       \
-            class... tail>                                                     \
-  struct SizeChecker<                                                          \
-      Counter, MaxValue,                                                       \
-      detail::Swizzle<const vec<DataT_, num_elements>, Indexes_...>, tail...>  \
-      : std::conditional_t<                                                    \
-            Counter + sizeof...(Indexes_) <= MaxValue,                         \
-            SizeChecker<Counter + sizeof...(Indexes_), MaxValue, tail...>,     \
-            std::false_type> {};
-
-  __SYCL_ALLOW_VECTOR_SIZES(1)
-  __SYCL_ALLOW_VECTOR_SIZES(2)
-  __SYCL_ALLOW_VECTOR_SIZES(3)
-  __SYCL_ALLOW_VECTOR_SIZES(4)
-  __SYCL_ALLOW_VECTOR_SIZES(8)
-  __SYCL_ALLOW_VECTOR_SIZES(16)
-#undef __SYCL_ALLOW_VECTOR_SIZES
-
-  // TypeChecker is needed for vec(const argTN &... args) ctor to validate
-  // args.
-  template <typename T, typename DataT_>
-  struct TypeChecker : std::is_convertible<T, DataT_> {};
-#define __SYCL_ALLOW_VECTOR_TYPES(num_elements)                                \
-  template <typename DataT_>                                                   \
-  struct TypeChecker<vec<DataT_, num_elements>, DataT_> : std::true_type {};   \
-  template <typename DataT_, int... Indexes_>                                  \
-  struct TypeChecker<detail::Swizzle<vec<DataT_, num_elements>, Indexes_...>,  \
-                     DataT_> : std::true_type {};                              \
-  template <typename DataT_, int... Indexes_>                                  \
-  struct TypeChecker<                                                          \
-      detail::Swizzle<const vec<DataT_, num_elements>, Indexes_...>, DataT_>   \
-      : std::true_type {};
-
-  __SYCL_ALLOW_VECTOR_TYPES(1)
-  __SYCL_ALLOW_VECTOR_TYPES(2)
-  __SYCL_ALLOW_VECTOR_TYPES(3)
-  __SYCL_ALLOW_VECTOR_TYPES(4)
-  __SYCL_ALLOW_VECTOR_TYPES(8)
-  __SYCL_ALLOW_VECTOR_TYPES(16)
-#undef __SYCL_ALLOW_VECTOR_TYPES
-
   template <int... Indexes> using Swizzle = detail::Swizzle<vec, Indexes...>;
 
   template <int... Indexes>
   using ConstSwizzle = detail::Swizzle<const vec, Indexes...>;
 
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
-  template <typename... argTN>
-  using EnableIfSuitableTypes = typename std::enable_if_t<
-      std::conjunction_v<TypeChecker<argTN, DataT>...>>;
+  template <typename CtorArgTy>
+  static constexpr bool AllowArgTypeInVariadicCtor = []() constexpr {
+    // TODO: align implementation and the specification.
+    if constexpr (detail::is_vec_or_swizzle_v<CtorArgTy>) {
+      if constexpr (CtorArgTy::size() == 1)
+        // Emulate old implementation behavior, the spec requires it to be
+        // `std::is_same_v`.
+        return std::is_convertible_v<typename CtorArgTy::element_type, DataT>;
+      else
+        return std::is_same_v<typename CtorArgTy::element_type, DataT>;
+    } else {
+      // Likewise.
+      return std::is_convertible_v<CtorArgTy, DataT>;
+    }
+  }();
 
-  template <typename... argTN>
-  using EnableIfSuitableNumElements =
-      typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
+  template <typename T> static constexpr int num_elements() {
+    if constexpr (detail::is_vec_or_swizzle_v<T>)
+      return T::size();
+    else
+      return 1;
+  }
 
   // Element type for relational operator return value.
   using rel_t = detail::select_cl_scalar_integral_signed_t<DataT>;
@@ -1122,8 +1037,10 @@ public:
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
-            typename = EnableIfSuitableNumElements<argTN...>>
+  template <typename... argTN,
+            typename = std::enable_if_t<
+                ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+                ((num_elements<argTN>() + ...)) == NumElements>>
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
