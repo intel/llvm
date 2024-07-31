@@ -198,7 +198,8 @@ static bool selectBfloatLibs(const ToolChain &TC,
 
 static SmallVector<ToolChain::BitCodeLibraryInfo, 8>
 getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
-                       const llvm::Triple &TargetTriple, const ToolChain &TC,
+                       const llvm::Triple &TargetTriple,
+                       const llvm::Triple &HostTriple, const ToolChain &TC,
                        bool IsSpirvAOT) {
   SmallVector<ToolChain::BitCodeLibraryInfo, 8> LibraryList;
 
@@ -287,12 +288,10 @@ getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
 
   const bool isNativeCPU =
       (driver::isSYCLNativeCPU(Args) &&
-       driver::isSYCLNativeCPU(C.getDefaultToolChain().getTriple(),
-                               TargetTriple));
+       driver::isSYCLNativeCPU(HostTriple, TargetTriple));
 
-  bool IsWindowsMSVCEnv =
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
+  bool IsWindowsMSVCEnv = HostTriple.isWindowsMSVCEnvironment();
+  bool IsNewOffload = TC.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
   if (TargetTriple.isNVPTX() ||
       (TargetTriple.isSPIR() &&
@@ -395,7 +394,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
     SmallVector<ToolChain::BitCodeLibraryInfo, 8> BitCodeList;
     BitCodeList =
-        getSYCLDeviceLibraries(Args, TargetTriple, *DeviceTC, IsSpirvAOT);
+        getSYCLDeviceLibraries(Args, TargetTriple,
+            C.getDefaultToolChain().getTriple(), *DeviceTC, IsSpirvAOT);
     for (const auto &BitCodeFile : BitCodeList)
       LibraryList.push_back(BitCodeFile.Path);
   }
@@ -1410,8 +1410,8 @@ void SYCLToolChain::addClangTargetOptions(
   const llvm::Triple &SYCLTriple(getTriple());
   SmallVector<ToolChain::BitCodeLibraryInfo, 8> DeviceLibraries;
   if (DriverArgs.hasArg(options::OPT_sycl_embed_devicelib))
-    DeviceLibraries = getSYCLDeviceLibraries(DriverArgs, SYCLTriple, *this,
-                                             /*IsSpirvAOT=*/false);
+    DeviceLibraries = getSYCLDeviceLibraries(DriverArgs, SYCLTriple,
+        HostTC.getTriple(), *this, /*IsSpirvAOT=*/false);
 
   for (const auto &DeviceLib : DeviceLibraries) {
     bool LibLocSelected = false;
