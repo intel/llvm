@@ -1640,6 +1640,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalArrayExp_t)(
     ur_exp_image_mem_native_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urBindlessImagesMapExternalLinearMemoryExp
+typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalLinearMemoryExp_t)(
+    ur_context_handle_t,
+    ur_device_handle_t,
+    uint64_t,
+    uint64_t,
+    ur_exp_external_mem_handle_t,
+    void **);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesReleaseExternalMemoryExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseExternalMemoryExp_t)(
     ur_context_handle_t,
@@ -1699,6 +1709,7 @@ typedef struct ur_bindless_images_exp_dditable_t {
     ur_pfnBindlessImagesMipmapFreeExp_t pfnMipmapFreeExp;
     ur_pfnBindlessImagesImportExternalMemoryExp_t pfnImportExternalMemoryExp;
     ur_pfnBindlessImagesMapExternalArrayExp_t pfnMapExternalArrayExp;
+    ur_pfnBindlessImagesMapExternalLinearMemoryExp_t pfnMapExternalLinearMemoryExp;
     ur_pfnBindlessImagesReleaseExternalMemoryExp_t pfnReleaseExternalMemoryExp;
     ur_pfnBindlessImagesImportExternalSemaphoreExp_t pfnImportExternalSemaphoreExp;
     ur_pfnBindlessImagesReleaseExternalSemaphoreExp_t pfnReleaseExternalSemaphoreExp;

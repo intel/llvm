@@ -2147,6 +2147,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalMemoryExp
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMapExternalArrayExpParams(const struct ur_bindless_images_map_external_array_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_bindless_images_map_external_linear_memory_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMapExternalLinearMemoryExpParams(const struct ur_bindless_images_map_external_linear_memory_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_release_external_memory_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
