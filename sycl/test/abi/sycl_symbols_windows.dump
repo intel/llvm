@@ -3770,6 +3770,7 @@
 ?ext_oneapi_can_access_peer@device@_V1@sycl@@QEAA_NAEBV123@W4peer_access@oneapi@ext@23@@Z
 ?ext_oneapi_can_compile@device@_V1@sycl@@QEAA_NW4source_language@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_cl_profile@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+?ext_oneapi_cl_profile_impl@device@_V1@sycl@@AEBA?AVstring@detail@23@XZ
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEBXPEAXAEBUimage_descriptor@experimental@oneapi@ext@23@_K@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEBXUimage_mem_handle@experimental@oneapi@ext@23@AEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEBXV?$range@$02@23@1Uimage_mem_handle@experimental@oneapi@ext@23@1AEBUimage_descriptor@67823@1@Z
