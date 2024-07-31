@@ -1,8 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 // REQUIRES: aspect-fp16
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
