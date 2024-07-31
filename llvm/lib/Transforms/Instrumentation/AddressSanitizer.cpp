@@ -881,7 +881,6 @@ private:
   FunctionCallee AsanSetShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
-  Constant *AsanShadowDevicePrivate;
   StringMap<GlobalVariable *> GlobalStringMap;
   Constant *AsanLaunchInfo;
 
@@ -3467,10 +3466,14 @@ bool AddressSanitizer::instrumentFunction(Function &F,
         NumInsnsPerBB++;
       } else {
         if (auto *CB = dyn_cast<CallBase>(&Inst)) {
-          // A call inside BB.
-          TempsToInstrument.clear();
-          if (CB->doesNotReturn())
-            NoReturnCalls.push_back(CB);
+          // On device side, the only non return cases should be *.trap or
+          // assert, and none of these cases need to be handles.
+          if (!TargetTriple.isSPIROrSPIRV()) {
+            // A call inside BB.
+            TempsToInstrument.clear();
+            if (CB->doesNotReturn())
+              NoReturnCalls.push_back(CB);
+          }
         }
         if (CallInst *CI = dyn_cast<CallInst>(&Inst)) {
           if (TargetTriple.isSPIROrSPIRV() && CI->getCalledFunction() &&

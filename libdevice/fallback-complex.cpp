@@ -154,8 +154,14 @@ float __complex__ __devicelib_cexpf(float __complex__ z) {
     return z;
   }
   float __e = __spirv_ocl_exp(z_real);
-  return CMPLXF((__e * __spirv_ocl_cos(z_imag)),
-                (__e * __spirv_ocl_sin(z_imag)));
+  float ret_real = __e * __spirv_ocl_cos(z_imag);
+  float ret_imag = __e * __spirv_ocl_sin(z_imag);
+
+  if (__spirv_IsNan(ret_real))
+    ret_real = 0.f;
+  if (__spirv_IsNan(ret_imag))
+    ret_imag = 0.f;
+  return CMPLXF(ret_real, ret_imag);
 }
 
 DEVICE_EXTERN_C_INLINE
@@ -249,8 +255,8 @@ float __complex__ __devicelib_ctanhf(float __complex__ z) {
   float z_imag = __devicelib_cimagf(z);
   if (__spirv_IsInf(z_real)) {
     if (!__spirv_IsFinite(z_imag))
-      return CMPLXF(1.0f, 0.0f);
-    return CMPLXF(1.0f,
+      return CMPLXF(__spirv_ocl_copysign(1.0f, z_real), 0.0f);
+    return CMPLXF(__spirv_ocl_copysign(1.0f, z_real),
                   __spirv_ocl_copysign(0.0f, __spirv_ocl_sin(2.0f * z_imag)));
   }
   if (__spirv_IsNan(z_real) && z_imag == 0)
