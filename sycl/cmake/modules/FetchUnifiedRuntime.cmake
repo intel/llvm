@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 83f7ad9551ce0134931b44804b5a254ae2e93068
-  # Merge: ab9baf57 8fb6824d
+  # commit 3c12bbceec33cf5cf5fc4fa85e641b4f95e820b7
+  # Merge: 83f7ad95 ac7eb171
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Aug 8 11:11:13 2024 +0100
-  #     Merge pull request #1860 from PietroGhg/pietro/fill
-  #     [NATIVECPU] Fix pointer arithmetic in USMfill
-  set(UNIFIED_RUNTIME_TAG 83f7ad9551ce0134931b44804b5a254ae2e93068)
+  # Date:   Fri Aug 9 10:51:05 2024 +0100
+  #     Merge pull request #1910 from Bensuo/sync_point
+  #     [CUDA][HIP] Improve command-buffer sync points
+  set(UNIFIED_RUNTIME_TAG 3c12bbceec33cf5cf5fc4fa85e641b4f95e820b7)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
