@@ -9449,8 +9449,10 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   // important for ensuring that alignas in C23 is properly handled on a
   // structure member declaration because it is a type-specifier-qualifier in
   // C but still applies to the declaration rather than the type.
-  if ((S.getLangOpts().CPlusPlus ? AL.isCXX11Attribute()
-                                 : AL.isC23Attribute()) &&
+  if ((S.getLangOpts().CPlusPlus
+           ? AL.isCXX11Attribute() && (!IsDeclLambdaCallOperator(D) ||
+                                       !AL.supportsNonconformingLambdaSyntax())
+           : AL.isC23Attribute()) &&
       !Options.IncludeCXX11Attributes)
     return;
 
