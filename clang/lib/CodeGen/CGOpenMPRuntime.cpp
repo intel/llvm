@@ -3861,7 +3861,7 @@ CGOpenMPRuntime::emitTaskInit(CodeGenFunction &CGF, SourceLocation Loc,
         HasIterator = true;
         continue;
       }
-      for (const Expr *E : C->varlists()) {
+      for (const Expr *E : C->varlist()) {
         llvm::Value *Addr;
         llvm::Value *Size;
         std::tie(Addr, Size) = getPointerAndSize(CGF, E);
@@ -3894,7 +3894,7 @@ CGOpenMPRuntime::emitTaskInit(CodeGenFunction &CGF, SourceLocation Loc,
         continue;
       OMPIteratorGeneratorScope IteratorScope(
           CGF, cast_or_null<OMPIteratorExpr>(Modifier->IgnoreParenImpCasts()));
-      for (const Expr *E : C->varlists()) {
+      for (const Expr *E : C->varlist()) {
         llvm::Value *Addr;
         llvm::Value *Size;
         std::tie(Addr, Size) = getPointerAndSize(CGF, E);
@@ -8189,7 +8189,7 @@ public:
       : CurDir(&Dir), CGF(CGF) {
     // Extract firstprivate clause information.
     for (const auto *C : Dir.getClausesOfKind<OMPFirstprivateClause>())
-      for (const auto *D : C->varlists())
+      for (const auto *D : C->varlist())
         FirstPrivateDecls.try_emplace(
             cast<VarDecl>(cast<DeclRefExpr>(D)->getDecl()), C->isImplicit());
     // Extract implicit firstprivates from uses_allocators clauses.
@@ -11508,7 +11508,7 @@ void CGOpenMPRuntime::LastprivateConditionalRAII::tryToDisableInnerAnalysis(
   }
   // Exclude vars in private clauses.
   for (const auto *C : S.getClausesOfKind<OMPPrivateClause>()) {
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       if (!Ref->getType()->isScalarType())
         continue;
       const auto *DRE = dyn_cast<DeclRefExpr>(Ref->IgnoreParenImpCasts());
@@ -11518,7 +11518,7 @@ void CGOpenMPRuntime::LastprivateConditionalRAII::tryToDisableInnerAnalysis(
     }
   }
   for (const auto *C : S.getClausesOfKind<OMPFirstprivateClause>()) {
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       if (!Ref->getType()->isScalarType())
         continue;
       const auto *DRE = dyn_cast<DeclRefExpr>(Ref->IgnoreParenImpCasts());
@@ -11528,7 +11528,7 @@ void CGOpenMPRuntime::LastprivateConditionalRAII::tryToDisableInnerAnalysis(
     }
   }
   for (const auto *C : S.getClausesOfKind<OMPLastprivateClause>()) {
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       if (!Ref->getType()->isScalarType())
         continue;
       const auto *DRE = dyn_cast<DeclRefExpr>(Ref->IgnoreParenImpCasts());
@@ -11538,7 +11538,7 @@ void CGOpenMPRuntime::LastprivateConditionalRAII::tryToDisableInnerAnalysis(
     }
   }
   for (const auto *C : S.getClausesOfKind<OMPReductionClause>()) {
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       if (!Ref->getType()->isScalarType())
         continue;
       const auto *DRE = dyn_cast<DeclRefExpr>(Ref->IgnoreParenImpCasts());
@@ -11548,7 +11548,7 @@ void CGOpenMPRuntime::LastprivateConditionalRAII::tryToDisableInnerAnalysis(
     }
   }
   for (const auto *C : S.getClausesOfKind<OMPLinearClause>()) {
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       if (!Ref->getType()->isScalarType())
         continue;
       const auto *DRE = dyn_cast<DeclRefExpr>(Ref->IgnoreParenImpCasts());
@@ -11591,7 +11591,7 @@ CGOpenMPRuntime::LastprivateConditionalRAII::LastprivateConditionalRAII(
     if (C->getKind() != OMPC_LASTPRIVATE_conditional)
       continue;
 
-    for (const Expr *Ref : C->varlists()) {
+    for (const Expr *Ref : C->varlist()) {
       Data.DeclToUniqueName.insert(std::make_pair(
           cast<DeclRefExpr>(Ref->IgnoreParenImpCasts())->getDecl(),
           SmallString<16>(generateUniqueName(CGM, "pl_cond", Ref))));

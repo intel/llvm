@@ -8188,7 +8188,7 @@ void CodeGenModule::EmitOMPThreadPrivateDecl(const OMPThreadPrivateDecl *D) {
   // Do not emit threadprivates in simd-only mode.
   if (LangOpts.OpenMP && LangOpts.OpenMPSimd)
     return;
-  for (auto RefExpr : D->varlists()) {
+  for (auto RefExpr : D->varlist()) {
     auto *VD = cast<VarDecl>(cast<DeclRefExpr>(RefExpr)->getDecl());
     bool PerformInit =
         VD->getAnyInitializer() &&
