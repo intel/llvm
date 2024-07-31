@@ -2,6 +2,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
+// Same test with -O0 to ensure unremoved builtins link
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu -O0 %s -o %t
+// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
+
 // Same test but with -g
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -g -o %t-debug
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t-debug
@@ -27,22 +31,24 @@ int main() {
                      C{{0, 0, 0, 0, 0}};
   sycl::queue deviceQueue;
   sycl::range<1> numOfItems{N};
-  sycl::buffer<int, 1> bufferA(A.data(), numOfItems);
-  sycl::buffer<int, 1> bufferB(B.data(), numOfItems);
-  sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
+  {
+    sycl::buffer<int, 1> bufferA(A.data(), numOfItems);
+    sycl::buffer<int, 1> bufferB(B.data(), numOfItems);
+    sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
 
-  deviceQueue
-      .submit([&](sycl::handler &cgh) {
-        auto accessorA = bufferA.get_access<sycl_read>(cgh);
-        auto accessorB = bufferB.get_access<sycl_read>(cgh);
-        auto accessorC = bufferC.get_access<sycl_write>(cgh);
+    deviceQueue
+        .submit([&](sycl::handler &cgh) {
+          auto accessorA = bufferA.get_access<sycl_read>(cgh);
+          auto accessorB = bufferB.get_access<sycl_read>(cgh);
+          auto accessorC = bufferC.get_access<sycl_write>(cgh);
 
-        auto kern = [=](sycl::id<1> wiID) {
-          accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
-        };
-        cgh.parallel_for<class SimpleVadd>(numOfItems, kern);
-      })
-      .wait();
+          auto kern = [=](sycl::id<1> wiID) {
+            accessorC[wiID] = accessorA[wiID] + accessorB[wiID];
+          };
+          cgh.parallel_for<class SimpleVadd>(numOfItems, kern);
+        })
+        .wait();
+  }
 
   for (unsigned int i = 0; i < N; i++) {
     std::cout << "C[" << i << "] = " << C[i] << "\n";

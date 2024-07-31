@@ -1,12 +1,7 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test cooperative kernels are not fused
-
-// This test currently fails on AMD HIP due to an unresolved problem when
-// submitting a kernel with the use_root_sync property to a command group with
-// fusion enabled.
-// XFAIL: hip_amd
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>

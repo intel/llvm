@@ -2,6 +2,8 @@
 
 #include "common.hpp"
 
+#include <sycl/usm.hpp>
+
 struct StructWithMember {
   int x;
   int getX() { return x; }

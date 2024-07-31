@@ -80,42 +80,38 @@ constexpr device_global<TestStruct2, decltype(properties(device_image_scope))>
     dg_constexpr_constructor_struct{TS4};
 // CHECK: @{{[A-Za-z0-9_]*}}dg_constexpr_constructor_struct = internal addrspace(1) constant { %struct.TestStruct2 } { %struct.TestStruct2 { i32 4 } }, align 4, !spirv.Decorations
 
-int main() {
-  sycl::queue Q;
-  Q.submit([&](sycl::handler &h) {
-    // Simple kernel that just copies over the values from the device_globals so
-    // that we can observe the GlobalVariables that are created to represent
-    // them in the IR
-    h.single_task([=] {
-      // Int and array of ints
-      std::ignore = dg_int;
-      std::ignore = dg_int_arr[0];
+SYCL_EXTERNAL void device_global_const_eval_use() {
+  // Simple kernel that just copies over the values from the device_globals so
+  // that we can observe the GlobalVariables that are created to represent
+  // them in the IR
 
-      // Char and array of chars
-      std::ignore = dg_char;
-      std::ignore = dg_char_arr[0];
+  // Int and array of ints
+  std::ignore = dg_int;
+  std::ignore = dg_int_arr[0];
 
-      // Multidimensional array of integers
-      std::ignore = dg_multi_dim_arr[1][1];
+  // Char and array of chars
+  std::ignore = dg_char;
+  std::ignore = dg_char_arr[0];
 
-      // Float and array of floats
-      std::ignore = dg_float;
-      std::ignore = dg_float_arr[0];
+  // Multidimensional array of integers
+  std::ignore = dg_multi_dim_arr[1][1];
 
-      // Double and array of doubles
-      std::ignore = dg_double;
-      std::ignore = dg_double_arr[0];
+  // Float and array of floats
+  std::ignore = dg_float;
+  std::ignore = dg_float_arr[0];
 
-      // Bool and array of bools
-      std::ignore = dg_bool;
-      std::ignore = dg_bool_arr[0];
+  // Double and array of doubles
+  std::ignore = dg_double;
+  std::ignore = dg_double_arr[0];
 
-      // Struct and array of structs
-      std::ignore = dg_struct.get().field1;
-      std::ignore = dg_struct_arr[0];
+  // Bool and array of bools
+  std::ignore = dg_bool;
+  std::ignore = dg_bool_arr[0];
 
-      // Struct with constexpr constructor
-      std::ignore = dg_constexpr_constructor_struct.get().value;
-    });
-  });
+  // Struct and array of structs
+  std::ignore = dg_struct.get().field1;
+  std::ignore = dg_struct_arr[0];
+
+  // Struct with constexpr constructor
+  std::ignore = dg_constexpr_constructor_struct.get().value;
 }

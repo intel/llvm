@@ -3,14 +3,14 @@
 ; modules.
 
 ; -- Per-source split
-; RUN: sycl-post-link -split=source -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tA.table
+; RUN: sycl-post-link -properties -split=source -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tA.table
 ; RUN: FileCheck %s -input-file=%tA_0.ll --check-prefixes CHECK-A0
 ; RUN: FileCheck %s -input-file=%tA_1.ll --check-prefixes CHECK-A1
 ; -- No split
-; RUN: sycl-post-link -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tB.table
+; RUN: sycl-post-link -properties -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tB.table
 ; RUN: FileCheck %s -input-file=%tB_0.ll --check-prefixes CHECK-B0
 ; -- Per-kernel split
-; RUN: sycl-post-link -split=kernel -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tC.table
+; RUN: sycl-post-link -properties -split=kernel -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tC.table
 ; RUN: FileCheck %s -input-file=%tC_0.ll --check-prefixes CHECK-C0
 ; RUN: FileCheck %s -input-file=%tC_1.ll --check-prefixes CHECK-C1
 

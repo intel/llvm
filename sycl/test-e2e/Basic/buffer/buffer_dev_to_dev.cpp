@@ -1,5 +1,3 @@
-// FIXME flaky fail on HIP
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -12,15 +10,16 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
-#include <memory>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
+constexpr int size = 10;
+
 int main() {
-  int Data[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  int Data[size] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
   {
-    buffer<int, 1> Buffer(Data, range<1>(10),
+    buffer<int, 1> Buffer(Data, range<1>(size),
                           {property::buffer::use_host_ptr()});
 
     device Device(default_selector_v);
@@ -33,17 +32,17 @@ int main() {
 
     assert(FirstQueue.get_context() != SecondQueue.get_context());
     FirstQueue.submit([&](handler &Cgh) {
-      auto Accessor = Buffer.get_access<access::mode::read_write>(Cgh);
-      Cgh.parallel_for<class init_b>(range<1>{10},
+      accessor Accessor{Buffer, Cgh};
+      Cgh.parallel_for<class init_b>(range<1>{size},
                                      [=](id<1> Index) { Accessor[Index] = 0; });
     });
     SecondQueue.submit([&](handler &Cgh) {
-      auto Accessor = Buffer.get_access<access::mode::read_write>(Cgh);
+      accessor Accessor{Buffer, Cgh};
       Cgh.parallel_for<class increment_b>(
-          range<1>{10}, [=](id<1> Index) { Accessor[Index] += 1; });
+          range<1>{size}, [=](id<1> Index) { Accessor[Index] += 1; });
     });
   } // Data is copied back
-  for (int I = 0; I < 10; I++) {
+  for (int I = 0; I < size; I++) {
     assert(Data[I] == 1);
   }
 

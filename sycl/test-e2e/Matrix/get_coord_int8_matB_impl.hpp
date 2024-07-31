@@ -5,22 +5,23 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/atomic_ref.hpp>
 #include <sycl/group_algorithm.hpp>
 
-constexpr size_t TK = 32;
-constexpr size_t VF = 4;
+template <size_t TileRows, size_t TileCols> class add_cols;
 
-template <typename T, size_t K, size_t N>
-void sum_cols_ref(host_accessor<T, 2, access::mode::read_write> B,
-                  host_accessor<int, 1, access::mode::read_write> sum_cols) {
-  int sum_cols_ref[N] = {0};
-  for (size_t j = 0; j < N; j++) {
-    for (size_t i = 0; i < K; i++) {
+template <typename T, typename TResult, size_t Rows, size_t Cols>
+void sum_cols_ref(
+    host_accessor<T, 2, access::mode::read_write> B,
+    host_accessor<TResult, 1, access::mode::read_write> sum_cols) {
+  TResult sum_cols_ref[Cols] = {0};
+  for (size_t j = 0; j < Cols; j++) {
+    for (size_t i = 0; i < Rows; i++) {
       sum_cols_ref[j] += B[i][j];
     }
     auto diff = sum_cols[j] - sum_cols_ref[j];
-    assert(std::fabs(static_cast<int>(diff)) <=
-           std::numeric_limits<int>::epsilon());
+    assert(std::fabs(static_cast<TResult>(diff)) <=
+           std::numeric_limits<TResult>::epsilon());
   }
 }
 
@@ -93,84 +94,121 @@ wi [1,0] -->    i=0, [8, 0]
 
 // clang-format on
 
-template <typename T, size_t K, size_t N>
-void matrix_sum_cols(queue q, big_matrix<T, K, N> &B,
-                     big_matrix<T, K / VF, N * VF> &Bvnni, nd_range<2> &r) {
-  buffer<int8_t, 2> bufB(B.get_data(), range<2>(K, N));
-  buffer<int8_t, 2> bufBvnni(Bvnni.get_data(), range<2>(K / VF, N * VF));
+template <typename T, typename TResult, size_t Rows, size_t Cols,
+          size_t TileRows, size_t TileCols, size_t VNNI>
+void matrix_sum_cols(big_matrix<T, Rows, Cols> &B,
+                     big_matrix<T, Rows / VNNI, Cols * VNNI> &Bvnni) {
+  buffer<T, 2> bufB(B.get_data(), range<2>(Rows, Cols));
+  buffer<T, 2> bufBvnni(Bvnni.get_data(), range<2>(Rows / VNNI, Cols * VNNI));
 
-  int sum_cols[N] = {0};
-  buffer<int> sum_cols_v(sum_cols, N);
+  TResult sum_cols[Cols] = {0};
+  buffer<TResult> sum_cols_v(sum_cols, Cols);
+
+  size_t NDRangeK = Rows / TileRows;
+  size_t NDRangeN = Cols / TileCols;
+  queue q;
+  size_t sg_size = get_sg_size<add_cols<TileRows, TileCols>>(q);
+  nd_range<2> r({NDRangeK, NDRangeN * sg_size}, {1, 1 * sg_size});
 
   q.submit([&](handler &cgh) {
-     auto accB = bufBvnni.get_access<access::mode::read_write>(cgh);
-     auto v = sum_cols_v.get_access<access::mode::atomic>(cgh);
+     sycl::accessor accB{bufBvnni, cgh, sycl::read_write};
+     sycl::accessor v{sum_cols_v, cgh, sycl::read_write};
 
-     cgh.parallel_for(r, [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(
-                             SG_SZ)]] {
-       const auto global_idx = spmd_item.get_global_id(0);
-       const auto global_idy = spmd_item.get_global_id(1);
-       const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-       const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+     cgh.parallel_for<add_cols<TileRows, TileCols>>(
+         r, [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+                [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
+         {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-       sycl::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
 
-       joint_matrix<sub_group, int8_t, use::b, TK, TN, layout::ext_intel_packed>
-           sub_b;
+           joint_matrix<sub_group, T, use::b, TileRows, TileCols,
+                        layout::ext_intel_packed>
+               sub_b;
 
-       joint_matrix_load(sg, sub_b,
-                         accB.template get_multi_ptr<access::decorated::no>() +
-                             (sg_startx * (TK / VF) * N * VF) +
-                             sg_starty / SG_SZ * TN * VF,
-                         N * VF);
+           joint_matrix_load(
+               sg, sub_b,
+               accB.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * (TileRows / VNNI) * Cols * VNNI) +
+                   sg_starty / sg_size * TileCols * VNNI,
+               Cols * VNNI);
 
-       int32_t sum_local_cols[N] = {0};
-       ext::intel::experimental::matrix::joint_matrix_apply(
-           sg, sub_b, [&](int8_t &x, size_t row, size_t col) {
-             // the coordinates returned are in the logical range [K,N]
-             // If users want to retrieve the VNNIed coordinates, they can be
-             // obtained using
-             // colVNNI = col/VF
-             // rowVNNI = row*VF
-             size_t global_index = col + global_idy / SG_SZ * TN;
-             sum_local_cols[global_index] += x;
-           });
+           TResult sum_local_cols[Cols] = {0};
+           ext::intel::experimental::matrix::joint_matrix_apply(
+               sg, sub_b, [&](T &x, size_t row, size_t col) {
+                 // the coordinates returned are in the logical range
+                 // [Rows,Cols] If users want to retrieve the VNNIed
+                 // coordinates, they can be obtained using colVNNI = col/VNNI
+                 // rowVNNI = row*VNNI
+                 size_t global_index = col + global_idy / sg_size * TileCols;
+                 sum_local_cols[global_index] += x;
+               });
 
-       for (int i = 0; i < N; i++) {
-         sum_local_cols[i] =
-             reduce_over_group(sg, sum_local_cols[i], sycl::plus<>());
-         if (global_idy % SG_SZ == 0)
-           atomic_fetch_add(v[i], sum_local_cols[i]);
-       }
-     }); // parallel for
+           for (int i = 0; i < Cols; i++) {
+             sum_local_cols[i] =
+                 reduce_over_group(sg, sum_local_cols[i], sycl::plus<>());
+             if (global_idy % sg_size == 0) {
+               sycl::atomic_ref<TResult, sycl::memory_order::relaxed,
+                                sycl::memory_scope::device>
+                   aref(v[i]);
+               aref.fetch_add(sum_local_cols[i]);
+             }
+           }
+         }); // parallel for
    }).wait();
-  sum_cols_ref<T, K, N>(bufB.get_host_access(), sum_cols_v.get_host_access());
+  sum_cols_ref<T, TResult, Rows, Cols>(bufB.get_host_access(),
+                                       sum_cols_v.get_host_access());
 }
 
-int main() {
+template <typename T, typename TResult, size_t VNNI, size_t TK, size_t TN>
+void test() {
   static constexpr size_t scale = 2;
   static constexpr size_t MATRIX_K = TK * scale;
   static constexpr size_t MATRIX_N = TN * scale;
 
-  int8_t B[MATRIX_K][MATRIX_N];
-  big_matrix<int8_t, MATRIX_K, MATRIX_N> MB((int8_t *)&B);
+  T B[MATRIX_K][MATRIX_N];
+  big_matrix<T, MATRIX_K, MATRIX_N> MB((T *)&B);
 
-  int8_t Bvnni[MATRIX_K / VF][MATRIX_N * VF];
-  big_matrix<int8_t, MATRIX_K / VF, MATRIX_N * VF> MBvnni((int8_t *)&Bvnni);
-
-  size_t NDRangeK = MATRIX_K / TK;
-  size_t NDRangeN = MATRIX_N / TN;
-  queue q;
-  nd_range<2> r({NDRangeK, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
+  T Bvnni[MATRIX_K / VNNI][MATRIX_N * VNNI];
+  big_matrix<T, MATRIX_K / VNNI, MATRIX_N * VNNI> MBvnni((T *)&Bvnni);
 
   for (int i = 0; i < MATRIX_K; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
       B[i][j] = i + j;
     }
   }
-  matrix_vnni<int8_t>(MATRIX_K, MATRIX_N, *B, *Bvnni, VF);
+  matrix_vnni<T>(MATRIX_K, MATRIX_N, *B, *Bvnni, VNNI);
   // This test calculates sum of columns in the non VNNI B matrix
-  matrix_sum_cols<int8_t, MATRIX_K, MATRIX_N>(q, MB, MBvnni, r);
-  std::cout << "Passed\n";
+  matrix_sum_cols<T, TResult, MATRIX_K, MATRIX_N, TK, TN, VNNI>(MB, MBvnni);
+}
+
+int main() {
+  queue q;
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0) { // Intel AMX
+      test<int8_t, int32_t, 4, /*TK*/ 64, /*TN*/ 16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      test<int8_t, int32_t, 4, /*TK*/ 32, /*TN*/ 16>();
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      test<int8_t, int32_t, 4, /*TK*/ 32, /*TN*/ 8>();
+      break;
+    }
+  }
   return 0;
 }

@@ -1,6 +1,7 @@
 :capability_token: 6528
 :handle_to_image_token: 6529
 :handle_to_sampler_token: 6530
+:handle_to_sampled_image_token: 6531
 
 SPV_INTEL_bindless_images
 =========================
@@ -37,8 +38,8 @@ In Development
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2024-03-25
-| Revision           | 6
+| Last Modified Date | 2024-05-01
+| Revision           | 7
 |========================================
 
 == Dependencies
@@ -52,7 +53,7 @@ This extension requires SPIR-V 1.0.
 
 This extension adds support for bindless images.
 This is done by adding support for SPIR-V to convert unsigned integer handles to
-images/samplers.
+images, samplers and sampled images.
 
 Bindless images are a feature that provides flexibility on how images are
 accessed and used, such as removing limitations on how many images can be
@@ -84,6 +85,7 @@ Instructions added under *BindlessImagesINTEL* capability.
 ----
 OpConvertHandleToImageINTEL
 OpConvertHandleToSamplerINTEL
+OpConvertHandleToSampledImageINTEL
 ----
 
 == Token Number Assignments
@@ -93,9 +95,10 @@ OpConvertHandleToSamplerINTEL
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|BindlessImagesINTEL                |{capability_token}
-|OpConvertHandleToImageINTEL        |{handle_to_image_token}
-|OpConvertHandleToSamplerINTEL      |{handle_to_sampler_token}
+|BindlessImagesINTEL                    |{capability_token}
+|OpConvertHandleToImageINTEL            |{handle_to_image_token}
+|OpConvertHandleToSamplerINTEL          |{handle_to_sampler_token}
+|OpConvertHandleToSampledImageINTEL     |{handle_to_sampled_image_token}
 |====
 --
 
@@ -134,6 +137,21 @@ _Result type_ must be an `OpTypeSampler`.
 '<id> Operand'
 |======
 
+[cols="2*1,3*2"]
+|======
+5+|[[OpConvertHandleToSampledImageINTEL]]*OpConvertHandleToSampledImageINTEL* +
+ +
+Converts an unsigned integer pointed by _Operand_ to sampled image type.
+
+Unsigned integer is either a 32 or 64 bit unsigned integer.
+Depending on if the addressing model is set to *Physical32* or *Physical64*.
+
+_Result type_ must be an `OpTypeSampledImage`.
+
+| 4 | {handle_to_sampled_image_token} | '<id> Result Type' | 'Result <id>' |
+'<id> Operand'
+|======
+
 Modify Section 3.31, Capability, adding row to the capability table:
 
 [width="40%"]
@@ -164,6 +182,7 @@ None Yet.
                               instruction and clarify return types
 |6|2024-03-25|Duncan Brawley| Wording/formatting improvements, clarify sections
                               edited, make capability addition explicit and
-                              substitute instruction numbers            
+                              substitute instruction numbers
+|7|2024-05-01|Duncan Brawley| Add OpConvertHandleToSampledImageINTEL instruction
 |========================================
 

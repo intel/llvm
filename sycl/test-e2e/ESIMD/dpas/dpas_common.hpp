@@ -11,9 +11,6 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 #include <type_traits>
 
 using namespace sycl;

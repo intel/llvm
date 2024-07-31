@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,arch-intel_gpu_pvc
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
@@ -20,10 +20,9 @@
 
 #include "esimd_test_utils.hpp"
 
+#include <sycl/accessor_image.hpp>
+
 #include <array>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

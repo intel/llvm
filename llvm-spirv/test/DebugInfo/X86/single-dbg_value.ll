@@ -1,23 +1,23 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 ;
 ; CHECK: .debug_info contents:

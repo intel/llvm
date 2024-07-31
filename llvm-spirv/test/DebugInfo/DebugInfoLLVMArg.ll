@@ -62,11 +62,11 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone spe
 define void @DbgIntrinsics() sanitize_memtag {
 entry:
   %x = alloca i32, align 4
-; CHECK-LLVM-OCL: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
-; CHECK-LLVM-200: call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0))
+; CHECK-LLVM-OCL: #dbg_value(!DIArgList(ptr %x), ![[#]], !DIExpression(DW_OP_LLVM_arg, 0), ![[#]])
+; CHECK-LLVM-200: #dbg_value(!DIArgList(ptr %x), ![[#]], !DIExpression(DW_OP_LLVM_arg, 0), ![[#]])
   call void @llvm.dbg.value(metadata !DIArgList(ptr %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0)), !dbg !10
-; CHECK-LLVM-OCL: call void @llvm.dbg.value(metadata ptr undef, metadata ![[#]], metadata !DIExpression())
-; CHECK-LLVM-200: call void @llvm.dbg.value(metadata !DIArgList(ptr %x, ptr %x), metadata ![[#]], metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus))
+; CHECK-LLVM-OCL: #dbg_value(ptr undef, ![[#]], !DIExpression(), ![[#]])
+; CHECK-LLVM-200: #dbg_value(!DIArgList(ptr %x, ptr %x), ![[#]], !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus)
   call void @llvm.dbg.value(metadata !DIArgList(ptr %x, ptr %x), metadata !6, metadata !DIExpression(DW_OP_LLVM_arg, 0, DW_OP_LLVM_arg, 1, DW_OP_plus)), !dbg !10
   store i32 42, ptr %x, align 4
   ret void

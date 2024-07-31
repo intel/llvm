@@ -100,6 +100,7 @@ public:
     tryToEnable();
   }
 
+  ProxyLoader(const ProxyLoader &) = delete;
   ProxyLoader &operator=(const ProxyLoader &) = delete;
 
   ~ProxyLoader() {

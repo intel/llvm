@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
 // RUN: %{run} %t.out
 // This test currently fails because InferAddressSpace is not able to remove all
 // address-space casts, causing internalization to fail.

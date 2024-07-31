@@ -164,3 +164,39 @@ These tests verify SYCL specification conformance. All implementation details
 are out of scope for the tests.
 See DPC++ compiler invocation definitions at
 [FindIntel_SYCL](https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-1.2.1/master/cmake/FindIntel_SYCL.cmake))
+
+## Unified Runtime Updates
+
+To integrate changes from the [Unified Runtime][ur] project into DPC++ there
+two main options which depend on the scope of those changes and the current
+state of DPC++.
+
+1. Synchronized update:
+  * When: If the Unified Runtime change touches the API/ABI, more than one
+    adapter, or common code such as the loader.
+  * How: Update the `UNIFIED_RUNTIME_TAG` to point at the desired commit or tag
+    name in the Unified Runtime repository and ensure that any tag for specific
+    adapters are set to use `${UNIFIED_RUNTIME_TAG}`.
+
+2. Decoupled update:
+  * When: If only a single Unified Runtime adatper has changed.
+  * How: Update the tag used in the `fetch_adapter_source()` call for a
+    specific Unified Runtime adapter, e.g. Level Zero, OpenCL, CUDA, HIP, or
+    Native CPU.
+
+In general, a synchronized update should be the default. However, when there
+are a lot of changes in flight in parallel always synchronizing the tag can be
+troublesome. This is when a decoupled update can help sustain the merge
+velocity of Unified Runtime changes.
+
+The [intel/unified-runtime-reviewers][ur-reviewers-team] team is responsible
+for ensuring that the Unified Runtime tag is updated correctly and will only
+provide code owner approval to pull requests once the following criteria are
+met:
+
+* Tags are pointing to a valid commit or tag on Unified Runtime main branch.
+* Changes to additional code owned files are in a good state.
+* GitHub Actions checks are passing.
+
+[ur]: https://github.com/oneapi-src/unified-runtime
+[ur-reviewers-team]: https://github.com/orgs/intel/teams/unified-runtime-reviewers

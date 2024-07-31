@@ -1,7 +1,7 @@
 ; The idea of the test is to ensure that sycl-post-link can trace through more
 ; complex call stacks involving several nested indirect calls
 
-; RUN: sycl-post-link -split=auto -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -12,7 +12,18 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-post-link -split=source -S < %s -o %t.table
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
+; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix CHECK1 \
+; RUN:     --implicit-check-not @kernel_A --implicit-check-not @kernel_C
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefix CHECK2 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @bar \
+; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
+; RUN:     --implicit-check-not @kernel_C
+;
+; RUN: sycl-post-link -properties -split=source -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
@@ -23,13 +34,35 @@
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C
 ;
-; RUN: sycl-post-link -split=kernel -S < %s -o %t.table
+; RUN: sycl-module-split -split=source -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
+; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix CHECK1 \
+; RUN:     --implicit-check-not @kernel_A --implicit-check-not @kernel_C
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefix CHECK2 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @bar \
+; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
+; RUN:     --implicit-check-not @kernel_C
+;
+; RUN: sycl-post-link -properties -split=kernel -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK0 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
 ; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefix CHECK1 \
 ; RUN:     --implicit-check-not @kernel_A --implicit-check-not @kernel_C
 ; RUN: FileCheck %s -input-file=%t_2.ll --check-prefix CHECK2 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @bar \
+; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
+; RUN:     --implicit-check-not @kernel_C
+;
+; RUN: sycl-module-split -split=kernel -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix CHECK0 \
+; RUN:     --implicit-check-not @foo --implicit-check-not @kernel_A \
+; RUN:     --implicit-check-not @kernel_B --implicit-check-not @baz
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix CHECK1 \
+; RUN:     --implicit-check-not @kernel_A --implicit-check-not @kernel_C
+; RUN: FileCheck %s -input-file=%t2_2.ll --check-prefix CHECK2 \
 ; RUN:     --implicit-check-not @foo --implicit-check-not @bar \
 ; RUN:     --implicit-check-not @BAZ --implicit-check-not @kernel_B \
 ; RUN:     --implicit-check-not @kernel_C

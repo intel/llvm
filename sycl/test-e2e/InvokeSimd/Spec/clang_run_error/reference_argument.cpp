@@ -8,9 +8,10 @@
  * passed to invoked ESIMD function
  */
 
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>

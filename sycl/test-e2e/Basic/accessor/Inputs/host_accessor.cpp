@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   {

@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fsycl-is-device \
-// RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
+// RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=SPIR --input-file %t-host.yaml %s
 
 // RUN: %clang_cc1 -triple nvptx64-unknown-unknown -fsycl-is-device \
-// RUN: -Wno-sycl-2017-compat -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
+// RUN: -emit-llvm-bc %s -o %t-host.bc -opt-record-file %t-host.yaml
 // RUN: FileCheck -check-prefix=NVPTX --input-file %t-host.yaml %s
 // The test generates remarks about the kernel argument, their location and type
 // in the resulting yaml file.
@@ -348,10 +348,10 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '13'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          ''
-// SPIR-NEXT: String:          A
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
+// SPIR-NEXT: String:          KernelFunctor
 // SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Field:A, '
 // SPIR-NEXT: String:          'Type:'
 // SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '

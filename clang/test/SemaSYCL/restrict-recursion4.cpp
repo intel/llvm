@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-sycl-2017-compat -Wno-error=sycl-strict -verify -fsyntax-only -std=c++17 %s
+// RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -Wno-return-type -Wno-error=sycl-strict -verify -fsyntax-only -std=c++17 %s
 
 // This recursive function is not called from sycl kernel,
 // so it should not be diagnosed.

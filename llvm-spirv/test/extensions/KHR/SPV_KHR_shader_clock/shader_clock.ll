@@ -24,8 +24,8 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: ReadClockKHR [[#I32v2Ty]] [[#]] [[I32ValId]]
 ; CHECK-SPIRV: ReadClockKHR [[#I64Ty]] [[#]] [[I32ValId]]
 
-; CHECK-LLVM: call spir_func <2 x i32> @_Z20__spirv_ReadClockKHR
-; CHECK-LLVM: call spir_func i64 @_Z20__spirv_ReadClockKHR
+; CHECK-LLVM: call spir_func <2 x i32> @_Z27__spirv_ReadClockKHR_Ruint2i(
+; CHECK-LLVM: call spir_func i64 @_Z27__spirv_ReadClockKHR_Rulongi(
 
 define spir_func void @_Z7read_types(i32 %a) {
   %1 = tail call spir_func <2 x i32> @_Z20__spirv_ReadClockKHRIDv2_jET_j(i32 %a)

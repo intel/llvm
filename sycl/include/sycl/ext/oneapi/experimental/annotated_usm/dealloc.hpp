@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/usm.hpp>
 
 namespace sycl {
 inline namespace _V1 {

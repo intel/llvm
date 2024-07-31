@@ -7,7 +7,6 @@
 // FIXME: Once the Windows OpenCL CPU/ACC support is fixed, merge this test's
 // contents into the common integer test.
 // UNSUPPORTED: (windows && (cpu || accelerator)) || hip_amd
-// XFAIL: cuda && windows
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
@@ -16,7 +15,8 @@
 // RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
 // RUN: %{run} %t.constant.out | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 

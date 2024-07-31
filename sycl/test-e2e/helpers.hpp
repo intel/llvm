@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 template <class VecT, int EndIdx = VecT::size(), int StartIdx = 0>
 class VecPrinter {
@@ -35,7 +35,7 @@ private:
     printHelper<Idx + 1>(Out, Elem1);
   }
   template <>
-  static void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
+  inline void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
 
   VecT MVec;
 };

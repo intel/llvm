@@ -8,7 +8,9 @@
  * https://www.khronos.org/registry/OpenCL/specs/opencl-1.2.pdf#page=329
  */
 
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 #include <iostream>
 

@@ -9,8 +9,11 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/accessor.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 #define N 4   // dimensin
 #define M 128 // dimension

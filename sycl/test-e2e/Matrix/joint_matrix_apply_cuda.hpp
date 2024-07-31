@@ -8,13 +8,9 @@
 
 // cuda backend test for joint_matrix_apply (and joint_matrix_fill)
 
-#include <sycl/sycl.hpp>
+#include "common.hpp"
 
 #include <cmath>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 32
 
@@ -23,15 +19,6 @@ nd_range<2> r({nWGperDim, nWGperDim *SG_SZ}, {1, 1 * SG_SZ});
 
 template <typename T1, typename T2, size_t M, size_t K, size_t N>
 class KernelApply;
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T, size_t M, size_t N>
 void assert_ref(T *C, const float ref) {
@@ -63,9 +50,11 @@ void matrix_verify_lambda(queue q,
 
             auto sg = spmd_item.get_sub_group();
 
-            joint_matrix<sub_group, T, use::a, M, K, layout::row_major> sub_a;
-            joint_matrix<sub_group, T, use::b, K, N, layout::row_major> sub_b;
-            joint_matrix<sub_group, T2, use::accumulator, M, N> sub_c;
+            joint_matrix<sycl::sub_group, T, use::a, M, K, layout::row_major>
+                sub_a;
+            joint_matrix<sycl::sub_group, T, use::b, K, N, layout::row_major>
+                sub_b;
+            joint_matrix<sycl::sub_group, T2, use::accumulator, M, N> sub_c;
 
             joint_matrix_fill(sg, sub_a, 3);
             joint_matrix_fill(sg, sub_b, 1);

@@ -53,7 +53,9 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_enqueue_barrier = 4,
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
-  sycl_ext_oneapi_bindless_images = 7
+  sycl_ext_oneapi_bindless_images = 7,
+  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
+  sycl_ext_codeplay_enqueue_native_command = 9
 };
 
 inline const char *
@@ -76,6 +78,10 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
+  case UGF::sycl_ext_oneapi_experimental_cuda_cluster_launch:
+    return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
+  case UGF::sycl_ext_codeplay_enqueue_native_command:
+    return "sycl_ext_codeplay_enqueue_native_command";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -130,7 +136,7 @@ private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -167,6 +173,14 @@ class updatable
 public:
   updatable() = default;
 };
+
+/// Property used to enable executable graph profiling. Enables profiling on
+/// events returned by submissions of the executable graph
+class enable_profiling : public ::sycl::detail::DataLessProperty<
+                             ::sycl::detail::GraphEnableProfiling> {
+public:
+  enable_profiling() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -197,8 +211,6 @@ public:
 
 } // namespace node
 } // namespace property
-
-template <graph_state State> class command_graph;
 
 namespace detail {
 // Templateless modifiable command-graph base class.
@@ -271,35 +283,29 @@ public:
   /// it.
   /// @param RecordingQueue The queue to change state on and associate this
   /// graph with.
-  /// @return True if the queue had its state changed from executing to
-  /// recording.
-  bool begin_recording(queue &RecordingQueue);
+  /// @param PropList Property list used to pass properties for recording.
+  void begin_recording(queue &RecordingQueue,
+                       const property_list &PropList = {});
 
   /// Change the state of multiple queues to be recording and associate this
   /// graph with each of them.
   /// @param RecordingQueues The queues to change state on and associate this
   /// graph with.
-  /// @return True if any queue had its state changed from executing to
-  /// recording.
-  bool begin_recording(const std::vector<queue> &RecordingQueues);
+  /// @param PropList Property list used to pass properties for recording.
+  void begin_recording(const std::vector<queue> &RecordingQueues,
+                       const property_list &PropList = {});
 
   /// Set all queues currently recording to this graph to the executing state.
-  /// @return True if any queue had its state changed from recording to
-  /// executing.
-  bool end_recording();
+  void end_recording();
 
   /// Set a queue currently recording to this graph to the executing state.
   /// @param RecordingQueue The queue to change state on.
-  /// @return True if the queue had its state changed from recording to
-  /// executing.
-  bool end_recording(queue &RecordingQueue);
+  void end_recording(queue &RecordingQueue);
 
   /// Set multiple queues currently recording to this graph to the executing
   /// state.
   /// @param RecordingQueues The queues to change state on.
-  /// @return True if any queue had its state changed from recording to
-  /// executing.
-  bool end_recording(const std::vector<queue> &RecordingQueues);
+  void end_recording(const std::vector<queue> &RecordingQueues);
 
   /// Synchronous operation that writes a DOT formatted description of the graph
   /// to the provided path. By default, this includes the graph topology, node
@@ -339,7 +345,7 @@ protected:
   void addGraphLeafDependencies(node Node);
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -377,7 +383,7 @@ protected:
                            const property_list &PropList = {});
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
@@ -439,7 +445,7 @@ protected:
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 } // namespace detail

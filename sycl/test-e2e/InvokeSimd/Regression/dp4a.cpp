@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
@@ -13,9 +13,10 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>

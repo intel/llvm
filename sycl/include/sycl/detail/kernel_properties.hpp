@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 

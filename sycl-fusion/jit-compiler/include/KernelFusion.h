@@ -9,29 +9,28 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 #define SYCL_FUSION_JIT_COMPILER_KERNELFUSION_H
 
-#include "DynArray.h"
 #include "Kernel.h"
 #include "Options.h"
 #include "Parameter.h"
 #include "View.h"
+#include "sycl/detail/string.hpp"
 
 #include <cassert>
 
 namespace jit_compiler {
 
-class FusionResult {
+class JITResult {
 public:
-  explicit FusionResult(const char *ErrorMessage)
-      : Type{FusionResultType::FAILED}, KernelInfo{},
-        ErrorMessage{ErrorMessage} {}
+  explicit JITResult(const char *ErrorMessage)
+      : Type{JITResultType::FAILED}, KernelInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit FusionResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
-      : Type{(Cached) ? FusionResultType::CACHED : FusionResultType::NEW},
+  explicit JITResult(const SYCLKernelInfo &KernelInfo, bool Cached = false)
+      : Type{(Cached) ? JITResultType::CACHED : JITResultType::NEW},
         KernelInfo(KernelInfo), ErrorMessage{} {}
 
-  bool failed() const { return Type == FusionResultType::FAILED; }
+  bool failed() const { return Type == JITResultType::FAILED; }
 
-  bool cached() const { return Type == FusionResultType::CACHED; }
+  bool cached() const { return Type == JITResultType::CACHED; }
 
   const char *getErrorMessage() const {
     assert(failed() && "No error message present");
@@ -44,35 +43,38 @@ public:
   }
 
 private:
-  enum class FusionResultType { FAILED, CACHED, NEW };
+  enum class JITResultType { FAILED, CACHED, NEW };
 
-  FusionResultType Type;
+  JITResultType Type;
   SYCLKernelInfo KernelInfo;
-  DynString ErrorMessage;
+  sycl::detail::string ErrorMessage;
 };
 
-class KernelFusion {
+extern "C" {
 
-public:
-  static FusionResult
-  fuseKernels(View<SYCLKernelInfo> KernelInformation,
-              const char *FusedKernelName, View<ParameterIdentity> Identities,
-              BarrierFlags BarriersFlags,
-              View<ParameterInternalization> Internalization,
-              View<jit_compiler::JITConstant> JITConstants);
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wreturn-type-c-linkage"
+#endif // __clang__
+JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+                      const char *FusedKernelName,
+                      View<ParameterIdentity> Identities,
+                      BarrierFlags BarriersFlags,
+                      View<ParameterInternalization> Internalization,
+                      View<jit_compiler::JITConstant> JITConstants);
 
-  /// Clear all previously set options.
-  static void resetConfiguration();
+JITResult materializeSpecConstants(const char *KernelName,
+                                   jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+                                   View<unsigned char> SpecConstBlob,
+                                   const char *TargetCPU,
+                                   const char *TargetFeatures);
 
-  /// Set \p Opt to the value built in-place by \p As.
-  template <typename Opt, typename... Args> static void set(Args &&...As) {
-    set(new Opt{std::forward<Args>(As)...});
-  }
+/// Clear all previously set options.
+void resetJITConfiguration();
 
-private:
-  /// Take ownership of \p Option and include it in the current configuration.
-  static void set(OptionPtrBase *Option);
-};
+/// Add an option to the configuration.
+void addToJITConfiguration(OptionStorage &&Opt);
+
+} // end of extern "C"
 
 } // namespace jit_compiler
 

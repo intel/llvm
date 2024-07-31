@@ -5,13 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
-
 #include "common.hpp"
 
-#define SG_SZ 16
 constexpr size_t TN = 16;
 #include "joint_matrix_prefetch_impl.hpp"

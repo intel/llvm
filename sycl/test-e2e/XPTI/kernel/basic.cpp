@@ -11,7 +11,9 @@
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl::access;
 constexpr sycl::specialization_id<int> int_id(42);
@@ -80,8 +82,8 @@ int main() {
   // CHECK: Wait end|{{.*}}.cpp:[[# @LINE + 1]]:3
   Queue.wait();
 
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::read>(); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::read_only); }
 
   Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16

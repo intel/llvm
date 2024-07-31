@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
-#include <sycl/exception.hpp>          // make_error_code
+#include <sycl/detail/ur.hpp> // getOsLibraryFuncAddress
+#include <sycl/exception.hpp> // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -16,6 +16,7 @@
 
 #include <cstring> // strlen
 #include <numeric> // for std::accumulate
+#include <sstream>
 
 namespace sycl {
 inline namespace _V1 {
@@ -25,7 +26,7 @@ namespace detail {
 // ensures the OclocLibrary has the right version, etc.
 void checkOclocLibrary(void *OclocLibrary) {
   void *OclocVersionHandle =
-      sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+      sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
   // The initial versions of ocloc library did not have the oclocVersion()
   // function. Those versions had the same API as the first version of ocloc
   // library having that oclocVersion() function.
@@ -65,7 +66,7 @@ void *loadOclocLibrary() {
 #endif
   void *tempPtr = OclocLibrary;
   if (tempPtr == nullptr) {
-    tempPtr = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
+    tempPtr = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
 
     if (tempPtr == nullptr)
       throw sycl::exception(make_error_code(errc::build),
@@ -102,11 +103,11 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
       loadOclocLibrary();
 
     oclocInvokeHandle =
-        sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
     if (!oclocInvokeHandle)
       throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
 
-    oclocFreeOutputHandle = sycl::detail::pi::getOsLibraryFuncAddress(
+    oclocFreeOutputHandle = sycl::detail::ur::getOsLibraryFuncAddress(
         OclocLibrary, "oclocFreeOutput");
     if (!oclocFreeOutputHandle)
       throw sycl::exception(the_errc, "Cannot load oclocFreeOutput() function");
@@ -255,9 +256,9 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
   // Gather the results.
   for (uint32_t i = 0; i < NumOutputs; i++) {
     if (!strcmp(OutputNames[i], "stdout.log")) {
-      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-      if (LogText != nullptr && LogText[0] != '\0') {
-        QueryLog.append(LogText);
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        QueryLog.append(LogText, OutputLengths[i]);
       }
     }
   }
@@ -368,9 +369,11 @@ std::string OpenCLC_Profile(uint32_t IPVersion) {
     std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
     // NOTE: result has \n\n amended. Clean it up.
     // TODO: remove this once the ocloc query is fixed.
-    while (result.back() == '\n') {
-      result.pop_back();
-    }
+    result.erase(std::remove_if(result.begin(), result.end(),
+                                [](char c) {
+                                  return !std::isprint(c) || std::isspace(c);
+                                }),
+                 result.end());
 
     return result;
   } catch (sycl::exception &) {

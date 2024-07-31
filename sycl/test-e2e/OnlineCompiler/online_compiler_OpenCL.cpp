@@ -1,16 +1,17 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
 // UNSUPPORTED: accelerator
 
-// RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks ext::intel feature class online_compiler for OpenCL.
 // All OpenCL specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
-#include <sycl/sycl.hpp>
 
 #include <vector>
 
@@ -25,16 +26,13 @@ sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
   cl_program ClProgram =
       clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
                             IL.data(), IL.size(), &Err);
-  if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clCreateProgramWithIL() failed", Err);
+  assert(Err == CL_SUCCESS);
 
   Err = clBuildProgram(ClProgram, 0, nullptr, nullptr, nullptr, nullptr);
-  if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clBuildProgram() failed", Err);
+  assert(Err == CL_SUCCESS);
 
   cl_kernel ClKernel = clCreateKernel(ClProgram, "my_kernel", &Err);
-  if (Err != CL_SUCCESS)
-    throw sycl::runtime_error("clCreateKernel() failed", Err);
+  assert(Err == CL_SUCCESS);
 
   return sycl::make_kernel<sycl::backend::opencl>(ClKernel, Context);
 }

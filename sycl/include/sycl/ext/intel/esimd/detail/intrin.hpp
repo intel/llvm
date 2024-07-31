@@ -64,8 +64,7 @@
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-__ESIMD_INTRIN std::enable_if_t<(Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, M>>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, M>
 __esimd_rdregion(__ESIMD_DNS::vector_type_t<T, N> Input, uint16_t Offset);
 
 template <typename T, int N, int M, int ParentWidth = 0>
@@ -121,8 +120,7 @@ __esimd_rdindirect(__ESIMD_DNS::vector_type_t<T, N> Input,
 //
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
-__ESIMD_INTRIN std::enable_if_t<M <= N && (Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, N>>
+__ESIMD_INTRIN std::enable_if_t<M <= N, __ESIMD_DNS::vector_type_t<T, N>>
 __esimd_wrregion(__ESIMD_DNS::vector_type_t<T, N> OldVal,
                  __ESIMD_DNS::vector_type_t<T, M> NewVal, uint16_t Offset,
                  __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1);
@@ -142,9 +140,9 @@ template <class T> using __st = __raw_t<T>;
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>
-__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>,
-                           RTy::length> ESIMD_INLINE
-readRegion(const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
+__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>, RTy::length>
+    ESIMD_INLINE readRegion(
+        const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
   using ElemTy = __st<typename RTy::element_type>;
   auto Base1 = bitcast<ElemTy, __st<BT>, BN>(Base);
   constexpr int Bytes = BN * sizeof(BT);
@@ -159,6 +157,7 @@ readRegion(const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
     constexpr int Stride = RTy::Stride_x;
     int16_t Offset = static_cast<int16_t>(Region.M_offset_x * sizeof(ElemTy));
     // read-region
+    check_rdregion_params<N, M, /*VS*/ 0, M, Stride>();
     return __esimd_rdregion<ElemTy, N, M, /*VS*/ 0, M, Stride>(Base1, Offset);
   }
 }
@@ -191,7 +190,7 @@ ESIMD_INLINE
     constexpr int ParentWidth = PaTy::Size_x;
     uint16_t Offset = static_cast<uint16_t>(Region.first.M_offset_y *
                                             PaTy::Size_x * sizeof(ElemTy));
-
+    check_rdregion_params<BN1, M, VS, W, HS>();
     auto R =
         __esimd_rdregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(Base1, Offset);
 
@@ -203,6 +202,7 @@ ESIMD_INLINE
     constexpr int HS1 = T::Stride_x;
     uint16_t Offset1 =
         static_cast<uint16_t>(Region.first.M_offset_x * sizeof(ElemTy));
+    check_rdregion_params<N1, M1, VS1, W1, HS1>();
 
     return __esimd_rdregion<ElemTy, N1, M1, VS1, W1, HS1, ParentWidth>(R,
                                                                        Offset1);
@@ -263,8 +263,7 @@ __ESIMD_INTRIN uint16_t __esimd_all(__ESIMD_DNS::vector_type_t<T, N> src)
 // Implementations of ESIMD intrinsics for the SYCL host device
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-__ESIMD_INTRIN std::enable_if_t<(Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, M>>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, M>
 __esimd_rdregion(__ESIMD_DNS::vector_type_t<T, N> Input, uint16_t Offset) {
   uint16_t EltOffset = Offset / sizeof(T);
   assert(Offset % sizeof(T) == 0);
@@ -298,8 +297,7 @@ __esimd_rdindirect(__ESIMD_DNS::vector_type_t<T, N> Input,
 
 template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth>
-__ESIMD_INTRIN std::enable_if_t<M <= N && (Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, N>>
+__ESIMD_INTRIN std::enable_if_t<M <= N, __ESIMD_DNS::vector_type_t<T, N>>
 __esimd_wrregion(__ESIMD_DNS::vector_type_t<T, N> OldVal,
                  __ESIMD_DNS::vector_type_t<T, M> NewVal, uint16_t Offset,
                  __ESIMD_DNS::simd_mask_storage_t<M> Mask) {

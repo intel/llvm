@@ -109,6 +109,18 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
     cgh.host_task([]() {});
   }));
 
+  ASSERT_ANY_THROW(auto NodeBarreriTask = Graph.add([&](sycl::handler &cgh) {
+    cgh.set_arg(0, DynamicParam);
+    cgh.ext_oneapi_barrier();
+  }));
+
+  Graph.begin_recording(Queue);
+  ASSERT_ANY_THROW(auto NodeBarrierTask = Graph.add([&](sycl::handler &cgh) {
+    cgh.set_arg(0, DynamicParam);
+    cgh.ext_oneapi_barrier();
+  }));
+  Graph.end_recording(Queue);
+
   auto NodeEmpty = Graph.add();
 
   experimental::command_graph Subgraph(Queue.get_context(), Dev);
@@ -290,60 +302,6 @@ TEST_F(WholeGraphUpdateTest, MissingEdges) {
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
 }
 
-TEST_F(WholeGraphUpdateTest, DISABLED_WrongOrderNodes) {
-  // Test that using an update graph with nodes added in a different order
-  // results in an error.
-
-  auto NodeA = Graph.add(EmptyKernel);
-  auto NodeB =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeC =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD = Graph.add(
-      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
-
-  auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
-  auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeD = UpdateGraph.add(
-      EmptyKernel,
-      experimental::property::node::depends_on(UpdateNodeB, UpdateNodeC));
-
-  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
-  EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
-}
-
-TEST_F(WholeGraphUpdateTest, DISABLED_WrongOrderEdges) {
-  // Test that using an update graph with edges added in a different order
-  // results in an error.
-
-  auto NodeA = Graph.add(EmptyKernel);
-  auto NodeB = Graph.add(EmptyKernel);
-  auto NodeC = Graph.add(EmptyKernel);
-  auto NodeD = Graph.add(EmptyKernel);
-
-  Graph.make_edge(NodeA, NodeB);
-  Graph.make_edge(NodeA, NodeC);
-  Graph.make_edge(NodeB, NodeD);
-  Graph.make_edge(NodeC, NodeD);
-
-  auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
-  auto UpdateNodeB = UpdateGraph.add(EmptyKernel);
-  auto UpdateNodeC = UpdateGraph.add(EmptyKernel);
-  auto UpdateNodeD = UpdateGraph.add(EmptyKernel);
-
-  UpdateGraph.make_edge(UpdateNodeA, UpdateNodeB);
-  UpdateGraph.make_edge(UpdateNodeA, UpdateNodeC);
-  // Create the edge C->D before B->D, which is the reverse order of `Graph`.
-  UpdateGraph.make_edge(UpdateNodeC, UpdateNodeD);
-  UpdateGraph.make_edge(UpdateNodeB, UpdateNodeD);
-
-  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
-  EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
-}
-
 TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
   // Test that using an update graph that contains unsupported node types
   // results in an error.
@@ -428,4 +386,16 @@ TEST_F(WholeGraphUpdateTest, MissingUpdatableProperty) {
 
   auto GraphExec = Graph.finalize();
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
+}
+
+TEST_F(WholeGraphUpdateTest, EmptyNode) {
+  // Test that updating a graph that has an empty node is not an error
+  auto NodeEmpty = Graph.add();
+  auto UpdateNodeEmpty = UpdateGraph.add();
+
+  auto NodeKernel = Graph.add(EmptyKernel);
+  auto UpdateNodeKernel = UpdateGraph.add(EmptyKernel);
+
+  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
+  GraphExec.update(UpdateGraph);
 }

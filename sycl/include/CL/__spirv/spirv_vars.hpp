@@ -10,6 +10,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#include <CL/__spirv/spirv_types.hpp>         // for __ocl_vec_t
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 
 #include <cstddef> // for size_t

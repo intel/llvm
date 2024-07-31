@@ -1,26 +1,25 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 //
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+// RUN: env SYCL_UR_TRACE=1 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is `nullptr` for
-// piEnqueueKernelLaunch for USM kernel using local accessor, but
+// urEnqueueKernelLaunch for USM kernel using local accessor, but
 // is not `nullptr` for kernel using buffer accessor.
-// {{0|0000000000000000}} is required for various output on Linux and Windows.
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: .phEvent = nullptr
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 static constexpr int MAGIC_NUM = -1;

@@ -1,5 +1,5 @@
 ; RUN: sycl-post-link --ir-output-only --spec-const=native %s -S -o - | FileCheck %s
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst --spec-const=native %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants have zeroinitializer in LLVM IR

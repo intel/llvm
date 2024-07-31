@@ -10,11 +10,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 using namespace sycl;
 
 constexpr unsigned int VL = 1024 * 128;

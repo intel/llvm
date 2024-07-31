@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // _iml_half_internal is internal representation for fp16 type used in intel
 // math device library. The definition here should align with definition in
 // https://github.com/intel/llvm/blob/sycl/libdevice/imf_half.hpp
@@ -23,6 +25,7 @@ using _iml_half_internal = uint16_t;
 #include <sycl/builtins.hpp>
 #include <sycl/ext/intel/math/imf_fp_conversions.hpp>
 #include <sycl/ext/intel/math/imf_half_trivial.hpp>
+#include <sycl/ext/intel/math/imf_integer_utils.hpp>
 #include <sycl/ext/intel/math/imf_rounding_math.hpp>
 #include <sycl/ext/intel/math/imf_simd.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>

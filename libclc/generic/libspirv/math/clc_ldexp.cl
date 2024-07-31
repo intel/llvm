@@ -130,3 +130,11 @@ _CLC_DEF _CLC_OVERLOAD double __clc_ldexp(double x, int n) {
 }
 
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN(half, __clc_ldexp, __builtin_ldexp, half, int)
+
+#endif

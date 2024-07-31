@@ -32,104 +32,105 @@ constexpr int N = 16; // number of cols of accumulator,
                       // number of rows of a.
 constexpr int K = 8;  // number of cols of a/number of rows of b.
 
-// float is used in this test as the storage type for tf32
-float A[M * K];
-float B[K * N];
-float C[M * N];
-float D[M * N];
+// Float is used in this test as the storage type for tf32:
+//
+// float A[M * K];
+// float B[K * N];
+// float C[M * N];
+// float D[M * N];
+//
+// Accessors would have been made, like so:
+//
+// buffer<float, 1> bufA(A, range<1>(M * K)); // will be used as tf32
+// buffer<float, 1> bufB(B, range<1>(K * N)); // will be used as tf32
+// buffer<float, 1> bufC(C, range<1>(M * N));
+// buffer<float, 1> bufD(D, range<1>(M * N));
+// ...
+// auto accA = bufA.get_access<access::mode::read_write>(handler);
+// auto accB = bufB.get_access<access::mode::read_write>(handler);
+// auto accC = bufC.get_access<access::mode::read_write>(handler);
+// auto accD = bufD.get_access<access::mode::read_write>(handler);
 
-int main() {
+SYCL_EXTERNAL [[sycl::reqd_work_group_size(1, 1, 32)]] void
+row_row(sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accA,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accB,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accC,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accD,
+        nd_item<2> item) {
+  sycl::sub_group sg = item.get_sub_group();
 
-  buffer<float, 1> bufA(A, range<1>(M * K)); // will be used as tf32
-  buffer<float, 1> bufB(B, range<1>(K * N)); // will be used as tf32
-  buffer<float, 1> bufC(C, range<1>(M * N));
-  buffer<float, 1> bufD(D, range<1>(M * N));
+  joint_matrix<sub_group, precision::tf32, use::a, M, K, layout::row_major>
+      sub_a{};
+  joint_matrix<sub_group, precision::tf32, use::b, K, N, layout::row_major>
+      sub_b{};
+  joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
-  queue q;
+  //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0(ptr %{{.*}}, i32 8)
+  joint_matrix_load(sg, sub_a,
+                    accA.template get_multi_ptr<access::decorated::yes>(), K);
+  //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.row.stride.tf32.p0(ptr %{{.*}}, i32 16)
+  joint_matrix_load(sg, sub_b,
+                    accB.template get_multi_ptr<access::decorated::yes>(), N);
+  //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, i32 16)
+  joint_matrix_load(sg, sub_c,
+                    accC.template get_multi_ptr<access::decorated::yes>(), N,
+                    layout::row_major);
 
-  q.submit([&](handler &cgh) {
-    auto accA = bufA.get_access<access::mode::read_write>(cgh);
-    auto accB = bufB.get_access<access::mode::read_write>(cgh);
-    auto accC = bufC.get_access<access::mode::read_write>(cgh);
-    auto accD = bufD.get_access<access::mode::read_write>(cgh);
+  auto round_lambda = [](auto &x) { x = round_to_tf32(x); };
+  //CHECK-OPAQUE: tail call i32 @llvm.nvvm.f2tf32.rna(float %{{.*}})
+  joint_matrix_apply(sg, sub_a, round_lambda);
 
-    cgh.parallel_for<class row_row>(
-        nd_range<2>({1, 32}, {1, 32}),
-        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
-          sycl::sub_group sg = item.get_sub_group();
+  joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+  //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 {{.*}}
+  joint_matrix_store(sg, sub_c,
+                     accD.template get_multi_ptr<access::decorated::yes>(), N,
+                     layout::row_major);
+}
 
-          joint_matrix<sub_group, precision::tf32, use::a, M, K,
-                       layout::row_major>
-              sub_a{};
-          joint_matrix<sub_group, precision::tf32, use::b, K, N,
-                       layout::row_major>
-              sub_b{};
-          joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
+SYCL_EXTERNAL [[sycl::reqd_work_group_size(1, 1, 32)]] void
+col_col(sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accA,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accB,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accC,
+        sycl::accessor<float, 1, sycl::access::mode::read_write,
+                       sycl::target::device>
+            accD,
+        nd_item<2> item) {
+  sycl::sub_group sg = item.get_sub_group();
 
-          //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.row.stride.tf32.p0(ptr %{{.*}}, i32 8)
-          joint_matrix_load(
-              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
-              K);
-          //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.row.stride.tf32.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(
-              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
-              N);
-          //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.row.stride.f32.p1(ptr addrspace(1) %{{.*}}, i32 16)
-          joint_matrix_load(
-              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
-              N, layout::row_major);
+  joint_matrix<sub_group, precision::tf32, use::a, M, K, layout::col_major>
+      sub_a{};
+  joint_matrix<sub_group, precision::tf32, use::b, K, N, layout::col_major>
+      sub_b{};
+  joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
 
-          auto round_lambda = [](auto &x) { x = round_to_tf32(x); };
-          //CHECK-OPAQUE: tail call i32 @llvm.nvvm.f2tf32.rna(float %{{.*}})
-          joint_matrix_apply(sg, sub_a, round_lambda);
+  //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.col.stride.tf32.p0(ptr %{{.*}}, i32 8)
+  joint_matrix_load(sg, sub_a,
+                    accA.template get_multi_ptr<access::decorated::yes>(), K);
+  //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.col.stride.tf32.p0(ptr %{{.*}}, i32 16)
+  joint_matrix_load(sg, sub_b,
+                    accB.template get_multi_ptr<access::decorated::yes>(), N);
+  //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1(ptr addrspace(1) {{.*}}, i32 {{.*}})
+  joint_matrix_load(sg, sub_c,
+                    accC.template get_multi_ptr<access::decorated::yes>(), N,
+                    layout::col_major);
 
-          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
-          //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.row.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 {{.*}}
-          joint_matrix_store(
-              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
-              N, layout::row_major);
-        });
-  });
-
-  q.submit([&](handler &cgh) {
-    auto accA = bufA.get_access<access::mode::read_write>(cgh);
-    auto accB = bufB.get_access<access::mode::read_write>(cgh);
-    auto accC = bufC.get_access<access::mode::read_write>(cgh);
-    auto accD = bufD.get_access<access::mode::read_write>(cgh);
-
-    cgh.parallel_for<class col_col>(
-        nd_range<2>({1, 32}, {1, 32}),
-        [=](nd_item<2> item) [[sycl::reqd_work_group_size(1, 1, 32)]] {
-          sycl::sub_group sg = item.get_sub_group();
-
-          joint_matrix<sub_group, precision::tf32, use::a, M, K,
-                       layout::col_major>
-              sub_a{};
-          joint_matrix<sub_group, precision::tf32, use::b, K, N,
-                       layout::col_major>
-              sub_b{};
-          joint_matrix<sub_group, float, use::accumulator, M, N> sub_c{};
-
-          //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.a.col.stride.tf32.p0(ptr %{{.*}}, i32 8)
-          joint_matrix_load(
-              sg, sub_a, accA.template get_multi_ptr<access::decorated::yes>(),
-              K);
-          //CHECK-OPAQUE: tail call { i32, i32, i32, i32 } @llvm.nvvm.wmma.m16n16k8.load.b.col.stride.tf32.p0(ptr %{{.*}}, i32 16)
-          joint_matrix_load(
-              sg, sub_b, accB.template get_multi_ptr<access::decorated::yes>(),
-              N);
-          //CHECK-OPAQUE: tail call { float, float, float, float, float, float, float, float } @llvm.nvvm.wmma.m16n16k16.load.c.col.stride.f32.p1(ptr addrspace(1) {{.*}}, i32 {{.*}})
-          joint_matrix_load(
-              sg, sub_c, accC.template get_multi_ptr<access::decorated::yes>(),
-              N, layout::col_major);
-
-          joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
-          //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
-          joint_matrix_store(
-              sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
-              N, layout::col_major);
-        });
-  });
-
-  return 0;
-};
+  joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
+  //CHECK-OPAQUE: tail call void @llvm.nvvm.wmma.m16n16k16.store.d.col.stride.f32.p1(ptr addrspace(1) {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, float {{.*}}, i32 16)
+  joint_matrix_store(sg, sub_c,
+                     accD.template get_multi_ptr<access::decorated::yes>(), N,
+                     layout::col_major);
+}

@@ -3,6 +3,7 @@ add_llvm_library(SYCLKernelFusion MODULE
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
+  kernel-fusion/SYCLSpecConstMaterializer.cpp
   kernel-info/SYCLKernelInfo.cpp
   internalization/Internalization.cpp
   syclcp/SYCLCP.cpp
@@ -35,6 +36,8 @@ target_link_libraries(SYCLKernelFusion
   sycl-fusion-common
 )
 
+add_dependencies(SYCLKernelFusion sycl-headers)
+
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_PTX)
 endif()
@@ -48,6 +51,7 @@ add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
+  kernel-fusion/SYCLSpecConstMaterializer.cpp
   kernel-info/SYCLKernelInfo.cpp
   internalization/Internalization.cpp
   syclcp/SYCLCP.cpp
@@ -64,6 +68,7 @@ add_llvm_library(SYCLKernelFusionPasses
   TransformUtils
   Passes
   TargetParser
+  SYCLLowerIR
 )
 
 target_compile_options(SYCLKernelFusionPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
@@ -86,6 +91,8 @@ target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
 )
+
+add_dependencies(SYCLKernelFusionPasses sycl-headers)
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_PTX)

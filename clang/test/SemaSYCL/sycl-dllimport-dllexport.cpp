@@ -1,19 +1,19 @@
 // RUN: %clang_cc1 -triple spir64-unknown-unknown -fms-extensions \
 // RUN: -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device \
-// RUN: -fsyntax-only -Wno-sycl-2017-compat -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: -fsyntax-only -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck %s
 // check random triple aux-triple with sycl-device
 
-// RUN: %clang_cc1 -triple spir64-unknown-windows -Wno-sycl-2017-compat -fsyntax-only \
+// RUN: %clang_cc1 -triple spir64-unknown-windows -fsyntax-only \
 // RUN: -fms-extensions -DWARNCHECK %s -o /dev/null 2>&1 | FileCheck --check-prefixes CHECKALL %s
 // check without -aux-triple but sycl-device
 
 // RUN: %clang_cc1 -triple spir64-unknown-windows \
 // RUN: -fsycl-is-device -aux-triple x86_64-pc-windows-msvc -fms-extensions \
-// RUN: -fsyntax-only -Wno-sycl-2017-compat -DWARNCHECK %s -o /dev/null 2>&1 | \
+// RUN: -fsyntax-only -DWARNCHECK %s -o /dev/null 2>&1 | \
 // RUN: FileCheck %s --check-prefixes CHECKALL
 // check -aux-tripe without sycl-device
 
-// RUN: %clang_cc1 -triple spir64-unknown-windows -Wno-sycl-2017-compat -fsyntax-only \
+// RUN: %clang_cc1 -triple spir64-unknown-windows -fsyntax-only \
 // RUN: -aux-triple x86_64-pc-windows-msvc -fsycl-is-device \
 // RUN: -fms-extensions -verify  %s
 // check error message when dllimport function gets called in sycl-kernel code

@@ -26,15 +26,16 @@ public:
     if (!ConfigValue) {
       return T{};
     }
-    return static_cast<const OptionBase<Opt::Id, T> *>(ConfigValue)->Value;
+    return static_cast<const OptionBase<Opt, Opt::Id, T> *>(ConfigValue)->Value;
   }
 
-  void set(OptionPtrBase *Option) {
-    OptionValues[Option->Id] = std::unique_ptr<OptionPtrBase>(Option);
+  void set(OptionStorage &&Option) {
+    auto ID = Option.get()->Id;
+    OptionValues[ID] = std::move(Option);
   }
 
 private:
-  std::unordered_map<OptionID, std::unique_ptr<OptionPtrBase>> OptionValues;
+  std::unordered_map<OptionID, OptionStorage> OptionValues;
 
   const OptionPtrBase *get(OptionID ID) const {
     const auto Iter = OptionValues.find(ID);

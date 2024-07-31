@@ -11,13 +11,12 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=2 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
+// RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 
 // This tests support of row major layout for matrix B which does automatic VNNI
 // transform. This is currently only available on AMX and XMX of PVC
 
 #include "common.hpp"
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
 #include "joint_matrix_rowmajorA_rowmajorB_impl.hpp"

@@ -36,6 +36,7 @@ FUNCTION_PASS("amdgpu-lower-kernel-arguments",
               AMDGPULowerKernelArgumentsPass(*this))
 FUNCTION_PASS("amdgpu-lower-kernel-attributes",
               AMDGPULowerKernelAttributesPass())
+FUNCTION_PASS("amdgpu-oclc-reflect", AMDGPUOclcReflectPass())
 FUNCTION_PASS("amdgpu-simplifylib", AMDGPUSimplifyLibCallsPass())
 FUNCTION_PASS("amdgpu-promote-alloca", AMDGPUPromoteAllocaPass(*this))
 FUNCTION_PASS("amdgpu-promote-alloca-to-vector",
@@ -71,3 +72,9 @@ FUNCTION_PASS_WITH_PARAMS(
     },
     parseAMDGPUAtomicOptimizerStrategy, "strategy=dpp|iterative|none")
 #undef FUNCTION_PASS_WITH_PARAMS
+
+#ifndef MACHINE_FUNCTION_PASS
+#define MACHINE_FUNCTION_PASS(NAME, CREATE_PASS)
+#endif
+MACHINE_FUNCTION_PASS("amdgpu-isel", AMDGPUISelDAGToDAGPass(*this))
+#undef MACHINE_FUNCTION_PASS

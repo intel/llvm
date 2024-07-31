@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 // RUN: %{build} %debug_option -O0 -o %t.out
-// RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=always" > %t.cfg
+// RUN: echo SYCL_PRINT_EXECUTION_GRAPH=always > %t.cfg
 // RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
-// RUN: ls | grep dot
+// RUN: cat *.dot > /dev/null
 // RUN: rm *.dot
 // RUN: env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
-// RUN: ls | grep dot
+// RUN: cat *.dot > /dev/null
 // RUN: rm *.dot
 // RUN: %t.out
-// RUN: ls | not grep dot
+// RUN: not cat *.dot > /dev/null
 
 #include <sycl/detail/core.hpp>
 

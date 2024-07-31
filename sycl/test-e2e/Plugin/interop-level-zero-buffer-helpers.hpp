@@ -1,11 +1,11 @@
 #pragma once
-#include "interop-level-zero-buffer-helpers.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
-// clang-format off
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
+
 #include <level_zero/ze_api.h>
+
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-// clang-format on
 
 using namespace sycl;
 

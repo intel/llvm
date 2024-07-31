@@ -1,9 +1,13 @@
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -fsycl-embed-ir -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %{embed-ir} -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // Test complete fusion where one kernel in the fusion list specifies an
 // explicit dependency (via events) on another kernel in the fusion list.
+
+// The two kernels are fused, so only a single, fused kernel is launched.
+// CHECK-COUNT-1: urEnqueueKernelLaunch
+// CHECK-NOT: urEnqueueKernelLaunch
 
 #include "fusion_event_test_common.h"
 

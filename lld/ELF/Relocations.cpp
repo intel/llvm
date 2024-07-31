@@ -492,7 +492,8 @@ int64_t RelocationScanner::computeMipsAddend(const RelTy &rel, RelExpr expr,
 
   // The ABI says that the paired relocation is used only for REL.
   // See p. 4-17 at ftp://www.linux-mips.org/pub/linux/mips/doc/ABI/mipsabi.pdf
-  if (RelTy::IsRela)
+  // This generalises to relocation types with implicit addends.
+  if (RelTy::HasAddend)
     return 0;
 
   RelType type = rel.getType(config->isMips64EL);
@@ -1297,6 +1298,18 @@ static unsigned handleTlsRelocation(RelType type, Symbol &sym,
 
   if (config->emachine == EM_MIPS)
     return handleMipsTlsRelocation(type, sym, c, offset, addend, expr);
+
+  // LoongArch does not yet implement transition from TLSDESC to LE/IE, so
+  // generate TLSDESC dynamic relocation for the dynamic linker to handle.
+  if (config->emachine == EM_LOONGARCH &&
+      oneof<R_LOONGARCH_TLSDESC_PAGE_PC, R_TLSDESC, R_TLSDESC_CALL>(expr)) {
+    if (expr != R_TLSDESC_CALL) {
+      sym.setFlags(NEEDS_TLSDESC);
+      c.addReloc({expr, type, offset, addend, &sym});
+    }
+    return 1;
+  }
+
   bool isRISCV = config->emachine == EM_RISCV;
 
   if (oneof<R_AARCH64_TLSDESC_PAGE, R_TLSDESC, R_TLSDESC_CALL, R_TLSDESC_PC,
@@ -1419,11 +1432,16 @@ template <class ELFT, class RelTy> void RelocationScanner::scanOne(RelTy *&i) {
   uint32_t symIndex = rel.getSymbol(config->isMips64EL);
   Symbol &sym = sec->getFile<ELFT>()->getSymbol(symIndex);
   RelType type;
-  if (config->mipsN32Abi) {
-    type = getMipsN32RelType(i);
-  } else {
+  if constexpr (ELFT::Is64Bits) {
     type = rel.getType(config->isMips64EL);
     ++i;
+  } else {
+    if (config->mipsN32Abi) {
+      type = getMipsN32RelType(i);
+    } else {
+      type = rel.getType(config->isMips64EL);
+      ++i;
+    }
   }
   // Get an offset in an output section this relocation is applied to.
   uint64_t offset = getter.get(rel.r_offset);
@@ -1431,7 +1449,7 @@ template <class ELFT, class RelTy> void RelocationScanner::scanOne(RelTy *&i) {
     return;
 
   RelExpr expr = target->getRelExpr(type, sym, sec->content().data() + offset);
-  int64_t addend = RelTy::IsRela
+  int64_t addend = RelTy::HasAddend
                        ? getAddend<ELFT>(rel)
                        : target->getImplicitAddend(
                              sec->content().data() + rel.r_offset, type);

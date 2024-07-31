@@ -30,13 +30,13 @@
 //===---------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp64
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <complex>
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 #include "../common.hpp"

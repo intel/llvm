@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,arch-intel_gpu_pvc
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -o %t1.out
 // RUN: %{run} %t1.out
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -DUSE_CONSTEXPR_API -o %t2.out
@@ -17,10 +17,6 @@
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

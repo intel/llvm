@@ -1,6 +1,6 @@
-// REQUIRES: cuda
-// RUN: %if any-device-is-cuda %{ %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_61 -o %t.out %}
-// RUN: %if cuda %{ %{run} %t.out %}
+// REQUIRES: cuda || hip || level_zero
+// RUN:  %{build} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_61 %} -o %t.out
+// RUN:  %{run} %t.out
 
 #include <cassert>
 #include <numeric>
@@ -18,17 +18,8 @@ constexpr size_t N = 512;
 
 int main() {
 
-  // Note that this code will largely be removed: it is temporary due to the
-  // temporary lack of multiple devices per sycl context in the Nvidia backend.
-  // A portable implementation, using a single gpu platform, should be possible
-  // once the Nvidia context issues are resolved.
-  ////////////////////////////////////////////////////////////////////////
-  std::vector<sycl::device> Devs;
-  for (const auto &plt : sycl::platform::get_platforms()) {
+  auto Devs = platform(gpu_selector_v).get_devices(info::device_type::gpu);
 
-    if (plt.get_backend() == sycl::backend::ext_oneapi_cuda)
-      Devs.push_back(plt.get_devices()[0]);
-  }
   if (Devs.size() < 2) {
     std::cout << "Cannot test P2P capabilities, at least two devices are "
                  "required, exiting."
@@ -51,18 +42,18 @@ int main() {
   // Enables Devs[1] to access Devs[0] memory.
   Devs[1].ext_oneapi_enable_peer_access(Devs[0]);
 
-  std::vector<double> input(N);
+  std::vector<int> input(N);
   std::iota(input.begin(), input.end(), 0);
 
-  double h_sum = 0.;
+  int h_sum = 0.;
   for (const auto &value : input) {
     h_sum += value;
   }
 
-  double *d_sum = malloc_shared<double>(1, Queues[0]);
-  double *d_in = malloc_device<double>(N, Queues[0]);
+  int *d_sum = malloc_shared<int>(1, Queues[0]);
+  int *d_in = malloc_device<int>(N, Queues[0]);
 
-  Queues[0].memcpy(d_in, &input[0], N * sizeof(double));
+  Queues[0].memcpy(d_in, &input[0], N * sizeof(int));
   Queues[0].wait();
 
   range global_range{N};
@@ -70,7 +61,7 @@ int main() {
   *d_sum = 0.;
   Queues[1].submit([&](handler &h) {
     h.parallel_for<class peer_atomic>(global_range, [=](id<1> i) {
-      sycl::atomic_ref<double, sycl::memory_order::relaxed,
+      sycl::atomic_ref<int, sycl::memory_order::relaxed,
                        sycl::memory_scope::system,
                        access::address_space::global_space>(*d_sum) += d_in[i];
     });

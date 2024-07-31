@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
 #include "../helpers.hpp"
@@ -8,6 +8,7 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/sycl_span.hpp>
 
 using namespace sycl;
 

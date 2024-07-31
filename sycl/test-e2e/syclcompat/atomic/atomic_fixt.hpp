@@ -23,7 +23,7 @@
 #pragma once
 
 #include <algorithm>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat.hpp>
 
@@ -131,8 +131,8 @@ public:
     if (skip_)
       return; // skip
     syclcompat::launch<Kernel>(grid_, threads_, atom_arr_device_);
-    HostFunc(atom_arr_host_);
     syclcompat::wait();
+    HostFunc(atom_arr_host_);
 
     verify();
   }
@@ -170,8 +170,8 @@ public:
       return;
     syclcompat::launch<Kernel>(this->grid_, this->threads_,
                                this->atom_arr_device_, atom_arr_shared_in_);
-    HostFunc(this->atom_arr_host_, atom_arr_shared_in_);
     syclcompat::wait();
+    HostFunc(this->atom_arr_host_, atom_arr_shared_in_);
 
     this->verify();
   }

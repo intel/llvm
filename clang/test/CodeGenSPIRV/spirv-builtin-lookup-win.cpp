@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple x86_64-windows-msvc -fdeclare-spirv-builtins -fsyntax-only -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-windows-msvc -fdeclare-spirv-builtins -emit-llvm %s -o - | FileCheck %s
 
 float acos(float val) {
   // CHECK: @"?acos@@YAMM@Z"

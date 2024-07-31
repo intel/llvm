@@ -2,9 +2,6 @@
 // RUN: %{build} -fpreview-breaking-changes -o %t.out
 // RUN: %{run} %t.out
 
-// This test currently fails on AMD HIP due to an unresolved memcmp function.
-// XFAIL: hip_amd
-
 // Checks scalar/vec relational operator ordering.
 
 #include "vec_binary_scalar_order.hpp"

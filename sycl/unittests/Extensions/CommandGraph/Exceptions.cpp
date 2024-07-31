@@ -216,15 +216,60 @@ void addImagesCopies(experimental::detail::modifiable_command_graph &G,
 } // anonymous namespace
 
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
-
+  bool Success = true;
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
   try {
     auto Barrier =
         Graph.add([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
   } catch (exception &Exception) {
     ExceptionCode = Exception.code();
+    std::string ErrorStr =
+        "The sycl_ext_oneapi_enqueue_barrier feature is "
+        "not available with SYCL Graph Explicit API. Please use empty nodes "
+        "instead.";
+    std::cout << Exception.what() << std::endl;
+    std::cout << ErrorStr << std::endl;
+    ASSERT_FALSE(std::string(Exception.what()).find(ErrorStr) ==
+                 std::string::npos);
+    Success = false;
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+  ASSERT_EQ(Success, false);
+}
+
+TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
+
+  experimental::command_graph<experimental::graph_state::modifiable> Graph2{
+      Queue};
+
+  Graph2.begin_recording({Queue});
+
+  auto Node = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph2.end_recording();
+
+  auto Event = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  Graph.begin_recording(Queue);
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Node});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    auto BarrierNode = Queue.ext_oneapi_submit_barrier({Event});
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  Graph2.end_recording();
 }
 
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
@@ -264,6 +309,10 @@ TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   try {
     Graph.begin_recording(Q);
   } catch (exception &Exception) {
+    // Ensure fusion wrapper references are released now, otherwise we can end
+    // up trying to release backend objects after the mock backend has been
+    // unloaded.
+    fw.cancel_fusion();
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
@@ -331,8 +380,7 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
 
   // Extension: image descriptor - can use the same for both images
   sycl::ext::oneapi::experimental::image_descriptor Desc(
-      {Width, Height, Depth}, sycl::image_channel_order::rgba,
-      sycl::image_channel_type::fp32);
+      {Width, Height, Depth}, 4, sycl::image_channel_type::fp32);
 
   // Extension: allocate memory on device and create the handle
   // Input images memory
@@ -356,6 +404,19 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
                                            ImgMemUSM, Pitch, Desc);
 
   sycl::free(ImgMemUSM, Ctxt);
+}
+
+// ext_codeplay_enqueue_native_command isn't supported with SYCL graphs
+TEST_F(CommandGraphTest, EnqueueCustomCommandCheck) {
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Graph.add([&](sycl::handler &CGH) {
+      CGH.ext_codeplay_enqueue_native_command([=](sycl::interop_handle IH) {});
+    });
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
@@ -533,4 +594,54 @@ TEST_F(CommandGraphTest, ProfilingException) {
                   "from a submission to a queue in the recording state.") ==
         std::string::npos);
   }
+}
+
+TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  // Checks exception thrown if profiling is requested while profiling has
+  // not been enabled during the graph building.
+  auto GraphExecInOrder = Graph.finalize();
+  queue QueueProfile{Dev, {sycl::property::queue::enable_profiling()}};
+  auto EventInOrder = QueueProfile.submit(
+      [&](handler &CGH) { CGH.ext_oneapi_graph(GraphExecInOrder); });
+  QueueProfile.wait_and_throw();
+  bool Success = true;
+  try {
+    EventInOrder
+        .get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (sycl::exception &Exception) {
+    ASSERT_FALSE(std::string(Exception.what())
+                     .find("Profiling information is unavailable as the queue "
+                           "associated with the event does not have the "
+                           "'enable_profiling' property.") ==
+                 std::string::npos);
+    Success = false;
+  }
+  ASSERT_EQ(Success, false);
+}
+
+TEST_F(CommandGraphTest, ClusterLaunchException) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+
+  syclex::properties cluster_launch_property{
+      syclex::cuda::cluster_size<1>(sycl::range<1>{4})};
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Graph.begin_recording(Queue);
+    auto Event1 = Queue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<TestKernel<>>(sycl::nd_range<1>({4096}, {32}),
+                                     cluster_launch_property,
+                                     [&](sycl::nd_item<1> it) {});
+    });
+    Queue.wait();
+    Graph.end_recording(Queue);
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }

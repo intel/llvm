@@ -1,8 +1,8 @@
-; RUN: sycl-post-link -spec-const=native < %s -S -o %t.table
+; RUN: sycl-post-link -properties -spec-const=native < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-RT < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS < %t_0.prop
 
-; RUN: sycl-post-link -spec-const=emulation < %s -S -o %t.table
+; RUN: sycl-post-link -properties -spec-const=emulation < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-EMULATION < %t_0.ll
 
 ; This test checks that the post link tool is able to correctly transform

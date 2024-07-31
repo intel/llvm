@@ -4,6 +4,8 @@
 // Fail is flaky for level_zero, enable when fixed.
 // UNSUPPORTED: level_zero
 //
+// Consistently fails with opencl gpu, enable when fixed.
+// XFAIL: opencl && gpu
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
@@ -14,7 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

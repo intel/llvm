@@ -204,10 +204,82 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
       std::conditional_t<std::is_const_v<typename AccessorTy::value_type>,
                          const T *, T *>;
   auto BytePtr =
-      reinterpret_cast<QualCharPtrType>(Acc.get_pointer().get()) + Offset;
+      reinterpret_cast<QualCharPtrType>(
+          Acc.template get_multi_ptr<access::decorated::yes>().get()) +
+      Offset;
   return reinterpret_cast<QualTPtrType>(BytePtr);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
+
+/// @brief Checks parameters for read region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
+// The rdregion intrinsics computes a result vector using following algorithm:
+//
+// \code{.cpp}
+// uint16_t EltOffset = Offset / sizeof(T);
+// assert(Offset % sizeof(T) == 0);
+//
+// int NumRows = M / Width;
+// assert(M % Width == 0);
+//
+// int Index = 0;
+// for (int i = 0; i < NumRows; ++i) {
+//   for (int j = 0; j < Width; ++j) {
+//     Result[Index++] = Input[i * VStride +  j * Stride +
+//     EltOffset];
+//   }
+// }
+// \endcode
+// Hence the checks are to prevent reading beyond the input vector.
+template <int N, int M, int VStride, int Width, int Stride>
+constexpr void check_rdregion_params() {
+  static_assert(Width > 0 && M % Width == 0, "Malformed RHS region.");
+  static_assert(Width == M ||
+                    ((M / Width) - 1) * VStride + (Width - 1) * Stride < N,
+                "Malformed RHS region - too big vertical and/or "
+                "horizontal stride.");
+}
+
+/// @brief Checks parameters for write region intrinsic API. The checks were
+/// refactored from simd_obj API.
+/// @tparam N the input vector size.
+/// @tparam M the return vector size.
+/// @tparam VStride the vertical stride in elements between rows.
+/// @tparam Width the size or each row, non-zero and even divides `M`.
+/// @tparam Stride horizontal stride in elements within each row.
+// The wrregion intrinsics computes a result vector using following algorithm:
+//
+// \code{.cpp}
+// uint16_t EltOffset = Offset / sizeof(T);
+// assert(Offset % sizeof(T) == 0);
+//
+// int NumRows = M / Width;
+// assert(M % Width == 0);
+//
+// Result = OldValue;
+// int Index = 0;
+// for (int i = 0; i < NumRows; ++i) {
+//   for (int j = 0; j < Width; ++j) {
+//       if (Mask[Index])
+//           Result[i * VStride +  j * Stride + EltOffset] = NewVal[Index];
+//       ++Index;
+//   }
+// }
+// \endcode
+// Hence the checks are to prevent reading beyond the input array and prevent
+// writing beyond destination vector.
+template <int N, int M, int VStride, int Width, int Stride>
+constexpr void check_wrregion_params() {
+  static_assert(M <= N, "Attempt to access beyond viewed area: The "
+                        "viewed object in LHS does not fit RHS.");
+  static_assert((M - 1) * Stride < N, "Malformed RHS region - too big stride.");
+  check_rdregion_params<N, M, VStride, Width, Stride>();
+}
 
 } // namespace ext::intel::esimd::detail
 } // namespace _V1

@@ -107,7 +107,7 @@ to be taken.
 For example, when an embedded device binary is of the `OFK_SYCL` kind and of
 the `spir64_gen` architecture triple, the resulting extracted binary is linked,
 post-link processed and converted to SPIR-V before being passed to `ocloc` to
-generate the final device binary.  Options passed via `--gen-tool-arg=` will
+generate the final device binary.  Options passed via `--gpu-tool-arg=` will
 be applied to the `ocloc` step as well.
 
 Binaries generated during the offload compilation will be 'bundled' together
@@ -239,7 +239,7 @@ are needed to pass along this information.
 | Target | Triple        | Offline Tool   | Option for Additional Args |
 |--------|---------------|----------------|----------------------------|
 | CPU    | spir64_x86_64 | opencl-aot     | `--cpu-tool-arg=<arg>`     |
-| GPU    | spir64_gen    | ocloc          | `--gen-tool-arg=<arg>`     |
+| GPU    | spir64_gen    | ocloc          | `--gpu-tool-arg=<arg>`     |
 | FPGA   | spir64_fpga   | aoc/opencl-aot | `--fpga-tool-arg=<arg>`    |
 
 *Table: Ahead of Time Info*
@@ -267,10 +267,10 @@ step performed by `sycl-post-link` and the SPIR-V translation step which is done
 by `llvm-spirv`.  Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_gen <opts>` command as well as the implied
 options set via target options such as `-fsycl-targets=intel_gpu_skl`
-will be processed by a new options to the wrapper, `--gen-tool-arg=<arg>`
+will be processed by a new options to the wrapper, `--gpu-tool-arg=<arg>`
 
 To support multiple target specifications, for instance:
-`-fsycl-targets=intel_gpu_skl,intel_gpu_pvc`, multiple `--gen-tool-arg`
+`-fsycl-targets=intel_gpu_skl,intel_gpu_pvc`, multiple `--gpu-tool-arg`
 options can be passed on the command line.  Each instance will be considered
 a separate OCLOC call passing along the `<args>` as options to the OCLOC call.
 The compiler driver will be responsible for putting together the full option
@@ -282,8 +282,8 @@ list to be passed along.
 
 *Example: spir64_gen enabling options*
 
-> --gen-tool-arg="-device pvc -options extraopt_pvc"
---gen-tool-arg="-device skl -options -extraopt_skl"
+> --gpu-tool-arg="-device pvc -options extraopt_pvc"
+--gpu-tool-arg="-device skl -options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -292,7 +292,7 @@ individually wrapped and linked into the final executable.
 
 Additionally, the syntax can be expanded to enable the ability to pass specific
 options to a specific device GPU target for spir64_gen.  The syntax will
-resemble `--gen-tool-arg=<arch> <arg>`.  This corresponds to the existing
+resemble `--gpu-tool-arg=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 

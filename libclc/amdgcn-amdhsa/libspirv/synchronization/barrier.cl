@@ -10,34 +10,48 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-#define BUILTIN_FENCE(semantics, scope_memory)                                 \
-  if (semantics & Acquire)                                                     \
-    return __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, scope_memory);             \
-  else if (semantics & Release)                                                \
-    return __builtin_amdgcn_fence(__ATOMIC_RELEASE, scope_memory);             \
-  else if (semantics & AcquireRelease)                                         \
-    return __builtin_amdgcn_fence(__ATOMIC_ACQ_REL, scope_memory);             \
-  else if (semantics & SequentiallyConsistent)                                 \
-    return __builtin_amdgcn_fence(__ATOMIC_SEQ_CST, scope_memory);             \
-  else                                                                         \
-    return __builtin_amdgcn_fence(__ATOMIC_ACQ_REL, scope_memory);
 
-_CLC_DEF _CLC_OVERLOAD void __mem_fence(unsigned int scope_memory,
-                                        unsigned int semantics) {
+#define BUILTIN_FENCE(order, scope_memory)                                     \
+  /* None implies Monotonic (for llvm/AMDGPU), or relaxed in C++.              \
+   * This does not make sense as ordering argument for a fence instruction     \
+   * and is not part of the supported orderings for a fence in AMDGPU. */      \
+  if (order != None) {                                                         \
+    switch (order) {                                                           \
+    case Acquire:                                                              \
+      return __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, scope_memory);           \
+    case Release:                                                              \
+      return __builtin_amdgcn_fence(__ATOMIC_RELEASE, scope_memory);           \
+    case AcquireRelease:                                                       \
+      return __builtin_amdgcn_fence(__ATOMIC_ACQ_REL, scope_memory);           \
+    case SequentiallyConsistent:                                               \
+      return __builtin_amdgcn_fence(__ATOMIC_SEQ_CST, scope_memory);           \
+    default:                                                                   \
+      __builtin_trap();                                                        \
+      __builtin_unreachable();                                                 \
+    }                                                                          \
+  }
+
+_CLC_INLINE void builtin_fence_order(unsigned int scope_memory,
+                                     unsigned int order) {
   switch ((enum Scope)scope_memory) {
   case CrossDevice:
-    BUILTIN_FENCE(semantics, "")
+    BUILTIN_FENCE(order, "")
   case Device:
-    BUILTIN_FENCE(semantics, "agent")
+    BUILTIN_FENCE(order, "agent")
   case Workgroup:
-    BUILTIN_FENCE(semantics, "workgroup")
+    BUILTIN_FENCE(order, "workgroup")
   case Subgroup:
-    BUILTIN_FENCE(semantics, "wavefront")
+    BUILTIN_FENCE(order, "wavefront")
   case Invocation:
-    BUILTIN_FENCE(semantics, "singlethread")
+    BUILTIN_FENCE(order, "singlethread")
   }
 }
 #undef BUILTIN_FENCE
+
+_CLC_DEF _CLC_OVERLOAD void __mem_fence(unsigned int scope_memory,
+                                        unsigned int semantics) {
+  builtin_fence_order(scope_memory, semantics & 0x1F);
+}
 
 _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int scope_memory,
                                                   unsigned int semantics) {
@@ -45,7 +59,7 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int scope_memory,
 }
 
 _CLC_OVERLOAD _CLC_DEF _CLC_CONVERGENT void
-__spirv_ControlBarrier(unsigned int scope_execution, unsigned scope_memory,
+__spirv_ControlBarrier(unsigned int scope_execution, unsigned int scope_memory,
                        unsigned int semantics) {
   if (semantics) {
     __mem_fence(scope_memory, semantics);

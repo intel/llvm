@@ -7,9 +7,14 @@
 //       only that the underlying native events are. Currently DPC++ implements
 //       this in a way that guarantees it, but this can change in the future.
 //       If it changes then so should this test.
+// OBS: The above note does not apply to equality of events returned after a
+//      call to ext_oneapi_set_external_event.
+
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
-#include <sycl.hpp>
 
 template <typename F>
 int Check(const sycl::queue &Q, const char *CheckName, const F &CheckFunc) {
@@ -34,6 +39,14 @@ int main() {
   Failed += Check(Q, "host_task", [&]() {
     return Q.submit([&](sycl::handler &CGH) { CGH.host_task([]() {}); });
   });
+
+  // For external event, the equality of events is guaranteed by the extension.
+  sycl::event ExternalEvent = Q.single_task([]() {});
+  Failed += Check(Q, "ext_oneapi_set_external_event", [&]() {
+    Q.ext_oneapi_set_external_event(ExternalEvent);
+    return ExternalEvent;
+  });
+
   if (!Q.get_device().has(sycl::aspect::usm_shared_allocations))
     return Failed;
   constexpr size_t N = 64;

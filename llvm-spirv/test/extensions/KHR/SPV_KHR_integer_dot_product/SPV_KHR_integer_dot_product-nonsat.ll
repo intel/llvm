@@ -1,7 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: not llvm-spirv %t.bc -spirv-text -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; RUN: not llvm-spirv %t.bc -spirv-text --spirv-max-version=1.5 -o %t.txt 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.5 --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
+; RUN: llvm-spirv --spirv-max-version=1.5 --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_integer_dot_product -o %t.txt
-; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NOEXT
 ; RUN: llvm-spirv --spirv-ext=+SPV_KHR_integer_dot_product %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
@@ -12,11 +18,17 @@
 ; CHECK-ERROR: Feature requires the following SPIR-V extension:
 ; CHECK-ERROR-NEXT: SPV_KHR_integer_dot_product
 
-; CHECK-SPIRV: Capability DotProductInputAllKHR
-; CHECK-SPIRV: Capability DotProductInput4x8BitKHR
-; CHECK-SPIRV: Capability DotProductInput4x8BitPackedKHR
-; CHECK-SPIRV: Capability DotProductKHR
-; CHECK-SPIRV: Extension "SPV_KHR_integer_dot_product"
+; Check SPIR-V versions in a format magic number + version
+; CHECK-SPIRV-EXT: 119734787 65536
+; CHECK-SPIRV-NOEXT: 119734787 67072
+
+; CHECK-SPIRV: Int8
+; CHECK-SPIRV-DAG: Capability DotProductInput4x8BitKHR
+; CHECK-SPIRV-DAG: Capability DotProductInputAllKHR
+; CHECK-SPIRV-DAG: Capability DotProductInput4x8BitPackedKHR
+; CHECK-SPIRV-DAG: Capability DotProductKHR
+; CHECK-SPIRV-EXT: Extension "SPV_KHR_integer_dot_product"
+; CHECK-SPIRV-NOEXT-NOT: Extension "SPV_KHR_integer_dot_product"
 
 ; CHECK-SPIRV-DAG: TypeInt [[#I8:]] 8
 ; CHECK-SPIRV-DAG: TypeInt [[#I16:]] 16

@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <sycl/builtins.hpp>
 #include <sycl/half_type.hpp>
 
 namespace sycl {

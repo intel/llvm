@@ -1,10 +1,19 @@
-; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_0.sym --check-prefixes CHECK-MODULE0-TXT
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_1.sym --check-prefixes CHECK-MODULE1-TXT
 ; RUN: FileCheck %s -input-file=%t.files_2.ll --check-prefixes CHECK-MODULE2,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_2.sym --check-prefixes CHECK-MODULE2-TXT
+;
+; RUN: sycl-module-split -split=kernel -S < %s -o %t2.files
+; RUN: FileCheck %s -input-file=%t2.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
+; RUN: FileCheck %s -input-file=%t2.files_0.sym --check-prefixes CHECK-MODULE0-TXT
+; RUN: FileCheck %s -input-file=%t2.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
+; RUN: FileCheck %s -input-file=%t2.files_1.sym --check-prefixes CHECK-MODULE1-TXT
+; RUN: FileCheck %s -input-file=%t2.files_2.ll --check-prefixes CHECK-MODULE2,CHECK
+; RUN: FileCheck %s -input-file=%t2.files_2.sym --check-prefixes CHECK-MODULE2-TXT
+
 ; ModuleID = 'one-kernel-per-module.ll'
 source_filename = "one-kernel-per-module.ll"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

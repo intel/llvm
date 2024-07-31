@@ -84,7 +84,7 @@ struct AMDGPUUseNativeCallsPass : PassInfoMixin<AMDGPUUseNativeCallsPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
-void initializeAMDGPUDAGToDAGISelPass(PassRegistry&);
+void initializeAMDGPUDAGToDAGISelLegacyPass(PassRegistry &);
 
 void initializeAMDGPUMachineCFGStructurizerPass(PassRegistry&);
 extern char &AMDGPUMachineCFGStructurizerID;
@@ -128,6 +128,12 @@ extern char &AMDGPULowerKernelAttributesID;
 struct AMDGPULowerKernelAttributesPass
     : PassInfoMixin<AMDGPULowerKernelAttributesPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+};
+
+struct AMDGPUOclcReflectPass : public PassInfoMixin<AMDGPUOclcReflectPass> {
+public:
+  PreservedAnalyses run(Function &M, FunctionAnalysisManager &AM);
+  static bool isRequired() { return true; }
 };
 
 void initializeAMDGPULowerModuleLDSLegacyPass(PassRegistry &);

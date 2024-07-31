@@ -11,30 +11,38 @@
 #include <sycl/specialization_id.hpp>
 #include <sycl/usm.hpp>
 
-class Kernel;
+template <int I> class Kernel;
 
 constexpr sycl::specialization_id<int> Size(10);
 
-static std::error_code test() {
+template <int I, typename Func> static void test(Func f) {
+  constexpr size_t N = 10;
   sycl::queue Queue;
-  sycl::buffer<int> B(10);
+  sycl::buffer<int> B(N);
 
   try {
     Queue.submit([&](sycl::handler &Cgh) {
       sycl::accessor Acc(B, Cgh, sycl::write_only, sycl::no_init);
-      Cgh.parallel_for<Kernel>(10, [=](sycl::id<1>, sycl::kernel_handler Kh) {
-        sycl::ext::oneapi::experimental::private_alloca<
-            int, Size, sycl::access::decorated::no>(Kh);
-      });
+      Cgh.parallel_for<Kernel<I>>(
+          N, [=](sycl::id<1>, sycl::kernel_handler Kh) { f(Kh); });
     });
   } catch (sycl::exception &Exception) {
-    return Exception.code();
+    assert(Exception.code() == sycl::errc::invalid && "Unexpected error code");
+    return;
   }
   assert(false && "Exception not thrown");
 }
 
 int main() {
-  assert(test() == sycl::errc::invalid && "Unexpected error code");
+  test<0>([](sycl::kernel_handler &Kh) {
+    sycl::ext::oneapi::experimental::private_alloca<
+        int, Size, sycl::access::decorated::no>(Kh);
+  });
+
+  test<1>([](sycl::kernel_handler &Kh) {
+    sycl::ext::oneapi::experimental::aligned_private_alloca<
+        int, alignof(int64_t), Size, sycl::access::decorated::no>(Kh);
+  });
 
   return 0;
 }

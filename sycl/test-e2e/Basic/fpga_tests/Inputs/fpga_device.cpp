@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CL/sycl.hpp"
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

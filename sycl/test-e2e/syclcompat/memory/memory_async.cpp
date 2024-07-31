@@ -30,11 +30,13 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 // Tests for the sycl::events returned from syclcompat::*Async API calls
 
+// TODO: Re-enable, see https://github.com/intel/llvm/issues/13636
+// and possibly related: https://github.com/intel/llvm/issues/14623
+// UNSUPPORTED: true
 #include <stdio.h>
 
 #include <sycl/detail/core.hpp>
@@ -43,14 +45,15 @@
 
 #include "memory_fixt.hpp"
 
-// free_async is a host task, so we are really testing the event dependency here
+// enqueue_free is just a host task, so we are really testing the event
+// dependency here
 void test_free_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
   float *d_D = (float *)syclcompat::malloc(sizeof(float));
   sycl::event kernel_ev = atest.launch_kernel();
-  sycl::event free_ev = syclcompat::free_async({d_D}, {kernel_ev});
+  sycl::event free_ev = syclcompat::enqueue_free({d_D}, {kernel_ev});
 
   atest.check_events(kernel_ev, free_ev);
 }

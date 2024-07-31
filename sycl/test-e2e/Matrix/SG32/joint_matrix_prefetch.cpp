@@ -6,10 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
+// REQUIRES: aspect-ext_intel_matrix
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL:*
+// XFAIL: gpu
+
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
 
 #include "../common.hpp"
 

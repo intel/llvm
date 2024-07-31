@@ -1,4 +1,13 @@
-#include <sycl/sycl.hpp>
+//===---joint_matrix_hip_copy.hpp - DPC++ joint_matrix---------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 #include <cstddef>
 #include <cstdint>

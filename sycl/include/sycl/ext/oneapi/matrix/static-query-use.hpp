@@ -21,6 +21,7 @@
 #pragma once
 
 #include <sycl/aliases.hpp> // for half
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for use, layout
 #include <sycl/ext/oneapi/matrix/matrix-unified.hpp>       // for joint_matrix

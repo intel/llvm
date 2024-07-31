@@ -1,8 +1,8 @@
 ; Test checks handling of bool specialization constant.
 
-; RUN: sycl-post-link -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -properties -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t_1.ll --implicit-check-not="SpecConst"
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst -split=auto -spec-const=native -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK: %bool1 = trunc i8 1 to i1
 ; CHECK: %frombool = zext i1 %bool1 to i8

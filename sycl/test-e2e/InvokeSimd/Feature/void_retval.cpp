@@ -20,9 +20,9 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -102,8 +102,10 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(PA.get_pointer() + offset);
-            float vb = sg.load(PB.get_pointer() + offset);
+            float va = sg.load(
+                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float vb = sg.load(
+                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
             // We need to get a pointer to the starting address of where the
             // result of the vector addition should be stored in/written back to
             // C. Returns the index (ordinal number) of the work-group to which
@@ -112,7 +114,8 @@ int main(void) {
             // absolute starting index of the work-group in the ND-range to
             // which the current work-item belongs.
             int group_offset = g.get_group_linear_id() * VL;
-            float *pvc = PC.get_pointer() + group_offset;
+            float *pvc =
+                PC.get_multi_ptr<access::decorated::yes>().get() + group_offset;
 
             // Invoke SIMD function:
             // va values from each work-item are combined into a simd<float,

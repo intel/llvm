@@ -5,7 +5,6 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: hip_amd
-// XFAIL: cuda && windows
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
@@ -23,7 +22,8 @@
 
 #include <iostream>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 

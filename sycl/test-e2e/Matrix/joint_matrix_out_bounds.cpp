@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
+
+// UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -14,7 +16,6 @@
 
 #include "common.hpp"
 
-constexpr size_t SG_SZ = 16;
 constexpr size_t TN = 16;
 constexpr size_t MATRIX_K = 1024 + 24;
 

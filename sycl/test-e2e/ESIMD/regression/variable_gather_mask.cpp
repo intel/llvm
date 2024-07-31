@@ -8,17 +8,13 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && gpu-intel-pvc
+// UNSUPPORTED: opencl && arch-intel_gpu_pvc
 //
 // This is a regression test for the VC BE bug which generates incorrect code in
 // some cases in presence of variable (not compile-time constant) mask
 // (aka predicate) in the scatter operation.
 
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

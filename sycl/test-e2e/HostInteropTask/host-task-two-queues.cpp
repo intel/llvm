@@ -5,7 +5,7 @@
 // UNSUPPORTED: level_zero
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 namespace S = sycl;

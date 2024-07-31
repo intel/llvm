@@ -84,9 +84,9 @@ public:
     return static_cast<T *>(Res);
   }
 
-  Instruction *transDebugIntrinsic(const SPIRVExtInst *DebugInst,
-                                   BasicBlock *BB);
+  DbgInstPtr transDebugIntrinsic(const SPIRVExtInst *DebugInst, BasicBlock *BB);
   void finalize();
+  llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
 private:
   DIFile *getFile(const SPIRVId SourceId);
@@ -103,8 +103,6 @@ private:
   DIType *transNonNullDebugType(const SPIRVExtInst *DebugInst);
 
   llvm::DebugLoc transDebugLocation(const SPIRVExtInst *DebugInst);
-
-  llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
   MDNode *transDebugInlinedNonSemanticShader200(const SPIRVExtInst *Inst);

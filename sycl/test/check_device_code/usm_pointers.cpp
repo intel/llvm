@@ -30,20 +30,10 @@
 
 using namespace sycl;
 
-int main() {
-  sycl::queue queue;
-  {
-    queue.submit([&](sycl::handler &cgh) {
-      cgh.single_task<class check_adress_space>([=]() {
-        void *Ptr = nullptr;
-        ext::intel::device_ptr<void> DevPtr(Ptr);
-        ext::intel::host_ptr<void> HostPtr(Ptr);
-        global_ptr<void> GlobPtr = global_ptr<void>(DevPtr);
-        GlobPtr = global_ptr<void>(HostPtr);
-      });
-    });
-    queue.wait();
-  }
-
-  return 0;
+SYCL_EXTERNAL void usm_pointers() {
+  void *Ptr = nullptr;
+  ext::intel::device_ptr<void> DevPtr(Ptr);
+  ext::intel::host_ptr<void> HostPtr(Ptr);
+  global_ptr<void> GlobPtr = global_ptr<void>(DevPtr);
+  GlobPtr = global_ptr<void>(HostPtr);
 }

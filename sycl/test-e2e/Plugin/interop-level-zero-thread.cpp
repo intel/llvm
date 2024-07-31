@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %{build} -o %t.out %level_zero_options %threads_lib
+// RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=#warnings -o %t.out %level_zero_options %threads_lib
 // RUN: %{run} %t.out
 //
 // CHECK: Running iteration 0
@@ -30,7 +30,9 @@
 #include <level_zero/ze_api.h>
 #include <mutex>
 #include <sycl/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 #include <thread>
 #include <vector>
 

@@ -44,13 +44,10 @@ core/shared/clc_max.cl
 core/shared/clc_min.cl
 geometric/cross.cl
 geometric/distance.cl
-geometric/distance.inc
 geometric/dot.cl
 geometric/fast_distance.cl
-geometric/fast_distance.inc
 geometric/fast_length.cl
 geometric/fast_normalize.cl
-geometric/fast_normalize.inc
 geometric/length.cl
 geometric/normalize.cl
 geometric/scale.cl

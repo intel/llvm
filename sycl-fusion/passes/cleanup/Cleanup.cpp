@@ -15,6 +15,7 @@
 #include <llvm/IR/Attributes.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/PassManagerImpl.h>
 #include <llvm/IR/Metadata.h>
 
 #include "Kernel.h"

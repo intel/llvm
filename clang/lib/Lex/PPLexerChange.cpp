@@ -326,6 +326,18 @@ void Preprocessor::diagnoseMissingHeaderInUmbrellaDir(const Module &Mod) {
   }
 }
 
+static FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
+  FileID FooterFileID;
+  llvm::Expected<FileEntryRef> ExpectedFileRef =
+      SM.getFileManager().getFileRef(Footer);
+  if (ExpectedFileRef) {
+    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
+                                        SrcMgr::CharacteristicKind::C_User);
+  }
+  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
+  return FooterFileID;
+}
+
 /// HandleEndOfFile - This callback is invoked when the lexer hits the end of
 /// the current file.  This either returns the EOF token or pops a level off
 /// the include stack and keeps going.
@@ -368,8 +380,7 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       // Okay, this has a controlling macro, remember in HeaderFileInfo.
       if (OptionalFileEntryRef FE = CurPPLexer->getFileEntry()) {
         HeaderInfo.SetFileControllingMacro(*FE, ControllingMacro);
-        if (MacroInfo *MI =
-              getMacroInfo(const_cast<IdentifierInfo*>(ControllingMacro)))
+        if (MacroInfo *MI = getMacroInfo(ControllingMacro))
           MI->setUsedForHeaderGuard(true);
         if (const IdentifierInfo *DefinedMacro =
               CurPPLexer->MIOpt.GetDefinedMacro()) {
@@ -535,6 +546,28 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       return LeavingSubmodule;
     }
   }
+
+  if (isInPrimaryFile() && getLangOpts().SYCLIsHost &&
+      !getPreprocessorOpts().IncludeFooter.empty()) {
+    SourceManager &SourceMgr = getSourceManager();
+    SourceLocation Loc = CurLexer->getFileLoc();
+
+    FileID FooterFileID = ComputeValidFooterFileID(
+        SourceMgr, getPreprocessorOpts().IncludeFooter);
+    if (!FooterFileID.isInvalid() && !IncludeFooterProcessed) {
+      IncludeFooterProcessed = true;
+      // Mark the footer file as included
+      if (OptionalFileEntryRef FE =
+              SourceMgr.getFileEntryRefForID(FooterFileID))
+        markIncluded(*FE);
+      clang::Lexer *LexerSave = CurLexer.get();
+      clang::PreprocessorLexer *CurPPLexerSave =
+          CurPPLexer->getPP()->getCurrentLexer();
+      EnterSourceFile(FooterFileID, CurDirLookup, Result.getLocation());
+      return false;
+    }
+  }
+
   // If this is the end of the main file, form an EOF token.
   assert(CurLexer && "Got EOF but no current lexer set!");
   const char *EndPos = getCurLexerEndPos();
@@ -805,7 +838,7 @@ Module *Preprocessor::LeaveSubmodule(bool ForPragma) {
   llvm::SmallPtrSet<const IdentifierInfo*, 8> VisitedMacros;
   for (unsigned I = Info.OuterPendingModuleMacroNames;
        I != PendingModuleMacroNames.size(); ++I) {
-    auto *II = const_cast<IdentifierInfo*>(PendingModuleMacroNames[I]);
+    auto *II = PendingModuleMacroNames[I];
     if (!VisitedMacros.insert(II).second)
       continue;
 
@@ -855,8 +888,8 @@ Module *Preprocessor::LeaveSubmodule(bool ForPragma) {
         // Don't bother creating a module macro if it would represent a #undef
         // that doesn't override anything.
         if (Def || !Macro.getOverriddenMacros().empty())
-          addModuleMacro(LeavingMod, II, Def,
-                         Macro.getOverriddenMacros(), IsNew);
+          addModuleMacro(LeavingMod, II, Def, Macro.getOverriddenMacros(),
+                         IsNew);
 
         if (!getLangOpts().ModulesLocalVisibility) {
           // This macro is exposed to the rest of this compilation as a

@@ -5,7 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
@@ -13,16 +15,8 @@
 
 // This test stores the matrix B that is VNNIed (packed).
 
-#include <iostream>
-#include <random>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include "../common.hpp"
 
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-constexpr size_t SG_SZ = 32;
-constexpr size_t TN = 16;
+#define SG_SZ 32
 
 #include "../element_wise_all_ops_int8_packed_impl.hpp"

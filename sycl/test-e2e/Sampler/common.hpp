@@ -5,6 +5,7 @@
 
 #include <sycl/detail/core.hpp>
 
+#include <sycl/accessor_image.hpp>
 #include <sycl/builtins.hpp>
 
 using namespace sycl;

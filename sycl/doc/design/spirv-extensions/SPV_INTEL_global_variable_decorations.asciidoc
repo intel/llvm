@@ -20,6 +20,8 @@
 // This is necessary for asciidoc, but not for asciidoctor
 :cpp: C++
 
+IMPORTANT: This extension is being deprecated in favour of link:https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_global_variable_fpga_decorations.asciidoc[SPV_INTEL_global_variable_fpga_decorations] and link:https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_global_variable_host_access.asciidoc[SPV_INTEL_global_variable_host_access] which are available in the Khronos SPIR-V registry. 
+
 == Name Strings
 
 SPV_INTEL_global_variable_decorations
@@ -212,7 +214,7 @@ Modify Section 3.31, Capability, adding a row to the Capability table:
 
 == Issues
 
-None.
+This extension is being deprecated in favour of link:https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_global_variable_fpga_decorations.asciidoc[SPV_INTEL_global_variable_fpga_decorations] and link:https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/INTEL/SPV_INTEL_global_variable_host_access.asciidoc[SPV_INTEL_global_variable_host_access] which are available in the Khronos SPIR-V registry. 
 
 //. Issue.
 //+

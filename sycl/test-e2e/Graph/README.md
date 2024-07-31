@@ -16,7 +16,9 @@ option `config.required_features` to the graph aspect required to run the tests:
 
 Most of the tests are written in a similar manner to other `e2e` tests. The
 exception to this are tests in the `Inputs` directory which are meant to be used
-as inputs to other tests.
+as inputs to other tests. The `Kernels` subdirectory of `Inputs` contains SPIR-V
+kernels for testing. These can be generated from SYCL kernels by using the
+`-fsycl-dump-device-code=<dir>` option to the DPC++ compiler.
 
 Often, the same feature, needs to be tested for both the `Explicit`
 and `Record and Replay` APIs. To avoid code duplication, such tests are added to
@@ -29,7 +31,7 @@ common code.
 
 The other directories are used to group similar tests together. Tests that
 require a specific `aspect` are also grouped together in order to use the
-`lit.local.cfg` file. Directories might themselves contain subdirectories named 
+`lit.local.cfg` file. Directories might themselves contain subdirectories named
 `Explicit` and `RecordReplay` if they make use of the framework described above.
 
 In addition, in order to help identify specific tests, the matching files

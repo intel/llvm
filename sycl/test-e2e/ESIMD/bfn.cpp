@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -14,11 +14,6 @@
 // - binary function - several binary functins with three operands (~, &, |, ^).
 
 #include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::intel;

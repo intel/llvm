@@ -65,7 +65,7 @@ PassPluginLibraryInfo getSPIRVPluginInfo() {
         PB.registerPipelineParsingCallback(
             [](StringRef Name, FunctionPassManager &PM,
                ArrayRef<PassBuilder::PipelineElement>) {
-              if (Name.equals("spirv-lower-bitcast")) {
+              if (Name == "spirv-lower-bitcast") {
                 PM.addPass(
                     SPIRVLowerBitCastToNonStandardTypePass(TranslatorOpts{}));
                 return true;
@@ -75,50 +75,50 @@ PassPluginLibraryInfo getSPIRVPluginInfo() {
         PB.registerPipelineParsingCallback(
             [](StringRef Name, ModulePassManager &PM,
                ArrayRef<PassBuilder::PipelineElement>) {
-              if (Name.equals("ocl-to-spirv")) {
+              if (Name == "ocl-to-spirv") {
                 PM.addPass(OCLToSPIRVPass());
                 return true;
               }
-              if (Name.equals("llvm-to-spirv")) {
+              if (Name == "llvm-to-spirv") {
                 SPIRV::TranslatorOpts DefaultOpts;
                 DefaultOpts.enableAllExtensions();
                 SPIRVModule *BM = SPIRVModule::createSPIRVModule(DefaultOpts);
                 PM.addPass(LLVMToSPIRVPass(BM));
                 return true;
               }
-              if (Name.equals("process-metadata")) {
+              if (Name == "process-metadata") {
                 PM.addPass(PreprocessMetadataPass());
                 return true;
               }
-              if (Name.equals("spirv-lower-bool")) {
+              if (Name == "spirv-lower-bool") {
                 PM.addPass(SPIRVLowerBoolPass());
                 return true;
               }
-              if (Name.equals("spirv-lower-constexpr")) {
+              if (Name == "spirv-lower-constexpr") {
                 PM.addPass(SPIRVLowerConstExprPass());
                 return true;
               }
-              if (Name.equals("spirv-lower-memmove")) {
+              if (Name == "spirv-lower-memmove") {
                 PM.addPass(SPIRVLowerMemmovePass());
                 return true;
               }
-              if (Name.equals("spirv-lower-ocl-blocks")) {
+              if (Name == "spirv-lower-ocl-blocks") {
                 PM.addPass(SPIRVLowerOCLBlocksPass());
                 return true;
               }
-              if (Name.equals("spirv-lower-llvm-intrinsic")) {
+              if (Name == "spirv-lower-llvm-intrinsic") {
                 PM.addPass(SPIRVLowerLLVMIntrinsicPass(TranslatorOpts{}));
                 return true;
               }
-              if (Name.equals("spirv-regularize-llvm")) {
+              if (Name == "spirv-regularize-llvm") {
                 PM.addPass(SPIRVRegularizeLLVMPass());
                 return true;
               }
-              if (Name.equals("spirv-to-ocl12")) {
+              if (Name == "spirv-to-ocl12") {
                 PM.addPass(SPIRVToOCL12Pass());
                 return true;
               }
-              if (Name.equals("spirv-to-ocl20")) {
+              if (Name == "spirv-to-ocl20") {
                 PM.addPass(SPIRVToOCL20Pass());
                 return true;
               }

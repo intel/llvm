@@ -20,6 +20,8 @@ target_include_directories(sycl-fusion-common
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
 
+add_dependencies(sycl-fusion-common sycl-headers)
+
 if (BUILD_SHARED_LIBS)
   if(NOT MSVC AND NOT APPLE)
     # Manage symbol visibility through the linker to make sure no LLVM symbols

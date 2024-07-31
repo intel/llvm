@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20.0)
 
 set(LLVM_LINK_COMPONENTS
         ${LLVM_TARGETS_TO_BUILD}

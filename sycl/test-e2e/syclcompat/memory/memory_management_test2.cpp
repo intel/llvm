@@ -30,10 +30,13 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+// TODO: Reenable, see https://github.com/intel/llvm/issues/14659
+// UNSUPPORTED: windows, linux
+
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 

@@ -9,7 +9,7 @@
 // static library.
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t1.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o -foffload-static-lib=%t.a -o %t.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o %t.a -o %t.exe
 // RUN: %{run} %t.exe
 
 #include <iostream>

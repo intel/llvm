@@ -5,7 +5,14 @@
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_ballot_group
 
-#include <sycl/sycl.hpp>
+// Fails in Nightly testing on the self-hosted CUDA runner:
+// https://github.com/intel/llvm/issues/12995.
+// UNSUPPORTED: cuda
+
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 

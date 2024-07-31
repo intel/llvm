@@ -65,18 +65,12 @@ const intel::fpga_mem<int[10],
 // CHECK: {{.*}}copies = internal addrspace(1) constant {{.*}} zeroinitializer, align 4, !spirv.Decorations ![[copies_md:[0-9]*]]
 // CHECK: {{.*}}replicates = internal addrspace(1) constant {{.*}} zeroinitializer, align 4, !spirv.Decorations ![[replicates_md:[0-9]*]]
 
-int main() {
-  queue Q;
+SYCL_EXTERNAL void fpga_mem_global() {
   int f = 5;
-
-  Q.single_task([=]() {
-    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
-                           double_pumped[f] + single_pumped[f] + mlab[f] +
-                           simple_dual_port[f] + true_dual_port[f] +
-                           block_ram[f] + banks[f] + stride[f] + word[f] +
-                           copies[f] + replicates[f];
-  });
-  return 0;
+  volatile int ReadVal =
+      empty[f] + min_ram[f] + max_fmax[f] + double_pumped[f] +
+      single_pumped[f] + mlab[f] + simple_dual_port[f] + true_dual_port[f] +
+      block_ram[f] + banks[f] + stride[f] + word[f] + copies[f] + replicates[f];
 }
 
 // CHECK: ![[empty_md]] = !{![[mem_default:[0-9]*]]}

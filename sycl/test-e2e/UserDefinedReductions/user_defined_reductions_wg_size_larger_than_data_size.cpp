@@ -4,8 +4,8 @@
 #include <iostream>
 #include <numeric>
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
-#include <sycl/sycl.hpp>
 
 // 1. Allocate an buffer of 16 elements where first 8 elements filled with 1,
 //    ..., 8 and the second 8 elements filled with 0.
@@ -46,9 +46,9 @@ void test(queue q, InputContainer input, OutputContainer output,
       cgh.parallel_for(
           nd_range<1>(workgroup_size, workgroup_size), [=](nd_item<1> it) {
             const InputT *segment_begin =
-                in.template get_multi_ptr<access::decorated::no>();
+                in.template get_multi_ptr<access::decorated::no>().get();
             const InputT *segment_end =
-                in.template get_multi_ptr<access::decorated::no>() +
+                in.template get_multi_ptr<access::decorated::no>().get() +
                 segment_size;
             auto handle =
                 sycl::ext::oneapi::experimental::group_with_scratchpad(

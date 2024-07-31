@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
@@ -174,27 +175,24 @@ int main() {
     targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::all);
     assert(targetDevIndex >= 0 &&
            "Failed to find target device for default selector.");
-    default_selector ds;
-    device d = ds.select_device();
-    std::cout << "default_selector selected ";
+    device d(default_selector_v);
+    std::cout << "default_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
   }
   targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::gpu);
   if (targetDevIndex >= 0) {
-    gpu_selector gs;
-    device d = gs.select_device();
-    std::cout << "gpu_selector selected ";
+    device d(gpu_selector_v);
+    std::cout << "gpu_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
   }
   targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::cpu);
   if (targetDevIndex >= 0) {
-    cpu_selector cs;
-    device d = cs.select_device();
-    std::cout << "cpu_selector selected ";
+    device d(cpu_selector_v);
+    std::cout << "cpu_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
@@ -202,9 +200,8 @@ int main() {
   targetDevIndex =
       GetPreferredDeviceIndex(devices, info::device_type::accelerator);
   if (targetDevIndex >= 0) {
-    accelerator_selector as;
-    device d = as.select_device();
-    std::cout << "accelerator_selector selected ";
+    device d(accelerator_selector_v);
+    std::cout << "accelerator_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");

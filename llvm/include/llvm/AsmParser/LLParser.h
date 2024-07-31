@@ -301,6 +301,8 @@ namespace llvm {
                               bool &DSOLocal);
     void parseOptionalDSOLocal(bool &DSOLocal);
     void parseOptionalVisibility(unsigned &Res);
+    bool parseOptionalImportType(lltok::Kind Kind,
+                                 GlobalValueSummary::ImportKind &Res);
     void parseOptionalDLLStorageClass(unsigned &Res);
     bool parseOptionalCallingConv(unsigned &CC);
     bool parseOptionalAlignment(MaybeAlign &Alignment,
@@ -335,7 +337,6 @@ namespace llvm {
 
     // Top-Level Entities
     bool parseTopLevelEntities();
-    bool finalizeDebugInfoFormat(Module *M);
     void dropUnknownMetadataReferences();
     bool validateEndOfModule(bool UpgradeDebugInfo);
     bool validateEndOfIndex();
@@ -371,6 +372,7 @@ namespace llvm {
                                     std::vector<unsigned> &FwdRefAttrGrps,
                                     bool inAttrGrp, LocTy &BuiltinLoc);
     bool parseRangeAttr(AttrBuilder &B);
+    bool parseInitializesAttr(AttrBuilder &B);
     bool parseRequiredTypeAttr(AttrBuilder &B, lltok::Kind AttrToken,
                                Attribute::AttrKind AttrKind);
 
