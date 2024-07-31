@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include "event_pool_cache.hpp"
-#include "device.hpp"
-#include "platform.hpp"
+#include "../device.hpp"
+#include "../platform.hpp"
 
 namespace v2 {
 

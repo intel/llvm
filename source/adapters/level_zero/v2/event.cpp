@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "event.hpp"
-#include "adapters/level_zero/v2/event_provider.hpp"
+#include "event_provider.hpp"
 #include "ze_api.h"
 
 namespace v2 {
