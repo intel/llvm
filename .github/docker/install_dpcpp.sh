@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -15,9 +15,6 @@ if [ "${SKIP_DPCPP_BUILD}" ]; then
 	exit
 fi
 
-apt-get install -y --no-install-recommends \
-	libncurses5
-
-mkdir -p ${DPCPP_PATH}
-wget -O ${DPCPP_PATH}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/sycl-nightly%2F20230626/dpcpp-compiler.tar.gz
-tar -xvf ${DPCPP_PATH}/dpcpp_compiler.tar.gz -C ${DPCPP_PATH}/
+mkdir -p ${DPCPP_PATH}/dpcpp_compiler
+wget -O ${DPCPP_PATH}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
+tar -xvf ${DPCPP_PATH}/dpcpp_compiler.tar.gz -C ${DPCPP_PATH}/dpcpp_compiler
