@@ -116,7 +116,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/ProGTX/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 13eb4042b8645bd16985d15203dedea4c135feee)
+  set(UNIFIED_RUNTIME_TAG cea76ae2911f05ca5d52d92da6e6d7b043414d7f)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
