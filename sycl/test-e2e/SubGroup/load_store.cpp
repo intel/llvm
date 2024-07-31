@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // TODO: Flaky reenable, see https://github.com/intel/llvm/issues/14765
