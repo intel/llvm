@@ -110,7 +110,7 @@ enum class cache_level : /* unspecified */
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::info::device {
-template <ext::oneapi::cache_level CacheLevel>
+template <cache_level CacheLevel>
 struct cache_size {
   using return_type = size_t;
 };
