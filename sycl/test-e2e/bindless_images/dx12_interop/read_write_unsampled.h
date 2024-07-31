@@ -81,7 +81,7 @@ private:
   // Shared handles and values
   uint64_t m_sharedFenceValue;
   HANDLE m_sharedMemoryHandle;
-  HANDLE m_sharedSemaphoreHandle;
+  HANDLE m_sharedSemaphoreHandle = INVALID_HANDLE_VALUE;
 
   // SYCL Objects
   sycl::queue m_syclQueue;
