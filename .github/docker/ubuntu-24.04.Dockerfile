@@ -8,12 +8,12 @@
 #              environment for building the Unified Runtime project.
 #
 
-# Pull base image ("22.04")
-FROM registry.hub.docker.com/library/ubuntu@sha256:0eb0f877e1c869a300c442c41120e778db7161419244ee5cbc6fa5f134e74736
+# Pull base image ("24.04")
+FROM registry.hub.docker.com/library/ubuntu@sha256:340d9b015b194dc6e2a13938944e0d016e57b9679963fdeb9ce021daac430221
 
 # Set environment variables
 ENV OS ubuntu
-ENV OS_VER 22.04
+ENV OS_VER 24.04
 ENV NOTTY 1
 ENV DEBIAN_FRONTEND noninteractive
 
@@ -33,8 +33,7 @@ ARG BASE_DEPS="\
 ARG UR_DEPS="\
 	doxygen \
 	python3 \
-	python3-pip \
-	libhwloc-dev"
+	python3-pip"
 
 # Miscellaneous for our builds/CI (optional)
 ARG MISC_DEPS="\
