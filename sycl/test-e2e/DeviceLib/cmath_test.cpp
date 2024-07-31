@@ -4,7 +4,7 @@
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
