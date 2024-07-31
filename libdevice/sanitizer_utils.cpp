@@ -862,4 +862,35 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_end);
 }
 
+///
+/// ASAN initialize shdadow memory of private memory
+///
+
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private_begin[] =
+    "[kernel] BEGIN __asan_set_shadow_private\n";
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private_end[] =
+    "[kernel] END   __asan_set_shadow_private\n";
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
+    "[kernel] set_shadow_private(beg=%p, end=%p, val:%02X)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
+                                                        char val) {
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private_begin);
+
+  auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+  if (launch_info->PrivateShadowOffset == 0)
+    return;
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private, (void *)begin,
+                       (void *)(begin + size), val & 0xFF);
+
+  for (size_t i = 0; i < size; i++)
+    ((__SYCL_GLOBAL__ u8 *)begin)[i] = val;
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private_end);
+}
+
 #endif // __SPIR__ || __SPIRV__
