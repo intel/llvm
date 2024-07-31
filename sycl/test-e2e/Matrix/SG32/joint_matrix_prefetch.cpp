@@ -10,7 +10,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu && !gpu-intel-dg2
+// XFAIL: gpu
+
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
 
 #include "../common.hpp"
 
