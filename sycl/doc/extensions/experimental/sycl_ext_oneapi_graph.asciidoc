@@ -1463,8 +1463,13 @@ submitted to the device (i.e. a new graph node will be created for that command-
 
 A queue whose state has been set to `queue_state::recording` using this
 mechanism, will behave as if it had been passed as an argument to
-`command_graph::begin_recording()`. In particular, its state will not
-change again until `command_graph::end_recording()` is called.
+`command_graph::begin_recording()`. In particular, its state will not change
+again until `command_graph::end_recording()` is called.
+
+The recording properties of the queue whose event triggered the state change
+will also be inherited (i.e. any properties passed to the original call of
+`command_graph::begin_recording()` will be inherited by the queue whose state
+is being transitioned).
 
 ===== Example
 
