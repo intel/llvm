@@ -3,9 +3,6 @@
 
 // REQUIRES: level_zero, level_zero_dev_kit
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows
-
 #include <level_zero/ze_api.h>
 
 #include <iostream>
@@ -25,7 +22,7 @@ template <typename T> class Init;
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
   auto Acc = Buffer.get_host_access();
-  for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+  for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
                 << ", expected val = " << Value << '\n';
@@ -47,9 +44,9 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
 
       // If L0 interop becomes a real use case we should make a new UR entry
       // point to propagate events into and out of the the interop func.
-      if (zeCommandListAppendMemoryCopy(
-              CommandList, DstMem, SrcMem, sizeof(DataT) * SrcA.get_count(),
-              nullptr, 0, nullptr) != ZE_RESULT_SUCCESS)
+      if (zeCommandListAppendMemoryCopy(CommandList, DstMem, SrcMem,
+                                        sizeof(DataT) * SrcA.size(), nullptr, 0,
+                                        nullptr) != ZE_RESULT_SUCCESS)
         throw;
       if (Q.get_backend() != IH.get_backend())
         throw;
@@ -64,7 +61,7 @@ template <typename DataT> void modify(buffer<DataT, 1> &B, queue &Q) {
 
     auto Kernel = [=](item<1> Id) { Acc[Id] += 1; };
 
-    CGH.parallel_for<Modifier<DataT>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<Modifier<DataT>>(Acc.size(), Kernel);
   });
 }
 
