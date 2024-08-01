@@ -38,7 +38,7 @@ struct AsanOptions {
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
     bool DetectPrivates = true;
-    bool DetectKernelArguments = false;
+    bool DetectKernelArguments = true;
 
   private:
     AsanOptions(logger::Logger &logger) {
