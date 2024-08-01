@@ -88,12 +88,17 @@ In this example:
 
 ```c++
 q.submit([&](sycl::handler &cgh) {
+    sycl::accessor acc_src{buf_src, cgh};
+    sycl::accessor acc_dst{buf_dst, cgh};
     cgh.depends_on(dep_event);
     cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
       printf("This may print before dep_event has completed.\n");
+      auto src = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc_src);
+      auto dst = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc_dst);
       auto command_list = h.get_native_queue<sycl::backend::level_zero>();
       zeCommandListAppendMemoryCopy(
-              command_list, dstmem, srcmem, sz, nullptr, 0, nullptr);
+              command_list, dst, src, sizeof(T) * acc_src.get_count(), nullptr,
+              0, nullptr);
     });
   });
 q.wait()
@@ -182,19 +187,23 @@ any of these things, the behavior is undefined.
 ```c++
 sycl::queue q;
 q.submit([&](sycl::handler &cgh) {
-    sycl::accessor acc{buf, cgh};
+    sycl::accessor acc_src{buf_src, cgh};
+    sycl::accessor acc_dst{buf_dst, cgh};
     cgh.ext_oneapi_enqueue_native_command([=](sycl::interop_handle &h) {
       // Can extract device mem from accessor
-      auto src = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc);
+      auto src = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc_src);
+      auto dst = IH.get_native_mem<backend::ext_oneapi_level_zero>(acc_dst);
       auto command_list = h.get_native_queue<sycl::backend::level_zero>();
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
-      // launch or call to a library that enqueues operations on the stream etc
+      // launch or call to a library that enqueues operations on the command
+      // list etc.
       //
       // Important: Enqueuing a *synchronous* backend operation results in
       // undefined behavior.
       zeCommandListAppendMemoryCopy(
-              command_list, dst, src, sz, nullptr, 0, nullptr);
+              command_list, dst, src, sizeof(T) * acc_src.get_count(), nullptr,
+              0, nullptr);
     });
   });
 q.wait();
@@ -215,7 +224,7 @@ q.submit([&](sycl::handler &cgh) {
       hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
-      // launch or call to a library that enqueues operations on the stream etc
+      // launch or call to a library that enqueues operations on the stream etc.
       //
       // Important: Enqueuing a *synchronous* backend operation results in
       // undefined behavior.
