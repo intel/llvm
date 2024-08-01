@@ -575,7 +575,7 @@ public:
         std::is_same_v<OpTy, std::greater_equal<void>> ||
         std::is_same_v<OpTy, std::logical_and<void>> ||
         std::is_same_v<OpTy, std::logical_or<void>>;
-    auto Get = [](const auto &a, int idx) {
+    auto Get = [](const auto &a, [[maybe_unused]] int idx) {
       if constexpr (is_vec_v<std::remove_const_t<
                         std::remove_reference_t<decltype(a)>>>)
         return a[idx];
