@@ -281,6 +281,18 @@ constexpr void check_wrregion_params() {
   check_rdregion_params<N, M, VStride, Width, Stride>();
 }
 
+template <int N, int... Rest> struct CompressedBitmask {
+  static constexpr auto &value =
+      CompressedBitmask<N - 1, ~((uint32_t(~0)) << N), Rest...>::value;
+};
+
+template <int... Rest> struct CompressedBitmask<0, Rest...> {
+  static constexpr uint32_t value[] = {0, Rest...};
+};
+
+template <int... Rest>
+constexpr uint32_t CompressedBitmask<0, Rest...>::value[];
+
 } // namespace ext::intel::esimd::detail
 } // namespace _V1
 } // namespace sycl

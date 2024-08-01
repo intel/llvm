@@ -14302,6 +14302,89 @@ named_barrier_signal(uint8_t barrier_id, uint8_t producer_consumer_mode,
 
 /// @} sycl_esimd_memory_nbarrier
 
+template <typename Tx, int N,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<Tx, N>>
+mask_compress_load(Tx *p, simd_mask<N> mask, PropertyListT props = {}) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  return gather(p, offset * sizeof(Tx), mask, props);
+}
+
+template <typename Tx, int N, typename AccessorTy,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_accessor_with_v<AccessorTy,
+                                   detail::accessor_mode_cap::can_read>,
+    simd<Tx, N>>
+mask_compress_load(AccessorTy acc, uint32_t global_offset, simd_mask<N> mask,
+                   PropertyListT props = {}) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  return gather(acc, offset * sizeof(Tx), global_offset, mask, props);
+}
+
+template <typename Tx, int N,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+mask_compress_store(Tx *p, simd<Tx, N> vals, simd_mask<N> mask,
+                    PropertyListT props = {}) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  scatter(p, offset * sizeof(Tx), vals, mask, props);
+}
+
+template <typename Tx, int N, typename AccessorTy,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+    detail::is_accessor_with_v<AccessorTy,
+                               detail::accessor_mode_cap::can_write>>
+mask_compress_store(AccessorTy acc, uint32_t global_offset, simd<Tx, N> vals,
+                    simd_mask<N> mask, PropertyListT props = {}) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  scatter(acc, offset * sizeof(Tx), vals, global_offset, mask, props);
+}
+
+template <typename Tx, int N, int M>
+__ESIMD_API std::enable_if_t<M >= N>
+mask_compress_store(simd<Tx, M> dst, uint32_t global_offset, simd<Tx, N> vals,
+                    simd_mask<N> mask) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  detail::ForHelper<N>::unroll(
+      [dst, mask, global_offset, offset, vals](unsigned idx) {
+        if (mask[idx]) {
+          dst[global_offset + offset[idx]] = vals[idx];
+        }
+      });
+}
+
+template <typename Tx, int N, int M>
+__ESIMD_API std::enable_if_t<M >= N, simd<Tx, N>>
+mask_compress_load(simd<Tx, M> src, uint32_t global_offset, simd_mask<N> mask) {
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(detail::CompressedBitmask<N - 1>::value) &
+           pack_mask(mask));
+  simd<Tx, N> Result;
+  detail::ForHelper<N>::unroll(
+      [src, mask, global_offset, offset, Result](unsigned idx) {
+        if (mask[idx]) {
+          Result[idx] = src[global_offset + offset[idx]];
+        }
+      });
+  return Result;
+}
+
 /// @} sycl_esimd_memory
 
 /// @cond EXCLUDE
