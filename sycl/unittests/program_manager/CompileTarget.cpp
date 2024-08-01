@@ -8,16 +8,11 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include "detail/context_impl.hpp"
-#include "detail/kernel_bundle_impl.hpp"
-#include "detail/kernel_program_cache.hpp"
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
-
-#include <iostream>
 
 using namespace sycl;
 
