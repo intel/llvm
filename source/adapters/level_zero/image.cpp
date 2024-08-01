@@ -759,8 +759,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
-    [[maybe_unused]] const void *pSrc, [[maybe_unused]] void *pDst,
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pSrc,
+    [[maybe_unused]] void *pDst,
     [[maybe_unused]] const ur_image_desc_t *pSrcImageDesc,
     [[maybe_unused]] const ur_image_desc_t *pDstImageDesc,
     [[maybe_unused]] const ur_image_format_t *pSrcImageFormat,
@@ -770,7 +771,6 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {
-  auto hQueue = this;
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -1155,10 +1155,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
-    uint64_t waitValue, uint32_t numEventsInWaitList,
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
   std::ignore = hSemaphore;
   std::ignore = hasValue;
   std::ignore = waitValue;
@@ -1170,10 +1171,11 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
-    uint64_t signalValue, uint32_t numEventsInWaitList,
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
   std::ignore = hSemaphore;
   std::ignore = hasValue;
   std::ignore = signalValue;
