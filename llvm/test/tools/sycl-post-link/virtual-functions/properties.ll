@@ -1,8 +1,8 @@
 ; RUN: sycl-post-link -split=auto -properties -S < %s -o %t.table
 ;
-; Device images with virtual functions in them should have
+; Device images with virtual functions in them should have the
 ; "virtual-functions-set" property under corresponding property set.
-; Device images that use virtual functions should have
+; Device images that use virtual functions should have the
 ; "uses-virtual-functions-set" property under corresponding property set.
 ; There can't be a device image where both properties are present, they are
 ; mutually exclusive

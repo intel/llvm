@@ -1,7 +1,7 @@
 ; RUN: sycl-post-link -split=auto -S < %s -o %t.table
 ;
 ; Virtual functions cleanup drops their bodies from some of device images
-; turning them into declarations, but declarations can't have "comdat" thing
+; turning them into declarations, but declarations can't have "comdat"
 ; attached to them, so this test ensures that we can handle "comdat" without
 ; crashes.
 

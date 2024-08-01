@@ -86,7 +86,7 @@ void computeFunctionToKernelsMappingImpl(Function *Kernel, const Function *F,
 void computeFunctionToKernelsMapping(Function *Kernel, const CallGraphTy &CG,
                                      FuncToFuncMapTy &Mapping) {
   CallGraphTy::const_iterator It = CG.find(Kernel);
-  // It could be that kernel doesn't call anything
+  // It could be that the kernel doesn't call anything
   if (It == CG.end())
     return;
 

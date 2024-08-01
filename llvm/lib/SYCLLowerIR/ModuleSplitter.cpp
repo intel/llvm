@@ -137,7 +137,7 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
   }
 
   // Even if we are emitting only kernels as entry points, virtual functions
-  // should still be treated as entry point, because they are going to be
+  // should still be treated as entry points, because they are going to be
   // outlined into separate device images and linked in later.
   return F.hasFnAttribute("indirectly-callable");
 }
@@ -684,7 +684,7 @@ bool mustPreserveGV(const GlobalValue &GV) {
 void ModuleDesc::cleanup() {
   // Any definitions of virtual functions should be removed and turned into
   // declarations, they are supposed to be provided by a different module.
-  if (!EntryPoints.Props.HasVirtualFunctions) {
+  if (!EntryPoints.Props.HasVirtualFunctionDefinitions) {
     for (Function &F : *M)
       if (F.hasFnAttribute("indirectly-callable")) {
         F.deleteBody();
@@ -1147,7 +1147,7 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
       }
 
       auto PropsCopy = MDProps;
-      PropsCopy.HasVirtualFunctions = HasVirtualFunctions;
+      PropsCopy.HasVirtualFunctionDefinitions = HasVirtualFunctions;
       Groups.emplace_back(Key, std::move(EntryPoints), PropsCopy);
     }
   }

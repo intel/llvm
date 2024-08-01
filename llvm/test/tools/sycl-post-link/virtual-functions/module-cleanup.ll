@@ -3,7 +3,7 @@
 ; RUN:     -S < %s -o %t.table
 ;
 ; Virtual functions require some special handling during module cleanup:
-; - they are outlined into separate device image and must not be removed from
+; - they are outlined into separate device images and must not be removed from
 ;   there by any DCE or internalization passes (they are externalized), even if
 ;   only kernels are treated as entry points
 ; - device images that use them should keep declarations of virtual functions,
