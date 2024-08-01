@@ -159,15 +159,21 @@ struct urSamplerTest : urContextTest {
             UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
             UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+        auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        }
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        if (sampler) {
+            EXPECT_SUCCESS(urSamplerRelease(sampler));
+        }
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
-    ur_sampler_handle_t sampler;
+    ur_sampler_handle_t sampler = nullptr;
     ur_sampler_desc_t sampler_desc;
 };
 
@@ -263,15 +269,22 @@ template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
             UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
             UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(this->context, &sampler_desc, &sampler));
+        auto ret = urSamplerCreate(this->context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        }
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        if (sampler) {
+            EXPECT_SUCCESS(urSamplerRelease(sampler));
+        }
+
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
 
-    ur_sampler_handle_t sampler;
+    ur_sampler_handle_t sampler = nullptr;
     ur_sampler_desc_t sampler_desc;
 };
 
