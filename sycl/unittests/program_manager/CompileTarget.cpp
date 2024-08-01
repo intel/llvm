@@ -113,7 +113,7 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
   }
 
   if (*params.pphDevices && *params.pNumEntries <= std::size(MockDevices)) {
-    for (int i = 0; i < *params.pNumEntries; ++i) {
+    for (uint32_t i = 0; i < *params.pNumEntries; ++i) {
       (*params.pphDevices)[i] = MockDevices[i];
     }
   }
