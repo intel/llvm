@@ -613,39 +613,37 @@ public:
 
 /// "Semaphore Wait" command group class.
 class CGSemaphoreWait : public CG {
-  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
 
 public:
-  CGSemaphoreWait(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+  CGSemaphoreWait(ur_exp_external_semaphore_handle_t ExternalSemaphore,
                   std::optional<uint64_t> WaitValue,
                   CG::StorageInitHelper CGData, detail::code_location loc = {})
       : CG(CGType::SemaphoreWait, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle), MWaitValue(WaitValue) {
-  }
+        MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
-  ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
 };
 
 /// "Semaphore Signal" command group class.
 class CGSemaphoreSignal : public CG {
-  ur_exp_interop_semaphore_handle_t MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MSignalValue;
 
 public:
-  CGSemaphoreSignal(ur_exp_interop_semaphore_handle_t InteropSemaphoreHandle,
+  CGSemaphoreSignal(ur_exp_external_semaphore_handle_t ExternalSemaphore,
                     std::optional<uint64_t> SignalValue,
                     CG::StorageInitHelper CGData,
                     detail::code_location loc = {})
       : CG(CGType::SemaphoreSignal, std::move(CGData), std::move(loc)),
-        MInteropSemaphoreHandle(InteropSemaphoreHandle),
-        MSignalValue(SignalValue) {}
+        MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
-  ur_exp_interop_semaphore_handle_t getInteropSemaphoreHandle() const {
-    return MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }
 };
