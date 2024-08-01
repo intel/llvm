@@ -105,6 +105,18 @@ struct ScalarConversionOperatorMixIn<Self, T, N, std::enable_if_t<N == 1>> {
   operator T() const { return (*static_cast<const Self *>(this))[0]; }
 };
 
+// Swizzle's `operator vec<DataT, NumElements>() const` has `NumElements > 1`
+// constraint.
+template <typename Self, typename T, int... Indexes>
+struct SwizzleToVectorConversionOperatorMixIn {
+  operator vec<T, sizeof...(Indexes)>() const {
+    int idx = 0;
+    return {(*static_cast<const Self *>(this))[Indexes, idx++]...};
+  }
+};
+template <typename Self, typename T, int SingleIndex>
+struct SwizzleToVectorConversionOperatorMixIn<Self, T, SingleIndex> {};
+
 // Everything could have been much easier if we had C++20 concepts, then all the
 // operators could be provided in a single mixin class with proper `requires`
 // clauses on each overload. Until then, we have to have at least a separate
@@ -773,6 +785,8 @@ class __SYCL_EBO Swizzle
       public ScalarConversionOperatorMixIn<Swizzle<VecT, Indexes...>,
                                            typename VecT::element_type,
                                            sizeof...(Indexes)>,
+      public SwizzleToVectorConversionOperatorMixIn<
+          Swizzle<VecT, Indexes...>, typename VecT::element_type, Indexes...>,
       public IncDecMixin<const Swizzle<VecT, Indexes...>,
                          typename VecT::element_type,
                          is_assignable_swizzle<VecT, Indexes...>>,
@@ -848,8 +862,6 @@ public:
              multi_ptr<DataT, AddressSpace, IsDecorated> ptr) const {
     return static_cast<ResultVec>(*this).store(offset, ptr);
   }
-
-  operator ResultVec() const { return ResultVec{this->Vec[Indexes]...}; }
 
   template <int... swizzleIndexes> auto swizzle() const {
     return this->Vec.template swizzle<get_vec_idx(swizzleIndexes)...>();
