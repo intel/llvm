@@ -112,14 +112,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b7b0c8b3d17aa7d511c67ec219d58091d07cfa60
-  # Merge: 2baf0951 5b8936da
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Jul 26 15:48:04 2024 +0200
-  #     Merge pull request #1903 from kswiecicki/umf-version-bump
-  #     Bump UMF version again
-  set(UNIFIED_RUNTIME_TAG b7b0c8b3d17aa7d511c67ec219d58091d07cfa60)
+set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e
+  # Merge: c805a71a a2a053de
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Jul 31 12:26:34 2024 +0100
+  #     Merge pull request #1884 from callumfare/callum/fix_printtrace
+  #     Enable PrintTrace when SYCL UR tracing is enabled
+  set(UNIFIED_RUNTIME_TAG 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

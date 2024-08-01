@@ -10,8 +10,8 @@
 // urEnqueueKernelLaunch.
 //
 // CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
-// CHECK: ---> urEnqueueKernelLaunch(
-// CHECK-SAME: -> UR_RESULT_SUCCESS
+// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.
 
