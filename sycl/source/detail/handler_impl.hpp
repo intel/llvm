@@ -90,7 +90,7 @@ public:
 
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
-  pi_mem_advice MAdvice;
+  ur_usm_advice_flags_t MAdvice;
 
   // 2D memory operation information.
   size_t MSrcPitch;
@@ -117,25 +117,24 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
 
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
-  sycl::detail::pi::PiMemImageDesc MSrcImageDesc;
-  sycl::detail::pi::PiMemImageDesc MDestImageDesc;
-  sycl::detail::pi::PiMemImageFormat MSrcImageFormat;
-  sycl::detail::pi::PiMemImageFormat MDestImageFormat;
-  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+  ur_image_desc_t MSrcImageDesc;
+  ur_image_desc_t MDstImageDesc;
+  ur_image_format_t MSrcImageFormat;
+  ur_image_format_t MDstImageFormat;
+  ur_exp_image_copy_flags_t MImageCopyFlags;
 
-  sycl::detail::pi::PiImageOffset MSrcOffset;
-  sycl::detail::pi::PiImageOffset MDestOffset;
-  sycl::detail::pi::PiImageRegion MCopyExtent;
+  ur_rect_offset_t MSrcOffset;
+  ur_rect_offset_t MDestOffset;
+  ur_rect_region_t MCopyExtent;
 
   // Extra information for semaphore interoperability
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 

@@ -1,4 +1,3 @@
-//===----------- commands.cpp - SYCL commands -------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,6 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "ur_api.h"
 #include <detail/error_handling/error_handling.hpp>
 
 #include <detail/context_impl.hpp>
@@ -25,6 +25,7 @@
 #include <sycl/access/access.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/sampler.hpp>
 
@@ -122,7 +123,7 @@ static std::string demangleKernelName(std::string Name) { return Name; }
 void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
-  if (!EliminatedArgMask) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
     for (ArgDesc &Arg : Args) {
       Func(Arg, Arg.MIndex);
     }
@@ -231,34 +232,34 @@ static std::string commandToName(Command::CommandType Type) {
 }
 #endif
 
-std::vector<sycl::detail::pi::PiEvent>
-Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     if (EventImpl->getHandleRef() == nullptr)
       continue;
 
     // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
-    // current one is a host task. In this case we should not skip pi event due
+    // At this stage dependency is definitely ur task and need to check if
+    // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
     if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(EventImpl->getHandleRef());
   }
 
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
-// This function is implemented (duplicating getPiEvents a lot) as short term
+// This function is implemented (duplicating getUrEvents a lot) as short term
 // solution for the issue that barrier with wait list could not
-// handle empty pi event handles when kernel is enqueued on host task
+// handle empty ur event handles when kernel is enqueued on host task
 // completion.
-std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
+std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
-  std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
+  std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
@@ -278,17 +279,17 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
                                                    BLOCKING);
     }
     // Do not add redundant event dependencies for in-order queues.
-    // At this stage dependency is definitely pi task and need to check if
+    // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip pi event due
     // to different sync mechanisms for different task types on in-order queue.
     if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetPiEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(EventImpl->getHandleRef());
   }
 
-  return RetPiEvents;
+  return RetUrEvents;
 }
 
 bool Command::isHostTask() const {
@@ -321,7 +322,7 @@ struct EnqueueNativeCommandData {
   std::function<void(interop_handle)> func;
 };
 
-void InteropFreeFunc(pi_queue, void *InteropData) {
+void InteropFreeFunc(ur_queue_handle_t, void *InteropData) {
   auto *Data = reinterpret_cast<EnqueueNativeCommandData *>(InteropData);
   return Data->func(Data->ih);
 }
@@ -330,7 +331,7 @@ void InteropFreeFunc(pi_queue, void *InteropData) {
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
-  std::vector<pi_mem> MReqPiMem;
+  std::vector<ur_mem_handle_t> MReqUrMem;
 
   bool waitForEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
@@ -347,13 +348,13 @@ class DispatchHostTask {
     // sophisticated waiting mechanism to allow to utilize this thread for any
     // other available job and resume once all required events are ready.
     for (auto &PluginWithEvents : RequiredEventsPerPlugin) {
-      std::vector<sycl::detail::pi::PiEvent> RawEvents =
-          MThisCmd->getPiEvents(PluginWithEvents.second);
+      std::vector<ur_event_handle_t> RawEvents =
+          MThisCmd->getUrEvents(PluginWithEvents.second);
       if (RawEvents.size() == 0)
         continue;
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        PluginWithEvents.first->call(urEventWait, RawEvents.size(),
+                                     RawEvents.data());
       } catch (const sycl::exception &) {
         MThisCmd->MEvent->getSubmittedQueue()->reportAsyncException(
             std::current_exception());
@@ -377,9 +378,9 @@ class DispatchHostTask {
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
                    std::vector<interop_handle::ReqToMem> ReqToMem,
-                   std::vector<pi_mem> ReqPiMem)
+                   std::vector<ur_mem_handle_t> ReqUrMem)
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)),
-        MReqPiMem(std::move(ReqPiMem)) {}
+        MReqUrMem(std::move(ReqUrMem)) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CGType::CodeplayHostTask);
@@ -422,9 +423,10 @@ public:
         // for host task?
         auto &Queue = HostTask.MQueue;
         bool NativeCommandSupport = false;
-        Queue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Queue->getPlugin()->call(
+            urDeviceGetInfo,
             detail::getSyclObjImpl(Queue->get_device())->getHandleRef(),
-            PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+            UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
             sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
         if (NativeCommandSupport) {
           EnqueueNativeCommandData CustomOpData{
@@ -437,9 +439,10 @@ public:
           //
           // This entry point is needed in order to migrate memory across
           // devices in the same context for CUDA and HIP backends
-          Queue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
-              HostTask.MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData,
-              MReqPiMem.size(), MReqPiMem.data(), 0, nullptr, nullptr);
+          Queue->getPlugin()->call(
+              urEnqueueNativeCommandExp, HostTask.MQueue->getHandleRef(),
+              InteropFreeFunc, &CustomOpData, MReqUrMem.size(),
+              MReqUrMem.data(), nullptr, 0, nullptr, nullptr);
         } else {
           HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(),
                                    IH);
@@ -478,7 +481,7 @@ public:
 #endif
 
     try {
-      // If we enqueue blocked users - pi level could throw exception that
+      // If we enqueue blocked users - ur level could throw exception that
       // should be treated as async now.
       Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
     } catch (...) {
@@ -496,7 +499,7 @@ void Command::waitForPreparedHostEvents() const {
 
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
-                            sycl::detail::pi::PiEvent &Event) {
+                            ur_event_handle_t &Event) {
 #ifndef NDEBUG
   for (const EventImplPtr &Event : EventImpls)
     assert(!Event->isHost() &&
@@ -514,7 +517,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
       // Also we have default host queue. This queue is accessible via
       // Scheduler. Now, let's assume we have three different events: E1(C1),
       // E2(C1), E3(C2). The command's MPreparedDepsEvents will contain all
-      // three events (E1, E2, E3). Now, if piEventsWait is called for all
+      // three events (E1, E2, E3). Now, if urEventWait is called for all
       // three events we'll experience failure with CL_INVALID_CONTEXT 'cause
       // these events refer to different contexts.
       std::map<context_impl *, std::vector<EventImplPtr>>
@@ -528,21 +531,22 @@ void Command::waitForEvents(QueueImplPtr Queue,
       }
 
       for (auto &CtxWithEvents : RequiredEventsPerContext) {
-        std::vector<sycl::detail::pi::PiEvent> RawEvents =
-            getPiEvents(CtxWithEvents.second);
-        CtxWithEvents.first->getPlugin()->call<PiApiKind::piEventsWait>(
-            RawEvents.size(), RawEvents.data());
+        std::vector<ur_event_handle_t> RawEvents =
+            getUrEvents(CtxWithEvents.second);
+        if (!RawEvents.empty()) {
+          CtxWithEvents.first->getPlugin()->call(urEventWait, RawEvents.size(),
+                                                 RawEvents.data());
+        }
       }
     } else {
-      std::vector<sycl::detail::pi::PiEvent> RawEvents =
-          getPiEvents(EventImpls);
+      std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, MWorkerQueue);
       const PluginPtr &Plugin = Queue->getPlugin();
 
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
-      Plugin->call<PiApiKind::piEnqueueEventsWait>(
-          Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
+      Plugin->call(urEnqueueEventsWait, Queue->getHandleRef(), RawEvents.size(),
+                   &RawEvents[0], &Event);
     }
   }
 }
@@ -552,8 +556,8 @@ void Command::waitForEvents(QueueImplPtr Queue,
 /// should not outlive the event connected to it.
 Command::Command(
     CommandType Type, QueueImplPtr Queue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints)
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints)
     : MQueue(std::move(Queue)),
       MEvent(std::make_shared<detail::event_impl>(MQueue)),
       MPreparedDepsEvents(MEvent->getPreparedDepsEvents()),
@@ -641,10 +645,10 @@ void Command::emitEdgeEventForCommandDependence(
 
 /// Creates an edge when the dependency is due to an event.
 /// @param Cmd The command object of the source of the edge
-/// @param PiEventAddr The address that defines the edge dependency, which in
+/// @param UrEventAddr The address that defines the edge dependency, which in
 /// this case is an event
-void Command::emitEdgeEventForEventDependence(
-    Command *Cmd, sycl::detail::pi::PiEvent &PiEventAddr) {
+void Command::emitEdgeEventForEventDependence(Command *Cmd,
+                                              ur_event_handle_t &UrEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If we have failed to create an event to represent the Command, then we
   // cannot emit an edge event. Bail early!
@@ -654,13 +658,12 @@ void Command::emitEdgeEventForEventDependence(
   if (Cmd && Cmd->MTraceEvent) {
     // If the event is associated with a command, we use this command's trace
     // event as the source of edge, hence modeling the control flow
-    emitEdgeEventForCommandDependence(Cmd, (void *)PiEventAddr, false);
+    emitEdgeEventForCommandDependence(Cmd, (void *)UrEventAddr, false);
     return;
   }
-  if (PiEventAddr) {
+  if (UrEventAddr) {
     xpti::utils::StringHelper SH;
-    std::string AddressStr =
-        SH.addressAsString<sycl::detail::pi::PiEvent>(PiEventAddr);
+    std::string AddressStr = SH.addressAsString<ur_event_handle_t>(UrEventAddr);
     // This is the case when it is a OCL event enqueued by the user or another
     // event is registered by the runtime as a dependency The dependency on
     // this occasion is an OCL event; so we build a virtual node in the graph
@@ -691,7 +694,7 @@ void Command::emitEdgeEventForEventDependence(
       EdgeEvent->source_id = NodeEvent->unique_id;
       EdgeEvent->target_id = TgtEvent->unique_id;
       xpti::addMetadata(EdgeEvent, "event",
-                        reinterpret_cast<size_t>(PiEventAddr));
+                        reinterpret_cast<size_t>(UrEventAddr));
       xptiNotifySubscribers(MStreamID, xpti::trace_edge_create,
                             detail::GSYCLGraphEvent, EdgeEvent, EdgeInstanceNo,
                             nullptr);
@@ -751,8 +754,8 @@ Command *Command::processDepEvent(EventImplPtr DepEvent, const DepDesc &Dep,
   const ContextImplPtr &WorkerContext = getWorkerContext();
 
   // 1. Non-host events can be ignored if they are not fully initialized.
-  // 2. Some types of commands do not produce PI events after they are
-  // enqueued (e.g. alloca). Note that we can't check the pi event to make that
+  // 2. Some types of commands do not produce UR events after they are
+  // enqueued (e.g. alloca). Note that we can't check the ur event to make that
   // distinction since the command might still be unenqueued at this point.
   bool PiEventExpected =
       (!DepEvent->isHost() && !DepEvent->isDefaultConstructed());
@@ -825,22 +828,22 @@ Command *Command::addDep(EventImplPtr Event,
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
   Command *Cmd = (Command *)Event->getCommand();
-  sycl::detail::pi::PiEvent &PiEventAddr = Event->getHandleRef();
+  ur_event_handle_t &UrEventAddr = Event->getHandleRef();
   // Now make an edge for the dependent event
-  emitEdgeEventForEventDependence(Cmd, PiEventAddr);
+  emitEdgeEventForEventDependence(Cmd, UrEventAddr);
 #endif
 
   return processDepEvent(std::move(Event), DepDesc{nullptr, nullptr, nullptr},
                          ToCleanUp);
 }
 
-void Command::emitEnqueuedEventSignal(sycl::detail::pi::PiEvent &PiEventAddr) {
+void Command::emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentationGeneral(
       MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent),
-      xpti::trace_signal, static_cast<const void *>(PiEventAddr));
+      xpti::trace_signal, static_cast<const void *>(UrEventAddr));
 #endif
-  std::ignore = PiEventAddr;
+  std::ignore = UrEventAddr;
 }
 
 void Command::emitInstrumentation(uint16_t Type, const char *Txt) {
@@ -859,7 +862,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // If command is enqueued from host task thread - it will not have valid
   // submission code location set. So we set it manually to properly trace
-  // failures if pi level report any.
+  // failures if ur level report any.
   std::unique_ptr<detail::tls_code_loc_t> AsyncCodeLocationPtr;
   if (xptiTraceEnabled() && !CurrentCodeLocationValid()) {
     AsyncCodeLocationPtr.reset(
@@ -915,9 +918,9 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // This will avoid execution of the same failed command twice.
   MEnqueueStatus = EnqueueResultT::SyclEnqueueFailed;
   MShouldCompleteEventIfPossible = true;
-  pi_int32 Res = enqueueImp();
+  ur_result_t Res = enqueueImp();
 
-  if (PI_SUCCESS != Res)
+  if (UR_RESULT_SUCCESS != Res)
     EnqueueResult =
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
@@ -927,7 +930,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
-    // PI_SUCCESS
+    // UR_RESULT_SUCCESS
     MEnqueueStatus = EnqueueResultT::SyclEnqueueSuccess;
     if (MLeafCounter == 0 && supportsPostEnqueueCleanup() &&
         !SYCLConfig<SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::get() &&
@@ -1085,11 +1088,11 @@ void AllocaCommand::emitInstrumentationData() {
 #endif
 }
 
-pi_int32 AllocaCommand::enqueueImp() {
+ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
   void *HostPtr = nullptr;
   if (!MIsLeaderAlloca) {
@@ -1098,7 +1101,7 @@ pi_int32 AllocaCommand::enqueueImp() {
       // Do not need to make allocation if we have a linked device allocation
       Command::waitForEvents(MQueue, EventImpls, Event);
 
-      return PI_SUCCESS;
+      return UR_RESULT_SUCCESS;
     }
     HostPtr = MLinkedAllocaCmd->getMemAllocation();
   }
@@ -1108,7 +1111,7 @@ pi_int32 AllocaCommand::enqueueImp() {
                                            MInitFromUserData, HostPtr,
                                            std::move(EventImpls), Event);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void AllocaCommand::printDot(std::ostream &Stream) const {
@@ -1182,10 +1185,10 @@ void *AllocaSubBufCommand::getMemAllocation() const {
   return MMemAllocation;
 }
 
-pi_int32 AllocaSubBufCommand::enqueueImp() {
+ur_result_t AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
       getContext(MQueue), MParentAlloca->getMemAllocation(),
@@ -1194,7 +1197,7 @@ pi_int32 AllocaSubBufCommand::enqueueImp() {
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
@@ -1246,10 +1249,10 @@ void ReleaseCommand::emitInstrumentationData() {
 #endif
 }
 
-pi_int32 ReleaseCommand::enqueueImp() {
+ur_result_t ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   bool SkipRelease = false;
 
   // On host side we only allocate memory for full buffers.
@@ -1282,7 +1285,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
     UnmapEventImpl->setContextImpl(getContext(Queue));
     UnmapEventImpl->setStateIncomplete();
-    sycl::detail::pi::PiEvent &UnmapEvent = UnmapEventImpl->getHandleRef();
+    ur_event_handle_t &UnmapEvent = UnmapEventImpl->getHandleRef();
 
     void *Src = CurAllocaIsHost
                     ? MAllocaCmd->getMemAllocation()
@@ -1299,7 +1302,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
     EventImpls.clear();
     EventImpls.push_back(UnmapEventImpl);
   }
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   if (SkipRelease)
     Command::waitForEvents(MQueue, EventImpls, Event);
   else {
@@ -1307,7 +1310,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
                            MAllocaCmd->getMemAllocation(),
                            std::move(EventImpls), Event);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void ReleaseCommand::printDot(std::ostream &Stream) const {
@@ -1365,19 +1368,19 @@ void MapMemObject::emitInstrumentationData() {
 #endif
 }
 
-pi_int32 MapMemObject::enqueueImp() {
+ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void MapMemObject::printDot(std::ostream &Stream) const {
@@ -1447,18 +1450,18 @@ bool UnMapMemObject::producesPiEvent() const {
                     MEvent->getHandleRef() != nullptr);
 }
 
-pi_int32 UnMapMemObject::enqueueImp() {
+ur_result_t UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
                        std::move(RawEvents), Event);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void UnMapMemObject::printDot(std::ostream &Stream) const {
@@ -1552,13 +1555,13 @@ bool MemCpyCommand::producesPiEvent() const {
          MEvent->getHandleRef() != nullptr;
 }
 
-pi_int32 MemCpyCommand::enqueueImp() {
+ur_result_t MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
 
-  auto RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
   MemoryManager::copy(
@@ -1568,7 +1571,7 @@ pi_int32 MemCpyCommand::enqueueImp() {
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
       MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, MEvent);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void MemCpyCommand::printDot(std::ostream &Stream) const {
@@ -1613,10 +1616,10 @@ void ExecCGCommand::clearAuxiliaryResources() {
     ((CGExecKernel *)MCommandGroup.get())->clearAuxiliaryResources();
 }
 
-pi_int32 UpdateHostRequirementCommand::enqueueImp() {
+ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
@@ -1624,7 +1627,7 @@ pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   assert(MDstPtr && "Expected valid target pointer");
   *MDstPtr = MSrcAllocaCmd->getMemAllocation();
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void UpdateHostRequirementCommand::printDot(std::ostream &Stream) const {
@@ -1701,13 +1704,13 @@ ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
   return MWorkerQueue->getContextImplPtr();
 }
 
-pi_int32 MemCpyCommandHost::enqueueImp() {
+ur_result_t MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = MWorkerQueue;
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
@@ -1715,7 +1718,7 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MDstReq.MAccessMode == access::mode::discard_write) {
     Command::waitForEvents(Queue, EventImpls, Event);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
@@ -1725,19 +1728,18 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
       MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
-
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 EmptyCommand::EmptyCommand() : Command(CommandType::EMPTY_TASK, nullptr) {
   emitInstrumentationDataProxy();
 }
 
-pi_int32 EmptyCommand::enqueueImp() {
+ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void EmptyCommand::addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
@@ -1924,8 +1926,8 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
-    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies)
+    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
       MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
@@ -1947,7 +1949,7 @@ std::string instrumentationGetKernelName(
   std::string KernelName;
   if (SyclKernel && SyclKernel->isCreatedFromSource()) {
     FromSource = true;
-    pi_kernel KernelHandle = SyclKernel->getHandleRef();
+    ur_kernel_handle_t KernelHandle = SyclKernel->getHandleRef();
     Address = KernelHandle;
     KernelName = FunctionName;
   } else {
@@ -1971,8 +1973,8 @@ void instrumentationAddExtraKernelMetadata(
   auto FilterArgs = [&Args](detail::ArgDesc &Arg, int NextTrueIndex) {
     Args.push_back({Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex});
   };
-  sycl::detail::pi::PiProgram Program = nullptr;
-  sycl::detail::pi::PiKernel Kernel = nullptr;
+  ur_program_handle_t Program = nullptr;
+  ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
   const KernelArgMask *EliminatedArgMask = nullptr;
 
@@ -1993,7 +1995,7 @@ void instrumentationAddExtraKernelMetadata(
         detail::getSyclObjImpl(SyclKernel);
 
     EliminatedArgMask = KernelImpl->getKernelArgMask();
-    Program = KernelImpl->getDeviceImage()->get_program_ref();
+    Program = KernelImpl->getDeviceImage()->get_ur_program_ref();
   } else if (nullptr != SyclKernel) {
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
@@ -2226,8 +2228,7 @@ std::string_view ExecCGCommand::getTypeString() const {
 // the number of work - groups, such that the size of each group is chosen by
 // the runtime, or by the number of work - groups and number of work - items
 // for users who need more control.
-static void adjustNDRangePerKernel(NDRDescT &NDR,
-                                   sycl::detail::pi::PiKernel Kernel,
+static void adjustNDRangePerKernel(NDRDescT &NDR, ur_kernel_handle_t Kernel,
                                    const device_impl &DeviceImpl) {
   if (NDR.GlobalSize[0] != 0)
     return; // GlobalSize is set - no need to adjust
@@ -2263,20 +2264,20 @@ void ReverseRangeDimensionsForKernel(NDRDescT &NDR) {
   }
 }
 
-pi_mem_obj_access AccessModeToPi(access::mode AccessorMode) {
+ur_mem_flags_t AccessModeToUr(access::mode AccessorMode) {
   switch (AccessorMode) {
   case access::mode::read:
-    return PI_ACCESS_READ_ONLY;
+    return UR_MEM_FLAG_READ_ONLY;
   case access::mode::write:
   case access::mode::discard_write:
-    return PI_ACCESS_WRITE_ONLY;
+    return UR_MEM_FLAG_WRITE_ONLY;
   default:
-    return PI_ACCESS_READ_WRITE;
+    return UR_MEM_FLAG_READ_WRITE;
   }
 }
 
 void SetArgBasedOnType(
-    const PluginPtr &Plugin, sycl::detail::pi::PiKernel Kernel,
+    const PluginPtr &Plugin, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2290,92 +2291,85 @@ void SetArgBasedOnType(
     // we may pass default constructed accessors to a command, which don't add
     // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
     // valid case, so we need to properly handle it.
-    sycl::detail::pi::PiMem MemArg =
+    ur_mem_handle_t MemArg =
         getMemAllocationFunc
-            ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
+            ? reinterpret_cast<ur_mem_handle_t>(getMemAllocationFunc(Req))
             : nullptr;
-    // Only call piKernelSetArg for opencl plugin. Although for now opencl
-    // plugin is a thin wrapper for UR plugin, but they still produce different
-    // MemArg. For opencl plugin, the MemArg is a straight-forward cl_mem, so it
-    // will be fine using piKernelSetArg, which will call urKernelSetArgValue to
-    // pass the cl_mem object directly to clSetKernelArg. But when in
-    // SYCL_PREFER_UR=1, the MemArg is a cl_mem wrapped by ur_mem_object_t,
-    // which will need to unpack by calling piextKernelSetArgMemObj, which calls
-    // urKernelSetArgMemObj. If we call piKernelSetArg in such case, the
-    // clSetKernelArg will report CL_INVALID_MEM_OBJECT since the arg_value is
-    // not a valid cl_mem object but a ur_mem_object_t object.
-    if (Context.get_backend() == backend::opencl &&
-        !Plugin->hasBackend(backend::all)) {
-      // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-      // when MemArg is null, which is the case when zero-sized buffers are
-      // handled. Below assignment provides later call to clSetKernelArg with
-      // acceptable arguments.
-      if (!MemArg)
-        MemArg = sycl::detail::pi::PiMem();
-
-      Plugin->call<PiApiKind::piKernelSetArg>(
-          Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
-    } else {
-      pi_mem_obj_property MemObjData{};
-      MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
-      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       &MemObjData, &MemArg);
-    }
+    ur_kernel_arg_mem_obj_properties_t MemObjData{};
+    MemObjData.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+    MemObjData.memoryAccess = AccessModeToUr(Req->MAccessMode);
+    Plugin->call(urKernelSetArgMemObj, Kernel, NextTrueIndex, &MemObjData,
+                 MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {
-    Plugin->call<PiApiKind::piKernelSetArg>(Kernel, NextTrueIndex, Arg.MSize,
-                                            Arg.MPtr);
+    if (Arg.MPtr) {
+      Plugin->call(urKernelSetArgValue, Kernel, NextTrueIndex, Arg.MSize,
+                   nullptr, Arg.MPtr);
+    } else {
+      Plugin->call(urKernelSetArgLocal, Kernel, NextTrueIndex, Arg.MSize,
+                   nullptr);
+    }
+
     break;
   }
   case kernel_param_kind_t::kind_sampler: {
     sampler *SamplerPtr = (sampler *)Arg.MPtr;
-    sycl::detail::pi::PiSampler Sampler =
-        detail::getSyclObjImpl(*SamplerPtr)->getOrCreateSampler(Context);
-    Plugin->call<PiApiKind::piextKernelSetArgSampler>(Kernel, NextTrueIndex,
-                                                      &Sampler);
+    ur_sampler_handle_t Sampler =
+        (ur_sampler_handle_t)detail::getSyclObjImpl(*SamplerPtr)
+            ->getOrCreateSampler(Context);
+    Plugin->call(urKernelSetArgSampler, Kernel, NextTrueIndex, nullptr,
+                 Sampler);
     break;
   }
   case kernel_param_kind_t::kind_pointer: {
-    Plugin->call<PiApiKind::piextKernelSetArgPointer>(Kernel, NextTrueIndex,
-                                                      Arg.MSize, Arg.MPtr);
+    // We need to de-rerence this to get the actual USM allocation - that's the
+    // pointer UR is expecting.
+    const void *Ptr = *static_cast<const void *const *>(Arg.MPtr);
+    Plugin->call(urKernelSetArgPointer, Kernel, NextTrueIndex, nullptr, Ptr);
     break;
   }
   case kernel_param_kind_t::kind_specialization_constants_buffer: {
     assert(DeviceImageImpl != nullptr);
-    sycl::detail::pi::PiMem SpecConstsBuffer =
+    ur_mem_handle_t SpecConstsBuffer =
         DeviceImageImpl->get_spec_const_buffer_ref();
-    // Avoid taking an address of nullptr
-    sycl::detail::pi::PiMem *SpecConstsBufferArg =
-        SpecConstsBuffer ? &SpecConstsBuffer : nullptr;
 
-    pi_mem_obj_property MemObjData{};
-    MemObjData.mem_access = PI_ACCESS_READ_ONLY;
-    MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-    Plugin->call<PiApiKind::piextKernelSetArgMemObj>(
-        Kernel, NextTrueIndex, &MemObjData, SpecConstsBufferArg);
+    ur_kernel_arg_mem_obj_properties_t MemObjProps{};
+    MemObjProps.pNext = nullptr;
+    MemObjProps.stype = UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES;
+    MemObjProps.memoryAccess = UR_MEM_FLAG_READ_ONLY;
+    Plugin->call(urKernelSetArgMemObj, Kernel, NextTrueIndex, &MemObjProps,
+                 SpecConstsBuffer);
     break;
   }
   case kernel_param_kind_t::kind_invalid:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Invalid kernel param kind " +
-                              codeToString(PI_ERROR_INVALID_VALUE));
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
     break;
   }
 }
 
-static pi_result SetKernelParamsAndLaunch(
+static ur_result_t SetKernelParamsAndLaunch(
     const QueueImplPtr &Queue, std::vector<ArgDesc> &Args,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
-    sycl::detail::pi::PiKernel Kernel, NDRDescT &NDRDesc,
-    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    ur_kernel_handle_t Kernel, NDRDescT &NDRDesc,
+    std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative, bool KernelUsesClusterLaunch) {
+    bool IsCooperative, bool KernelUsesClusterLaunch,
+    const RTDeviceBinaryImage *BinImage, const std::string &KernelName) {
   assert(Queue && "Kernel submissions should have an associated queue");
   const PluginPtr &Plugin = Queue->getPlugin();
+
+  if (SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+    std::vector<unsigned char> Empty;
+    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
+        Queue, BinImage, KernelName,
+        DeviceImageImpl.get() ? DeviceImageImpl->get_spec_const_blob_ref()
+                              : Empty);
+  }
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
@@ -2398,10 +2392,11 @@ static pi_result SetKernelParamsAndLaunch(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call<PiApiKind::piKernelGetGroupInfo>(
-        Kernel, Queue->getDeviceImplPtr()->getHandleRef(),
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
-        RequiredWGSize, /* param_value_size_ret = */ nullptr);
+    Plugin->call(urKernelGetGroupInfo, Kernel,
+                 Queue->getDeviceImplPtr()->getHandleRef(),
+                 UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+                 sizeof(RequiredWGSize), RequiredWGSize,
+                 /* pPropSizeRet = */ nullptr);
 
     const bool EnforcedLocalSize =
         (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
@@ -2412,42 +2407,40 @@ static pi_result SetKernelParamsAndLaunch(
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (KernelUsesClusterLaunch) {
-    std::vector<pi_launch_property> property_list;
+    std::vector<ur_exp_launch_property_t> property_list;
 
-    pi_launch_property_value launch_property_value_cluster_range;
-    launch_property_value_cluster_range.cluster_dims[0] =
+    ur_exp_launch_property_value_t launch_property_value_cluster_range;
+    launch_property_value_cluster_range.clusterDim[0] =
         NDRDesc.ClusterDimensions[0];
-    launch_property_value_cluster_range.cluster_dims[1] =
+    launch_property_value_cluster_range.clusterDim[1] =
         NDRDesc.ClusterDimensions[1];
-    launch_property_value_cluster_range.cluster_dims[2] =
+    launch_property_value_cluster_range.clusterDim[2] =
         NDRDesc.ClusterDimensions[2];
 
-    property_list.push_back(
-        {pi_launch_property_id::PI_LAUNCH_PROPERTY_CLUSTER_DIMENSION,
-         launch_property_value_cluster_range});
+    property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION,
+                             launch_property_value_cluster_range});
 
     if (IsCooperative) {
-      pi_launch_property_value launch_property_value_cooperative;
+      ur_exp_launch_property_value_t launch_property_value_cooperative;
       launch_property_value_cooperative.cooperative = 1;
-      property_list.push_back(
-          {pi_launch_property_id::PI_LAUNCH_PROPERTY_COOPERATIVE,
-           launch_property_value_cooperative});
+      property_list.push_back({UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE,
+                               launch_property_value_cooperative});
     }
 
-    return Plugin->call_nocheck<PiApiKind::piextEnqueueKernelLaunchCustom>(
-        Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalSize[0],
-        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
+    return Plugin->call_nocheck(
+        urEnqueueKernelLaunchCustomExp, Queue->getHandleRef(), Kernel,
+        NDRDesc.Dims, &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
+        property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   }
-  pi_result Error =
+  ur_result_t Error =
       [&](auto... Args) {
         if (IsCooperative) {
-          return Plugin
-              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                  Args...);
+          return Plugin->call_nocheck(urEnqueueCooperativeKernelLaunchExp,
+                                      Args...);
         }
-        return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
+        return Plugin->call_nocheck(urEnqueueKernelLaunch, Args...);
       }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
@@ -2455,18 +2448,18 @@ static pi_result SetKernelParamsAndLaunch(
   return Error;
 }
 
-pi_int32 enqueueImpCommandBufferKernel(
+ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
-    std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
-    sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
-    sycl::detail::pi::PiExtCommandBufferCommand *OutCommand,
+    std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
+    ur_exp_command_buffer_sync_point_t *OutSyncPoint,
+    ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
-  pi_kernel PiKernel = nullptr;
-  pi_program PiProgram = nullptr;
+  ur_kernel_handle_t UrKernel = nullptr;
+  ur_program_handle_t UrProgram = nullptr;
   std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
 
@@ -2486,24 +2479,24 @@ pi_int32 enqueueImpCommandBufferKernel(
     kernel SyclKernel =
         KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
     SyclKernelImpl = detail::getSyclObjImpl(SyclKernel);
-    PiKernel = SyclKernelImpl->getHandleRef();
+    UrKernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
-    PiProgram = DeviceImageImpl->get_program_ref();
+    UrProgram = DeviceImageImpl->get_ur_program_ref();
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
-    PiKernel = Kernel->getHandleRef();
-    PiProgram = Kernel->getProgramRef();
+    UrKernel = Kernel->getHandleRef();
+    UrProgram = Kernel->getProgramRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
-    std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
+    std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
   }
 
-  auto SetFunc = [&Plugin, &PiKernel, &DeviceImageImpl, &Ctx,
+  auto SetFunc = [&Plugin, &UrKernel, &DeviceImageImpl, &Ctx,
                   &getMemAllocationFunc](sycl::detail::ArgDesc &Arg,
                                          size_t NextTrueIndex) {
-    sycl::detail::SetArgBasedOnType(Plugin, PiKernel, DeviceImageImpl,
+    sycl::detail::SetArgBasedOnType(Plugin, UrKernel, DeviceImageImpl,
                                     getMemAllocationFunc, Ctx, Arg,
                                     NextTrueIndex);
   };
@@ -2525,11 +2518,10 @@ pi_int32 enqueueImpCommandBufferKernel(
   if (HasLocalSize)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
-        PiKernel, DeviceImpl->getHandleRef(),
-        PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
-        RequiredWGSize,
-        /* param_value_size_ret = */ nullptr);
+    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
+                 UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
+                 sizeof(RequiredWGSize), RequiredWGSize,
+                 /* pPropSizeRet = */ nullptr);
 
     const bool EnforcedLocalSize =
         (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
@@ -2538,22 +2530,21 @@ pi_int32 enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
-  pi_result Res = Plugin->call_nocheck<
-      sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
-      CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
-      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
-      OutCommand);
+  ur_result_t Res = Plugin->call_nocheck(
+      urCommandBufferAppendKernelLaunchExp, CommandBuffer, UrKernel,
+      NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize,
+      SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr,
+      OutSyncPoint, OutCommand);
 
   if (!SyclKernelImpl && !Kernel) {
-    Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
-    Plugin->call<PiApiKind::piProgramRelease>(PiProgram);
+    Plugin->call(urKernelRelease, UrKernel);
+    Plugin->call(urProgramRelease, UrProgram);
   }
 
-  if (Res != pi_result::PI_SUCCESS) {
+  if (Res != UR_RESULT_SUCCESS) {
     const device_impl &DeviceImplem = *(DeviceImpl);
     detail::enqueue_kernel_launch::handleErrorOrWarning(Res, DeviceImplem,
-                                                        PiKernel, NDRDesc);
+                                                        UrKernel, NDRDesc);
   }
 
   return Res;
@@ -2563,19 +2554,18 @@ void enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
-    const std::string &KernelName,
-    std::vector<sycl::detail::pi::PiEvent> &RawEvents,
+    const std::string &KernelName, std::vector<ur_event_handle_t> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    const bool KernelIsCooperative, const bool KernelUsesClusterLaunch) {
+    ur_kernel_cache_config_t KernelCacheConfig, const bool KernelIsCooperative,
+    const bool KernelUsesClusterLaunch, const RTDeviceBinaryImage *BinImage) {
   assert(Queue && "Kernel submissions should have an associated queue");
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
-  sycl::detail::pi::PiKernel Kernel = nullptr;
+  ur_kernel_handle_t Kernel = nullptr;
   std::mutex *KernelMutex = nullptr;
-  sycl::detail::pi::PiProgram Program = nullptr;
+  ur_program_handle_t Program = nullptr;
   const KernelArgMask *EliminatedArgMask;
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
@@ -2597,7 +2587,7 @@ void enqueueImpKernel(
     Kernel = SyclKernelImpl->getHandleRef();
     DeviceImageImpl = SyclKernelImpl->getDeviceImage();
 
-    Program = DeviceImageImpl->get_program_ref();
+    Program = DeviceImageImpl->get_ur_program_ref();
 
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
     KernelMutex = SyclKernelImpl->getCacheMutex();
@@ -2610,7 +2600,7 @@ void enqueueImpKernel(
     // Non-cacheable kernels use mutexes from kernel_impls.
     // TODO this can still result in a race condition if multiple SYCL
     // kernels are created with the same native handle. To address this,
-    // we need to either store and use a pi_native_handle -> mutex map or
+    // we need to either store and use a ur_native_handle_t -> mutex map or
     // reuse and return existing SYCL kernels from make_native to avoid
     // their duplication in such cases.
     KernelMutex = &MSyclKernel->getNoncacheableEnqueueMutex();
@@ -2622,12 +2612,12 @@ void enqueueImpKernel(
   }
 
   // We may need more events for the launch, so we make another reference.
-  std::vector<sycl::detail::pi::PiEvent> &EventsWaitList = RawEvents;
+  std::vector<ur_event_handle_t> &EventsWaitList = RawEvents;
 
   // Initialize device globals associated with this.
-  std::vector<sycl::detail::pi::PiEvent> DeviceGlobalInitEvents =
+  std::vector<ur_event_handle_t> DeviceGlobalInitEvents =
       ContextImpl->initializeDeviceGlobals(Program, Queue);
-  std::vector<sycl::detail::pi::PiEvent> EventsWithDeviceGlobalInits;
+  std::vector<ur_event_handle_t> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
                                         DeviceGlobalInitEvents.size());
@@ -2639,7 +2629,7 @@ void enqueueImpKernel(
     EventsWaitList = EventsWithDeviceGlobalInits;
   }
 
-  pi_result Error = PI_SUCCESS;
+  ur_result_t Error = UR_RESULT_SUCCESS;
   {
     // When KernelMutex is null, this means that in-memory caching is
     // disabled, which means that kernel object is not shared, so no locking
@@ -2649,26 +2639,26 @@ void enqueueImpKernel(
 
     // Set SLM/Cache configuration for the kernel if non-default value is
     // provided.
-    if (KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM ||
-        KernelCacheConfig == PI_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA) {
+    if (KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM ||
+        KernelCacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA) {
       const PluginPtr &Plugin = Queue->getPlugin();
-      Plugin->call<PiApiKind::piKernelSetExecInfo>(
-          Kernel, PI_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG,
-          sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
+      Plugin->call(
+          urKernelSetExecInfo, Kernel, UR_KERNEL_EXEC_INFO_CACHE_CONFIG,
+          sizeof(ur_kernel_cache_config_t), nullptr, &KernelCacheConfig);
     }
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList,
         OutEventImpl, EliminatedArgMask, getMemAllocationFunc,
-        KernelIsCooperative, KernelUsesClusterLaunch);
+        KernelIsCooperative, KernelUsesClusterLaunch, BinImage, KernelName);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
-      Plugin->call<PiApiKind::piKernelRelease>(Kernel);
-      Plugin->call<PiApiKind::piProgramRelease>(Program);
+      Plugin->call(urKernelRelease, Kernel);
+      Plugin->call(urProgramRelease, Program);
     }
   }
-  if (PI_SUCCESS != Error) {
+  if (UR_RESULT_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
     // exception explaining what was wrong
     const device_impl &DeviceImpl = *(Queue->getDeviceImplPtr());
@@ -2677,20 +2667,21 @@ void enqueueImpKernel(
   }
 }
 
-pi_int32
-enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
-                         bool blocking, void *ptr, size_t size,
-                         std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         const detail::EventImplPtr &OutEventImpl, bool read) {
+ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
+                                     const std::string &PipeName, bool blocking,
+                                     void *ptr, size_t size,
+                                     std::vector<ur_event_handle_t> &RawEvents,
+                                     const detail::EventImplPtr &OutEventImpl,
+                                     bool read) {
   assert(Queue &&
          "ReadWrite host pipe submissions should have an associated queue");
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
-  sycl::detail::pi::PiProgram Program = nullptr;
+  ur_program_handle_t Program = nullptr;
   device Device = Queue->get_device();
   ContextImplPtr ContextImpl = Queue->getContextImplPtr();
-  std::optional<sycl::detail::pi::PiProgram> CachedProgram =
+  std::optional<ur_program_handle_t> CachedProgram =
       ContextImpl->getProgramForHostPipe(Device, hostPipeEntry);
   if (CachedProgram)
     Program = *CachedProgram;
@@ -2702,37 +2693,34 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
             Queue->get_device());
     device_image_plain BuiltImage =
         ProgramManager::getInstance().build(devImgPlain, {Device}, {});
-    Program = getSyclObjImpl(BuiltImage)->get_program_ref();
+    Program = getSyclObjImpl(BuiltImage)->get_ur_program_ref();
   }
   assert(Program && "Program for this hostpipe is not compiled.");
 
-  // Get plugin for calling opencl functions
   const PluginPtr &Plugin = Queue->getPlugin();
 
-  pi_queue pi_q = Queue->getHandleRef();
-  pi_result Error;
+  ur_queue_handle_t ur_q = Queue->getHandleRef();
+  ur_result_t Error;
 
   auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (read) {
-    Error =
-        Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
-            pi_q, Program, PipeName.c_str(), blocking, ptr, size,
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-            OutEvent);
+    Error = Plugin->call_nocheck(
+        urEnqueueReadHostPipe, ur_q, Program, PipeName.c_str(), blocking, ptr,
+        size, RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEvent);
   } else {
-    Error =
-        Plugin
-            ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueWriteHostPipe>(
-                pi_q, Program, PipeName.c_str(), blocking, ptr, size,
-                RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-                OutEvent);
+    Error = Plugin->call_nocheck(
+        urEnqueueWriteHostPipe, ur_q, Program, PipeName.c_str(), blocking, ptr,
+        size, RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEvent);
   }
+
   return Error;
 }
 
-pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
+ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
   assert(MQueue && "Command buffer enqueue should have an associated queue");
   // Wait on host command dependencies
   waitForPreparedHostEvents();
@@ -2742,23 +2730,21 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // them, e.g. initial copies from host to device
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-  std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
+  std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   if (!RawEvents.empty()) {
-    const PluginPtr &Plugin = MQueue->getPlugin();
-    Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
+    MQueue->getPlugin()->call(urEventWait, RawEvents.size(), &RawEvents[0]);
   }
 
-  // We can omit creating a PI event and create a "discarded" event if either
+  // We can omit creating a UR event and create a "discarded" event if either
   // the queue has the discard property or the command has been explicitly
   // marked as not needing an event, e.g. if the user did not ask for one, and
-  // if the queue supports discarded PI event and there are no requirements.
-  bool DiscardPiEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
+  // if the queue supports discarded UR event and there are no requirements.
+  bool DiscardUrEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
-  sycl::detail::pi::PiEvent *Event =
-      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
-  sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
-  sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
+  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
+  ur_exp_command_buffer_sync_point_t OutSyncPoint;
+  ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CGType::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
@@ -2792,7 +2778,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->getContextImplPtr(), Copy->getSrc(), MCommandBuffer,
         Copy->getLength(), Copy->getDst(), MSyncPointDeps, &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2811,7 +2797,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         ReqDst->MOffset, ReqDst->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2826,7 +2812,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         /*DstOffset=*/{0, 0, 0}, Req->MElemSize, std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2840,7 +2826,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
@@ -2853,7 +2839,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
         Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
@@ -2862,7 +2848,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Fill->getLength(), Fill->getPattern(), std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
@@ -2870,7 +2856,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
         Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
@@ -2879,7 +2865,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
         Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
   default:
@@ -2888,7 +2874,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 }
 
-pi_int32 ExecCGCommand::enqueueImp() {
+ur_result_t ExecCGCommand::enqueueImp() {
   if (MCommandBuffer) {
     return enqueueImpCommandBuffer();
   } else {
@@ -2896,30 +2882,30 @@ pi_int32 ExecCGCommand::enqueueImp() {
   }
 }
 
-pi_int32 ExecCGCommand::enqueueImpQueue() {
+ur_result_t ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CGType::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  auto RawEvents = getPiEvents(EventImpls);
+  auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  // We can omit creating a PI event and create a "discarded" event if either
+  // We can omit creating a UR event and create a "discarded" event if either
   // the queue has the discard property or the command has been explicitly
   // marked as not needing an event, e.g. if the user did not ask for one, and
-  // if the queue supports discarded PI event and there are no requirements.
-  bool DiscardPiEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
+  // if the queue supports discarded UR event and there are no requirements.
+  bool DiscardUrEvent = MQueue && (MQueue->MDiscardEvents || !MEventNeeded) &&
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
-  sycl::detail::pi::PiEvent *Event =
-      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
-  detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
+
+  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
 
   case CGType::UpdateHost: {
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "Update host should be handled by the Scheduler. " +
-                              codeToString(PI_ERROR_INVALID_VALUE));
+                              codeToString(UR_RESULT_ERROR_INVALID_VALUE));
   }
   case CGType::CopyAccToPtr: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2933,7 +2919,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MAccessRange, /*DstOffset=*/{0, 0, 0}, Req->MElemSize,
         std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyPtrToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2947,7 +2933,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
     CGCopy *Copy = (CGCopy *)MCommandGroup.get();
@@ -2965,7 +2951,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
         MEvent->getHandleRef(), MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
     CGFill *Fill = (CGFill *)MCommandGroup.get();
@@ -2978,7 +2964,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
         std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Kernel: {
     assert(MQueue && "Kernel submissions should have an associated queue");
@@ -3008,13 +2994,19 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
     }
 
+    const RTDeviceBinaryImage *BinImage = nullptr;
+    if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
+      std::tie(BinImage, std::ignore) =
+          retrieveKernelBinary(MQueue, KernelName.c_str());
+      assert(BinImage && "Failed to obtain a binary image.");
+    }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),
                      SyclKernel, KernelName, RawEvents, EventImpl,
                      getMemAllocationFunc, ExecKernel->MKernelCacheConfig,
                      ExecKernel->MKernelIsCooperative,
-                     ExecKernel->MKernelUsesClusterLaunch);
+                     ExecKernel->MKernelUsesClusterLaunch, BinImage);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -3022,7 +3014,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                             Copy->getDst(), std::move(RawEvents), Event,
                             MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
@@ -3030,7 +3022,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                             Fill->getPattern(), std::move(RawEvents), Event,
                             MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
@@ -3038,7 +3030,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event, MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
@@ -3046,7 +3038,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                               Advise->getAdvice(), std::move(RawEvents), Event,
                               MEvent);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Copy2DUSM: {
     CGCopy2DUSM *Copy = (CGCopy2DUSM *)MCommandGroup.get();
@@ -3054,7 +3046,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                Copy->getDst(), Copy->getDstPitch(),
                                Copy->getWidth(), Copy->getHeight(),
                                std::move(RawEvents), Event, MEvent);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Fill2DUSM: {
     CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
@@ -3062,7 +3054,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                Fill->getWidth(), Fill->getHeight(),
                                Fill->getPattern(), std::move(RawEvents), Event,
                                MEvent);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Memset2DUSM: {
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
@@ -3070,7 +3062,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                                  Memset->getWidth(), Memset->getHeight(),
                                  Memset->getValue(), std::move(RawEvents),
                                  Event, MEvent);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CodeplayHostTask: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
@@ -3088,29 +3080,29 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       default:
         throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                               "Unsupported arg type " +
-                                  codeToString(PI_ERROR_INVALID_VALUE));
+                                  codeToString(UR_RESULT_ERROR_INVALID_VALUE));
       }
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
-    std::vector<pi_mem> ReqPiMem;
+    std::vector<ur_mem_handle_t> ReqUrMem;
 
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
       // available if a user asks for them inside the interop task scope
       const std::vector<Requirement *> &HandlerReq =
           HostTask->getRequirements();
-      auto ReqToMemConv = [&ReqToMem, &ReqPiMem, HostTask](Requirement *Req) {
+      auto ReqToMemConv = [&ReqToMem, &ReqUrMem, HostTask](Requirement *Req) {
         const std::vector<AllocaCommandBase *> &AllocaCmds =
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
           if (getContext(HostTask->MQueue) ==
               getContext(AllocaCmd->getQueue())) {
-            auto MemArg =
-                reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+            auto MemArg = reinterpret_cast<ur_mem_handle_t>(
+                AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
-            ReqPiMem.emplace_back(MemArg);
+            ReqUrMem.emplace_back(MemArg);
 
             return;
           }
@@ -3121,7 +3113,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
             "Can't get memory object due to no allocation available " +
-                codeToString(PI_ERROR_INVALID_MEM_OBJECT));
+                codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -3132,11 +3124,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     queue_impl::getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqPiMem)));
+        DispatchHostTask(this, std::move(ReqToMem), std::move(ReqUrMem)));
 
     MShouldCompleteEventIfPossible = false;
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::EnqueueNativeCommand: {
     CGHostTask *HostTask = static_cast<CGHostTask *>(MCommandGroup.get());
@@ -3158,7 +3150,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     }
 
     std::vector<interop_handle::ReqToMem> ReqToMem;
-    std::vector<pi_mem> ReqMems;
+    std::vector<ur_mem_handle_t> ReqMems;
 
     if (HostTask->MHostTask->isInteropTask()) {
       // Extract the Mem Objects for all Requirements, to ensure they are
@@ -3170,10 +3162,10 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue->getContextImplPtr() ==
-              AllocaCmd->getQueue()->getContextImplPtr()) {
-            auto MemArg =
-                reinterpret_cast<pi_mem>(AllocaCmd->getMemAllocation());
+          if (getContext(HostTask->MQueue) ==
+              getContext(AllocaCmd->getQueue())) {
+            auto MemArg = reinterpret_cast<ur_mem_handle_t>(
+                AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
             ReqMems.emplace_back(MemArg);
 
@@ -3185,7 +3177,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available ");
+            "Can't get memory object due to no allocation available " +
+                codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -3197,62 +3190,64 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
                        HostTask->MQueue->getContextImplPtr()},
         HostTask->MHostTask->MInteropTask};
 
-    bool NativeCommandSupport = false;
-    MQueue->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+    ur_bool_t NativeCommandSupport = false;
+    MQueue->getPlugin()->call(
+        urDeviceGetInfo,
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
-        PI_EXT_ONEAPI_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT,
+        UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
         sizeof(NativeCommandSupport), &NativeCommandSupport, nullptr);
     assert(NativeCommandSupport && "ext_codeplay_enqueue_native_command is not "
                                    "supported on this device");
-    MQueue->getPlugin()->call<PiApiKind::piextEnqueueNativeCommand>(
-        MQueue->getHandleRef(), InteropFreeFunc, &CustomOpData, ReqMems.size(),
-        ReqMems.data(), RawEvents.size(), RawEvents.data(), Event);
+    MQueue->getPlugin()->call(urEnqueueNativeCommandExp, MQueue->getHandleRef(),
+                              InteropFreeFunc, &CustomOpData, ReqMems.size(),
+                              ReqMems.data(), nullptr, RawEvents.size(),
+                              RawEvents.data(), Event);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::Barrier: {
     assert(MQueue && "Barrier submission should have an associated queue");
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), 0, nullptr, Event);
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(), 0,
+                 nullptr, Event);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::BarrierWaitlist: {
     assert(MQueue && "Barrier submission should have an associated queue");
     CGBarrier *Barrier = static_cast<CGBarrier *>(MCommandGroup.get());
     std::vector<detail::EventImplPtr> Events = Barrier->MEventsWaitWithBarrier;
-    std::vector<sycl::detail::pi::PiEvent> PiEvents =
-        getPiEventsBlocking(Events);
-    if (PiEvents.empty()) {
+    std::vector<ur_event_handle_t> UrEvents = getUrEventsBlocking(Events);
+    if (UrEvents.empty()) {
       // If Events is empty, then the barrier has no effect.
-      return PI_SUCCESS;
+      return UR_RESULT_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-        MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+    Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
+                 UrEvents.size(), &UrEvents[0], Event);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
-    const PluginPtr &Plugin = MQueue->getPlugin();
+    const auto &Plugin = MQueue->getPlugin();
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.
     if (!MQueue->isInOrder())
-      Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
-          MQueue->getHandleRef(), /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, /*event=*/nullptr);
+      Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
+                   /*num_events_in_wait_list=*/0,
+                   /*event_wait_list=*/nullptr, /*event=*/nullptr);
 
-    Plugin->call<PiApiKind::piEnqueueTimestampRecordingExp>(
-        MQueue->getHandleRef(), /*blocking=*/false,
-        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
+    Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getHandleRef(),
+                 /*blocking=*/false,
+                 /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr,
+                 Event);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyToDeviceGlobal: {
     CGCopyToDeviceGlobal *Copy = (CGCopyToDeviceGlobal *)MCommandGroup.get();
@@ -3261,7 +3256,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
         std::move(RawEvents), Event, MEvent);
 
-    return CL_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::CopyFromDeviceGlobal: {
     CGCopyFromDeviceGlobal *Copy =
@@ -3271,7 +3266,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
         std::move(RawEvents), Event, MEvent);
 
-    return CL_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::ReadWriteHostPipe: {
     CGReadWriteHostPipe *ExecReadWriteHostPipe =
@@ -3295,11 +3290,10 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    return MQueue->getPlugin()
-        ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
-            CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),
-            RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
-            Event);
+    return MQueue->getPlugin()->call_nocheck(
+        urCommandBufferEnqueueExp, CmdBufferCG->MCommandBuffer,
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0], Event);
   }
   case CGType::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
@@ -3309,43 +3303,41 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Copy->getDstDesc(), Copy->getSrcFormat(), Copy->getDstFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
         Copy->getCopyExtent(), std::move(RawEvents), Event);
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreWait: {
     assert(MQueue &&
            "Semaphore wait submissions should have an associated queue");
     CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
-
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
-    Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
-        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
-        OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
+    Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
+                 MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
+                 OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreSignal: {
     assert(MQueue &&
            "Semaphore signal submissions should have an associated queue");
     CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
-
     const detail::PluginPtr &Plugin = MQueue->getPlugin();
     auto OptSignalValue = SemSignal->getSignalValue();
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
-    Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
-        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
-        OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
+    Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
+                 MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
+                 OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   case CGType::None:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "CG type not implemented. " +
-                              codeToString(PI_ERROR_INVALID_OPERATION));
+                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
   }
-  return PI_ERROR_INVALID_OPERATION;
+  return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
 bool ExecCGCommand::producesPiEvent() const {
@@ -3385,14 +3377,14 @@ std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
 
 bool KernelFusionCommand::producesPiEvent() const { return false; }
 
-pi_int32 KernelFusionCommand::enqueueImp() {
+ur_result_t KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
   waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
 
   // We need to release the queue here because KernelFusionCommands are
   // held back by the scheduler thus prevent the deallocation of the queue.
   resetQueue();
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
@@ -3501,10 +3493,10 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
     : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
       MNodes(Nodes) {}
 
-pi_int32 UpdateCommandBufferCommand::enqueueImp() {
+ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
+  ur_event_handle_t &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
   for (auto &Node : MNodes) {
@@ -3530,7 +3522,7 @@ pi_int32 UpdateCommandBufferCommand::enqueueImp() {
     MGraph->updateImpl(Node);
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {

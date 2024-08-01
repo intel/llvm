@@ -168,10 +168,11 @@ KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
   return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, Kernel);
 }
 
-llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
-                                              llvm::Module &Mod,
-                                              JITContext &JITCtx,
-                                              BinaryFormat Format) {
+llvm::Error
+KernelTranslator::translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
+                                  JITContext &JITCtx, BinaryFormat Format,
+                                  const std::string &TargetCPU,
+                                  const std::string &TargetFeatures) {
 
   KernelBinary *KernelBin = nullptr;
   switch (Format) {
@@ -186,7 +187,7 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   }
   case BinaryFormat::PTX: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToPTX(Kernel, Mod, JITCtx);
+        translateToPTX(Kernel, Mod, JITCtx, TargetCPU, TargetFeatures);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
@@ -195,7 +196,7 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   }
   case BinaryFormat::AMDGCN: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToAMDGCN(Kernel, Mod, JITCtx);
+        translateToAMDGCN(Kernel, Mod, JITCtx, TargetCPU, TargetFeatures);
     if (auto Error = BinaryOrError.takeError())
       return Error;
     KernelBin = *BinaryOrError;
@@ -226,9 +227,10 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
 }
 
-llvm::Expected<KernelBinary *>
-KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
-                                 JITContext &JITCtx) {
+llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
+    SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
+    [[maybe_unused]] const std::string &TargetCPU,
+    [[maybe_unused]] const std::string &TargetFeatures) {
 #ifndef FUSION_JIT_SUPPORT_PTX
   (void)KernelInfo;
   (void)Mod;
@@ -257,23 +259,32 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
         ErrorMessage.c_str());
   }
 
-  llvm::StringRef TargetCPU{"sm_50"};
-  llvm::StringRef TargetFeatures{"+sm_50,+ptx76"};
-  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str())) {
-    if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
-      TargetCPU =
-          KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
+  // Give priority to user specified values (through environment variables:
+  // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
+  llvm::StringRef CPU{TargetCPU};
+  llvm::StringRef Features{TargetFeatures};
+
+  auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
+  // If they were not set, use default and consult the module for alternatives
+  // (if present).
+  if (CPU.empty()) {
+    CPU = "sm_50";
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
+      CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
     }
-    if (KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
-      TargetFeatures = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
-                           .getValueAsString();
+  }
+  if (Features.empty()) {
+    Features = "+sm_50,+ptx76";
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
+      Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
+                     .getValueAsString();
     }
   }
 
   // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
-      std::nullopt, llvm::CodeGenOptLevel::Default);
+      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      llvm::CodeGenOptLevel::Default);
 
   llvm::legacy::PassManager PM;
 
@@ -298,9 +309,10 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
 #endif // FUSION_JIT_SUPPORT_PTX
 }
 
-llvm::Expected<KernelBinary *>
-KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
-                                    llvm::Module &Mod, JITContext &JITCtx) {
+llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
+    SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
+    [[maybe_unused]] const std::string &TargetCPU,
+    [[maybe_unused]] const std::string &TargetFeatures) {
 #ifndef FUSION_JIT_SUPPORT_AMDGCN
   (void)KernelInfo;
   (void)Mod;
@@ -329,25 +341,29 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
 
-  // Set to the lowest tested target according to the GetStartedGuide, section
-  // "Build DPC++ toolchain with support for HIP AMD"
-  llvm::StringRef TargetCPU{"gfx906"};
-  llvm::StringRef TargetFeatures{""};
-  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str())) {
-    if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
-      TargetCPU =
-          KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
+  llvm::StringRef CPU{TargetCPU};
+  llvm::StringRef Features{TargetFeatures};
+
+  auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
+  if (CPU.empty()) {
+    // Set to the lowest tested target according to the GetStartedGuide, section
+    // "Build DPC++ toolchain with support for HIP AMD"
+    CPU = "gfx906";
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
+      CPU = KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
     }
-    if (KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
-      TargetFeatures = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
-                           .getValueAsString();
+  }
+  if (Features.empty()) {
+    if (KernelFunc && KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
+      Features = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
+                     .getValueAsString();
     }
   }
 
   // FIXME: Check whether we can provide more accurate target information here
   auto *TargetMachine = Target->createTargetMachine(
-      TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
-      std::nullopt, llvm::CodeGenOptLevel::Default);
+      TargetTriple, CPU, Features, {}, llvm::Reloc::PIC_, std::nullopt,
+      llvm::CodeGenOptLevel::Default);
 
   std::string AMDObj;
   {

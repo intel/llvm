@@ -25,7 +25,8 @@ template <typename... T> struct obj_storage_t {
 
   type storage;
 
-  template <typename RetT> RetT *construct(const unsigned int TypeIndex) {
+  template <typename RetT, typename... Args>
+  RetT *construct(const unsigned int TypeIndex, Args... args) {
     if (TypeIndex >= sizeof...(T)) {
 #ifndef __SYCL_DEVICE_ONLY__
       assert(false && "Type index is invalid");
@@ -33,21 +34,27 @@ template <typename... T> struct obj_storage_t {
       return nullptr;
     }
 
-    return constructHelper<RetT, T...>(TypeIndex, 0);
+    return constructHelper<RetT, T...>(TypeIndex, 0, args...);
+  }
+
+  template <typename RetT> RetT *getAs() {
+    return reinterpret_cast<RetT *>(&storage);
   }
 
 private:
-  template <typename RetT> RetT *constructHelper(const int, const int) {
+  template <typename RetT, typename... Args>
+  RetT *constructHelper(const int, const int, Args...) {
     // Won't be ever called, but required to compile
     return nullptr;
   }
 
-  template <typename RetT, typename Type, typename... Rest>
-  RetT *constructHelper(const int TargetIndex, const int CurIndex) {
+  template <typename RetT, typename Type, typename... Rest, typename... Args>
+  RetT *constructHelper(const int TargetIndex, const int CurIndex,
+                        Args... args) {
     if (TargetIndex != CurIndex)
-      return constructHelper<RetT, Rest...>(TargetIndex, CurIndex + 1);
+      return constructHelper<RetT, Rest...>(TargetIndex, CurIndex + 1, args...);
 
-    RetT *Ptr = new (reinterpret_cast<Type *>(&storage)) Type;
+    RetT *Ptr = new (reinterpret_cast<Type *>(&storage)) Type(args...);
     return Ptr;
   }
 };

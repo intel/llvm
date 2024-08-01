@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/device.hpp>                    // for device
-#include <sycl/platform.hpp>                  // for platform
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/ur.hpp>     // for cast
+#include <sycl/device.hpp>        // for device
+#include <sycl/platform.hpp>      // for platform
 
 #include <string>      // for string
 #include <type_traits> // for enable_if_t
