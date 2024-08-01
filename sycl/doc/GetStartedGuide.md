@@ -309,7 +309,7 @@ Support for the experimental SYCL extension for user-driven kernel fusion at
 runtime is enabled by default. The same mechanism is used to allow JIT
 compilation of AMD and Nvidia kernels.
 
-To disable support for this features, follow the instructions for the Linux
+To disable support for these features, follow the instructions for the Linux
 DPC++ toolchain, but add the `--disable-jit` flag.
 
 Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
