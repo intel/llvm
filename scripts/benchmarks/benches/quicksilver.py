@@ -15,10 +15,10 @@ class QuickSilver(VelocityBase):
         super().__init__("QuickSilver", "qs", vb)
         self.data_path = os.path.join(vb.repo_path, "QuickSilver", "Examples", "AllScattering")
 
-    def run(self, env_vars) -> list[Result]:
+    def run(self, env_vars) -> Result:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if 'UR_L0_USE_IMMEDIATE_COMMANDLISTS' in env_vars and env_vars['UR_L0_USE_IMMEDIATE_COMMANDLISTS'] == '0':
-            return []
+            return None
 
         return super().run(env_vars)
 
@@ -27,6 +27,9 @@ class QuickSilver(VelocityBase):
 
     def unit(self):
         return "MMS/CTT"
+
+    def lower_is_better(self):
+        return False
 
     def bin_args(self) -> list[str]:
         return ["-i", f"{self.data_path}/scatteringOnly.inp"]
