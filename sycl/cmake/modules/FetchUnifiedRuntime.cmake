@@ -30,6 +30,7 @@ option(SYCL_UMF_DISABLE_HWLOC
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -115,13 +116,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit bc1a28ede0df7f837047b632e00437587672c134
+set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e
+  # Merge: c805a71a a2a053de
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Jul 29 16:44:58 2024 +0100
-  #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
-  #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG bc1a28ede0df7f837047b632e00437587672c134)
+  # Date:   Wed Jul 31 12:26:34 2024 +0100
+  #     Merge pull request #1884 from callumfare/callum/fix_printtrace
+  #     Enable PrintTrace when SYCL UR tracing is enabled
+  set(UNIFIED_RUNTIME_TAG 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
