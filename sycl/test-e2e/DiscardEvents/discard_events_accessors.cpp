@@ -6,12 +6,12 @@
 // urEnqueueKernelLaunch for USM kernel using local accessor, but
 // is not `nullptr` for kernel using buffer accessor.
 //
-// CHECK: ---> urEnqueueKernelLaunch(
-// CHECK-SAME: .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: .phEvent = nullptr
 //
 // CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
-// CHECK: ---> urEnqueueKernelLaunch(
-// CHECK-SAME: -> UR_RESULT_SUCCESS
+// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.
 
