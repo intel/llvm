@@ -1,6 +1,6 @@
 // REQUIRES: linux
-// RUN-NOT: %{build} %device_asan_flags -O0 -g -o %t
-// RUN-NOT: %{run} not %t 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O0 -g -o %t
+// RUN: %{run} not %t 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O1 -g -o %t
 // RUN: %{run} not %t 2>&1 | FileCheck %s
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
@@ -11,7 +11,7 @@
 int main() {
   sycl::queue Q;
   constexpr std::size_t N = 4;
-  int *array = 0;
+  int *array = nullptr;
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
