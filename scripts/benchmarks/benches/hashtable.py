@@ -23,6 +23,9 @@ class Hashtable(VelocityBase):
     def bin_args(self) -> list[str]:
         return ["--no-verify"]
 
+    def lower_is_better(self):
+        return False
+
     def parse_output(self, stdout: str) -> float:
         match = re.search(r'(\d+\.\d+) million keys/second', stdout)
         if match:

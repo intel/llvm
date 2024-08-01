@@ -28,9 +28,12 @@ def run(command, env_vars={}, cwd=None, add_sycl=False):
             env['LD_LIBRARY_PATH'] = sycl_lib_path + os.pathsep + env.get('LD_LIBRARY_PATH', '')
 
         env.update(env_vars)
-        result = subprocess.run(command, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env) # nosec B603
-        print(result.stdout.decode())
-        print(result.stderr.decode())
+        result = subprocess.run(command, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=options.timeout) # nosec B603
+
+        if options.verbose:
+            print(result.stdout.decode())
+            print(result.stderr.decode())
+
         return result
     except subprocess.CalledProcessError as e:
         print(e.stdout.decode())
@@ -70,7 +73,8 @@ def load_benchmark_results(dir, compare_name) -> list[Result]:
         return None
 
 def prepare_bench_cwd(dir):
-    options.benchmark_cwd = os.path.join(dir, 'bcwd')
+    # we need 2 deep to workaround a problem with a fixed relative path in cudaSift
+    options.benchmark_cwd = os.path.join(dir, 'bcwd', 'bcwd')
     if os.path.exists(options.benchmark_cwd):
         shutil.rmtree(options.benchmark_cwd)
     os.makedirs(options.benchmark_cwd)
@@ -97,3 +101,13 @@ def prepare_workdir(dir, version):
 
     with open(version_file_path, 'w') as version_file:
         version_file.write(version)
+
+def create_build_path(directory, name):
+    build_path = os.path.join(directory, name)
+
+    if options.rebuild and Path(build_path).exists():
+        shutil.rmtree(build_path)
+
+    Path(build_path).mkdir(parents=True, exist_ok=True)
+
+    return build_path

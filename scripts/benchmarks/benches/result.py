@@ -16,3 +16,4 @@ class Result:
     stdout: str
     unit: str = ""
     name: str = ""
+    lower_is_better: bool = True

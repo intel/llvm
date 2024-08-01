@@ -34,6 +34,16 @@ on:
         type: string
         required: false
         default: ''
+      sycl_repo:
+        description: 'Compiler repo'
+        type: string
+        required: true
+        default: 'intel/llvm'
+      sycl_commit:
+        description: 'Compiler commit'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -41,8 +51,6 @@ permissions:
 
 jobs:
   e2e-build-hw:
-    # Run only on upstream; forks will not have the HW
-    # if: github.repository == 'oneapi-src/unified-runtime'
     name: Build SYCL, UR, run Compute Benchmarks
     strategy:
       matrix:
@@ -105,11 +113,18 @@ jobs:
     - name: Checkout SYCL
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
-        repository: intel/llvm
+        repository: ${{inputs.sycl_repo}}
         ref: refs/heads/sycl
         path: sycl-repo
         fetch-depth: 1
         fetch-tags: false
+
+    - name: Fetch specific SYCL commit
+      if: inputs.sycl_commit != ''
+      working-directory: ./sycl-repo
+      run: |
+        git fetch --depth=1 origin ${{ inputs.sycl_commit }}
+        git checkout ${{ inputs.sycl_commit }}
 
     - name: Set CUDA env vars
       if: matrix.adapter.str_name == 'cuda'
