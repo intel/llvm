@@ -20,7 +20,7 @@ int main() {
   });
   // CHECK: ERROR: DeviceSanitizer: null-pointer-access on Unknown Memory
   // CHECK: WRITE of size 4 at kernel {{<.*MyKernel>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
-  // CHECK:   #0 {{.*}} {{.*null-pointer.cpp}}:[[@LINE-5]]
+  // CHECK: {{.*nullpointer.cpp}}:[[@LINE-5]]
 
   return 0;
 }
