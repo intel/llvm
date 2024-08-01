@@ -246,6 +246,27 @@ public:
                 CompileOptions, LinkOptions, {}, std::move(Binary),
                 std::move(OffloadEntries), std::move(PropertySet)) {}
 
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  UrImage(UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+      : UrImage(
+            SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+            SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
+            "", "", {}, std::move(std::vector<unsigned char>{1, 2, 3, 4, 5}),
+            std::move(OffloadEntries), std::move(PropertySet)) {}
+
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  /// - no properties
+  UrImage(UrArray<UrOffloadEntry> OffloadEntries)
+      : UrImage(std::move(OffloadEntries), {}) {}
+
   sycl_device_binary_struct convertToNativeType() {
     return sycl_device_binary_struct{
         MVersion,
@@ -539,20 +560,9 @@ addDeviceRequirementsProps(UrPropertySet &Props,
 
 inline UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames) {
-  UrPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
+  UrImage Img(std::move(Entries));
   return Img;
 }
 
