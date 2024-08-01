@@ -47,9 +47,9 @@ struct is_handle<ur_physical_mem_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_usm_pool_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_exp_interop_mem_handle_t> : std::true_type {};
+struct is_handle<ur_exp_external_mem_handle_t> : std::true_type {};
 template <>
-struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
+struct is_handle<ur_exp_external_semaphore_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_win32_handle_t> : std::true_type {};
 template <>
@@ -332,8 +332,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_cubemap_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_external_mem_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_external_semaphore_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_image_copy_region_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_command_info_t value);
@@ -750,9 +750,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP";
         break;
-    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP:
-        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP";
-        break;
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP";
         break;
@@ -942,6 +939,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED:
         os << "UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED";
         break;
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1077,11 +1077,11 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
         break;
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC";
+    case UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC";
         break;
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC:
-        os << "UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC";
+    case UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC";
         break;
     case UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR:
         os << "UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR";
@@ -1323,13 +1323,13 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         printPtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC: {
-        const ur_exp_interop_mem_desc_t *pstruct = (const ur_exp_interop_mem_desc_t *)ptr;
+    case UR_STRUCTURE_TYPE_EXP_EXTERNAL_MEM_DESC: {
+        const ur_exp_external_mem_desc_t *pstruct = (const ur_exp_external_mem_desc_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
-    case UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC: {
-        const ur_exp_interop_semaphore_desc_t *pstruct = (const ur_exp_interop_semaphore_desc_t *)ptr;
+    case UR_STRUCTURE_TYPE_EXP_EXTERNAL_SEMAPHORE_DESC: {
+        const ur_exp_external_semaphore_desc_t *pstruct = (const ur_exp_external_semaphore_desc_t *)ptr;
         printPtr(os, pstruct);
     } break;
 
@@ -2580,11 +2580,11 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP";
         break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP";
+    case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP";
         break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP";
+    case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP";
@@ -4214,7 +4214,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+    case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -4226,7 +4226,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -8890,11 +8890,11 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     case UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP:
         os << "UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP";
         break;
-    case UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP:
-        os << "UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP";
+    case UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP:
+        os << "UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP";
         break;
-    case UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP:
-        os << "UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP";
+    case UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP:
+        os << "UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP";
         break;
     case UR_COMMAND_TIMESTAMP_RECORDING_EXP:
         os << "UR_COMMAND_TIMESTAMP_RECORDING_EXP";
@@ -9591,11 +9591,11 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_cu
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_interop_mem_desc_t type
+/// @brief Print operator for the ur_exp_external_mem_desc_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_mem_desc_t params) {
-    os << "(struct ur_exp_interop_mem_desc_t){";
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_external_mem_desc_t params) {
+    os << "(struct ur_exp_external_mem_desc_t){";
 
     os << ".stype = ";
 
@@ -9611,11 +9611,11 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_me
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_exp_interop_semaphore_desc_t type
+/// @brief Print operator for the ur_exp_external_semaphore_desc_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_semaphore_desc_t params) {
-    os << "(struct ur_exp_interop_semaphore_desc_t){";
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_external_semaphore_desc_t params) {
+    os << "(struct ur_exp_external_semaphore_desc_t){";
 
     os << ".stype = ";
 
@@ -15132,16 +15132,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pmemHandleType);
 
     os << ", ";
-    os << ".pInteropMemDesc = ";
+    os << ".pExternalMemDesc = ";
 
     ur::details::printPtr(os,
-                          *(params->ppInteropMemDesc));
+                          *(params->ppExternalMemDesc));
 
     os << ", ";
-    os << ".phInteropMem = ";
+    os << ".phExternalMem = ";
 
     ur::details::printPtr(os,
-                          *(params->pphInteropMem));
+                          *(params->pphExternalMem));
 
     return os;
 }
@@ -15176,10 +15176,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->ppImageDesc));
 
     os << ", ";
-    os << ".hInteropMem = ";
+    os << ".hExternalMem = ";
 
     ur::details::printPtr(os,
-                          *(params->phInteropMem));
+                          *(params->phExternalMem));
 
     os << ", ";
     os << ".phImageMem = ";
@@ -15191,10 +15191,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_bindless_images_release_interop_exp_params_t type
+/// @brief Print operator for the ur_bindless_images_release_external_memory_exp_params_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_release_interop_exp_params_t *params) {
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_release_external_memory_exp_params_t *params) {
 
     os << ".hContext = ";
 
@@ -15208,10 +15208,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phDevice));
 
     os << ", ";
-    os << ".hInteropMem = ";
+    os << ".hExternalMem = ";
 
     ur::details::printPtr(os,
-                          *(params->phInteropMem));
+                          *(params->phExternalMem));
 
     return os;
 }
@@ -15239,16 +15239,16 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->psemHandleType);
 
     os << ", ";
-    os << ".pInteropSemaphoreDesc = ";
+    os << ".pExternalSemaphoreDesc = ";
 
     ur::details::printPtr(os,
-                          *(params->ppInteropSemaphoreDesc));
+                          *(params->ppExternalSemaphoreDesc));
 
     os << ", ";
-    os << ".phInteropSemaphore = ";
+    os << ".phExternalSemaphore = ";
 
     ur::details::printPtr(os,
-                          *(params->pphInteropSemaphore));
+                          *(params->pphExternalSemaphore));
 
     return os;
 }
@@ -15271,10 +15271,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phDevice));
 
     os << ", ";
-    os << ".hInteropSemaphore = ";
+    os << ".hExternalSemaphore = ";
 
     ur::details::printPtr(os,
-                          *(params->phInteropSemaphore));
+                          *(params->phExternalSemaphore));
 
     return os;
 }
@@ -17804,8 +17804,8 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP: {
         os << (const struct ur_bindless_images_map_external_array_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP: {
-        os << (const struct ur_bindless_images_release_interop_exp_params_t *)params;
+    case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP: {
+        os << (const struct ur_bindless_images_release_external_memory_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_EXP: {
         os << (const struct ur_bindless_images_import_external_semaphore_exp_params_t *)params;
