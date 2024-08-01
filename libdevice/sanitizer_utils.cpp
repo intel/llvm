@@ -52,6 +52,8 @@ extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
 __spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
+
+extern "C" SYCL_EXTERNAL void __devicelib_exit();
 #endif // __USE_SPIR_BUILTIN__
 
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
@@ -422,6 +424,7 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
                          SanitizerReport.IsRecover);
     return true;
   }
+  __devicelib_exit();
   return false;
 }
 
@@ -504,6 +507,7 @@ bool __asan_internal_report_save(
                          SanitizerReport.IsRecover);
     return true;
   }
+  __devicelib_exit();
   return false;
 }
 
@@ -571,6 +575,9 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   case kUsmHostDeallocatedMagic:
   case kUsmSharedDeallocatedMagic:
     error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
+    break;
+  case kNullPointerRedzoneMagic:
+    error_type = DeviceSanitizerErrorType::NULL_POINTER;
     break;
   default:
     error_type = DeviceSanitizerErrorType::UNKNOWN;
