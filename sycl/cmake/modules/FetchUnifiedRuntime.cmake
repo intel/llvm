@@ -116,12 +116,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit bc1a28ede0df7f837047b632e00437587672c134
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Jul 29 16:44:58 2024 +0100
-  #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
-  #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG bc1a28ede0df7f837047b632e00437587672c134)
+  # commit 24d3e68ce21f0c1573afc8cf20c7c028b02249b5
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Tue Jul 30 17:46:41 2024 +0200
+  #   Merge pull request #1908 from bratpiorka/rrudnick_umf_rc2
+  #   bump UMF tag to switch to rc2 release
+  set(UNIFIED_RUNTIME_TAG 24d3e68ce21f0c1573afc8cf20c7c028b02249b5)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
