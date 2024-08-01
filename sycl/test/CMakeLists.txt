@@ -90,7 +90,7 @@ add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_LIB_DUMPS_ONLY=True"
-  DEPENDS sycl-runtime-libraries llvm-readobj
+  DEPENDS FileCheck sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
 
