@@ -356,7 +356,7 @@ namespace sycl {
 ----
 
 
-To synchronize all workitems in the cluster group, `sycl::group_barrier` can be 
+To coordinate all work-items in the cluster group, `sycl::group_barrier` can be 
 used, accepting the `cluster_group` class.
 
 
