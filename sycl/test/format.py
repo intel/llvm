@@ -23,6 +23,8 @@ class SYCLHeadersTest(lit.formats.TestFormat):
             for filename in filenames:
                 if not filename.endswith(".hpp"):
                     continue
+                if os.path.splitext(filename)[1] not in litConfig.suffixes:
+                    continue
                 filepath = os.path.join(dirpath, filename)
 
                 if headers_filter is not None:

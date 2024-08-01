@@ -23,8 +23,8 @@ config.name = "SYCL"
 config.test_format = lit.formats.ShTest()
 
 # suffixes: A list of file extensions to treat as test files.
-config.dump_only_tests = bool(lit_config.params.get("SYCL_LIB_DUMPS_ONLY", False))
-if config.dump_only_tests:
+dump_only_tests = bool(lit_config.params.get("SYCL_LIB_DUMPS_ONLY", False))
+if dump_only_tests:
     config.suffixes = [".dump"]  # Only run dump testing
 else:
     config.suffixes = [
@@ -186,7 +186,7 @@ if config.sycl_headers_filter is not None:
     )
 
 # Dump-only tests do not have clang available
-if not config.dump_only_tests:
+if not dump_only_tests:
     llvm_config.use_clang(additional_flags=additional_flags)
 
 # Set timeout for test = 10 mins
