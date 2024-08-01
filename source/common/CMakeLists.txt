@@ -23,7 +23,7 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    set(UMF_TAG 413327815feb1585bfb36b1f34750f1ba961ceed)
+    set(UMF_TAG 330dd302791d09aff4b878e99aaa7aa67087ae8a) # v0.9.0-rc3
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
