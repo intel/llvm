@@ -223,4 +223,4 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">
 
 def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
   Flags<[WrapperOnlyOption]>,
-  HelpText<"Path to the folder where tool dumps SPIR-V device code. Other formats aren't being dumped.">;
+  HelpText<"Path to the folder where the tool dumps SPIR-V device code. Other formats aren't dumped.">;
