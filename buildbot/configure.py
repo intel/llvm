@@ -31,10 +31,10 @@ def do_configure(args):
     libclc_amd_target_names = ";amdgcn--amdhsa"
     libclc_nvidia_target_names = ";nvptx64--nvidiacl"
 
-    sycl_enable_fusion = "OFF"
-    if not args.disable_fusion:
-        llvm_external_projects += ";sycl-fusion"
-        sycl_enable_fusion = "ON"
+    sycl_enable_jit = "OFF"
+    if not args.disable_jit:
+        llvm_external_projects += ";sycl-jit"
+        sycl_enable_jit = "ON"
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -45,7 +45,7 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
+    jit_dir = os.path.join(abs_src_dir, "sycl-jit")
     llvm_targets_to_build = args.host_target
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
@@ -174,7 +174,7 @@ def do_configure(args):
         "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
-        "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(fusion_dir),
+        "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
@@ -189,7 +189,7 @@ def do_configure(args):
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
         "-DSYCL_ENABLE_PLUGINS={}".format(";".join(set(sycl_enabled_plugins))),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
@@ -379,9 +379,9 @@ def main():
         help="Disable building of the SYCL runtime major release preview library",
     )
     parser.add_argument(
-        "--disable-fusion",
+        "--disable-jit",
         action="store_true",
-        help="Disable the kernel fusion JIT compiler",
+        help="Disable the kernel JIT compiler for AMD and Nvidia",
     )
     parser.add_argument(
         "--add_security_flags",
