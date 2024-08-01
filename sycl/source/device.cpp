@@ -314,7 +314,7 @@ bool device::ext_oneapi_supports_cl_extension(
       Name.data(), VersionPtr, ipVersion);
 }
 
-std::string device::ext_oneapi_cl_profile() const {
+detail::string device::ext_oneapi_cl_profile_impl() const {
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
@@ -322,9 +322,11 @@ std::string device::ext_oneapi_cl_profile() const {
       Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
                            sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
-    return "";
+    return detail::string{""};
 
-  return ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
+  std::string profile =
+      ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
+  return detail::string{profile};
 }
 
 } // namespace _V1
