@@ -5,17 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/stream.hpp>
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
                     const float ref) {
   for (size_t i = 0; i < NUM_ROWS; i++)
     for (size_t j = 0; j < NUM_COLS; j++) {
-      // std::cout << "i: " << i;
-      // std::cout << " j: " << j;
-      // std::cout << " ref: " << ref;
-      // std::cout << " mat[i][j]: " << mat[i][j];
       float diff;
       if constexpr (std::is_same_v<T, bfloat16>)
         diff = make_fp32(mat[i][j]) - ref;
@@ -23,7 +18,6 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
         diff = mat[i][j] - ref;
       assert(std::fabs(static_cast<float>(diff)) <
              std::numeric_limits<float>::epsilon());
-      // std::cout << std::endl;
     }
 }
 
@@ -42,7 +36,6 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
 
-     sycl::stream os { 5000, 5000, cgh};
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
@@ -59,18 +52,8 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, Use, SUB_ROWS, SUB_COLS, Layout> sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
+           joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
 
-          // os << "\n before A apply \n";
-          //  joint_matrix_apply(sg, sub_mat, [=](T &x) {
-          //       os << (int)x << " ";
-          //   });
-
-          joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
-
-          // os << "\n after A apply \n";
-          //  joint_matrix_apply(sg, sub_mat, [=](T &x) {
-          //       os << (int)x << " ";
-          //   });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_mat,
                accessMat.template get_multi_ptr<access::decorated::no>() +
@@ -95,7 +78,6 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
 
-     sycl::stream os { 5000, 5000, cgh};
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
@@ -113,15 +95,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
            joint_matrix<sub_group, T, use::accumulator, SUB_ROWS, SUB_COLS>
                sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
-
-          // os << "After A load \n";
-          //  joint_matrix_apply(sg, sub_mat, [=](T &x) {
-          //       os << (int)x << " ";
-          //   });
            joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
-          //  joint_matrix_apply(sg, sub_mat, [=](T &x) {
-          //       os << (int)x << " ";
-          //   });
 
            joint_matrix_store(
                sg, sub_mat,
@@ -266,13 +240,12 @@ int main() {
     }
 
     if (combination.nsize == 8) { // architecture::intel_gpu_dg2*
-      // test_ewops_ab<bfloat16, 8, 16, use::a, layout::row_major, 1>();
-      // test_ewops_ab<bfloat16, 16, 8, use::b, layout::ext_intel_packed, 2>();
-      // test_ewops_c<float, 8, 8>();
-      // test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
+      test_ewops_ab<bfloat16, 8, 16, use::a, layout::row_major, 1>();
+      test_ewops_ab<bfloat16, 16, 8, use::b, layout::ext_intel_packed, 2>();
+      test_ewops_c<float, 8, 8>();
+      test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
       test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
-      // test_ewops_ab<bfloat16, 16, 32, use::b, layout::row_major, 2>();
-      // test_ewops_c<float, 32, 32>();
+      test_ewops_c<float, 32, 32>();
       break;
     }
   }

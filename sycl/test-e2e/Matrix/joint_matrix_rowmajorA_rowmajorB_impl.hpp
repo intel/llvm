@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/stream.hpp>
-template <typename T, size_t TM, size_t TN, size_t TK> class imatrix;
 
 template <size_t TM, size_t TN, size_t TK, class kernel_name, typename TA,
           typename TB, typename TC, size_t M, size_t N, size_t K>
@@ -63,7 +61,6 @@ void matrix_multiply(big_matrix<TC, M, N> &C, big_matrix<TA, M, K> &A,
                  N);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
@@ -87,7 +84,7 @@ int gemm_row_major() {
   matrix_fill(MATRIX_M, MATRIX_K, (TA *)A,
               [](int i, int j) { return 1 * (i + j); });
   matrix_fill(MATRIX_K, MATRIX_N, (TB *)B,
-              [](int i, int j) { return 32 * i + j; });
+              [](int i, int j) { return 2 * i + 3 * j; });
   matrix_fill(MATRIX_M, MATRIX_N, (TC *)C, (TC)1);
   matrix_fill(MATRIX_M, MATRIX_N, (TC *)D, (TC)1);
 
