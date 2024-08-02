@@ -209,8 +209,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
         }
       }
       hProgram->ZeModuleMap.insert(std::make_pair(ZeDevice, ZeModuleHandle));
-      hProgram->ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
     }
+    hProgram->ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
   }
 
   // We no longer need the IL / native code.
