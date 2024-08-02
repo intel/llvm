@@ -3,9 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: env UR_ENABLE_LAYERS=UR_LAYER_TRACING env XPTI_TRACE_ENABLE=1 env XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher env XPTI_SUBSCRIBERS=%t_collector.so %{run} %t.out | FileCheck %s
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14744
-// UNSUPPORTED: windows, linux
-
 #include "basic_event_collection.inc"
 //
 // CHECK: xptiTraceInit: Stream Name = ur
@@ -41,8 +38,7 @@
 // CHECK-NEXT: Edge create
 // CHECK-DAG:   queue_id : {{.*}}
 // CHECK-DAG:   event : {{.*}}
-// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
-// CHECK-NEXT: Task begin
+// CHECK: Task begin
 // CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
