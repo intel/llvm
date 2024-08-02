@@ -107,9 +107,13 @@ void collectVTablesThatUseFunction(
     const Value *V, SmallVectorImpl<const GlobalVariable *> &VTables) {
   for (const auto *U : V->users()) {
     // GlobalVariable is also a constant
-    if (const auto *GV = dyn_cast<GlobalVariable>(U))
+    if (const auto *GV = dyn_cast<GlobalVariable>(U)) {
+      // Core SYCL specification prohibit ODR use of non-const global variables
+      // in SYCL kernels. There are extensions like device_global that lift some
+      // of the limitations, but we still assume that there are no globals that
+      // reference function pointers other than virtual tables.
       VTables.push_back(GV);
-    else if (isa<ConstantExpr>(U)) {
+    } else if (isa<ConstantExpr>(U)) {
       // Constant expression like
       // ptr addrspace(4) addrspacecast (ptr @foo to ptr addrspace(4))
       // Could be a part of vtable initializer
