@@ -47,6 +47,9 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y doxygen ${{matrix.compiler.c}}
 
+    - name: Install libhwloc
+      run: .github/scripts/install_hwloc.sh
+
     - name: Install g++-7
       if: matrix.compiler.cxx == 'g++-7'
       run: |
@@ -121,12 +124,19 @@ jobs:
     uses: ./.github/workflows/build-fuzz-reusable.yml
     with:
       test_label: "fuzz-short"
-    
+
   level-zero:
     name: Level Zero
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
       name: L0
+
+  level-zero-static:
+    name: Level Zero static
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      name: L0
+      static_loader: ON
 
   opencl:
     name: OpenCL
@@ -217,11 +227,17 @@ jobs:
         Expand-Archive -Path "$WorkingDir\doxygen.zip"
         Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
 
+    - name: Install hwloc
+      run: vcpkg install hwloc:x64-windows
+
     - name: Configure CMake
+      env:
+        VCPKG_PATH: "C:/vcpkg/packages/hwloc_x64-windows"
       run: >
         cmake
         -B${{github.workspace}}/build
         ${{matrix.toolset}}
+        -DCMAKE_PREFIX_PATH="${{env.VCPKG_PATH}}"
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_POLICY_DEFAULT_CMP0094=NEW
@@ -259,6 +275,9 @@ jobs:
 
     - name: Install prerequisites
       run: python3 -m pip install -r third_party/requirements.txt
+
+    - name: Install hwloc
+      run: brew install hwloc
 
     - name: Configure CMake
       run: >
