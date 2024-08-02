@@ -16,6 +16,11 @@ if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()
 
+if (SYCL_ENABLE_PLUGINS)
+  message(WARNING "SYCL_ENABLE_PLUGINS has been renamed, please use SYCL_ENABLE_BACKENDS instead")
+  set(SYCL_ENABLE_BACKENDS "${SYCL_ENABLE_PLUGINS}" CACHE STRING "Backends enabled for SYCL" FORCE)
+endif()
+
 # If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
 # Zero backends.
 if (NOT DEFINED SYCL_ENABLE_BACKENDS)
