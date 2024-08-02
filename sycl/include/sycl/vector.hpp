@@ -111,7 +111,7 @@ template <typename Self, typename T, int... Indexes>
 struct SwizzleToVectorConversionOperatorMixIn {
   operator vec<T, sizeof...(Indexes)>() const {
     int idx = 0;
-    return {(*static_cast<const Self *>(this))[Indexes, idx++]...};
+    return {(*static_cast<const Self *>(this))[(Indexes, idx++)]...};
   }
 };
 template <typename Self, typename T, int SingleIndex>
