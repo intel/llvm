@@ -1,5 +1,7 @@
 name: E2E on AWS CUDA
 run-name: E2E on AWS CUDA - ${{ github.event.workflow_run.display_title }}
+# Note: This workflow is currently disabled in the Github Actions UI because
+# we run CUDA testing on the self-hosted runners.
 # We have to keep pre-commit AWS CUDA testing in a separate workflow because we
 # need access to AWS secret and that isn't available on pull_request jobs for
 # PRs from forks. And github's "require approval for all outside collaborators"
@@ -10,7 +12,7 @@ run-name: E2E on AWS CUDA - ${{ github.event.workflow_run.display_title }}
 
 on:
   workflow_run:
-    workflows: [SYCL Nightly]
+    workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
 
