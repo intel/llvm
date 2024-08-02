@@ -53,7 +53,6 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
            joint_matrix<sub_group, T, Use, SUB_ROWS, SUB_COLS, Layout> sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
            joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
-
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_mat,
                accessMat.template get_multi_ptr<access::decorated::no>() +
@@ -77,7 +76,6 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
   size_t sg_size = get_sg_size<kernel_name>(q);
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
-
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
