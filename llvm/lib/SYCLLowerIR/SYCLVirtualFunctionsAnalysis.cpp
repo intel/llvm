@@ -85,6 +85,9 @@ void computeFunctionToKernelsMappingImpl(Function *Kernel, const Function *F,
 
 void computeFunctionToKernelsMapping(Function *Kernel, const CallGraphTy &CG,
                                      FuncToFuncMapTy &Mapping) {
+  // For simplicity we also consider a kernel to be using itself
+  Mapping[Kernel].insert(Kernel);
+
   CallGraphTy::const_iterator It = CG.find(Kernel);
   // It could be that the kernel doesn't call anything
   if (It == CG.end())
@@ -98,9 +101,6 @@ void computeFunctionToKernelsMapping(Function *Kernel, const CallGraphTy &CG,
     Mapping[Callee].insert(Kernel);
     computeFunctionToKernelsMappingImpl(Kernel, Callee, CG, Mapping);
   }
-
-  // For simplicity we also consider a kernel to be using itself
-  Mapping[Kernel].insert(Kernel);
 }
 
 void collectVTablesThatUseFunction(
