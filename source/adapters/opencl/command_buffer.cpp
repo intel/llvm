@@ -71,10 +71,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   const bool IsUpdatable =
       pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
 
-  bool DeviceSupportsUpdate = false;
+  ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
   cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(hDevice);
-  CL_RETURN_ON_FAILURE(deviceSupportsURCommandBufferKernelUpdate(
-      CLDevice, DeviceSupportsUpdate));
+  CL_RETURN_ON_FAILURE(
+      getDeviceCommandBufferUpdateCapabilities(CLDevice, UpdateCapabilities));
+  bool DeviceSupportsUpdate = UpdateCapabilities > 0;
 
   if (IsUpdatable && !DeviceSupportsUpdate) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -140,6 +141,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t /*numKernelAlternatives*/,
+    ur_kernel_handle_t * /*phKernelAlternatives*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
@@ -175,7 +178,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   try {
     auto URCommandHandle =
         std::make_unique<ur_exp_command_buffer_command_handle_t_>(
-            hCommandBuffer, CommandHandle, workDim, pLocalWorkSize != nullptr);
+            hCommandBuffer, CommandHandle, hKernel, workDim,
+            pLocalWorkSize != nullptr);
     ur_exp_command_buffer_command_handle_t Handle = URCommandHandle.release();
     hCommandBuffer->CommandHandles.push_back(Handle);
     if (phCommandHandle) {
@@ -485,6 +489,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
 
+  // Kernel handle updates are not yet supported.
+  if (pUpdateKernelLaunch->hNewKernel != hCommand->Kernel) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ur_exp_command_buffer_handle_t hCommandBuffer = hCommand->hCommandBuffer;
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
 
@@ -497,27 +506,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (!hCommandBuffer->IsFinalized || !hCommandBuffer->IsUpdatable)
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
-  if (cl_uint NewWorkDim = pUpdateKernelLaunch->newWorkDim) {
-    // Error if work dim changes
-    if (NewWorkDim != hCommand->WorkDim) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error If Local size and not global size
-    if ((pUpdateKernelLaunch->pNewLocalWorkSize != nullptr) &&
-        (pUpdateKernelLaunch->pNewGlobalWorkSize == nullptr)) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error if local size non-nullptr and created with null
-    // or if local size nullptr and created with non-null
-    const bool IsNewLocalSizeNull =
-        pUpdateKernelLaunch->pNewLocalWorkSize == nullptr;
-    const bool IsOriginalLocalSizeNull = !hCommand->UserDefinedLocalSize;
-
-    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
+  if (pUpdateKernelLaunch->newWorkDim != hCommand->WorkDim &&
+      (!pUpdateKernelLaunch->pNewGlobalWorkOffset ||
+       !pUpdateKernelLaunch->pNewGlobalWorkSize)) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
   // Find the CL USM pointer arguments to the kernel to update

@@ -421,5 +421,6 @@ ur_result_t mapCLErrorToUR(cl_int Result);
 
 ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle);
 
-cl_int deviceSupportsURCommandBufferKernelUpdate(cl_device_id Dev,
-                                                 bool &Result);
+cl_int getDeviceCommandBufferUpdateCapabilities(
+    cl_device_id Dev,
+    ur_device_command_buffer_update_capability_flags_t &UpdateCapabilities);

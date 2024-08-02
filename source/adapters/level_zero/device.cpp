@@ -994,20 +994,34 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    // Update support requires being able to update kernel arguments and all
-    // aspects of the kernel NDRange.
-    const ze_mutable_command_exp_flags_t UpdateMask =
-        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    const auto ZeMutableCommandFlags =
+        Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags;
 
-    const bool KernelArgUpdateSupport =
-        (Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
-         UpdateMask) == UpdateMask;
-    return ReturnValue(KernelArgUpdateSupport &&
-                       Device->Platform->ZeMutableCmdListExt.Supported);
+    auto supportsFlags = [&](ze_mutable_command_exp_flags_t RequiredFlags) {
+      return (ZeMutableCommandFlags & RequiredFlags) == RequiredFlags;
+    };
+
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities = 0;
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS;
+    }
+    /* These capabilities are bundled together because, when the user updates
+     * the global work-size, the implementation might have to generate a new
+     * local work-size. This would require both mutable command flags to be set
+     * even though only the global work-size was explicitly updated. */
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
+                      ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE;
+    }
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
+    }
+    return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     // On L0 bindless images are supported.
