@@ -13,8 +13,8 @@
 // RUN: %{build} -o %t_vnni.out -DVNNI -ffp-model=precise
 // RUN: %{run} %t_vnni.out
 
-// RUN: %{build} -o %t.out -ffp-model=precise
-// RUN: %{run} %t.out
+// TODO: add row major compilation and run once Sub-group size 32
+// support becomes available in IGC for row major
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 

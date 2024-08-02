@@ -14,8 +14,6 @@
 // RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB 
 // RUN: %{run} %t_gpu.out
 
-// XFAIL: gpu
-
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"
