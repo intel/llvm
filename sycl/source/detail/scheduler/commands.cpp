@@ -3162,8 +3162,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue->getContextImplPtr() ==
-              AllocaCmd->getQueue()->getContextImplPtr()) {
+          if (getContext(HostTask->MQueue) ==
+              getContext(AllocaCmd->getQueue())) {
             auto MemArg = reinterpret_cast<ur_mem_handle_t>(
                 AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3177,7 +3177,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available ");
+            "Can't get memory object due to no allocation available " +
+                codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -3312,7 +3313,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
                  OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
@@ -3326,7 +3327,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
                  OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;

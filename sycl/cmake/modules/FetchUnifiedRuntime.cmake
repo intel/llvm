@@ -23,6 +23,9 @@ option(SYCL_PI_UR_USE_FETCH_CONTENT
 set(SYCL_PI_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
+option(SYCL_UMF_DISABLE_HWLOC
+  "Disable hwloc support in UMF" ON)
+
 # Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
@@ -112,14 +115,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b7b0c8b3d17aa7d511c67ec219d58091d07cfa60
-  # Merge: 2baf0951 5b8936da
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Jul 26 15:48:04 2024 +0200
-  #     Merge pull request #1903 from kswiecicki/umf-version-bump
-  #     Bump UMF version again
-  set(UNIFIED_RUNTIME_TAG b7b0c8b3d17aa7d511c67ec219d58091d07cfa60)
+set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e
+  # Merge: c805a71a a2a053de
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Jul 31 12:26:34 2024 +0100
+  #     Merge pull request #1884 from callumfare/callum/fix_printtrace
+  #     Enable PrintTrace when SYCL UR tracing is enabled
+  set(UNIFIED_RUNTIME_TAG 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -127,6 +130,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   if(WIN32)
     set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
     set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  else()
+    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
 
   fetch_adapter_source(level_zero
