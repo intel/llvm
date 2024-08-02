@@ -359,7 +359,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
   { // Properties related to virtual functions
     StringSet<> UsedVFSets;
-    bool ProvidesVFSet = false;
+    bool AddedVFSetProperty = false;
     for (const Function &F : M) {
       if (F.isDeclaration())
         continue;
@@ -368,7 +368,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
         PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
                     "virtual-functions-set",
                     F.getFnAttribute("indirectly-callable").getValueAsString());
-        ProvidesVFSet = true;
+        AddedVFSetProperty = true;
         // Device code split should ensure that virtual functions that belong
         // to different sets are split into separate device images and hence
         // there is no need to scan other functions.
@@ -376,10 +376,6 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       if (F.hasFnAttribute("calls-indirectly")) {
-        assert(
-            !ProvidesVFSet &&
-            "device image with kernels with calls-indirectly attr should not "
-            "contain function definitions with indirectly-callable attr");
         SmallVector<StringRef, 4> Sets;
         F.getFnAttribute("calls-indirectly")
             .getValueAsString()
@@ -390,7 +386,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
     }
 
     if (!UsedVFSets.empty()) {
-      assert(!ProvidesVFSet &&
+      assert(!AddedVFSetProperty &&
              "device image cannot have both virtual-functions-set and "
              "uses-virtual-functions-set property");
       SmallString<128> AllSets;
