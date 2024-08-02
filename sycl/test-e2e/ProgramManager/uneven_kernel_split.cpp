@@ -1,4 +1,4 @@
-// REQUIRES: gpu, opencl-aot, ocloc
+// REQUIRES: any-device-is-cpu, gpu, opencl-aot, ocloc
 // UNSUPPORTED: cuda, hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o

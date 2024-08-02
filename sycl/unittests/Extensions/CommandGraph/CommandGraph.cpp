@@ -167,7 +167,7 @@ TEST_F(CommandGraphTest, GetCGCopy) {
   auto Node2Imp = sycl::detail::getSyclObjImpl(Node2);
   auto Node2CGCopy = Node2Imp->getCGCopy();
   ASSERT_EQ(Node2CGCopy->getType(), Node2Imp->MCGType);
-  ASSERT_EQ(Node2CGCopy->getType(), sycl::detail::CG::Kernel);
+  ASSERT_EQ(Node2CGCopy->getType(), sycl::detail::CGType::Kernel);
   ASSERT_EQ(Node2CGCopy->getType(), Node2Imp->MCommandGroup->getType());
   ASSERT_EQ(Node2CGCopy->getAccStorage(),
             Node2Imp->MCommandGroup->getAccStorage());

@@ -9,14 +9,14 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
 TEST_F(SchedulerTest, FailedDependency) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   queue Queue(context(Plt), default_selector_v);
 
   detail::Requirement MockReq = getMockRequirement();
@@ -44,10 +44,9 @@ TEST_F(SchedulerTest, FailedDependency) {
       << "MDep should be marked as failed\n";
 }
 
-void RunWithFailedCommandsAndCheck(unittest::PiMock &Mock,
-                                   bool SyncExceptionExpected,
+void RunWithFailedCommandsAndCheck(bool SyncExceptionExpected,
                                    int AsyncExceptionCountExpected) {
-  platform Plt = Mock.getPlatform();
+  platform Plt = sycl::platform();
   int ExceptionListSize = 0;
   sycl::async_handler AsyncHandler =
       [&ExceptionListSize](sycl::exception_list ExceptionList) {
@@ -72,32 +71,18 @@ void RunWithFailedCommandsAndCheck(unittest::PiMock &Mock,
   EXPECT_EQ(ExceptionListSize, AsyncExceptionCountExpected);
 }
 
-inline pi_result failingEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                            const size_t *, const size_t *,
-                                            const size_t *,
-                                            pi_uint32 EventsCount,
-                                            const pi_event *, pi_event *) {
-  return PI_ERROR_UNKNOWN;
-}
+ur_result_t failingUrCall(void *) { return UR_RESULT_ERROR_UNKNOWN; }
 
 TEST_F(SchedulerTest, FailedKernelException) {
-  unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
-      failingEnqueueKernelLaunch);
-  RunWithFailedCommandsAndCheck(Mock, true, 0);
-}
-
-inline pi_result
-failingEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
-                            pi_bool blocking_read, size_t offset, size_t size,
-                            void *ptr, pi_uint32 num_events_in_wait_list,
-                            const pi_event *event_wait_list, pi_event *event) {
-  return PI_ERROR_UNKNOWN;
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &failingUrCall);
+  RunWithFailedCommandsAndCheck(true, 0);
 }
 
 TEST_F(SchedulerTest, FailedCopyBackException) {
-  unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferRead>(
-      failingEnqueueMemBufferRead);
-  RunWithFailedCommandsAndCheck(Mock, false, 1);
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferRead",
+                                           &failingUrCall);
+  RunWithFailedCommandsAndCheck(false, 1);
 }

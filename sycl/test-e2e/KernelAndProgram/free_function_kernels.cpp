@@ -14,40 +14,6 @@
 
 using namespace sycl;
 
-// Kernel finder.
-class KernelFinder {
-  queue &Queue;
-  std::vector<kernel_id> AllKernelIDs;
-
-public:
-  KernelFinder(queue &Q) : Queue(Q) {
-    // Obtain kernel bundle
-    kernel_bundle Bundle =
-        get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-    std::cout << "Bundle obtained\n";
-    AllKernelIDs = get_kernel_ids();
-    std::cout << "Number of kernels = " << AllKernelIDs.size() << std::endl;
-    for (auto K : AllKernelIDs) {
-      std::cout << "Kernel obtained: " << K.get_name() << std::endl;
-    }
-    std::cout << std::endl;
-  }
-
-  kernel get_kernel(const char *name) {
-    kernel_bundle Bundle =
-        get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-    for (auto K : AllKernelIDs) {
-      auto Kname = K.get_name();
-      if (strcmp(name, Kname) == 0) {
-        kernel Kernel = Bundle.get_kernel(K);
-        return Kernel;
-      }
-    }
-    std::cout << "No kernel named " << name << " found\n";
-    exit(1);
-  }
-};
-
 void printUSM(int *usmPtr, int size) {
   std::cout << "usmPtr[] = {";
   for (int i = 0; i < size; i++) {
@@ -80,15 +46,15 @@ bool checkUSM(int *usmPtr, int size, int *Result) {
   return false;
 }
 
-SYCL_EXTERNAL
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    (ext::oneapi::experimental::single_task_kernel))
-void ff_0(int *ptr, int start, int end) {
+extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel)) void ff_0(int *ptr,
+                                                               int start,
+                                                               int end) {
   for (int i = start; i <= end; i++)
     ptr[i] = start + end;
 }
 
-bool test_0(queue Queue, KernelFinder &KF) {
+bool test_0(queue Queue) {
   constexpr int Range = 10;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -107,7 +73,12 @@ bool test_0(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_0Piii");
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<ff_0>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -116,10 +87,11 @@ bool test_0(queue Queue, KernelFinder &KF) {
     Handler.single_task(Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -133,7 +105,7 @@ void ff_1(int *ptr, int start, int end) {
   ptr[GId.get(0)] = GId.get(0) + start + end;
 }
 
-bool test_1(queue Queue, KernelFinder &KF) {
+bool test_1(queue Queue) {
   constexpr int Range = 10;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -151,7 +123,13 @@ bool test_1(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Piii");
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(int *, int, int))ff_1>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -160,10 +138,11 @@ bool test_1(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -179,7 +158,7 @@ void ff_1(int *ptr, int start) {
   ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
-bool test_2(queue Queue, KernelFinder &KF) {
+bool test_2(queue Queue) {
   constexpr int Range = 16;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
@@ -200,7 +179,13 @@ bool test_2(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_1Pii");
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(int *, int))ff_1>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -208,10 +193,11 @@ bool test_2(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
@@ -229,7 +215,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
 // Explicit instantiation with “int*”.
 template void ff_3(int *ptr, int start);
 
-bool test_3(queue Queue, KernelFinder &KF) {
+bool test_3(queue Queue) {
   constexpr int Range = 16;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
@@ -250,7 +236,13 @@ bool test_3(queue Queue, KernelFinder &KF) {
   bool PassA = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_Z18__sycl_kernel_ff_3IiEvPT_S0_");
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(int *, int))ff_3<int>>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -258,22 +250,22 @@ bool test_3(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
+  PassB = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
+#endif
   return PassA && PassB;
 }
 
 int main() {
   queue Queue;
-  KernelFinder KF(Queue);
 
   bool Pass = true;
-  Pass &= test_0(Queue, KF);
-  Pass &= test_1(Queue, KF);
-  Pass &= test_2(Queue, KF);
-  Pass &= test_3(Queue, KF);
+  Pass &= test_0(Queue);
+  Pass &= test_1(Queue);
+  Pass &= test_2(Queue);
+  Pass &= test_3(Queue);
 
   return Pass ? 0 : 1;
 }

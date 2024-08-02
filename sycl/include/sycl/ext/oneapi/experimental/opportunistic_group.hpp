@@ -14,10 +14,10 @@
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp> // for this_sub_group
-#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
-#include <sycl/id.hpp>                        // for id
-#include <sycl/memory_enums.hpp>              // for memory_scope
-#include <sycl/range.hpp>                     // for range
+#include <sycl/ext/oneapi/sub_group_mask.hpp>        // for sub_group_mask
+#include <sycl/id.hpp>                               // for id
+#include <sycl/memory_enums.hpp>                     // for memory_scope
+#include <sycl/range.hpp>                            // for range
 #include <sycl/sub_group.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
