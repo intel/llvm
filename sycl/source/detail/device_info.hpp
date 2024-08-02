@@ -236,8 +236,9 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 // Specialization for queue_profiling. In addition to ur_queue level profiling,
 // urDeviceGetGlobalTimestamps is not supported, command_submit, command_start,
 // command_end will be calculated. See MFallbackProfiling
-template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(const DeviceImplPtr &Dev) {
+template <>
+struct get_device_info_impl<ur_bool_t, info::device::queue_profiling> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_queue_flags_t Properties;
     Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
                            UrInfoCode<info::device::queue_profiling>::value,
@@ -304,9 +305,10 @@ struct get_device_info_impl<std::vector<memory_scope>,
 
 // Specialization for cuda cluster group
 template <>
-struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
-  static bool get(const DeviceImplPtr &Dev) {
-    bool result = false;
+struct get_device_info_impl<ur_bool_t,
+                            info::device::ext_oneapi_cuda_cluster_group> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
+    ur_bool_t result = false;
     if (Dev->getBackend() == backend::ext_oneapi_cuda) {
       auto Err = Dev->getPlugin()->call_nocheck(
           urDeviceGetInfo, Dev->getHandleRef(),
@@ -374,7 +376,7 @@ struct get_device_info_impl<std::vector<std::string>,
   }
 };
 
-static bool is_sycl_partition_property(info::partition_property PP) {
+static ur_bool_t is_sycl_partition_property(info::partition_property PP) {
   switch (PP) {
   case info::partition_property::no_partition:
   case info::partition_property::partition_equally:
@@ -523,8 +525,9 @@ struct get_device_info_impl<std::vector<size_t>,
 // Here we step away from OpenCL, since there is no appropriate cl_device_info
 // enum for global pipes feature.
 template <>
-struct get_device_info_impl<bool, info::device::kernel_kernel_pipe_support> {
-  static bool get(const DeviceImplPtr &Dev) {
+struct get_device_info_impl<ur_bool_t,
+                            info::device::kernel_kernel_pipe_support> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     // We claim, that all Intel FPGA devices support kernel to kernel pipe
     // feature (at least at the scope of SYCL_INTEL_data_flow_pipes extension).
     platform plt =
@@ -1081,8 +1084,9 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
 };
 
 // Specialization for image_support
-template <> struct get_device_info_impl<bool, info::device::image_support> {
-  static bool get(const DeviceImplPtr &) {
+template <>
+struct get_device_info_impl<ur_bool_t, info::device::image_support> {
+  static ur_bool_t get(const DeviceImplPtr &) {
     // No devices currently support SYCL 2020 images.
     return false;
   }
@@ -1093,8 +1097,8 @@ template <> struct get_device_info_impl<bool, info::device::image_support> {
 // Specialization for device usm query.
 
 template <>
-struct get_device_info_impl<bool, info::device::usm_device_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+struct get_device_info_impl<ur_bool_t, info::device::usm_device_allocations> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err = Dev->getPlugin()->call_nocheck(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -1110,8 +1114,8 @@ struct get_device_info_impl<bool, info::device::usm_device_allocations> {
 // Specialization for host usm query.
 
 template <>
-struct get_device_info_impl<bool, info::device::usm_host_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+struct get_device_info_impl<ur_bool_t, info::device::usm_host_allocations> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err = Dev->getPlugin()->call_nocheck(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -1126,8 +1130,8 @@ struct get_device_info_impl<bool, info::device::usm_host_allocations> {
 
 // Specialization for shared usm query.
 template <>
-struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+struct get_device_info_impl<ur_bool_t, info::device::usm_shared_allocations> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err = Dev->getPlugin()->call_nocheck(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -1141,9 +1145,9 @@ struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
 
 // Specialization for restricted usm query
 template <>
-struct get_device_info_impl<bool,
+struct get_device_info_impl<ur_bool_t,
                             info::device::usm_restricted_shared_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err = Dev->getPlugin()->call_nocheck(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -1160,8 +1164,8 @@ struct get_device_info_impl<bool,
 
 // Specialization for system usm query
 template <>
-struct get_device_info_impl<bool, info::device::usm_system_allocations> {
-  static bool get(const DeviceImplPtr &Dev) {
+struct get_device_info_impl<ur_bool_t, info::device::usm_system_allocations> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
     ur_result_t Err = Dev->getPlugin()->call_nocheck(
         urDeviceGetInfo, Dev->getHandleRef(),
@@ -1176,8 +1180,8 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
 // Specialization for kernel fusion support
 template <>
 struct get_device_info_impl<
-    bool, ext::codeplay::experimental::info::device::supports_fusion> {
-  static bool get(const DeviceImplPtr &Dev) {
+    ur_bool_t, ext::codeplay::experimental::info::device::supports_fusion> {
+  static ur_bool_t get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
     // If the JIT library can't be loaded or entry points in the JIT library
     // can't be resolved, fusion is not available.

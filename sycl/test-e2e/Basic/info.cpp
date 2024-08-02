@@ -257,7 +257,7 @@ int main() {
   print_info<info::device::address_bits, std::uint32_t>(dev, "Address bits");
   print_info<info::device::max_mem_alloc_size, std::uint64_t>(
       dev, "Max mem alloc size");
-  print_info<info::device::image_support, bool>(dev, "Image support");
+  print_info<info::device::image_support, ur_bool_t>(dev, "Image support");
   print_info<info::device::max_read_image_args, std::uint32_t>(
       dev, "Max read image args");
   print_info<info::device::max_write_image_args, std::uint32_t>(
@@ -300,22 +300,23 @@ int main() {
       dev, "Local mem type");
   print_info<info::device::local_mem_size, std::uint64_t>(dev,
                                                           "Local mem size");
-  print_info<info::device::error_correction_support, bool>(
+  print_info<info::device::error_correction_support, ur_bool_t>(
       dev, "Error correction support");
-  print_info<info::device::host_unified_memory, bool>(dev,
-                                                      "Host unified memory");
+  print_info<info::device::host_unified_memory, ur_bool_t>(
+      dev, "Host unified memory");
   print_info<info::device::profiling_timer_resolution, size_t>(
       dev, "Profiling timer resolution");
-  print_info<info::device::is_endian_little, bool>(dev, "Is endian little");
-  print_info<info::device::is_available, bool>(dev, "Is available");
-  print_info<info::device::is_compiler_available, bool>(
+  print_info<info::device::is_endian_little, ur_bool_t>(dev,
+                                                        "Is endian little");
+  print_info<info::device::is_available, ur_bool_t>(dev, "Is available");
+  print_info<info::device::is_compiler_available, ur_bool_t>(
       dev, "Is compiler available");
-  print_info<info::device::is_linker_available, bool>(dev,
-                                                      "Is linker available");
+  print_info<info::device::is_linker_available, ur_bool_t>(
+      dev, "Is linker available");
   print_info<info::device::execution_capabilities,
              std::vector<info::execution_capability>>(dev,
                                                       "Execution capabilities");
-  print_info<info::device::queue_profiling, bool>(dev, "Queue profiling");
+  print_info<info::device::queue_profiling, ur_bool_t>(dev, "Queue profiling");
   print_info<info::device::built_in_kernels, std::vector<std::string>>(
       dev, "Built in kernels");
   print_info<info::device::platform, platform>(dev, "Platform");
@@ -332,7 +333,7 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  print_info<info::device::preferred_interop_user_sync, bool>(
+  print_info<info::device::preferred_interop_user_sync, ur_bool_t>(
       dev, "Preferred interop user sync");
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");

@@ -105,9 +105,9 @@ __SYCL_PARAM_TRAITS_SPEC(device, local_mem_type, info::local_mem_type,
                          UR_DEVICE_INFO_LOCAL_MEM_TYPE)
 __SYCL_PARAM_TRAITS_SPEC(device, local_mem_size, uint64_t,
                          UR_DEVICE_INFO_LOCAL_MEM_SIZE)
-__SYCL_PARAM_TRAITS_SPEC(device, error_correction_support, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, error_correction_support, ur_bool_t,
                          UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, host_unified_memory, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, host_unified_memory, ur_bool_t,
                          UR_DEVICE_INFO_HOST_UNIFIED_MEMORY)
 __SYCL_PARAM_TRAITS_SPEC(device, atomic_memory_order_capabilities,
                          std::vector<sycl::memory_order>,
@@ -123,17 +123,17 @@ __SYCL_PARAM_TRAITS_SPEC(device, atomic_fence_scope_capabilities,
                          UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES)
 __SYCL_PARAM_TRAITS_SPEC(device, profiling_timer_resolution, size_t,
                          UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION)
-__SYCL_PARAM_TRAITS_SPEC(device, is_endian_little, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, is_endian_little, ur_bool_t,
                          UR_DEVICE_INFO_ENDIAN_LITTLE)
-__SYCL_PARAM_TRAITS_SPEC(device, is_available, bool,UR_DEVICE_INFO_AVAILABLE)
-__SYCL_PARAM_TRAITS_SPEC(device, is_compiler_available, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, is_available, ur_bool_t,UR_DEVICE_INFO_AVAILABLE)
+__SYCL_PARAM_TRAITS_SPEC(device, is_compiler_available, ur_bool_t,
                          UR_DEVICE_INFO_COMPILER_AVAILABLE)
-__SYCL_PARAM_TRAITS_SPEC(device, is_linker_available, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, is_linker_available, ur_bool_t,
                          UR_DEVICE_INFO_LINKER_AVAILABLE)
 __SYCL_PARAM_TRAITS_SPEC(device, execution_capabilities,
                          std::vector<info::execution_capability>,
                          UR_DEVICE_INFO_EXECUTION_CAPABILITIES)
-__SYCL_PARAM_TRAITS_SPEC(device, queue_profiling, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, queue_profiling, ur_bool_t,
                          UR_DEVICE_INFO_QUEUE_PROPERTIES)
 __SYCL_PARAM_TRAITS_SPEC(device, built_in_kernel_ids,
                          std::vector<sycl::kernel_id>, UR_DEVICE_INFO_FORCE_UINT32)
@@ -153,7 +153,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, extensions, std::vector<std::string>,
                          UR_DEVICE_INFO_EXTENSIONS)
 __SYCL_PARAM_TRAITS_SPEC(device, printf_buffer_size, size_t,
                          UR_DEVICE_INFO_PRINTF_BUFFER_SIZE)
-__SYCL_PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, preferred_interop_user_sync, ur_bool_t,
                          UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC)
 __SYCL_PARAM_TRAITS_SPEC(device, partition_max_sub_devices, uint32_t,
                          UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES)
@@ -176,36 +176,36 @@ __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, parent_device, sycl::device,
 __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, aspects,
                                      std::vector<sycl::aspect>,
                                      UR_DEVICE_INFO_FORCE_UINT32)
-__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, image_support, bool,
+__SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(device, image_support, ur_bool_t,
                                      UR_DEVICE_INFO_FORCE_UINT32)
 
 // Extensions/deprecated
-__SYCL_PARAM_TRAITS_SPEC(device, atomic64, bool,UR_DEVICE_INFO_ATOMIC_64)
-__SYCL_PARAM_TRAITS_SPEC(device, kernel_kernel_pipe_support, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, atomic64, ur_bool_t,UR_DEVICE_INFO_ATOMIC_64)
+__SYCL_PARAM_TRAITS_SPEC(device, kernel_kernel_pipe_support, ur_bool_t,
                          UR_DEVICE_INFO_FORCE_UINT32)
 __SYCL_PARAM_TRAITS_SPEC(device, reference_count, uint32_t,
                          UR_DEVICE_INFO_REFERENCE_COUNT)
 // To be dropped (has alternatives/not needed)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_device_allocations, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, usm_device_allocations, ur_bool_t,
                          UR_DEVICE_INFO_USM_DEVICE_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_host_allocations, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, usm_host_allocations, ur_bool_t,
                          UR_DEVICE_INFO_USM_HOST_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_shared_allocations, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, usm_shared_allocations, ur_bool_t,
                          UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_restricted_shared_allocations, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, usm_restricted_shared_allocations, ur_bool_t,
                          UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT)
-__SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, ur_bool_t,
                          UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT)
 __SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,
                          UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
 // To be dropped (no alternatives)
 __SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string, __SYCL_TRAIT_HANDLED_IN_RT)
 // Extensions
-__SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, ur_bool_t,
                          UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, ur_bool_t,
                          UR_DEVICE_INFO_IMAGE_SRGB)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, ur_bool_t,
                          UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT)
 
 //Deprecated oneapi/intel extension
@@ -234,7 +234,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>, __SYCL_TR
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
                          UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t, __SYCL_TRAIT_HANDLED_IN_RT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, bool,
+__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_cuda_cluster_group, ur_bool_t,
                          UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP)
 
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

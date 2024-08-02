@@ -161,7 +161,8 @@ device::get_info_impl<info::device::aspects>() const {
 }
 
 template <>
-__SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
+__SYCL_EXPORT ur_bool_t
+device::get_info_impl<info::device::image_support>() const {
   // Explicit specialization is needed due to the class of info handle. The
   // implementation is done in get_device_info_impl.
   return impl->template get_info<info::device::image_support>();
