@@ -164,7 +164,7 @@ if(UR_ENABLE_SANITIZER)
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
         )
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
-        target_link_libraries(ur_loader PRIVATE LLVMSymbolize)
+        target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
     endif()
 
     target_include_directories(ur_loader PRIVATE
