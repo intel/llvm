@@ -11148,7 +11148,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
       // Note: For AMD targets, we do not pass any SYCL device libraries.
-      if (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX()) {
+      // Restrict these libraries when embedding them during compile.
+      if (!Args.hasArg(options::OPT_sycl_embed_devicelib) &&
+          (TC->getTriple().isSPIROrSPIRV() || TC->getTriple().isNVPTX())) {
         TargetTriple = TC->getTriple();
         SmallVector<std::string, 8> SYCLDeviceLibs;
         bool IsSPIR = TargetTriple.isSPIROrSPIRV();

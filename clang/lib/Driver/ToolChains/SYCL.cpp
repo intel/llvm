@@ -298,7 +298,7 @@ getSYCLDeviceLibraries(const llvm::opt::ArgList &Args,
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
     // For NVidia or FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
-  if (IsNewOffload)
+  if (IsNewOffload && !Args.hasArg(options::OPT_sycl_embed_devicelib))
     // For new offload model, we use packaged .bc files.
     LibSuffix = IsWindowsMSVCEnv ? ".new.obj" : ".new.o";
   auto addLibraries = [&](const SYCLDeviceLibsList &LibsList,
