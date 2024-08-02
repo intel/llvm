@@ -1,8 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 // REQUIRES: windows
 
 // RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
-// RUN: %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
