@@ -613,6 +613,11 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableWrite(
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Src)) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
@@ -663,6 +668,11 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableRead(
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Dst)) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
