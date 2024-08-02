@@ -204,11 +204,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set
     for (const auto &F : M) {
-      if ( // A function that can be imported may still be defined in one split
-           // image. Only add import property if this is not the image where the
-           // function is defined.
-          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
+      // A function that can be imported may still be defined in one split
+      // image. Only add import property if this is not the image where the
+      // function is defined.
+      if (!F.isDeclaration())
+        continue;
 
+      // Even though virtual functions are considered to be imported by the
+      // function below, we shouldn't list them in the property because they
+      // use different mechanism for dynamic linking.
+      if (F.hasFnAttribute("indirectly-callable"))
+        continue;
+
+      if (module_split::canBeImportedFunction(F)) {
         // StripDeadPrototypes is called during module splitting
         // cleanup.  At this point all function decls should have uses.
         assert(!F.use_empty() && "Function F has no uses");

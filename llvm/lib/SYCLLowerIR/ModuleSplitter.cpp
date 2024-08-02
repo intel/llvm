@@ -665,17 +665,10 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
 
 // Predicate for Internalize pass.
 bool mustPreserveGV(const GlobalValue &GV) {
-  if (const Function *F = dyn_cast<Function>(&GV)) {
+  if (const Function *F = dyn_cast<Function>(&GV))
     if (!canBeImportedFunction(*F))
       return false;
 
-    // Virtual functions are marked with this attribute. They are outlined
-    // into separate device images where they may not have direct uses, but
-    // they have to be preserved anyway, because those device images are used
-    // later in runtime linking.
-    if (!F->isDeclaration() && F->hasFnAttribute("indirectly-callable"))
-      return true;
-  }
   return true;
 }
 
@@ -1363,11 +1356,6 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 bool canBeImportedFunction(const Function &F) {
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
       !llvm::sycl::utils::isSYCLExternalFunction(&F))
-    return false;
-
-  // Virtual functions should not be considered as imported, they use separate
-  // mechanism for dynamically linking them in to be available.
-  if (F.hasFnAttribute("indirectly-callable"))
     return false;
 
   bool ReturnValue = true;
