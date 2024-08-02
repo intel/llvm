@@ -87,7 +87,7 @@ public:
   std::string ModuleDependencyOutputDir;
 
   /// Dependency output which is prefixed with this string is filtered from
-  /// the dependency output. 
+  /// the dependency output.
   std::vector<std::string> DependencyFilter;
 
 public:
