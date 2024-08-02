@@ -4129,6 +4129,8 @@
 ?map@physical_mem@experimental@oneapi@ext@_V1@sycl@@QEBAPEAX_K0W4address_access_mode@23456@0@Z
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uexternal_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
+?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUexternal_mem@12345@_K1AEBVdevice@45@AEBVcontext@45@@Z
+?map_external_linear_memory@experimental@oneapi@ext@_V1@sycl@@YAPEAXUexternal_mem@12345@_K1AEBVqueue@45@@Z
 ?markBufferAsInternal@detail@_V1@sycl@@YAXAEBV?$shared_ptr@Vbuffer_impl@detail@_V1@sycl@@@std@@@Z
 ?mem_advise@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@PEAX_KHAEBUcode_location@detail@45@@Z
 ?mem_advise@handler@_V1@sycl@@QEAAXPEBX_KH@Z

@@ -171,7 +171,7 @@ image_mem_handle map_external_image_memory(external_mem extMem,
                                            const sycl::context &syclContext);
 
 /**
- *  @brief   Maps an external memory handle to an image memory handle (which may
+ *  @brief   Maps an external memory object to an image memory handle (which may
  *           have a device optimized memory layout)
  *
  *  @param   extMem      External memory object
@@ -183,6 +183,36 @@ __SYCL_EXPORT
 image_mem_handle map_external_image_memory(external_mem extMem,
                                            const image_descriptor &desc,
                                            const sycl::queue &syclQueue);
+
+/**
+ *  @brief   Maps an external memory object to a memory region described by the
+ *           returned void *
+ *
+ *  @param   extMem      External memory object
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclDevice  The device in which we create our image memory handle
+ *  @param   syclContext The context in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::device &syclDevice,
+                                 const sycl::context &syclContext);
+
+/**
+ *  @brief   Maps an external memory object to a memory region described by the
+ *           returned void *
+ *
+ *  @param   extMem      External memory object
+ *  @param   offset      Offset of memory region to map
+ *  @param   size        Size of memory region to map
+ *  @param   syclQueue   The queue in which we create our image memory handle
+ *  @return  Memory handle to externally allocated memory on the device
+ */
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external semaphore taking an external semaphore descriptor

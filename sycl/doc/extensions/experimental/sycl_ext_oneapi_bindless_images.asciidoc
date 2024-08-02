@@ -1712,19 +1712,35 @@ image_mem_handle map_external_image_memory(
     external_mem externalMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
+
+void *map_external_linear_memory(
+    external_mem externalMemHandle,
+    uint64_t size, uint64_t offset,
+    const sycl::device &syclDevice,
+    const sycl::context &syclContext);
+void *map_external_linear_memory(
+    external_mem externalMemHandle,
+    uint64_t size, uint64_t offset,
+    const sycl::queue &syclQueue);
 }
 ```
 
 The resulting `external_mem` can then be mapped, where the resulting type 
-is an `image_mem_handle`. This can be used to construct images in the same way 
-as memory allocated through `alloc_image_mem`. The `ext_oneapi_copy` operations 
-also work with imported memory mapped to `image_mem_handle` types.
+is an `image_mem_handle` or a `void *`. This can be used to construct images in
+the same way as memory allocated through `alloc_image_mem`, 
+`pitched_alloc_device`, or another USM allocation method. The `ext_oneapi_copy` 
+operations also work with imported memory mapped to `image_mem_handle` and 
+`void *` types.
 
-When calling `create_image` with an `image_mem_handle` mapped from an external 
-memory object, the user must ensure that the image descriptor they pass to 
-`create_image` has members that match or map to those of the external API. 
-A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `num_channels` members will result in undefined behavior.
+When calling `create_image` with an `image_mem_handle` or `void *` mapped from 
+an external memory object, the user must ensure that the image descriptor they 
+pass to `create_image` has members that match or map to those of the external 
+API. A mismatch between any of the `width`, `height`, `depth`, 
+`image_channel_type`, or `num_channels` members will result in undefined 
+behavior. Likewise, if the image is mapped to a linear USM (`void *`) region, 
+the pitch value passed to `create_image` needs to match the pitch of the image 
+as defined by the external API. Note that when external memory is mapped to a 
+linear USM region, this is device-side USM, and not accessible on the host.
 
 Additionally, the `image_type` describing the image must match to the image of 
 the external API. The current supported importable image types are `standard` 
@@ -2866,4 +2882,6 @@ These features still need to be handled:
                   - Removed `handle` keyword from `interop_xxx_handle` to 
                     clear up possible confusion between 3rd party interop 
                     handles and the imported `interop_xxx_handle`.
+|5.17|2024-07-30| - Add support for mapping external memory to linear USM using
+                    `map_external_linear_memory`.
 |======================

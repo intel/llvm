@@ -112,14 +112,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e
-  # Merge: c805a71a a2a053de
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
+  # Merge: 99489ad4 c86beb60
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 12:26:34 2024 +0100
-  #     Merge pull request #1884 from callumfare/callum/fix_printtrace
-  #     Enable PrintTrace when SYCL UR tracing is enabled
-  set(UNIFIED_RUNTIME_TAG 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e)
+  # Date:   Wed Jul 31 14:52:26 2024 +0100
+  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
+  #    [Bindless][Exp] Add interop memory mapping to USM.
+  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
