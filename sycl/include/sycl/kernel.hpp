@@ -16,13 +16,13 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/range.hpp>               // for range
+#include <ur_api.h>                     // for ur_native_handle_t
 #include <variant>                      // for hash
 
 namespace sycl {
@@ -167,10 +167,10 @@ private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   __SYCL_DEPRECATED("Use getNative() member function")
-  pi_native_handle getNativeImpl() const;
+  ur_native_handle_t getNativeImpl() const;
 
   std::shared_ptr<detail::kernel_impl> impl;
 

@@ -1,0 +1,10 @@
+# These two take too much time
+kernel_bundle
+marray
+# https://github.com/intel/llvm/issues/13477
+math_builtin_api
+# https://github.com/intel/llvm/issues/13574
+hierarchical
+# https://github.com/intel/llvm/issues/14819
+queue
+spec_constants

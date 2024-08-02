@@ -54,7 +54,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
-  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8
+  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
+  sycl_ext_codeplay_enqueue_native_command = 9
 };
 
 inline const char *
@@ -79,6 +80,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_bindless_images";
   case UGF::sycl_ext_oneapi_experimental_cuda_cluster_launch:
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
+  case UGF::sycl_ext_codeplay_enqueue_native_command:
+    return "sycl_ext_codeplay_enqueue_native_command";
   }
 
   assert(false && "Unhandled graphs feature");

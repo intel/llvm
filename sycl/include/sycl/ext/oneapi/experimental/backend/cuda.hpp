@@ -21,7 +21,7 @@ inline namespace _V1 {
 namespace ext::oneapi::cuda {
 
 // Implementation of ext_oneapi_cuda::make<device>
-inline __SYCL_EXPORT device make_device(pi_native_handle NativeHandle) {
+inline __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle) {
   return sycl::detail::make_device(NativeHandle, backend::ext_oneapi_cuda);
 }
 
@@ -74,7 +74,8 @@ inline device make_device<backend::ext_oneapi_cuda>(
       return dev;
     }
   }
-  pi_native_handle NativeHandle = static_cast<pi_native_handle>(BackendObject);
+  ur_native_handle_t NativeHandle =
+      static_cast<ur_native_handle_t>(BackendObject);
   return ext::oneapi::cuda::make_device(NativeHandle);
 }
 
@@ -83,7 +84,7 @@ template <>
 inline event make_event<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, event> &BackendObject,
     const context &TargetContext) {
-  return detail::make_event(detail::pi::cast<pi_native_handle>(BackendObject),
+  return detail::make_event(reinterpret_cast<ur_native_handle_t>(BackendObject),
                             TargetContext, true,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
@@ -95,7 +96,7 @@ inline queue make_queue<backend::ext_oneapi_cuda>(
     const context &TargetContext, const async_handler Handler) {
   int32_t nativeHandleDesc = 0;
   const property_list &PropList{};
-  return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
+  return detail::make_queue(reinterpret_cast<ur_native_handle_t>(BackendObject),
                             nativeHandleDesc, TargetContext, nullptr, true,
                             PropList, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);

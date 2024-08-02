@@ -13,6 +13,7 @@
 
 #include "internalization/Internalization.h"
 #include "kernel-fusion/SYCLKernelFusion.h"
+#include "kernel-fusion/SYCLSpecConstMaterializer.h"
 #include "kernel-info/SYCLKernelInfo.h"
 #include "syclcp/SYCLCP.h"
 
@@ -47,6 +48,12 @@ llvm::PassPluginLibraryInfo getSYCLKernelFusionPluginInfo() {
               }
               if (Name == "print-sycl-module-info") {
                 MPM.addPass(SYCLModuleInfoPrinter());
+                return true;
+              }
+              if (Name == "sycl-spec-const-materializer") {
+                FunctionPassManager FPM;
+                FPM.addPass(SYCLSpecConstMaterializer());
+                MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
                 return true;
               }
               return false;
