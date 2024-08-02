@@ -16,7 +16,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 123456;
+  constexpr std::size_t N = 12;
 #if defined(MALLOC_HOST)
   auto *array = sycl::malloc_host<double>(N, Q);
 #elif defined(MALLOC_SHARED)
@@ -34,7 +34,7 @@ int main() {
   // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on Host USM
   // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on Shared USM
-  // CHECK: {{READ of size 8 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(123456, 0, 0\)}}
+  // CHECK: {{READ of size 8 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(12, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_double.cpp:}}[[@LINE-7]]
 
   sycl::free(array, Q);

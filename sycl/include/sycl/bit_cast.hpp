@@ -61,7 +61,7 @@ constexpr
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;
-  sycl::detail::memcpy(&to, &from, sizeof(To));
+  sycl::detail::memcpy_no_adl(&to, &from, sizeof(To));
   return to;
 #endif
 }
