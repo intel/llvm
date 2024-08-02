@@ -36,8 +36,7 @@ jobs:
           - os: 'ubuntu-20.04'
             build_type: Release
             compiler: {c: gcc-7, cxx: g++-7}
-
-    runs-on: ${{matrix.os}}
+    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -49,6 +48,9 @@ jobs:
 
     - name: Install libhwloc
       run: .github/scripts/install_hwloc.sh
+
+    - name: Setup PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Install g++-7
       if: matrix.compiler.cxx == 'g++-7'
