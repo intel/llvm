@@ -30,7 +30,7 @@ The translator can be built with the latest(nightly) package of LLVM. For Ubuntu
 wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
 sudo apt-get update
-sudo apt-get install llvm-19-dev llvm-19-tools clang-19 libclang-19-dev
+sudo apt-get install llvm-20-dev llvm-20-tools clang-20 libclang-20-dev
 ```
 The installed version of LLVM will be used by default for out-of-tree build of the translator.
 ```
@@ -156,7 +156,7 @@ make test
 ```
 This requires that the `-DLLVM_SPIRV_INCLUDE_TESTS=ON` argument is
 passed to CMake during the build step. Additionally,
-`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-19/build/utils/lit/lit.py"` is
+`-DLLVM_EXTERNAL_LIT="/usr/lib/llvm-20/build/utils/lit/lit.py"` is
 needed when building with a pre-installed version of LLVM.
 
 The translator test suite can be disabled by passing
