@@ -842,7 +842,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms[BuiltProgram.get()] = &Img;
       for (RTDeviceBinaryImage *LinkedImg : DeviceImagesToLink) {
-        NativePrograms[BuiltProgram.get()] = LinkedImg;
+        NativePrograms.insert({BuiltProgram.get(), LinkedImg});
       }
     }
 
