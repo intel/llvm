@@ -16,10 +16,10 @@ if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()
 
-# If SYCL_ENABLE_PLUGINS is undefined, we default to enabling OpenCL and Level
-# Zero plugins.
-if (NOT DEFINED SYCL_ENABLE_PLUGINS)
-  set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
+# If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
+# Zero backends.
+if (NOT DEFINED SYCL_ENABLE_BACKENDS)
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
@@ -167,19 +167,19 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
 
 # Needed for feature_test.hpp
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_CUDA ON)
 endif()
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_HIP ON)
 endif()
-if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
 endif()
-if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
 
@@ -483,7 +483,7 @@ if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -495,7 +495,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
