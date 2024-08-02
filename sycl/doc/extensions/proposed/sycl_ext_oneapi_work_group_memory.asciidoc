@@ -457,7 +457,7 @@ constexpr size_t WGSIZE = 256;
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
 void mykernel(syclexp::work_group_memory<int[WGSIZE]> mem) {
-  size_t id = syclext::this_work_item::get_nd_item().get_local_linear_id();
+  size_t id = syclext::this_work_item::get_nd_item<1>().get_local_linear_id();
 
   // Each work-item has its own dedicated element of the device local memory
   // array.
