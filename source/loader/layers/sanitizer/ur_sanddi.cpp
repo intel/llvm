@@ -66,7 +66,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     }
 
     ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
-    if (result == UR_RESULT_SUCCESS) {
+    if (result == UR_RESULT_SUCCESS && phAdapters) {
         const uint32_t NumAdapters = pNumAdapters ? *pNumAdapters : NumEntries;
         for (uint32_t i = 0; i < NumAdapters; ++i) {
             UR_CALL(getContext()->interceptor->holdAdapter(phAdapters[i]));

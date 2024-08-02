@@ -186,6 +186,12 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnPVC();
     DestroyShadowMemoryOnDG2();
 
+    m_Quarantine = nullptr;
+    m_MemBufferMap.clear();
+    m_AllocationMap.clear();
+    m_KernelMap.clear();
+    m_ContextMap.clear();
+
     for (auto Adapter : m_Adapters) {
         getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
     }
