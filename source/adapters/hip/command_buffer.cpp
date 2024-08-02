@@ -78,7 +78,8 @@ ur_exp_command_buffer_command_handle_t_::
         ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
         hipGraphNode_t Node, hipKernelNodeParams Params, uint32_t WorkDim,
         const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
-        const size_t *LocalWorkSizePtr)
+        const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
+        ur_kernel_handle_t *KernelAlternatives)
     : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
       WorkDim(WorkDim), RefCountInternal(1), RefCountExternal(1) {
   CommandBuffer->incrementInternalReferenceCount();
@@ -97,6 +98,13 @@ ur_exp_command_buffer_command_handle_t_::
     const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
     std::memset(GlobalWorkOffset + WorkDim, 0, ZeroSize);
     std::memset(GlobalWorkSize + WorkDim, 0, ZeroSize);
+  }
+
+  /* Add the default Kernel as a valid kernel handle for this command */
+  ValidKernelHandles.insert(Kernel);
+  if (KernelAlternatives) {
+    ValidKernelHandles.insert(KernelAlternatives,
+                              KernelAlternatives + NumKernelAlternatives);
   }
 }
 
@@ -312,6 +320,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint,
@@ -321,8 +330,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
             UR_RESULT_ERROR_INVALID_KERNEL);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
+  for (uint32_t i = 0; i < numKernelAlternatives; ++i) {
+    UR_ASSERT(phKernelAlternatives[i] != hKernel,
+              UR_RESULT_ERROR_INVALID_VALUE);
+  }
 
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
@@ -388,8 +403,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     }
 
     auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
-        hCommandBuffer, hKernel,           GraphNode,       NodeParams,
-        workDim,        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize};
+        hCommandBuffer,      hKernel,        GraphNode,
+        NodeParams,          workDim,        pGlobalWorkOffset,
+        pGlobalWorkSize,     pLocalWorkSize, numKernelAlternatives,
+        phKernelAlternatives};
 
     NewCommand->incrementInternalReferenceCount();
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -832,68 +849,72 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
   return commandHandleReleaseInternal(hCommand);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
-    ur_exp_command_buffer_command_handle_t hCommand,
-    const ur_exp_command_buffer_update_kernel_launch_desc_t
-        *pUpdateKernelLaunch) {
-  // Update requires command-buffer to be finalized
-  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
-  if (!CommandBuffer->HIPGraphExec) {
+/**
+ * Validates contents of the update command description.
+ * @param[in] Command The command which is being updated.
+ * @param[in] UpdateCommandDesc The update command description.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+validateCommandDesc(ur_exp_command_buffer_command_handle_t Command,
+                    const ur_exp_command_buffer_update_kernel_launch_desc_t
+                        *UpdateCommandDesc) {
+
+  auto CommandBuffer = Command->CommandBuffer;
+
+  // Update requires the command-buffer to be finalized and updatable.
+  if (!CommandBuffer->HIPGraphExec || !CommandBuffer->IsUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
-  // Update requires command-buffer to be created with update enabled
-  if (!CommandBuffer->IsUpdatable) {
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (UpdateCommandDesc->newWorkDim != Command->WorkDim &&
+      (!UpdateCommandDesc->pNewGlobalWorkOffset ||
+       !UpdateCommandDesc->pNewGlobalWorkSize)) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  if (auto NewWorkDim = pUpdateKernelLaunch->newWorkDim) {
-    // Error if work dim changes
-    if (NewWorkDim != hCommand->WorkDim) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error If Local size and not global size
-    if ((pUpdateKernelLaunch->pNewLocalWorkSize != nullptr) &&
-        (pUpdateKernelLaunch->pNewGlobalWorkSize == nullptr)) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error if local size non-nullptr and created with null
-    // or if local size nullptr and created with non-null
-    const bool IsNewLocalSizeNull =
-        pUpdateKernelLaunch->pNewLocalWorkSize == nullptr;
-    const bool IsOriginalLocalSizeNull = hCommand->isNullLocalSize();
-
-    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
+  if (UpdateCommandDesc->hNewKernel &&
+      !Command->ValidKernelHandles.count(UpdateCommandDesc->hNewKernel)) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  // Kernel corresponding to the command to update
-  ur_kernel_handle_t Kernel = hCommand->Kernel;
-  ur_device_handle_t Device = CommandBuffer->Device;
+  return UR_RESULT_SUCCESS;
+}
+
+/**
+ * Updates the arguments of CommandDesc->hNewKernel
+ * @param[in] Device The device associated with the kernel being updated.
+ * @param[in] UpdateCommandDesc The update command description that contains
+ * the new kernel and its arguments.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+updateKernelArguments(ur_device_handle_t Device,
+                      const ur_exp_command_buffer_update_kernel_launch_desc_t
+                          *UpdateCommandDesc) {
+
+  ur_kernel_handle_t NewKernel = UpdateCommandDesc->hNewKernel;
 
   // Update pointer arguments to the kernel
-  uint32_t NumPointerArgs = pUpdateKernelLaunch->numNewPointerArgs;
+  uint32_t NumPointerArgs = UpdateCommandDesc->numNewPointerArgs;
   const ur_exp_command_buffer_update_pointer_arg_desc_t *ArgPointerList =
-      pUpdateKernelLaunch->pNewPointerArgList;
+      UpdateCommandDesc->pNewPointerArgList;
   for (uint32_t i = 0; i < NumPointerArgs; i++) {
     const auto &PointerArgDesc = ArgPointerList[i];
     uint32_t ArgIndex = PointerArgDesc.argIndex;
     const void *ArgValue = PointerArgDesc.pNewPointerArg;
 
     try {
-      Kernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
+      NewKernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
     } catch (ur_result_t Err) {
       return Err;
     }
   }
 
   // Update memobj arguments to the kernel
-  uint32_t NumMemobjArgs = pUpdateKernelLaunch->numNewMemObjArgs;
+  uint32_t NumMemobjArgs = UpdateCommandDesc->numNewMemObjArgs;
   const ur_exp_command_buffer_update_memobj_arg_desc_t *ArgMemobjList =
-      pUpdateKernelLaunch->pNewMemObjArgList;
+      UpdateCommandDesc->pNewMemObjArgList;
   for (uint32_t i = 0; i < NumMemobjArgs; i++) {
     const auto &MemobjArgDesc = ArgMemobjList[i];
     uint32_t ArgIndex = MemobjArgDesc.argIndex;
@@ -901,10 +922,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
     try {
       if (ArgValue == nullptr) {
-        Kernel->setKernelArg(ArgIndex, 0, nullptr);
+        NewKernel->setKernelArg(ArgIndex, 0, nullptr);
       } else {
         void *HIPPtr = std::get<BufferMem>(ArgValue->Mem).getVoid(Device);
-        Kernel->setKernelArg(ArgIndex, sizeof(void *), (void *)&HIPPtr);
+        NewKernel->setKernelArg(ArgIndex, sizeof(void *), (void *)&HIPPtr);
       }
     } catch (ur_result_t Err) {
       return Err;
@@ -912,9 +933,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   }
 
   // Update value arguments to the kernel
-  uint32_t NumValueArgs = pUpdateKernelLaunch->numNewValueArgs;
+  uint32_t NumValueArgs = UpdateCommandDesc->numNewValueArgs;
   const ur_exp_command_buffer_update_value_arg_desc_t *ArgValueList =
-      pUpdateKernelLaunch->pNewValueArgList;
+      UpdateCommandDesc->pNewValueArgList;
   for (uint32_t i = 0; i < NumValueArgs; i++) {
     const auto &ValueArgDesc = ArgValueList[i];
     uint32_t ArgIndex = ValueArgDesc.argIndex;
@@ -922,49 +943,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     const void *ArgValue = ValueArgDesc.pNewValueArg;
 
     try {
-      Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      NewKernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
     } catch (ur_result_t Err) {
       return Err;
     }
   }
 
-  // Set the updated ND range
-  const uint32_t NewWorkDim = pUpdateKernelLaunch->newWorkDim;
-  if (NewWorkDim != 0) {
-    UR_ASSERT(NewWorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-    UR_ASSERT(NewWorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-    hCommand->WorkDim = NewWorkDim;
+  return UR_RESULT_SUCCESS;
+}
+
+/**
+ * Updates the command buffer command with new values from the update
+ * description.
+ * @param[in] Command The command to be updated.
+ * @param[in] UpdateCommandDesc The update command description.
+ * @return UR_RESULT_SUCCESS or an error code on failure
+ */
+ur_result_t
+updateCommand(ur_exp_command_buffer_command_handle_t Command,
+              const ur_exp_command_buffer_update_kernel_launch_desc_t
+                  *UpdateCommandDesc) {
+
+  if (UpdateCommandDesc->hNewKernel) {
+    Command->Kernel = UpdateCommandDesc->hNewKernel;
   }
 
-  if (pUpdateKernelLaunch->pNewGlobalWorkOffset) {
-    hCommand->setGlobalOffset(pUpdateKernelLaunch->pNewGlobalWorkOffset);
+  if (UpdateCommandDesc->hNewKernel) {
+    Command->WorkDim = UpdateCommandDesc->newWorkDim;
   }
 
-  if (pUpdateKernelLaunch->pNewGlobalWorkSize) {
-    hCommand->setGlobalSize(pUpdateKernelLaunch->pNewGlobalWorkSize);
+  if (UpdateCommandDesc->pNewGlobalWorkOffset) {
+    Command->setGlobalOffset(UpdateCommandDesc->pNewGlobalWorkOffset);
   }
 
-  if (pUpdateKernelLaunch->pNewLocalWorkSize) {
-    hCommand->setLocalSize(pUpdateKernelLaunch->pNewLocalWorkSize);
+  if (UpdateCommandDesc->pNewGlobalWorkSize) {
+    Command->setGlobalSize(UpdateCommandDesc->pNewGlobalWorkSize);
+    if (!UpdateCommandDesc->pNewLocalWorkSize) {
+      Command->setNullLocalSize();
+    }
   }
 
-  size_t *GlobalWorkOffset = hCommand->GlobalWorkOffset;
-  size_t *GlobalWorkSize = hCommand->GlobalWorkSize;
+  if (UpdateCommandDesc->pNewLocalWorkSize) {
+    Command->setLocalSize(UpdateCommandDesc->pNewLocalWorkSize);
+  }
 
-  // If no worksize is provided make sure we pass nullptr to setKernelParams so
-  // it can guess the local work size.
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+
+  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
+
+  UR_CHECK_ERROR(validateCommandDesc(hCommand, pUpdateKernelLaunch));
+  UR_CHECK_ERROR(
+      updateKernelArguments(CommandBuffer->Device, pUpdateKernelLaunch));
+  UR_CHECK_ERROR(updateCommand(hCommand, pUpdateKernelLaunch));
+
+  // If no worksize is provided make sure we pass nullptr to setKernelParams
+  // so it can guess the local work size.
   const bool ProvidedLocalSize = !hCommand->isNullLocalSize();
   size_t *LocalWorkSize = ProvidedLocalSize ? hCommand->LocalWorkSize : nullptr;
-  uint32_t WorkDim = hCommand->WorkDim;
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
   size_t BlocksPerGrid[3] = {1u, 1u, 1u};
-  hipFunction_t HIPFunc = Kernel->get();
-  UR_CHECK_ERROR(setKernelParams(Device, WorkDim, GlobalWorkOffset,
-                                 GlobalWorkSize, LocalWorkSize, Kernel, HIPFunc,
-                                 ThreadsPerBlock, BlocksPerGrid));
+  hipFunction_t HIPFunc = hCommand->Kernel->get();
+  UR_CHECK_ERROR(setKernelParams(
+      CommandBuffer->Device, hCommand->WorkDim, hCommand->GlobalWorkOffset,
+      hCommand->GlobalWorkSize, LocalWorkSize, hCommand->Kernel, HIPFunc,
+      ThreadsPerBlock, BlocksPerGrid));
 
   hipKernelNodeParams &Params = hCommand->Params;
 
@@ -975,8 +1026,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   Params.blockDim.x = ThreadsPerBlock[0];
   Params.blockDim.y = ThreadsPerBlock[1];
   Params.blockDim.z = ThreadsPerBlock[2];
-  Params.sharedMemBytes = Kernel->getLocalSize();
-  Params.kernelParams = const_cast<void **>(Kernel->getArgIndices().data());
+  Params.sharedMemBytes = hCommand->Kernel->getLocalSize();
+  Params.kernelParams =
+      const_cast<void **>(hCommand->Kernel->getArgIndices().data());
 
   hipGraphNode_t Node = hCommand->Node;
   hipGraphExec_t HipGraphExec = CommandBuffer->HIPGraphExec;

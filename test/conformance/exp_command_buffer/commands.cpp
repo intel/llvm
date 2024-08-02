@@ -189,7 +189,7 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferAppendKernelLaunchExpTest);
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        &local_size, 0, nullptr, nullptr, nullptr));
+        &local_size, 0, nullptr, 0, nullptr, nullptr, nullptr));
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 

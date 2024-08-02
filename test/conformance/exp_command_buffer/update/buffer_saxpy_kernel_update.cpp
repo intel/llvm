@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include "../fixtures.h"
 #include <array>
 
 // Test that updating a command-buffer with a single kernel command
@@ -84,7 +84,8 @@ struct BufferSaxpyKernelTest
         // Append kernel command to command-buffer and close command-buffer
         ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
             updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-            &global_size, &local_size, 0, nullptr, nullptr, &command_handle));
+            &global_size, &local_size, 0, nullptr, 0, nullptr, nullptr,
+            &command_handle));
         ASSERT_NE(command_handle, nullptr);
 
         ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -130,7 +131,7 @@ struct BufferSaxpyKernelTest
     static constexpr size_t local_size = 4;
     static constexpr size_t global_size = 32;
     static constexpr size_t global_offset = 0;
-    static constexpr size_t n_dimensions = 1;
+    static constexpr uint32_t n_dimensions = 1;
     static constexpr uint32_t A = 42;
     std::array<ur_mem_handle_t, 5> buffers = {nullptr, nullptr, nullptr,
                                               nullptr};
@@ -184,10 +185,11 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
+        kernel,          // hNewKernel
         2,               // numNewMemObjArgs
         0,               // numNewPointerArgs
         1,               // numNewValueArgs
-        0,               // newWorkDim
+        n_dimensions,    // newWorkDim
         new_input_descs, // pNewMemObjArgList
         nullptr,         // pNewPointerArgList
         &new_A_desc,     // pNewValueArgList

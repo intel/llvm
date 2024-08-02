@@ -198,6 +198,8 @@ template <>
 inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t printFlag<ur_device_command_buffer_update_capability_flag_t>(std::ostream &os, uint32_t flag);
+template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_info_t value, size_t size);
 
 template <>
@@ -335,6 +337,7 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_external_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_external_semaphore_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_image_copy_region_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_command_buffer_update_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_command_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_desc_t params);
@@ -2541,8 +2544,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
         break;
-    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
-        os << "UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP";
+    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP:
+        os << "UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP";
         break;
     case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP:
         os << "UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP";
@@ -4049,15 +4052,16 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
-    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
-        if (sizeof(ur_bool_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+        const ur_device_command_buffer_update_capability_flags_t *tptr = (const ur_device_command_buffer_update_capability_flags_t *)ptr;
+        if (sizeof(ur_device_command_buffer_update_capability_flags_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_device_command_buffer_update_capability_flags_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
 
-        os << *tptr;
+        ur::details::printFlag<ur_device_command_buffer_update_capability_flag_t>(os,
+                                                                                  *tptr);
 
         os << ")";
     } break;
@@ -9701,6 +9705,103 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_image_copy
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_device_command_buffer_update_capability_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_command_buffer_update_capability_flag_t value) {
+    switch (value) {
+    case UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS:
+        os << "UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS";
+        break;
+    case UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE:
+        os << "UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE";
+        break;
+    case UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE:
+        os << "UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE";
+        break;
+    case UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET:
+        os << "UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET";
+        break;
+    case UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE:
+        os << "UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_command_buffer_update_capability_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_device_command_buffer_update_capability_flag_t>(std::ostream &os, uint32_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS) == (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS) {
+        val ^= (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS;
+    }
+
+    if ((val & UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE) == (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE) {
+        val ^= (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE;
+    }
+
+    if ((val & UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE) == (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE) {
+        val ^= (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE;
+    }
+
+    if ((val & UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET) == (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET) {
+        val ^= (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
+    }
+
+    if ((val & UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE) == (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE) {
+        val ^= (uint32_t)UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_command_buffer_info_t type
 /// @returns
 ///     std::ostream &
@@ -9952,6 +10053,12 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
 
     ur::details::printStruct(os,
                              (params.pNext));
+
+    os << ", ";
+    os << ".hNewKernel = ";
+
+    ur::details::printPtr(os,
+                          (params.hNewKernel));
 
     os << ", ";
     os << ".numNewMemObjArgs = ";
@@ -15950,6 +16057,23 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->ppLocalWorkSize));
+
+    os << ", ";
+    os << ".numKernelAlternatives = ";
+
+    os << *(params->pnumKernelAlternatives);
+
+    os << ", ";
+    os << ".phKernelAlternatives = {";
+    for (size_t i = 0; *(params->pphKernelAlternatives) != NULL && i < *params->pnumKernelAlternatives; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pphKernelAlternatives))[i]);
+    }
+    os << "}";
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
