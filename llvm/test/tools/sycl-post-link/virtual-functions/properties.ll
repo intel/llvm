@@ -15,10 +15,10 @@
 ; CHECK-IR0: define spir_func void @foo
 ; CHECK-IR1: define weak_odr dso_local spir_kernel void @kernel
 ; CHECK-PROPS0: [SYCL/virtual functions]
-; CHECK-PROPS0-NEXT: virtual-functions-set
+; CHECK-PROPS0-NEXT: virtual-functions-set=2|4AAAAAAAAAwclRXLm92b
 ; CHECK-PROPS0-NOT: uses-virtual-functions-set
 ; CHECK-PROPS1: [SYCL/virtual functions]
-; CHECK-PROPS1-NEXT: uses-virtual-functions-set
+; CHECK-PROPS1-NEXT: uses-virtual-functions-set=2|4AAAAAAAAAwclRXLm92b
 ; CHECK-PROPS1-NOT: virtual-functions-set
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
