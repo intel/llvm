@@ -13,14 +13,16 @@
 
 ; RUN: FileCheck %s --input-file=%t_0.ll --check-prefix=CHECK-IR0
 ; RUN: FileCheck %s --input-file=%t_1.ll --check-prefix=CHECK-IR1
-; RUN: FileCheck %s --input-file=%t_0.prop --check-prefix=CHECK-PROPS0
-; RUN: FileCheck %s --input-file=%t_1.prop --check-prefix=CHECK-PROPS1
+; RUN: FileCheck %s --input-file=%t_0.prop \
+; RUN:     --implicit-check-not "SYCL/exported functions" \
+; RUN:     --implicit-check-not "SYCL/imported functions"
+; RUN: FileCheck %s --input-file=%t_1.prop \
+; RUN:     --implicit-check-not "SYCL/exported functions" \
+; RUN:     --implicit-check-not "SYCL/imported functions"
 
 ; CHECK-IR0: define spir_func void @foo
 ; CHECK-IR1-DAG: declare spir_func void @foo
 ; CHECK-IR1-DAG: define weak_odr dso_local spir_kernel void @kernel
-; CHECK-PROPS0-NOT: [SYCL/exported functions]
-; CHECK-PROPS1-NOT: [SYCL/imported functions]
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64-G1"
 target triple = "spir64-unknown-unknown"

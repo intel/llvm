@@ -191,6 +191,10 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (GlobProps.EmitExportedSymbols) {
     // extract exported functions if any and save them into property set
     for (const auto *F : EntryPoints) {
+      // Virtual functions use different mechanism of dynamic linking, they
+      // should not be registered here.
+      if (F->hasFnAttribute("indirectly-callable"))
+        continue;
       // TODO FIXME some of SYCL/ESIMD functions maybe marked with __regcall CC,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
