@@ -97,25 +97,12 @@ namespace detail {
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self, typename T, int N, typename = void>
-struct ScalarConversionOperatorMixIn {};
-
-template <typename Self, typename T, int N>
-struct ScalarConversionOperatorMixIn<Self, T, N, std::enable_if_t<N == 1>> {
-  operator T() const { return (*static_cast<const Self *>(this))[0]; }
-};
-
-// Swizzle's `operator vec<DataT, NumElements>() const` has `NumElements > 1`
-// constraint.
-template <typename Self, typename T, int... Indexes>
-struct SwizzleToVectorConversionOperatorMixIn {
-  operator vec<T, sizeof...(Indexes)>() const {
-    int idx = 0;
-    return {(*static_cast<const Self *>(this))[(Indexes, idx++)]...};
+template <typename Self, typename To, bool Enable> struct ConversionOperatorMixin {};
+template <typename Self, typename To> struct ConversionOperatorMixin<Self, To, true> {
+  operator To() const {
+    return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
   }
 };
-template <typename Self, typename T, int SingleIndex>
-struct SwizzleToVectorConversionOperatorMixIn<Self, T, SingleIndex> {};
 
 // Everything could have been much easier if we had C++20 concepts, then all the
 // operators could be provided in a single mixin class with proper `requires`
@@ -782,11 +769,16 @@ template <typename VecT, int... Indexes>
 class __SYCL_EBO Swizzle
     : public SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
                          is_assignable_swizzle<VecT, Indexes...>>,
-      public ScalarConversionOperatorMixIn<Swizzle<VecT, Indexes...>,
-                                           typename VecT::element_type,
-                                           sizeof...(Indexes)>,
-      public SwizzleToVectorConversionOperatorMixIn<
-          Swizzle<VecT, Indexes...>, typename VecT::element_type, Indexes...>,
+      // Conversion to scalar DataT for single-element swizzles:
+      public ConversionOperatorMixin<Swizzle<VecT, Indexes...>,
+                                     typename VecT::element_type,
+                                     sizeof...(Indexes) == 1>,
+      // Conversion to sycl::vec, must be available only when `NumElements > 1`
+      // per the SYCL 2020 specification:
+      public ConversionOperatorMixin<
+          Swizzle<VecT, Indexes...>,
+          vec<typename VecT::element_type, sizeof...(Indexes)>,
+          (sizeof...(Indexes) > 1)>,
       public IncDecMixin<const Swizzle<VecT, Indexes...>,
                          typename VecT::element_type,
                          is_assignable_swizzle<VecT, Indexes...>>,
@@ -809,6 +801,21 @@ class __SYCL_EBO Swizzle
     int result = -1;
     ((result = counter++ == idx ? Indexes : result), ...);
     return result;
+  }
+
+  // This mixin calls `convertOperatorImpl` below so has to be a friend.
+  template <typename Self, typename To, bool Enable>
+  friend struct ConversionOperatorMixin;
+
+  template <class To> To convertOperatorImpl() const {
+    if constexpr (std::is_same_v<To, DataT> && NumElements == 1) {
+      return (*this)[0];
+    } else if constexpr (std::is_same_v<To, ResultVec> && NumElements > 1) {
+      return ResultVec{this->Vec[Indexes]...};
+    } else {
+      static_assert(!std::is_same_v<To, To>,
+                    "Must not be instantiated like this!");
+    }
   }
 
 public:
@@ -875,29 +882,29 @@ public:
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class __SYCL_EBO vec
-    : public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
-                                                   DataT, NumElements>,
-      public detail::IncDecMixin<vec<DataT, NumElements>, DataT,
-                                 /* AllowAssignOps = */ true>,
-      public detail::ByteShiftsMixin<
-          vec<DataT, NumElements>, vec<DataT, NumElements>, DataT, NumElements,
-          /* AllowAssignOps = */ true>,
-      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
-                                            NumElements>,
-      public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>,
-                                               vec<DataT, NumElements>,
-                                               detail::VectorImpl, DataT>,
-      public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>, DataT,
-                                               detail::VectorImpl, DataT>,
-      public detail::NonTemplateBinaryOpsMixin<DataT, vec<DataT, NumElements>,
-                                               detail::VectorImpl, DataT>,
-      public detail::UnaryOpsMixin<vec<DataT, NumElements>, detail::VectorImpl,
-                                   DataT>,
-      public detail::NonTemplateBinaryOpAssignOpsMixin<
-          vec<DataT, NumElements>, vec<DataT, NumElements>, DataT>,
-      public detail::NonTemplateBinaryOpAssignOpsMixin<vec<DataT, NumElements>,
-                                                       DataT, DataT> {
+class __SYCL_EBO vec :
+    // Conversion to scalar DataT for single-element vec:
+    public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
+                                           NumElements == 1>,
+    public detail::IncDecMixin<vec<DataT, NumElements>, DataT,
+                               /* AllowAssignOps = */ true>,
+    public detail::ByteShiftsMixin<vec<DataT, NumElements>,
+                                   vec<DataT, NumElements>, DataT, NumElements,
+                                   /* AllowAssignOps = */ true>,
+    public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>, NumElements>,
+    public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>,
+                                             vec<DataT, NumElements>,
+                                             detail::VectorImpl, DataT>,
+    public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>, DataT,
+                                             detail::VectorImpl, DataT>,
+    public detail::NonTemplateBinaryOpsMixin<DataT, vec<DataT, NumElements>,
+                                             detail::VectorImpl, DataT>,
+    public detail::UnaryOpsMixin<vec<DataT, NumElements>, detail::VectorImpl,
+                                 DataT>,
+    public detail::NonTemplateBinaryOpAssignOpsMixin<
+        vec<DataT, NumElements>, vec<DataT, NumElements>, DataT>,
+    public detail::NonTemplateBinaryOpAssignOpsMixin<vec<DataT, NumElements>,
+                                                     DataT, DataT> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -939,7 +946,17 @@ public:
 private:
 #endif // __SYCL_DEVICE_ONLY__
 
-  static constexpr int getNumElements() { return NumElements; }
+  template <typename Self, typename To, bool Enable>
+  friend struct detail::ConversionOperatorMixin;
+
+  template <class To> To convertOperatorImpl() const {
+    if constexpr (std::is_same_v<To, DataT> && NumElements == 1) {
+      return m_Data[0];
+    } else {
+      static_assert(!std::is_same_v<To, To>,
+                    "Must not be instantiated like this!");
+    }
+  }
 
   // SizeChecker is needed for vec(const argTN &... args) ctor to validate
   // args.
@@ -1148,11 +1165,14 @@ public:
     m_Data = sycl::bit_cast<DataType>(openclVector);
   }
 
-  /* @SYCL2020
-   * Available only when: compiled for the device.
-   * Converts this SYCL vec instance to the underlying backend-native vector
-   * type defined by vector_t.
-   */
+  // @SYCL2020
+  //  * Available only when: compiled for the device.
+  //  * Converts this SYCL vec instance to the underlying backend-native vector
+  //  * type defined by vector_t.
+  //
+  // Note, `vector_t` might be the same as `DataT` for single-element vectors.
+  // In this case this operator simply hides a duplicate one from the base class
+  // mixin allowing the code to compile cleanly.
   operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 #endif // __SYCL_DEVICE_ONLY__
 
