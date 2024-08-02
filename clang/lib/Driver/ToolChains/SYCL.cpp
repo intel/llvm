@@ -165,9 +165,10 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
-  // for Nvidia.
+  // for Nvidia and AMD.
   NeedLibs =
-      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
+      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX()
+      && !Triple.isAMDGCN();
   UseNative = false;
   if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       C.hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -212,12 +213,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
+  // For NVPTX and AMDGCN we only use one single bitcode library and ignore
+  // manually specified SYCL device libraries.
+  bool ignore_single_libs = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN();
+
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
   };
 
   bool NoDeviceLibs = false;
+
   // Currently, all SYCL device libraries will be linked by default. Linkage
   // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
@@ -233,10 +239,12 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
         NoDeviceLibs = true;
 
+      bool printUnusedLibWarning = false;
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = true && (!NoDeviceLibs || K == "internal");
+            DeviceLibLinkInfo[K] = (!ignore_single_libs && !NoDeviceLibs) || (K == "internal" && NoDeviceLibs) ;
+          printUnusedLibWarning = false;
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
@@ -247,10 +255,25 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
         }
-        DeviceLibLinkInfo[Val] = true && !NoDeviceLibs;
+        DeviceLibLinkInfo[Val] = true && !NoDeviceLibs && !ignore_single_libs;
+        printUnusedLibWarning = ignore_single_libs && !NoDeviceLibs && true;
       }
+      if (printUnusedLibWarning)
+        C.getDriver().Diag(diag::warn_ignored_clang_option)
+              << A->getSpelling() << A->getAsString(Args);
     }
   }
+
+  if (TargetTriple.isNVPTX() && !NoDeviceLibs) {
+    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+  }
+  if (TargetTriple.isAMDGCN() && !NoDeviceLibs) {
+    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
+  }
+
+  if (ignore_single_libs && !NoDeviceLibs)
+    return LibraryList;
+
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -304,10 +327,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX() ||
-      (TargetTriple.isSPIR() &&
+  if ((TargetTriple.isSPIR() &&
        TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
-    // For NVidia or FPGA, we are unbundling objects.
+    // For FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
@@ -323,7 +345,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT || TargetTriple.isNVPTX())
+  if (IsSpirvAOT)
     addLibraries(SYCLDeviceFallbackLibs);
 
   bool NativeBfloatLibs;
@@ -482,35 +504,19 @@ void SYCL::populateSYCLDeviceTraitsMacrosArgs(
 // The list should match pre-built SYCL device library files located in
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
-static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
-    "bfloat16",
-    "crt",
-    "cmath",
-    "cmath-fp64",
-    "complex",
-    "complex-fp64",
+static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
-    "msvc-math",
+      "msvc-math",
 #else
-    "sanitizer",
+      "sanitizer",
 #endif
-    "imf",
-    "imf-fp64",
-    "imf-bf16",
-    "itt-compiler-wrappers",
-    "itt-stubs",
-    "itt-user-wrappers",
-    "fallback-cassert",
-    "fallback-cstring",
-    "fallback-cmath",
-    "fallback-cmath-fp64",
-    "fallback-complex",
-    "fallback-complex-fp64",
-    "fallback-imf",
-    "fallback-imf-fp64",
-    "fallback-imf-bf16",
-    "fallback-bfloat16",
-    "native-bfloat16"};
+      "imf", "imf-fp64", "imf-bf16", "itt-compiler-wrappers", "itt-stubs",
+      "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
+      "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
+      "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
+};
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
@@ -551,7 +557,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX || IsFPGA) {
+      if (IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())

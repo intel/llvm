@@ -7,8 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../device_imf.hpp"
+#include "../device.h"
+
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_brev(unsigned int x) {
