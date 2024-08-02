@@ -106,11 +106,11 @@ void DX12InteropTest::importDX12SharedMemoryHandle(size_t allocationSize) {
       syclexp::external_mem_handle_type::win32_nt_dx12_resource,
       allocationSize};
 
-  m_syclInteropMemHandle =
+  m_syclExternalMemHandle =
       syclexp::import_external_memory(extMemDesc, m_syclQueue);
 
   m_syclImageMemHandle = syclexp::map_external_image_memory(
-      m_syclInteropMemHandle, m_syclImageDesc, m_syclQueue);
+      m_syclExternalMemHandle, m_syclImageDesc, m_syclQueue);
 
   m_syclImageHandle =
       syclexp::create_image(m_syclImageMemHandle, m_syclImageDesc, m_syclQueue);
@@ -121,7 +121,7 @@ void DX12InteropTest::importDX12SharedSemaphoreHandle() {
       extSemDesc{m_sharedSemaphoreHandle,
                  syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
 
-  m_syclInteropSemaphoreHandle =
+  m_syclExternalSemaphoreHandle =
       syclexp::import_external_semaphore(extSemDesc, m_syclQueue);
 }
 
@@ -129,7 +129,7 @@ void DX12InteropTest::callSYCLKernel() {
 
   // Wait for imported semaphore. This semaphore was signalled at the
   // end of `populateDX12Texture`.
-  m_syclQueue.ext_oneapi_wait_external_semaphore(m_syclInteropSemaphoreHandle,
+  m_syclQueue.ext_oneapi_wait_external_semaphore(m_syclExternalSemaphoreHandle,
                                                  m_sharedFenceValue);
 
   // We can't capture the image handle through `this` in the lambda.
@@ -164,7 +164,7 @@ void DX12InteropTest::callSYCLKernel() {
 
   // Signal imported semaphore.
   m_syclQueue.submit([&](sycl::handler &cgh) {
-    cgh.ext_oneapi_signal_external_semaphore(m_syclInteropSemaphoreHandle,
+    cgh.ext_oneapi_signal_external_semaphore(m_syclExternalSemaphoreHandle,
                                              m_sharedFenceValue);
   });
 
