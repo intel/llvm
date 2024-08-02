@@ -116,8 +116,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG devsan-add-missing-lib)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit c1d81628c49331b1dd7e14dc28be871f4ec6cf43
+  # Merge: 4f2ce7f0 7ce73878
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Aug 2 07:44:20 2024 +0200
+  #     Merge pull request #1920 from zhaomaosu/devsan-add-missing-lib
+  #     [DeviceSanitizer] Add missing required library
+  set(UNIFIED_RUNTIME_TAG c1d81628c49331b1dd7e14dc28be871f4ec6cf43)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
