@@ -100,7 +100,7 @@ void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
 
 template <typename Group, typename T, typename Properties>
 void joint_prefetch_impl(Group g, T *ptr, size_t bytes, Properties properties) {
-#ifdef __SYCL_DEVICE_ONLY__  && (defined(__SPIR__) || defined(__SPIRV__))
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
   if constexpr (std::is_same_v<std::decay_t<Group>, sycl::sub_group>) {
     // sub-group block prefetch behavior is defined for `bytes` which are power
     // of 2 in range [1, 64].

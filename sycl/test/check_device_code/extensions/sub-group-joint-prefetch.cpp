@@ -1,6 +1,7 @@
 // RUN: %clangxx -fsycl-device-only -S -emit-llvm %s -o - | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/sub_group.hpp>
+#include <sycl/ext/oneapi/experimental/prefetch.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
