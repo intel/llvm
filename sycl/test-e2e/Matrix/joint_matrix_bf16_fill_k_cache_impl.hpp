@@ -93,12 +93,13 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
       // KCache2/prefRow = 32/8 = 4 SGs on the row dimension
 #ifdef VNNI
           // In the VNNI case, each subgroup still gets prefRow x prefCol
-          // subgroups distribution become 16 on the row dimension and
-          // 2 on the  col dimension
-          // PVC case: NCache2*2/prefCol = 16, KCache2/prefRow   so NumSGs*2
-          // warps are needed for each row (512)
+          // In the PVC case: subgroups distribution become
+          // NCache2*2/prefCol = 16 subgroups on the col dimension and
+          // (KCache2/2)/prefRow = 2 on the row dimension
+          // (NCache2*2)/prefCol = 512/32 = 16 SGs on the column dimension and
+          // (KCache2/2)/prefRow = 16/8 = 2 SGs on the row dimension
           // pm1B and pn1B are used to identify the distribution of subgroups
-          // along the workgroup prefetch for B matrix for A matrix, sgId is
+          // along the workgroup prefetch for B matrix. For A matrix, sgId is
           // enough.
           size_t pm1B = sgId / 16;   // prefetch m1 (sgId/16)
           size_t pn1B = sgId & 0x15; // prefetch n1 (sgId%16)
@@ -117,7 +118,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           for (int p = 0; p < prefDistance; p++)
             joint_matrix_prefetch<prefRow, prefCol>(
                 sg,
-                B + (p * 16 + pm1B * prefRow) * colsB * vnniFactor +
+                B + (p * (KCache2 / 2) + pm1B * prefRow) * colsB * vnniFactor +
                     (n2 * NCache2 * vnniFactor + pn1B * prefCol),
                 colsB * vnniFactor, layout::row_major,
                 syclex::properties{syclex::prefetch_hint_L1});
@@ -125,7 +126,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           for (int p = 0; p < prefDistance; p++)
             joint_matrix_prefetch<prefRow, prefCol>(
                 sg,
-                B + (p * 32 + pm1B * prefRow) * colsB + n2 * NCache2 +
+                B + (p * KCache2 + pm1B * prefRow) * colsB + n2 * NCache2 +
                     pn1B * prefCol,
                 colsB, layout::row_major,
                 syclex::properties{syclex::prefetch_hint_L1});
@@ -276,7 +277,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 
 #ifdef VNNI
             auto prefetch_offsetB =
-                ((k2 + 3) * 16 + pm1B * prefRow) * (colsB)*vnniFactor +
+                ((k2 + prefDistance) * (KCache2 / 2) + pm1B * prefRow) *
+                    (colsB)*vnniFactor +
                 (n2 * NCache2 * vnniFactor + pn1B * prefCol);
             if ((prefetch_offsetB + (prefRow * MATRIX_SIZE * vnniFactor) +
                  prefCol) < (MATRIX_SIZE * MATRIX_SIZE))
@@ -285,8 +287,9 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
                   layout::row_major,
                   syclex::properties{syclex::prefetch_hint_L1});
 #else  // VNNI
-            auto prefetch_offsetB = ((k2 + 3) * 32 + pm1B * prefRow) * (colsB) +
-                                    (n2 * NCache2 + pn1B * prefCol);
+            auto prefetch_offsetB =
+                ((k2 + prefDistance) * KCache2 + pm1B * prefRow) * (colsB) +
+                (n2 * NCache2 + pn1B * prefCol);
             if ((prefetch_offsetB + (prefRow * MATRIX_SIZE) + prefCol) <
                 (MATRIX_SIZE * MATRIX_SIZE))
               joint_matrix_prefetch<prefRow, prefCol>(
@@ -409,7 +412,7 @@ int main() {
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
-      constexpr size_t NCache1 = 64;  // 32;
+      constexpr size_t NCache1 = 32;
       constexpr size_t KCache1 = 32;
 
       test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32, MCache1,
