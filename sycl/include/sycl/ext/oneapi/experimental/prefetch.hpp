@@ -68,9 +68,10 @@ template <access_mode mode>
 inline constexpr bool check_prefetch_acc_mode =
     mode == access_mode::read || mode == access_mode::read_write;
 
-template <typename T, typename Properties>
-void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
+template <typename T, typename Properties>
+const __attribute__((opencl_global)) char *
+getAnnotatedPtr(T *ptr, Properties properties) {
   auto *ptrGlobalAS = __SYCL_GenericCastToPtrExplicit_ToGlobal<const char>(ptr);
   const __attribute__((opencl_global)) char *ptrAnnotated = nullptr;
   if constexpr (!properties.template has_property<prefetch_hint_key>()) {
@@ -82,7 +83,14 @@ void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
         ptrGlobalAS, PropertyMetaInfo<decltype(prop)>::name,
         PropertyMetaInfo<decltype(prop)>::value);
   }
-  __spirv_ocl_prefetch(ptrAnnotated, bytes);
+  return ptrAnnotated;
+}
+#endif
+
+template <typename T, typename Properties>
+void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
+#ifdef __SYCL_DEVICE_ONLY__
+  __spirv_ocl_prefetch(getAnnotatedPtr(ptr, properties), bytes);
 #else
   std::ignore = ptr;
   std::ignore = bytes;
@@ -92,6 +100,28 @@ void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
 
 template <typename Group, typename T, typename Properties>
 void joint_prefetch_impl(Group g, T *ptr, size_t bytes, Properties properties) {
+#ifdef __SYCL_DEVICE_ONLY__  && (defined(__SPIR__) || defined(__SPIRV__))
+  if constexpr (std::is_same_v<std::decay_t<Group>, sycl::sub_group>) {
+    // sub-group block prefetch behavior is defined for `bytes` which are power
+    // of 2 in range [1, 64].
+    switch (bytes) {
+    case 1:
+    case 2:
+    case 4:
+    case 8:
+    case 16:
+    case 32:
+    case 64:
+      __spirv_SubgroupBlockPrefetchINTEL(getAnnotatedPtr(ptr, properties),
+                                         bytes);
+      return;
+
+    // Fallback to unoptimized prefetch for other sizes.
+    default:
+      break;
+    }
+  }
+#endif
   // Although calling joint_prefetch is functionally equivalent to calling
   // prefetch from every work-item in a group, native suppurt may be added to to
   // issue cooperative prefetches more efficiently on some hardware.
