@@ -191,7 +191,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (GlobProps.EmitExportedSymbols) {
     // extract exported functions if any and save them into property set
     for (const auto *F : EntryPoints) {
-      // Virtual functions use different mechanism of dynamic linking, they
+      // Virtual functions use a different mechanism of dynamic linking, they
       // should not be registered here.
       if (F->hasFnAttribute("indirectly-callable"))
         continue;

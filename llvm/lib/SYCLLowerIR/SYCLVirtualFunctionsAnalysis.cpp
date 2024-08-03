@@ -108,10 +108,10 @@ void collectVTablesThatUseFunction(
   for (const auto *U : V->users()) {
     // GlobalVariable is also a constant
     if (const auto *GV = dyn_cast<GlobalVariable>(U)) {
-      // Core SYCL specification prohibit ODR use of non-const global variables
-      // in SYCL kernels. There are extensions like device_global that lift some
-      // of the limitations, but we still assume that there are no globals that
-      // reference function pointers other than virtual tables.
+      // The core SYCL specification prohibits ODR use of non-const global
+      // variables in SYCL kernels. There are extensions like device_global that
+      // lift some of the limitations, but we still assume that there are no
+      // globals that reference function pointers other than virtual tables.
       VTables.push_back(GV);
     } else if (isa<ConstantExpr>(U)) {
       // Constant expression like

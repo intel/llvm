@@ -665,7 +665,6 @@ bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV))
     if (!canBeImportedFunction(*F))
       return false;
-
   return true;
 }
 
