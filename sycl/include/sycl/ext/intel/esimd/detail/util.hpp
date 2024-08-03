@@ -281,17 +281,28 @@ constexpr void check_wrregion_params() {
   check_rdregion_params<N, M, VStride, Width, Stride>();
 }
 
-template <int N, int... Rest> struct CompressedBitmask {
-  static constexpr auto &value =
-      CompressedBitmask<N - 1, ~((uint32_t(~0)) << N), Rest...>::value;
+// Generate an array of bitmasks for compressed load/store -- all 1 bits
+// strictly less than i -- [0 1 3 7 15 31 63 127 255 511 1023 2047 ... ]
+template <uint32_t... args> struct CompressedBitmask {
+  static const uint32_t value[sizeof...(args)];
 };
 
-template <int... Rest> struct CompressedBitmask<0, Rest...> {
-  static constexpr uint32_t value[] = {0, Rest...};
+template <uint32_t... args>
+const uint32_t CompressedBitmask<args...>::value[sizeof...(args)] = {args...};
+
+template <int N, unsigned... args> struct GenerateCompressedBitmaskImpl {
+  typedef
+      typename GenerateCompressedBitmaskImpl<N - 1, ~(((uint32_t)(~0)) << N),
+                                             args...>::value value;
 };
 
-template <int... Rest>
-constexpr uint32_t CompressedBitmask<0, Rest...>::value[];
+template <unsigned... args> struct GenerateCompressedBitmaskImpl<0, args...> {
+  typedef CompressedBitmask<0, args...> value;
+};
+
+template <int N> struct GenerateCompressedBitmask {
+  typedef typename GenerateCompressedBitmaskImpl<N - 1>::value value;
+};
 
 } // namespace ext::intel::esimd::detail
 } // namespace _V1
