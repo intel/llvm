@@ -118,7 +118,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           for (int p = 0; p < prefDistance; p++)
             joint_matrix_prefetch<prefRow, prefCol>(
                 sg,
-                B + (p * (KCache2 / 2) + pm1B * prefRow) * colsB * vnniFactor +
+                B + (p * (KCache2 / vnniFactor) + pm1B * prefRow) * colsB * vnniFactor +
                     (n2 * NCache2 * vnniFactor + pn1B * prefCol),
                 colsB * vnniFactor, layout::row_major,
                 syclex::properties{syclex::prefetch_hint_L1});
@@ -277,7 +277,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 
 #ifdef VNNI
             auto prefetch_offsetB =
-                ((k2 + prefDistance) * (KCache2 / 2) + pm1B * prefRow) *
+                ((k2 + prefDistance) * (KCache2 / vnniFactor) + pm1B * prefRow) *
                     (colsB)*vnniFactor +
                 (n2 * NCache2 * vnniFactor + pn1B * prefCol);
             if ((prefetch_offsetB + (prefRow * MATRIX_SIZE * vnniFactor) +
