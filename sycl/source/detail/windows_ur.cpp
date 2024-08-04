@@ -6,50 +6,36 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/dlopen_utils.hpp>
+
 #include <sycl/backend.hpp>
 #include <sycl/detail/defines.hpp>
 
 #include <cassert>
 #include <string>
 #include <windows.h>
-#include <winreg.h>
 
 #include "detail/windows_os_utils.hpp"
 #include "ur_win_proxy_loader.hpp"
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-namespace ur {
+namespace detail::ur {
 
-void *loadOsLibrary(const std::string &LibraryPath) {
-  // Tells the system to not display the critical-error-handler message box.
-  // Instead, the system sends the error to the calling process.
-  // This is crucial for graceful handling of shared libs that can't be
-  // loaded, e.g. due to missing native run-times.
-
-  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-  // Exclude current directory from DLL search path
-  if (!SetDllDirectoryA("")) {
-    assert(false && "Failed to update DLL search path");
-  }
-
-  auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
-  (void)SetErrorMode(SavedMode);
-  if (!SetDllDirectoryA(nullptr)) {
-    assert(false && "Failed to restore DLL search path");
-  }
+void *loadOsPluginLibrary(const std::string &PluginPath) {
+  // We fetch the preloaded plugin from the pi_win_proxy_loader.
+  // The proxy_loader handles any required error suppression.
+  auto Result = getPreloadedPlugin(PluginPath);
 
   return Result;
 }
 
-int unloadOsLibrary(void *Library) {
+int unloadOsPluginLibrary(void *Library) {
+  // The mock plugin does not have an associated library, so we allow nullptr
+  // here to avoid it trying to free a non-existent library.
+  if (!Library)
+    return 1;
   return (int)FreeLibrary((HMODULE)Library);
-}
-
-void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-  return reinterpret_cast<void *>(
-      GetProcAddress((HMODULE)Library, FunctionName.c_str()));
 }
 
 static std::filesystem::path getCurrentDSODirPath() {
@@ -70,7 +56,6 @@ static std::filesystem::path getCurrentDSODirPath() {
   return std::filesystem::path(Path);
 }
 
-} // namespace ur
-} // namespace detail
+} // namespace detail::ur
 } // namespace _V1
 } // namespace sycl

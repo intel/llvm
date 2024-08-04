@@ -11,6 +11,7 @@
 #include <detail/device_image_impl.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/dlopen_utils.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
@@ -32,14 +33,14 @@ jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     static const std::string JITLibraryName = "libsycl-fusion.so";
 
-    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
+    void *LibraryPtr = sycl::detail::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -48,7 +49,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr,
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -57,7 +58,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -66,7 +67,7 @@ jit_compiler::jit_compiler() {
 
     this->MaterializeSpecConstHandle =
         reinterpret_cast<MaterializeSpecConstFuncT>(
-            sycl::detail::ur::getOsLibraryFuncAddress(
+            sycl::detail::getOsLibraryFuncAddress(
                 LibraryPtr, "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
