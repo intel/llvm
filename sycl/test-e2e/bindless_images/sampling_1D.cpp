@@ -15,7 +15,7 @@ class image_addition;
 int main() {
 
 #if defined(SYCL_EXT_ONEAPI_BINDLESS_IMAGES)
-  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 1);
+  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 6);
 #if defined(VERBOSE_PRINT)
   std::cout << "SYCL_EXT_ONEAPI_BINDLESS_IMAGES is defined!" << std::endl;
 #endif
