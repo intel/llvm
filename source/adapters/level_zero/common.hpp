@@ -207,6 +207,15 @@ const int UrL0LeaksDebug = [] {
   return std::atoi(UrRet);
 }();
 
+// Enable for UR L0 Adapter to Init all L0 Drivers on the system with filtering
+// in place for only currently used Drivers.
+const int UrL0InitAllDrivers = [] {
+  const char *UrRet = std::getenv("UR_L0_INIT_ALL_DRIVERS");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
 enum {
