@@ -17,7 +17,7 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
-    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write
