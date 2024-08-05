@@ -4086,11 +4086,17 @@ bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
 
 void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
-  if (Context.getLangOpts().SYCLIsDevice &&
-      !Context.getTargetInfo().getTriple().isNVPTX()) {
-    Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
-        << CI << E->getSourceRange();
-    return;
+  if (Context.getLangOpts().SYCLIsDevice) {
+    if (!Context.getTargetInfo().getTriple().isNVPTX()) {
+      Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+          << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 0;
+      return;
+    }
   }
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -4150,6 +4156,12 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << OffloadArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() ||
+        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
       return;
     }
   }
