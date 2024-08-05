@@ -12,6 +12,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -367,7 +368,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     SmallVector<StringRef, 3> ValStrs;
     Attr.getValueAsString().split(ValStrs, ',');
 
-    assert(ValStrs.size() <= 3 &&
+    size_t NumDims = ValStrs.size();
+    assert(NumDims <= 3 &&
            "sycl-work-group-size and sycl-work-group-size-hint currently only "
            "support up to three values");
 
@@ -384,6 +386,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     for (StringRef ValStr : ValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+    while (MDVals.size() < 3)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1, 10))));
+
+    if (NumDims < 3) {
+      if (!F.hasMetadata("work_group_num_dim"))
+        F.setMetadata("work_group_num_dim",
+                      MDNode::get(Ctx, ConstantAsMetadata::get(ConstantInt::get(
+                                           Type::getInt32Ty(Ctx), NumDims))));
+    }
 
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
@@ -572,9 +584,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
+
   for (Function &F : M) {
     // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments
