@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
-  # Merge: 99489ad4 c86beb60
+  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
+  # Merge: 84f5e705 ca2916e9
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 14:52:26 2024 +0100
-  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
-  #    [Bindless][Exp] Add interop memory mapping to USM.
-  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
+  # Date:   Mon Aug 5 21:02:44 2024 +0100
+  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
+  #     Revert "[L0] L0 impl for enqueue native command"
+  set(UNIFIED_RUNTIME_TAG 9deaabcbef168015df251c4ac0d47c2cba7bfbfb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
