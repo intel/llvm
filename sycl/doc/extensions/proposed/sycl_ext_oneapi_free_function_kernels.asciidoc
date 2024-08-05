@@ -329,7 +329,6 @@ Otherwise `value` is `false`.
 The helper trait `is_kernel_v` provides the value of `value`.
 |====
 
-
 === New kernel bundle member functions
 
 This extension adds the following new functions which add kernel bundle support
@@ -493,6 +492,117 @@ returns the `kernel` object representing that kernel.
 _Throws_: An `exception` with the error code `errc::invalid` if the kernel with
 address `Func` does not reside in this kernel bundle.
 |====
+
+=== New free functions to query kernel information descriptors
+
+This extension adds the following new free functions, which allow an application
+to query the kernel information descriptors for a free function kernel without
+first creating a kernel bundle.
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info()` overload.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>();
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info(const device&)` overload.
+
+_Preconditions:_ The device `dev` must be one of the devices contained by `ctxt`
+or must be a descendent device of some device in `ctxt`.
+The kernel `Func` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<typename Func, typename Param>
+typename Param::return_type get_kernel_info(const queue& q);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+Available only if `Param` is an information descriptor for the `kernel` class,
+which can be used by the `kernel::get_info(const device&)` overload.
+
+_Preconditions:_ The kernel `Func` must be compatible with the device associated
+with `q` as defined by `is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<Func, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.ext_oneapi_get_kernel<Func>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
 
 === Behavior with kernel bundle functions in the core SYCL specification
 
