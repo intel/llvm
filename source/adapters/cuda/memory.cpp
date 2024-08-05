@@ -439,7 +439,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(cuMemAlloc(&DevPtr, Buffer.Size));
     }
   } else {
-    CUarray ImageArray;
+    CUarray ImageArray{};
     CUsurfObject Surface;
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
