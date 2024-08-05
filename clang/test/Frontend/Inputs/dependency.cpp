@@ -1,3 +1,3 @@
-int main() {
+int dep() {
   return 0;
 }
