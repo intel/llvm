@@ -229,7 +229,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the UR program with the image it was created for
-    NativePrograms.insert({Res, &Img});
+    NativePrograms[Res] = &Img;
   }
 
   Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
@@ -840,7 +840,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      NativePrograms.insert({BuiltProgram.get(), &Img});
+      NativePrograms[BuiltProgram.get()] = &Img;
       for (RTDeviceBinaryImage *LinkedImg : DeviceImagesToLink) {
         NativePrograms.insert({BuiltProgram.get(), LinkedImg});
       }
@@ -2504,7 +2504,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      NativePrograms.insert({BuiltProgram.get(), &Img});
+      NativePrograms[BuiltProgram.get()] = &Img;
     }
 
     ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);

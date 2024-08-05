@@ -182,11 +182,8 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph except if
-    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
-
-      if (SupportDynamicLinking && canBeImportedFunction(F))
+      if (canBeImportedFunction(F))
         continue;
 
       // case (1), see comment above the class definition
@@ -1312,8 +1309,26 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+  // It may be theoretically possible to determine what is importable
+  // based solely on function F, but the "SYCL/imported symbols"
+  // property list MUST NOT have any imported symbols that are not supplied
+  // the exported symbols from another device image.  This will lead to a
+  // runtime crash "No device image found for external symbol". Generating
+  // precise "SYCL/imported symbols" can be difficult because there exist
+  // functions that may look like they can be imported, but are supplied outside
+  // of user device code (e.g. _Z38__spirv_JointMatrixWorkItemLength...) In
+  // order to be safe and not require perfect name analysis just start with this
+  // simple check.
+  if (!SupportDynamicLinking)
+    return false;
+
+  // SYCL_EXTERNAL property is not recorded for a declaration
+  // in a header file.  Thus SYCL IR that is a declaration
+  // will be considered as SYCL_EXTERNAL for the purposes of
+  // this function.
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+      (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
   bool ReturnValue = true;
