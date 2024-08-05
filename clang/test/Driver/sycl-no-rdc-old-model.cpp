@@ -3,7 +3,7 @@
 
 // RUN: touch %t1.cpp
 // RUN: touch %t2.cpp
-// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc --sysroot=%S/Inputs/SYCL %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
+// RUN: %clang -### -fsycl --no-offload-new-driver -fno-sycl-rdc -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
 
 // CHECK: 2: input, "{{.*}}1.cpp", c++, (device-sycl)
 // CHECK: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
