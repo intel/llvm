@@ -25,6 +25,6 @@ config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 config.substitutions.append(("%shlibdir", config.llvm_shlib_dir))
 
 if "NVPTX" in config.llvm_targets_to_build:
-    config.available_features.add('cuda')
+    config.available_features.add("cuda")
 if "AMDGPU" in config.llvm_targets_to_build:
-    config.available_features.add('hip_amd')
+    config.available_features.add("hip_amd")

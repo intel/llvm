@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
-  # Merge: b7b0c8b3 f772f907
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Jul 29 09:11:29 2024 +0200
-  #     Merge pull request #1905 from igchor/umf_hwloc_disable
-  #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG a985a81dc9ba8adfcc8b54e35ad287e97766fb3e)
+  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
+  # Merge: 99489ad4 c86beb60
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Jul 31 14:52:26 2024 +0100
+  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
+  #    [Bindless][Exp] Add interop memory mapping to USM.
+  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
