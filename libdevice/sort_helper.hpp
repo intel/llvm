@@ -276,4 +276,47 @@ void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
   }
 }
 
+// Each work-item holds fixed-size input keys/values located in private memory
+// and apply group sorting to all work-items' input. The sorted data will be
+// copied back to each work-item's private memory.
+// Assumption about scratch memory size:
+// scratch_size >= 2 *(n * wg_size * (sizeof(KeyT) + sizeof(ValT))) + \
+// max(alignof(KeyT), alignof(ValT))
+// The scrach memory alignment is max(alignof(KeyT), alignof(ValT))
+template <typename KeyT, typename ValT, typename Compare>
+void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
+                                        uint8_t *scratch, Compare comp) {
+  const size_t local_idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
+  KeyT *temp_key_beg = reinterpret_cast<KeyT *>(scratch);
+  uint64_t temp_val_unaligned =
+      reinterpret_cast<uint64_t>(scratch + 2 * wg_size * n * sizeof(KeyT));
+  ValT *temp_val_beg = nullptr;
+  uint64_t temp1 = temp_val_unaligned % alignof(ValT);
+  if (temp1)
+    temp_val_beg =
+        reinterpret_cast<ValT *>(temp_val_unaligned + alignof(ValT) - temp1);
+  else
+    temp_val_beg = reinterpret_cast<ValT *>(temp_val_unaligned);
+
+  uint8_t *internal_scratch =
+      reinterpret_cast<uint8_t *>(&temp_key_beg[n * wg_size]);
+  temp_val_beg = &temp_val_beg[n * wg_size];
+
+  for (size_t i = 0; i < n; ++i) {
+    temp_key_beg[local_idx * n + i] = keys[i];
+    temp_val_beg[local_idx * n + i] = vals[i];
+  }
+
+  group_barrier();
+
+  merge_sort_key_value(temp_key_beg, temp_val_beg, n * wg_size,
+                       internal_scratch, comp);
+
+  for (size_t i = 0; i < n; ++i) {
+    keys[i] = temp_key_beg[local_idx * n + i];
+    vals[i] = temp_val_beg[local_idx * n + i];
+  }
+}
+
 #endif // __SPIR__ || __SPIRV__
