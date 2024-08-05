@@ -76,10 +76,10 @@ void test(sycl::queue &q, std::initializer_list<InputTy> Input,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1() << ")"
-                << ", input was (" << (*(std::begin(Input) + i)).s0() << ", "
-                << (*(std::begin(Input) + i)).s1() << ")" << std::endl;
+                << Acc[i][0] << ", " << Acc[i][1] << ")"
+                << " != (" << Expected[0] << ", " << Expected[1] << ")"
+                << ", input was (" << (*(std::begin(Input) + i))[0] << ", "
+                << (*(std::begin(Input) + i))[1] << ")" << std::endl;
     } else {
       if (EquTy()(Expected, Acc[i]))
         continue;
@@ -129,8 +129,8 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1()
+                << Acc[i][0] << ", " << Acc[i][1] << ")"
+                << " != (" << Expected[0] << ", " << Expected[1]
                 << "), input idx was " << i << std::endl;
     } else {
       if (EquTy()(Expected, Acc[i]))
@@ -271,8 +271,8 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
       if (EquTy()(Expected, Acc[i]))
         continue;
       std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
-                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
-                << " != (" << Expected.s0() << ", " << Expected.s1()
+                << Acc[i][0] << ", " << Acc[i][1] << ")"
+                << " != (" << Expected[0] << ", " << Expected[1]
                 << "), input idx was " << i << std::endl;
     } else {
       if (EquTy()(Expected, Acc[i]))
