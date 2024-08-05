@@ -340,27 +340,31 @@ bool OpenCLC_Supports_Extension(
         "trouble parsing query returned from CL_DEVICE_EXTENSIONS_WITH_VERSION "
         "- extension not followed by colon (:)");
   }
-  colon++; // move it forward
 
-  size_t space = ExtensionByVersionLog.find(' ', colon); // could be npos
+  // Note that VersionPtr is an optional parameter in
+  // ext_oneapi_supports_cl_extension().
+  if (VersionPtr) {
+    colon++; // move it forward
 
-  size_t count = (space == std::string::npos) ? space : (space - colon);
+    size_t space = ExtensionByVersionLog.find(' ', colon); // could be npos
 
-  std::string versionStr = ExtensionByVersionLog.substr(colon, count);
-  std::vector<std::string> versionVec =
-      sycl::detail::split_string(versionStr, '.');
-  if (versionVec.size() != 3) {
-    throw sycl::exception(
-        rt_errc,
-        "trouble parsing query returned from  "
-        "CL_DEVICE_EXTENSIONS_WITH_VERSION - version string unexpected: " +
-            versionStr);
+    size_t count = (space == std::string::npos) ? space : (space - colon);
+
+    std::string versionStr = ExtensionByVersionLog.substr(colon, count);
+    std::vector<std::string> versionVec =
+        sycl::detail::split_string(versionStr, '.');
+    if (versionVec.size() != 3) {
+      throw sycl::exception(
+          rt_errc,
+          "trouble parsing query returned from  "
+          "CL_DEVICE_EXTENSIONS_WITH_VERSION - version string unexpected: " +
+              versionStr);
+    }
+
+    VersionPtr->major = std::stoi(versionVec[0]);
+    VersionPtr->minor = std::stoi(versionVec[1]);
+    VersionPtr->patch = std::stoi(versionVec[2]);
   }
-
-  VersionPtr->major = std::stoi(versionVec[0]);
-  VersionPtr->minor = std::stoi(versionVec[1]);
-  VersionPtr->patch = std::stoi(versionVec[2]);
-
   return true;
 }
 
