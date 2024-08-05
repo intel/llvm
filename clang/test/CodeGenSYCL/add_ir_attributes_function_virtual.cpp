@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-is-device \
-// RUN:    -fsycl-allow-virtual-functions -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
+// RUN:     -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // Test IR generated for add_ir_attributes_function on virtual functions.
 

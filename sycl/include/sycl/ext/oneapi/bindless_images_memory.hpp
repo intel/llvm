@@ -45,7 +45,7 @@ public:
   sycl::context get_context() const { return syclContext; }
 
 private:
-  raw_handle_type handle{nullptr};
+  raw_handle_type handle{0};
   image_descriptor descriptor;
   sycl::device syclDevice;
   sycl::context syclContext;
@@ -92,7 +92,7 @@ protected:
   std::shared_ptr<detail::image_mem_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 

@@ -1,8 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 // REQUIRES: windows
 
 // RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
-// RUN: %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
@@ -84,12 +84,14 @@ void DX12InteropTest::initDX12Resources() {
   ThrowIfFailed(m_dx12Device->CreateFence(
       m_sharedFenceValue, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&m_dx12Fence)));
 
+#ifdef TEST_SEMAPHORE_IMPORT
   ThrowIfFailed(m_dx12Device->CreateSharedHandle(m_dx12Fence.Get(), nullptr,
                                                  GENERIC_ALL, nullptr,
                                                  &m_sharedSemaphoreHandle));
 
   // Import our shared DX12 fence resource to SYCL.
   importDX12SharedSemaphoreHandle();
+#endif
 
   // Create an event handle to use for synchronization.
   m_dx12FenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -106,11 +108,11 @@ void DX12InteropTest::importDX12SharedMemoryHandle(size_t allocationSize) {
       syclexp::external_mem_handle_type::win32_nt_dx12_resource,
       allocationSize};
 
-  m_syclInteropMemHandle =
+  m_syclExternalMemHandle =
       syclexp::import_external_memory(extMemDesc, m_syclQueue);
 
   m_syclImageMemHandle = syclexp::map_external_image_memory(
-      m_syclInteropMemHandle, m_syclImageDesc, m_syclQueue);
+      m_syclExternalMemHandle, m_syclImageDesc, m_syclQueue);
 
   m_syclImageHandle =
       syclexp::create_image(m_syclImageMemHandle, m_syclImageDesc, m_syclQueue);
@@ -121,16 +123,17 @@ void DX12InteropTest::importDX12SharedSemaphoreHandle() {
       extSemDesc{m_sharedSemaphoreHandle,
                  syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
 
-  m_syclInteropSemaphoreHandle =
+  m_syclExternalSemaphoreHandle =
       syclexp::import_external_semaphore(extSemDesc, m_syclQueue);
 }
 
 void DX12InteropTest::callSYCLKernel() {
-
+#ifdef TEST_SEMAPHORE_IMPORT
   // Wait for imported semaphore. This semaphore was signalled at the
   // end of `populateDX12Texture`.
-  m_syclQueue.ext_oneapi_wait_external_semaphore(m_syclInteropSemaphoreHandle,
+  m_syclQueue.ext_oneapi_wait_external_semaphore(m_syclExternalSemaphoreHandle,
                                                  m_sharedFenceValue);
+#endif
 
   // We can't capture the image handle through `this` in the lambda.
   // If we do the kernel will crash.
@@ -159,17 +162,21 @@ void DX12InteropTest::callSYCLKernel() {
     exit(-1);
   }
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Increment the fence value.
   m_sharedFenceValue++;
 
   // Signal imported semaphore.
   m_syclQueue.submit([&](sycl::handler &cgh) {
-    cgh.ext_oneapi_signal_external_semaphore(m_syclInteropSemaphoreHandle,
+    cgh.ext_oneapi_signal_external_semaphore(m_syclExternalSemaphoreHandle,
                                              m_sharedFenceValue);
   });
 
   // Use DX12 to wait for the semaphore signalled by SYCL above.
   waitDX12Fence();
+#else
+  m_syclQueue.wait();
+#endif
 }
 
 void DX12InteropTest::populateDX12Texture() {
@@ -417,7 +424,8 @@ void DX12InteropTest::cleanupDX12() {
   waitDX12Fence();
 
   // Clean up opened handles
-  CloseHandle(m_sharedSemaphoreHandle);
+  if (m_sharedSemaphoreHandle != INVALID_HANDLE_VALUE)
+    CloseHandle(m_sharedSemaphoreHandle);
   CloseHandle(m_sharedMemoryHandle);
   CloseHandle(m_dx12FenceEvent);
 
@@ -436,16 +444,15 @@ void DX12InteropTest::getDX12Adapter(IDXGIFactory2 *pFactory,
     DXGI_ADAPTER_DESC1 desc;
     adapter->GetDesc1(&desc);
 
-    if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) {
+    if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
       // We don't want a software adapter.
-      continue;
-    }
 
-    // Check to see if the adapter supports Direct3D 12, but don't create the
-    // actual device yet.
-    if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0,
-                                    _uuidof(ID3D12Device), nullptr))) {
-      break;
+      // Check to see if the adapter supports Direct3D 12, but don't create the
+      // actual device yet.
+      if (SUCCEEDED(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0,
+                                      _uuidof(ID3D12Device), nullptr))) {
+        break;
+      }
     }
 
     // Increment adapter index and find the next adapter.

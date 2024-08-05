@@ -59,7 +59,7 @@ void foo() {
 // CHECK-NEXT: 136 |           pointer _M_finish
 // CHECK-NEXT: 144 |           pointer _M_end_of_storage
 // CHECK-NEXT: 152 |   class std::unique_ptr<class sycl::detail::HostKernelBase> MHostKernel
-// CHECK:      152 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
+// CHECK:      152 |       class std::__uniq_ptr_impl<class sycl::detail::HostKernelBase, struct std::default_delete<class sycl::detail::HostKernelBase> >
 // CHECK-NEXT: 152 |         class std::tuple<class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > _M_t
 // CHECK-NEXT: 152 |           struct std::_Tuple_impl<0, class sycl::detail::HostKernelBase *, struct std::default_delete<class sycl::detail::HostKernelBase> > (base)
 // CHECK-NEXT: 152 |             struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostKernelBase> > (base) (empty)

@@ -27,18 +27,10 @@ namespace detail {
 // would trigger that error in MSVC:
 //   template <class T>
 //   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
-template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
+template <class Obj>
+const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject) {
   assert(SyclObject.impl && "every constructor should create an impl");
   return SyclObject.impl;
-}
-
-// Returns the raw pointer to the impl object of given face object. The caller
-// must make sure the returned pointer is not captured in a field or otherwise
-// stored - i.e. must live only as on-stack value.
-template <class T>
-typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-getRawSyclObjImpl(const T &SyclObject) {
-  return SyclObject.impl.get();
 }
 
 // Helper function for creation SYCL interface objects from implementations.
