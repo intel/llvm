@@ -339,9 +339,6 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
   // Mark helper as explicit SIMD function. Some BEs need this info.
   {
     markFunctionAsESIMD(Helper);
-    // Fixup helper's linkage, which is linkonce_odr after the FE. It is dropped
-    // from the ESIMD module after global DCE in post-link if not fixed up.
-    Helper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
 
     // VC backend requires the helper to always be marked VCStackCall
     if (!Helper->hasFnAttribute(llvm::genx::VCFunctionMD::VCStackCall)) {
@@ -415,6 +412,12 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
     fixFunctionName(NewHelper);
+    // When we will do ESIMD split, that helper will be moved into ESIMD module
+    // where it has no uses. To prevent it being internalized and killed by DCE
+    // during post-split cleanup, we need to add this attribtue and set proper
+    // linkage.
+    NewHelper->addFnAttr("referenced-indirectly");
+    NewHelper->setLinkage(GlobalValue::LinkageTypes::WeakODRLinkage);
   }
 
   // 3. Clone and transform __builtin_invoke_simd call:
