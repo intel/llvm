@@ -598,12 +598,6 @@ public:
             << SemaSYCL::KernelCallRecursiveFunction;
       }
 
-      if (const CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Callee))
-        if (Method->isVirtual() &&
-            !SemaSYCLRef.getLangOpts().SYCLAllowVirtualFunctions)
-          SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << SemaSYCL::KernelCallVirtualFunction;
-
       if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
         // FIXME: We need check all target specified attributes for error if
         // that function with attribute can not be called from sycl kernel.  The
@@ -1110,6 +1104,21 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
         }
         return true;
       }
+    }
+  }
+  return false;
+}
+
+static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
+                                   const FunctionDecl *FD) {
+  for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
+    SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
+        IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
+    for (const auto &NameValuePair : NameValuePairs) {
+      if (NameValuePair.first == "sycl-nd-range-kernel")
+        return std::stoi(NameValuePair.second);
+      if (NameValuePair.first == "sycl-single-task-kernel")
+        return 0;
     }
   }
   return false;
@@ -2574,7 +2583,6 @@ public:
 
 // A type to Create and own the FunctionDecl for the kernel.
 class SyclKernelDeclCreator : public SyclKernelFieldHandler {
-  bool IsFreeFunction = false;
   FunctionDecl *KernelDecl = nullptr;
   llvm::SmallVector<ParmVarDecl *, 8> Params;
   Sema::ContextRAII FuncContext;
@@ -2794,9 +2802,8 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
 public:
   static constexpr const bool VisitInsideSimpleContainers = false;
   SyclKernelDeclCreator(SemaSYCL &S, SourceLocation Loc, bool IsInline,
-                        bool IsSIMDKernel, bool IsFreeFunction,
-                        FunctionDecl *SYCLKernel)
-      : SyclKernelFieldHandler(S), IsFreeFunction(IsFreeFunction),
+                        bool IsSIMDKernel, FunctionDecl *SYCLKernel)
+      : SyclKernelFieldHandler(S),
         KernelDecl(
             createKernelDecl(S.getASTContext(), Loc, IsInline, IsSIMDKernel)),
         FuncContext(SemaSYCLRef.SemaRef, KernelDecl) {
@@ -5116,7 +5123,7 @@ void SemaSYCL::ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc,
 
   SyclKernelDeclCreator kernel_decl(*this, KernelObj->getLocation(),
                                     KernelCallerFunc->isInlined(), IsSIMDKernel,
-                                    false /*IsFreeFunction*/, KernelCallerFunc);
+                                    KernelCallerFunc);
   SyclKernelBodyCreator kernel_body(*this, kernel_decl, KernelObj,
                                     KernelCallerFunc, IsSIMDKernel,
                                     CallOperator);
@@ -5158,7 +5165,7 @@ void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD) {
                                             false /*IsSIMDKernel*/);
   SyclKernelDeclCreator kernel_decl(SemaSYCLRef, FD->getLocation(),
                                     FD->isInlined(), false /*IsSIMDKernel */,
-                                    true /*IsFreeFunction*/, FD);
+                                    FD);
 
   FreeFunctionKernelBodyCreator kernel_body(SemaSYCLRef, kernel_decl, FD);
 
@@ -6058,6 +6065,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
+  O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
 
   O << "\n";
 
@@ -6307,7 +6315,102 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
-  O << "\n";
+
+  unsigned ShimCounter = 1;
+  int FreeFunctionCount = 0;
+  for (const KernelDesc &K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    ++FreeFunctionCount;
+    // Generate forward declaration for free function.
+    O << "\n// Definition of " << K.Name << " as a free function kernel\n";
+    if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
+      O << "extern \"C\" ";
+    std::string ParmList;
+    bool FirstParam = true;
+    for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
+      if (FirstParam)
+        FirstParam = false;
+      else
+        ParmList += ", ";
+      ParmList += Param->getType().getCanonicalType().getAsString();
+    }
+    FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    Policy.SuppressDefinition = true;
+    Policy.PolishForDeclaration = true;
+    if (FTD) {
+      FTD->print(O, Policy);
+    } else {
+      K.SyclKernel->print(O, Policy);
+    }
+    O << ";\n";
+
+    // Generate a shim function that returns the address of the free function.
+    O << "static constexpr auto __sycl_shim" << ShimCounter << "() {\n";
+    O << "  return (void (*)(" << ParmList << "))"
+      << K.SyclKernel->getIdentifier()->getName().data();
+    if (FTD) {
+      const TemplateArgumentList *TAL =
+          K.SyclKernel->getTemplateSpecializationArgs();
+      ArrayRef<TemplateArgument> A = TAL->asArray();
+      bool FirstParam = true;
+      O << "<";
+      for (auto X : A) {
+        if (FirstParam)
+          FirstParam = false;
+        else
+          O << ", ";
+        X.print(Policy, O, true);
+      }
+      O << ">";
+    }
+    O << ";\n";
+    O << "}\n";
+
+    // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "struct ext::oneapi::experimental::is_kernel<__sycl_shim"
+      << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    int Dim = getFreeFunctionRangeDim(S, K.SyclKernel);
+    O << "template <>\n";
+    if (Dim > 0)
+      O << "struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim"
+        << ShimCounter << "(), " << Dim;
+    else
+      O << "struct "
+           "ext::oneapi::experimental::is_single_task_kernel<__sycl_shim"
+        << ShimCounter << "()";
+    O << "> {\n";
+    O << "  static constexpr bool value = true;\n";
+    O << "};\n";
+    O << "}\n";
+    ++ShimCounter;
+  }
+
+  if (FreeFunctionCount > 0) {
+    O << "\n#include <sycl/kernel_bundle.hpp>\n";
+  }
+  ShimCounter = 1;
+  for (const KernelDesc &K : KernelDescs) {
+    if (!isFreeFunction(S, K.SyclKernel))
+      continue;
+
+    O << "\n// Definition of kernel_id of " << K.Name << "\n";
+    O << "namespace sycl {\n";
+    O << "template <>\n";
+    O << "kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim"
+      << ShimCounter << "()>() {\n";
+    O << "  return sycl::detail::get_kernel_id_impl(std::string_view{\""
+      << K.Name << "\"});\n";
+    O << "}\n";
+    O << "}\n";
+    ++ShimCounter;
+  }
 }
 
 bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {

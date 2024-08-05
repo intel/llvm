@@ -316,8 +316,6 @@ ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
 LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
-LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
-        "Allow virtual functions calls in code for SYCL device")
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
