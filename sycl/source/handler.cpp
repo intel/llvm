@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
 #include "sycl/detail/helpers.hpp"
+#include "ur_api.h"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -1037,10 +1037,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1052,7 +1057,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1127,7 +1131,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   Desc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
@@ -1147,10 +1151,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1162,7 +1171,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1180,8 +1188,8 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   ImageDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
-  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
   UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -1199,11 +1207,17 @@ void handler::ext_oneapi_copy(
         ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height,
+                         ImageDesc.array_size};
   } else {
     UrDesc.type = ImageDesc.depth > 0
                       ? UR_MEM_TYPE_IMAGE3D
                       : (ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                               : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1215,7 +1229,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1235,7 +1248,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   SrcImgDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
@@ -1311,10 +1324,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1326,7 +1344,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
