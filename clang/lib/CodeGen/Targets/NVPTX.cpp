@@ -244,29 +244,6 @@ static bool supportsGridConstant(CudaArch Arch) {
   return Arch >= CudaArch::SM_70;
 }
 
-static llvm::SmallVector<std::optional<int64_t>, 3>
-decomposeSYCLWGAttr(const llvm::Attribute &Attr) {
-  // Split up values in the comma-separated list of integers.
-  SmallVector<StringRef, 3> ValStrs;
-  Attr.getValueAsString().split(ValStrs, ',');
-  assert(ValStrs.size() <= 3 && "Must have at most three dimensions for "
-                                "SYCL work-group property");
-
-  llvm::SmallVector<std::optional<int64_t>, 3> Ops;
-  // Index-flip the values; SYCL specifies fastest-moving dimensions
-  // right-to-left: NVPTX is left-to-right.
-  for (auto ValStr : reverse(ValStrs)) {
-    size_t Value = 0;
-    [[maybe_unused]] bool Error = ValStr.getAsInteger(10, Value);
-    assert(!Error && "The attribute's value is not a number");
-    Ops.push_back(Value);
-  }
-  // Pad out any missing elements
-  Ops.append(3 - std::max(Ops.size(), size_t{3}), std::nullopt);
-
-  return Ops;
-}
-
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
     const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &M) const {
   if (GV->isDeclaration())
@@ -312,106 +289,6 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         }
         if (!GridConstantParamIdxs.empty())
           addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
-      }
-    }
-    bool HasMaxWorkGroupSize = false;
-    bool HasMinWorkGroupPerCU = false;
-    if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      HasMaxWorkGroupSize = true;
-      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
-      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
-      // fastest-moving dimension.
-      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
-      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
-      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
-    } else if (auto Attr = F->getFnAttribute("sycl-max-work-group-size");
-               Attr.isValid()) {
-      auto Ops = decomposeSYCLWGAttr(Attr);
-
-      // Work-group sizes (in NVVM annotations) must be positive and less than
-      // INT32_MAX, whereas SYCL can allow for larger work-group sizes (see
-      // -fno-sycl-id-queries-fit-in-int). If any dimension is too large for
-      // NVPTX, don't emit any annotation at all.
-      if (llvm::all_of(Ops, [](std::optional<int64_t> V) {
-            return !V || llvm::isUInt<31>(*V);
-          })) {
-        static constexpr const char *Annots[] = {"maxntidx", "maxntidy",
-                                                 "maxntidz"};
-        for (auto [AnnotStr, Val] : zip(Annots, Ops))
-          if (Val.has_value())
-            addNVVMMetadata(F, AnnotStr, *Val);
-      }
-    }
-
-    if (auto Attr = F->getFnAttribute("sycl-max-linear-work-group-size");
-        Attr.isValid()) {
-      size_t Value = 0;
-      [[maybe_unused]] bool Error = Attr.getValueAsString().getAsInteger(10, Value);
-      assert(!Error && "The attribute's value is not a number");
-      if (llvm::isUInt<31>(Value))
-        addNVVMMetadata(F, "maxntidx", Value);
-    }
-
-    if (const auto *RWGS = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      llvm::SmallVector<std::optional<int64_t>, 3> Ops;
-      // Index-flip and pad out any missing elements. Note the misleading
-      // nomenclature of the methods: getXDimVal doesn't return the X dimension;
-      // it returns the left-most dimension (dim0). This could correspond to
-      // CUDA's X, Y, or Z, depending on the number of operands provided.
-      if (auto Dim0 = RWGS->getXDimVal())
-        Ops.push_back(Dim0->getExtValue());
-      if (auto Dim1 = RWGS->getYDimVal())
-        Ops.push_back(Dim1->getExtValue());
-      if (auto Dim2 = RWGS->getZDimVal())
-        Ops.push_back(Dim2->getExtValue());
-      std::reverse(Ops.begin(), Ops.end());
-      Ops.append(3 - Ops.size(), std::nullopt);
-
-      // Work-group sizes (in NVVM annotations) must be positive and less than
-      // INT32_MAX, whereas SYCL can allow for larger work-group sizes (see
-      // -fno-sycl-id-queries-fit-in-int). If any dimension is too large for
-      // NVPTX, don't emit any annotation at all.
-      if (llvm::all_of(Ops, [](std::optional<int64_t> V) {
-            return !V || llvm::isUInt<31>(*V);
-          })) {
-        if (auto X = Ops[0])
-          addNVVMMetadata(F, "reqntidx", *X);
-        if (auto Y = Ops[1])
-          addNVVMMetadata(F, "reqntidy", *Y);
-        if (auto Z = Ops[2])
-          addNVVMMetadata(F, "reqntidz", *Z);
-      }
-    }
-
-    auto attrValue = [&](Expr *E) {
-      const auto *CE = cast<ConstantExpr>(E);
-      std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-      return Val->getZExtValue();
-    };
-
-    if (const auto *MWGPCU =
-            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      if (!HasMaxWorkGroupSize && FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPCU << 0;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
-        HasMinWorkGroupPerCU = true;
-      }
-    }
-
-    if (const auto *MWGPMP =
-            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      if ((!HasMaxWorkGroupSize || !HasMinWorkGroupPerCU) &&
-          FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPMP << 1;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
       }
     }
   }

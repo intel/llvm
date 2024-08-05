@@ -56,8 +56,10 @@
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
+#include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -992,6 +994,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
+        MPM.addPass(SYCLVirtualFunctionsAnalysisPass());
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
@@ -1148,6 +1151,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Record SYCL aspect names (this should come after propagating aspects
       // and before cleaning up metadata)
       MPM.addPass(RecordSYCLAspectNamesPass());
+
+      if (TargetTriple.isNVPTX())
+        MPM.addPass(SYCLCreateNVVMAnnotationsPass());
 
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline

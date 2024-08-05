@@ -1057,14 +1057,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     C.getDriver().addFPGATempDepFile(DepFile, BaseName);
   };
 
-  // Do not add dependency generation information when compiling the source +
-  // footer combination.  The dependency generation is done in a separate
-  // compile step so we can retain original source information.
-  // TODO: remove this when/if we can improve the host compilation situation
-  // when dealing with the temporary file generated for the footer.
-  if (ContainsAppendFooterAction(&JA))
-    ArgM = nullptr;
-
   if (ArgM) {
     // Determine the output location.
     const char *DepFile;
@@ -1335,24 +1327,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     // Not translated, render as usual.
     A->claim();
     A->render(Args, CmdArgs);
-  }
-
-  // The file being compiled that contains the integration footer is not being
-  // compiled in the directory of the original source.  Add that directory
-  // as an -iquote option so we can properly find potential user headers there.
-  // The original source search directory should also be placed before any user
-  // search directories.
-  if (ContainsAppendFooterAction(&JA)) {
-    SmallString<128> SourcePath(Inputs[0].getBaseInput());
-    llvm::sys::path::remove_filename(SourcePath);
-    if (!SourcePath.empty()) {
-      CmdArgs.push_back("-iquote");
-      CmdArgs.push_back(Args.MakeArgString(SourcePath));
-    } else if (llvm::ErrorOr<std::string> CWD =
-                   D.getVFS().getCurrentWorkingDirectory()) {
-      CmdArgs.push_back("-iquote");
-      CmdArgs.push_back(Args.MakeArgString(*CWD));
-    }
   }
 
   Args.addAllArgs(CmdArgs,
@@ -5447,6 +5421,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
+                    options::OPT_fno_sycl_decompose_functor);
+
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR/SPIR-V based targets.
     if (Triple.isSPIROrSPIRV())
@@ -5613,6 +5590,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         // included, enable the integration header based diagnostics.
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
+
+      // Add the -include-footer option to add the integration footer
+      StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
+      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
+        CmdArgs.push_back("-include-footer");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+        // When creating dependency information, filter out the generated
+        // integration footer file.
+        CmdArgs.push_back("-dependency-filter");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+      }
+
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
@@ -10547,7 +10537,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
       ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
       ",+SPV_INTEL_fpga_latency_control"
       ",+SPV_KHR_shader_clock"
-      ",+SPV_INTEL_bindless_images";
+      ",+SPV_INTEL_bindless_images"
+      ",+SPV_INTEL_task_sequence";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
   if (C.getDriver().IsFPGAHWMode())
     // Enable several extensions on FPGA H/W exclusively
@@ -10712,6 +10703,14 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
+static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
+  if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
+                     options::OPT_fno_sycl_allow_device_dependencies,
+                     false))
+    return true;
+  return false;
+}
+
 static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                                               const JobAction &JA,
                                               const llvm::opt::ArgList &TCArgs,
@@ -10738,6 +10737,9 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
+
+  if (supportDynamicLinking(TCArgs))
+    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10785,6 +10787,8 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                        options::OPT_fsycl_remove_unused_external_funcs,
                        false) &&
        !isSYCLNativeCPU(TC)) &&
+      // When supporting dynamic linking, non-kernels in a device image can be called
+      !supportDynamicLinking(TCArgs) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
@@ -10852,6 +10856,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   std::string OutputArg = Output.getFilename();
   if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+  else if (T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+    OutputArg = "spir64_x86_64," + OutputArg;
 
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
@@ -11073,7 +11079,8 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   ArgStringList CmdArgs;
 
   // Pass the CUDA path to the linker wrapper tool.
-  for (Action::OffloadKind Kind : {Action::OFK_Cuda, Action::OFK_OpenMP}) {
+  for (Action::OffloadKind Kind :
+       {Action::OFK_Cuda, Action::OFK_OpenMP, Action::OFK_SYCL}) {
     auto TCRange = C.getOffloadToolChains(Kind);
     for (auto &I : llvm::make_range(TCRange.first, TCRange.second)) {
       const ToolChain *TC = I.second;
@@ -11205,6 +11212,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
 
+    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+      SmallString<128> DumpDir;
+      Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      DumpDir = A ? A->getValue() : "";
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
+    }
+
     auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
       if (!OptString.empty())
         OptString += " ";
@@ -11245,6 +11260,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     auto LTOMode = D.getLTOMode(/*IsDeviceOffloadAction=*/true);
     if (IsUsingLTO && LTOMode == LTOK_Thin)
       CmdArgs.push_back(Args.MakeArgString("-sycl-thin-lto"));
+
+    if (Args.hasArg(options::OPT_fsycl_embed_ir))
+      CmdArgs.push_back(Args.MakeArgString("-sycl-embed-ir"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and

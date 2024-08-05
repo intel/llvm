@@ -27,8 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <int N> struct Boolean;
-
 template <typename T>
 inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
@@ -348,17 +346,6 @@ template <typename T> auto convertToOpenCLType(T &&x) {
 #else
     return x.template as<MatchingVec>();
 #endif
-  } else if constexpr (is_boolean_v<no_ref>) {
-#ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<Boolean<1>, no_ref>) {
-      // Or should it be "int"?
-      return std::forward<T>(x);
-    } else {
-      return static_cast<typename no_ref::vector_t>(x);
-    }
-#else
-    return std::forward<T>(x);
-#endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   } else if constexpr (std::is_same_v<no_ref, std::byte>) {
     return static_cast<uint8_t>(x);
@@ -436,9 +423,6 @@ template <typename T> struct GetNumElements {
 template <typename Type, int NumElements>
 struct GetNumElements<typename sycl::vec<Type, NumElements>> {
   static constexpr int value = NumElements;
-};
-template <int N> struct GetNumElements<typename sycl::detail::Boolean<N>> {
-  static constexpr int value = N;
 };
 
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those

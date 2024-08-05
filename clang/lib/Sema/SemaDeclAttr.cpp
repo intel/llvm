@@ -4089,11 +4089,17 @@ bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
 
 void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
-  if (Context.getLangOpts().SYCLIsDevice &&
-      !Context.getTargetInfo().getTriple().isNVPTX()) {
-    Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
-        << CI << E->getSourceRange();
-    return;
+  if (Context.getLangOpts().SYCLIsDevice) {
+    if (!Context.getTargetInfo().getTriple().isNVPTX()) {
+      Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+          << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 0;
+      return;
+    }
   }
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -4152,6 +4158,12 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
           << CudaArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() ||
+        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
       return;
     }
   }
@@ -8320,90 +8332,6 @@ static void handleSYCLAddIRAnnotationsMemberAttr(Sema &S, Decl *D,
   }
 
   S.AddSYCLAddIRAnnotationsMemberAttr(D, A, Args);
-}
-
-namespace {
-struct IntrinToName {
-  uint32_t Id;
-  int32_t FullName;
-  int32_t ShortName;
-};
-} // unnamed namespace
-
-static bool ArmBuiltinAliasValid(unsigned BuiltinID, StringRef AliasName,
-                                 ArrayRef<IntrinToName> Map,
-                                 const char *IntrinNames) {
-  AliasName.consume_front("__arm_");
-  const IntrinToName *It =
-      llvm::lower_bound(Map, BuiltinID, [](const IntrinToName &L, unsigned Id) {
-        return L.Id < Id;
-      });
-  if (It == Map.end() || It->Id != BuiltinID)
-    return false;
-  StringRef FullName(&IntrinNames[It->FullName]);
-  if (AliasName == FullName)
-    return true;
-  if (It->ShortName == -1)
-    return false;
-  StringRef ShortName(&IntrinNames[It->ShortName]);
-  return AliasName == ShortName;
-}
-
-static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
-#include "clang/Basic/arm_mve_builtin_aliases.inc"
-  // The included file defines:
-  // - ArrayRef<IntrinToName> Map
-  // - const char IntrinNames[]
-  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
-}
-
-static bool ArmCdeAliasValid(unsigned BuiltinID, StringRef AliasName) {
-#include "clang/Basic/arm_cde_builtin_aliases.inc"
-  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
-}
-
-static bool ArmSveAliasValid(ASTContext &Context, unsigned BuiltinID,
-                             StringRef AliasName) {
-  if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
-    BuiltinID = Context.BuiltinInfo.getAuxBuiltinID(BuiltinID);
-  return BuiltinID >= AArch64::FirstSVEBuiltin &&
-         BuiltinID <= AArch64::LastSVEBuiltin;
-}
-
-static bool ArmSmeAliasValid(ASTContext &Context, unsigned BuiltinID,
-                             StringRef AliasName) {
-  if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
-    BuiltinID = Context.BuiltinInfo.getAuxBuiltinID(BuiltinID);
-  return BuiltinID >= AArch64::FirstSMEBuiltin &&
-         BuiltinID <= AArch64::LastSMEBuiltin;
-}
-
-static void handleArmBuiltinAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
-        << AL << 1 << AANT_ArgumentIdentifier;
-    return;
-  }
-
-  IdentifierInfo *Ident = AL.getArgAsIdent(0)->Ident;
-  unsigned BuiltinID = Ident->getBuiltinID();
-  StringRef AliasName = cast<FunctionDecl>(D)->getIdentifier()->getName();
-
-  bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
-  if ((IsAArch64 && !ArmSveAliasValid(S.Context, BuiltinID, AliasName) &&
-       !ArmSmeAliasValid(S.Context, BuiltinID, AliasName)) ||
-      (!IsAArch64 && !ArmMveAliasValid(BuiltinID, AliasName) &&
-       !ArmCdeAliasValid(BuiltinID, AliasName))) {
-    S.Diag(AL.getLoc(), diag::err_attribute_arm_builtin_alias);
-    return;
-  }
-
-  D->addAttr(::new (S.Context) ArmBuiltinAliasAttr(S.Context, AL, Ident));
-}
-
-static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
-  return BuiltinID >= RISCV::FirstRVVBuiltin &&
-         BuiltinID <= RISCV::LastRVVBuiltin;
 }
 
 static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
