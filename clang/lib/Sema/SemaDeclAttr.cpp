@@ -3121,7 +3121,7 @@ static void handleIntelReqdSubGroupSize(Sema &S, Decl *D,
   S.SYCL().checkDeprecatedSYCLAttributeSpelling(AL);
 
   Expr *E = AL.getArgAsExpr(0);
-  S.SYCL().addIntelReqdSubGroupSize(D, AL, E);
+  S.SYCL().addIntelReqdSubGroupSizeAttr(D, AL, E);
 }
 
 IntelNamedSubGroupSizeAttr *

@@ -7627,8 +7627,9 @@ void SemaSYCL::addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
   D->addAttr(::new (Context) SYCLIntelLoopFuseAttr(Context, CI, E));
 }
 
-void SemaSYCL::addIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E) {
+void SemaSYCL::addIntelReqdSubGroupSizeAttr(Decl *D,
+                                            const AttributeCommonInfo &CI,
+                                            Expr *E) {
   ASTContext &Context = getASTContext();
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the

@@ -524,8 +524,8 @@ public:
                                 Expr *E);
   void addSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
                                 Expr **Exprs, unsigned Size);
-  void addIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
+  void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E);
 };
 
 } // namespace clang

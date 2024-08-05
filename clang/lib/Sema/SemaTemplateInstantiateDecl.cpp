@@ -738,7 +738,7 @@ static void instantiateIntelReqdSubGroupSize(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.SYCL().addIntelReqdSubGroupSize(New, *A, Result.getAs<Expr>());
+    S.SYCL().addIntelReqdSubGroupSizeAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelNumSimdWorkItemsAttr(
