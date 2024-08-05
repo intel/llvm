@@ -100,7 +100,6 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
 }
 #endif // __SPIR__ || __SPIRV__
 
-
 #if defined(__NVPTX__) || defined(__AMDGCN__)
 
 DEVICE_EXTERN_C void __assertfail(const char *__message, const char *__file,

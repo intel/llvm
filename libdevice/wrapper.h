@@ -11,7 +11,8 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 #include <cstddef>
 #include <cstdint>

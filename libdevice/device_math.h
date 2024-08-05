@@ -10,7 +10,8 @@
 #define __LIBDEVICE_DEVICE_MATH_H__
 
 #include "device.h"
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 #include <cstdint>
 
 typedef struct {
