@@ -14308,6 +14308,53 @@ named_barrier_signal(uint8_t barrier_id, uint8_t producer_consumer_mode,
 /// @addtogroup sycl_esimd_mask_compressed
 /// @{
 
+/// template <typename Tx, int N, int M>
+/// simd<Tx, N>
+/// mask_compress_load(simd<Tx, M> src, uint32_t global_offset, simd_mask<N>
+/// mask);
+/// Mask compressed load from another vector. The function reads data from a
+/// vector using following algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i])
+///           Result[i] = src[global_offset + Index++];
+/// }
+/// \endcode
+///
+///
+/// @tparam Tx is element type.
+/// @tparam N is the data size
+/// @tparam M is the source data size
+/// @param src is the vector to read from.
+/// @param global_offset is an offset to use for all reads.
+/// @param mask is the mask determining which elements will be read
+///
+template <typename Tx, int N, int M>
+__ESIMD_API std::enable_if_t<M >= N, simd<Tx, N>>
+mask_compress_load(simd<Tx, M> src, uint32_t global_offset, simd_mask<N> mask) {
+  typedef typename detail::GenerateCompressedBitmask<N>::value offsets;
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+
+  if constexpr (M == N) {
+    simd<Tx, N> Result;
+    simd<uint16_t, N> Indices = global_offset + offset;
+    Result.iupdate(Indices, src, mask);
+    return Result;
+  } else {
+    simd<Tx, M> Result;
+    simd<uint16_t, M> Indices(0);
+    Indices.template select<N, 1>(0) = global_offset + offset;
+    simd_mask<M> Newmask(0);
+    Newmask.template select<N, 1>(0) = mask;
+    Result.iupdate(Indices, src, Newmask);
+    return Result.template select<N, 1>(0);
+  }
+}
+
 /// template <typename Tx, int N,
 ///       typename PropertyListT = oneapi::experimental::empty_properties_t>
 /// simd<Tx, N>
@@ -14339,10 +14386,8 @@ template <typename Tx, int N,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<Tx, N>>
 mask_compress_load(Tx *p, simd_mask<N> mask, PropertyListT props = {}) {
-  typedef typename detail::GenerateCompressedBitmask<N>::value offsets;
-  simd<uint32_t, N> offset =
-      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
-  return gather(p, offset * sizeof(Tx), mask, props);
+  simd<Tx, N> Src = block_load<Tx, N>(p, props);
+  return mask_compress_load(Src, 0, mask);
 }
 
 /// template <typename Tx, int N, typename AccessorTy,
@@ -14367,6 +14412,7 @@ mask_compress_load(Tx *p, simd_mask<N> mask, PropertyListT props = {}) {
 /// @tparam Tx is element type.
 /// @tparam N is the data size
 /// @param acc is the accessor to read from.
+/// @param global_offset is the global offset in bytes
 /// @param mask is the mask determining which elements will be read
 /// @param props The compile-time properties. Only cache hint
 /// properties are used.
@@ -14380,46 +14426,8 @@ __ESIMD_API std::enable_if_t<
     simd<Tx, N>>
 mask_compress_load(AccessorTy acc, uint32_t global_offset, simd_mask<N> mask,
                    PropertyListT props = {}) {
-  typedef typename detail::GenerateCompressedBitmask<N>::value offsets;
-  simd<uint32_t, N> offset =
-      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
-  return gather(acc, offset * sizeof(Tx), global_offset, mask, props);
-}
-
-/// template <typename Tx, int N, int M>
-/// simd<Tx, N>
-/// mask_compress_load(simd<Tx, M> src, uint32_t global_offset, simd_mask<N>
-/// mask);
-/// Mask compressed load from another vector. The function reads data from a
-/// vector using following algorithm:
-///
-/// \code{.cpp}
-///
-/// int Index = 0;
-/// for (int i = 0; i < N; ++i) {
-///       if (Mask[i])
-///           Result[i] = src[global_offset + Index++];
-/// }
-/// \endcode
-///
-///
-/// @tparam Tx is element type.
-/// @tparam N is the data size
-/// @tparam M is the source data size
-/// @param src is the vector to read from.
-/// @param global_offset is an offset to use for all reads.
-/// @param mask is the mask determining which elements will be read
-///
-template <typename Tx, int N, int M>
-__ESIMD_API std::enable_if_t<M >= N, simd<Tx, N>>
-mask_compress_load(simd<Tx, M> src, uint32_t global_offset, simd_mask<N> mask) {
-  typedef typename detail::GenerateCompressedBitmask<N>::value offsets;
-  simd<uint32_t, N> offset =
-      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
-  simd<Tx, N> Result;
-  simd<uint16_t, N> Indices = global_offset + offset;
-  Result.iupdate(Indices, src, mask);
-  return Result;
+  simd<Tx, N> Src = block_load<Tx, N>(acc, global_offset, props);
+  return mask_compress_load(Src, 0, mask);
 }
 
 /// template <typename Tx, int N,
@@ -14484,6 +14492,7 @@ mask_compress_store(Tx *p, simd<Tx, N> vals, simd_mask<N> mask,
 /// @tparam Tx is element type.
 /// @tparam N is the data size
 /// @param acc is the accessor to write to.
+/// @param global_offset is the global offset in bytes
 /// @param vals is the data to store
 /// @param mask is the mask determining which elements will be stored
 /// @param props The compile-time properties. Only cache hint
@@ -14500,7 +14509,7 @@ mask_compress_store(AccessorTy acc, uint32_t global_offset, simd<Tx, N> vals,
   typedef typename detail::GenerateCompressedBitmask<N>::value offsets;
   simd<uint32_t, N> offset =
       cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
-  scatter(acc, offset * sizeof(Tx), vals, global_offset, mask, props);
+  scatter(acc, offset * sizeof(Tx) + global_offset, vals, mask, props);
 }
 
 /// template <typename Tx, int N, int M>

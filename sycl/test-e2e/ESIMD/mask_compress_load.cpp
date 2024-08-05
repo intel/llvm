@@ -1,5 +1,4 @@
-//==- usm_compress_store.cpp - Test to verify compressed store functionality
-//------------==//
+//==-mask_compress_load.cpp - Test to verify compressed load functionality==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +9,7 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// This is a basic test to validate the compressed store API.
+// This is a basic test to validate the compressed load API.
 
 #include "esimd_test_utils.hpp"
 
@@ -25,38 +24,53 @@ using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 template <int N> bool test(sycl::queue &Queue) {
   shared_allocator<uint32_t> Allocator(Queue);
 
-  shared_vector<uint32_t> Output(N * 2, 0, Allocator);
-  shared_vector<uint32_t> OutputVector(N * 2, 0, Allocator);
+  shared_vector<uint32_t> Input(2 * N, 0, Allocator);
+  shared_vector<uint32_t> Output(N, 0, Allocator);
+  shared_vector<uint32_t> OutputVector(N, 0, Allocator);
+  shared_vector<uint32_t> OutputAcc(N, 0, Allocator);
   std::vector<uint32_t> ExpectedOutput(Output.begin(), Output.end());
+
   int idx = 0;
   for (int I = 0; I < N * 2; I++) {
-    if ((I % 2) == 0)
+    Input[I] = I + 1;
+    if ((I % 2) == 0 && I < N)
       ExpectedOutput[idx++] = I + 1;
   }
 
+  auto *InputPtr = Input.data();
   auto *OutputPtr = Output.data();
+  auto *OutputAccPtr = OutputAcc.data();
   auto *OutputVectorPtr = OutputVector.data();
+  buffer<uint32_t, 1> InputAcc_buffer(Input.data(), Input.size());
 
   Queue.submit([&](sycl::handler &cgh) {
+    auto InputAcc = InputAcc_buffer.get_access<access::mode::read>(cgh);
     auto Kernel = ([=]() SYCL_ESIMD_KERNEL {
-      simd<uint32_t, N> Input(1, 1);
-      simd<uint32_t, 2 * N> Result(0);
       simd_mask<N> Mask;
       for (int i = 0; i < N; i++)
         Mask[i] = (i % 2) == 0;
-      mask_compress_store(OutputPtr, Input, Mask);
-      mask_compress_store(Result, 0, Input, Mask);
-      Result.copy_to(OutputVectorPtr);
+      simd<uint32_t, 2 * N> Input;
+      Input.copy_from(InputPtr);
+      simd<uint32_t, N> Result = mask_compress_load(InputPtr, Mask);
+      simd<uint32_t, N> ResultAcc =
+          mask_compress_load<uint32_t>(InputAcc, 0, Mask);
+      simd<uint32_t, N> ResultVec =
+          mask_compress_load<uint32_t>(Input, 0, Mask);
+      Result.copy_to(OutputPtr);
+      ResultAcc.copy_to(OutputAccPtr);
+      ResultVec.copy_to(OutputVectorPtr);
     });
     cgh.single_task(Kernel);
   });
   Queue.wait();
 
-  for (int I = 0; I < N * 2; I++) {
-    if (Output[I] != OutputVector[I] && Output[I] != ExpectedOutput[I]) {
-      std::cout << "mask_compress_store: error at I = " << std::to_string(I)
+  for (int I = 0; I < N; I++) {
+    if (Output[I] != OutputVector[I] && OutputAcc[I] != Output[I] &&
+        Output[I] != ExpectedOutput[I]) {
+      std::cout << "mask_compress_load: error at I = " << std::to_string(I)
                 << ": " << std::to_string(ExpectedOutput[I])
                 << " != " << std::to_string(OutputVector[I])
+                << " != " << std::to_string(OutputAcc[I])
                 << " != " << std::to_string(Output[I]) << std::endl;
       return false;
     }
