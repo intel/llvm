@@ -8,7 +8,8 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 DEVICE_EXTERN_C_INLINE
 int abs(int x) { return __devicelib_abs(x); }

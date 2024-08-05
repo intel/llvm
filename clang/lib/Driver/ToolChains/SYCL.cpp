@@ -166,9 +166,8 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
   // for Nvidia and AMD.
-  NeedLibs =
-      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX()
-      && !Triple.isAMDGCN();
+  NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
+             !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
   if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       C.hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -242,7 +241,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = (!ignore_single_libs && !NoDeviceLibs) || (K == "internal" && NoDeviceLibs) ;
+            DeviceLibLinkInfo[K] = (!ignore_single_libs && !NoDeviceLibs) ||
+                                   (K == "internal" && NoDeviceLibs);
           printUnusedLibWarning = false;
           break;
         }
@@ -259,7 +259,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       }
       if (printUnusedLibWarning)
         C.getDriver().Diag(diag::warn_ignored_clang_option)
-              << A->getSpelling() << A->getAsString(Args);
+            << A->getSpelling() << A->getAsString(Args);
     }
   }
 
