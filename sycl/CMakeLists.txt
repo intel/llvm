@@ -42,6 +42,45 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
 include(SYCLUtils)
+
+if(MSVC)
+  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+  # Skip asynchronous C++ exceptions catching and assume "extern C" functions
+  # never throw C++ exceptions.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+
+  # Add PDB debug information
+  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  if(LINKER_SUPPORTS_DEBUG)
+    # sccache is not compatible with /Zi flag
+    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
+      # CMake may put /Zi by default
+      if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+      elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+      elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+      endif()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Z7")
+    else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
+    endif()
+    add_link_options("/DEBUG")
+
+    # Enable unreferenced removal and ICF in Release mode.
+    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
+      add_link_options("/OPT:REF" "/OPT:ICF")
+    endif()
+  endif()
+endif()
+
 include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
@@ -85,44 +124,6 @@ endif()
 # Create a soft option for enabling or disabling the instrumentation
 # of the SYCL runtime and expect enabling
 option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
-
-if(MSVC)
-  set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-  # Skip asynchronous C++ exceptions catching and assume "extern C" functions
-  # never throw C++ exceptions.
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
-
-  # Add PDB debug information
-  list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-  include(CheckLinkerFlag)
-  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
-  if(LINKER_SUPPORTS_DEBUG)
-    # sccache is not compatible with /Zi flag
-    if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
-      # CMake may put /Zi by default
-      if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-      elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
-        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-      elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-        string(REPLACE "/Zi" "/Z7" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-        string(REPLACE "/Zi" "/Z7" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-      endif()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Z7")
-    else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
-    endif()
-    add_link_options("/DEBUG")
-
-    # Enable unreferenced removal and ICF in Release mode.
-    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
-    if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
-      add_link_options("/OPT:REF" "/OPT:ICF")
-    endif()
-  endif()
-endif()
 
 # Get clang's version
 include(VersionFromVCS)
