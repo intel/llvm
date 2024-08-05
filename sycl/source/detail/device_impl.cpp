@@ -76,10 +76,14 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  const PluginPtr &Plugin = getPlugin();
-  ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MDevice);
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    const PluginPtr &Plugin = getPlugin();
+    ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MDevice);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
+  }
 }
 
 bool device_impl::is_affinity_supported(
@@ -521,21 +525,21 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_memory_import: {
+  case aspect::ext_oneapi_external_memory_import: {
     ur_bool_t support = false;
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
+            UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
             &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
-  case aspect::ext_oneapi_interop_semaphore_import: {
+  case aspect::ext_oneapi_external_semaphore_import: {
     ur_bool_t support = false;
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP,
+            UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP,
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }

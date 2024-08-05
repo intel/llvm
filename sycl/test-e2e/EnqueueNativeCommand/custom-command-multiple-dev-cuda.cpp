@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
+// UNSUPPORTED: windows
 
 #include <cuda.h>
 

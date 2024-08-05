@@ -397,9 +397,9 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -449,9 +449,9 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -1104,9 +1104,9 @@ EnableIfGenericShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = Shuffle(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1119,9 +1119,9 @@ EnableIfGenericShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleXor(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1134,9 +1134,9 @@ EnableIfGenericShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleDown(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1149,9 +1149,9 @@ EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleUp(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
