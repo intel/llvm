@@ -3797,7 +3797,7 @@ urUSMPoolGetInfo(
 #endif
 // Intel 'oneAPI' Unified Runtime APIs
 #if !defined(__GNUC__)
-#pragma region virtual memory
+#pragma region virtual_memory
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Virtual memory granularity info
@@ -7354,7 +7354,7 @@ urEnqueueWriteHostPipe(
 #endif
 // Bindless Images Extension APIs
 #if !defined(__GNUC__)
-#pragma region bindless images(experimental)
+#pragma region bindless_images_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of bindless image
@@ -8152,7 +8152,7 @@ urBindlessImagesSignalExternalSemaphoreExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for Command-Buffers
 #if !defined(__GNUC__)
-#pragma region command buffer(experimental)
+#pragma region command_buffer_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-buffer query information type
@@ -9005,7 +9005,7 @@ urCommandBufferCommandGetInfoExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for Cooperative Kernels
 #if !defined(__GNUC__)
-#pragma region cooperative kernels(experimental)
+#pragma region cooperative_kernels_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
@@ -9093,7 +9093,7 @@ urKernelSuggestMaxCooperativeGroupCountExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for enqueuing timestamp recordings
 #if !defined(__GNUC__)
-#pragma region enqueue timestamp recording(experimental)
+#pragma region enqueue_timestamp_recording_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
@@ -9135,7 +9135,7 @@ urEnqueueTimestampRecordingExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
 #if !defined(__GNUC__)
-#pragma region launch properties(experimental)
+#pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
@@ -9262,7 +9262,7 @@ urEnqueueKernelLaunchCustomExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
 #if !defined(__GNUC__)
-#pragma region multi device compile(experimental)
+#pragma region multi_device_compile_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
@@ -9392,7 +9392,7 @@ urProgramLinkExp(
 #endif
 // Intel 'oneAPI' USM Import/Release Extension APIs
 #if !defined(__GNUC__)
-#pragma region usm import release(experimental)
+#pragma region usm_import_release_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Import memory into USM
@@ -9445,7 +9445,7 @@ urUSMReleaseExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for USM P2P
 #if !defined(__GNUC__)
-#pragma region usm p2p(experimental)
+#pragma region usm_p2p_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_USM_P2P_EXTENSION_STRING_EXP
@@ -9601,7 +9601,7 @@ urUsmP2PPeerAccessGetInfoExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental API for enqueuing work through native APIs
 #if !defined(__GNUC__)
-#pragma region native enqueue(experimental)
+#pragma region native_enqueue_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native enqueue properties
