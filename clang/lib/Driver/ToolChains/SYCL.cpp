@@ -326,7 +326,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
   if (TargetTriple.isSPIR() &&
-       TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
     // For FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
