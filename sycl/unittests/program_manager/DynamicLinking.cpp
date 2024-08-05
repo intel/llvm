@@ -197,4 +197,30 @@ TEST(DynamicLinking, AheadOfTime) {
   }
 }
 
+static ur_result_t redefined_urProgramCompileExp(void *pParams) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+TEST(DynamicLinking, UnsupportedCompileExp) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback("urProgramCompileExp",
+                                            redefined_urProgramCompileExp);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::BasicCaseKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
+  // Both programs should be linked together.
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {BASIC_CASE_PRG, BASIC_CASE_PRG_DEP, BASIC_CASE_PRG_DEP_DEP}));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            BASIC_CASE_PRG * BASIC_CASE_PRG_DEP * BASIC_CASE_PRG_DEP_DEP);
+}
+
 } // anonymous namespace
