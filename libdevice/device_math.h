@@ -71,6 +71,12 @@ DEVICE_EXTERN_C
 double __devicelib_scalbln(double x, long int y);
 
 DEVICE_EXTERN_C
+long int __devicelib_lrintf(float x);
+
+DEVICE_EXTERN_C
+long int __devicelib_lrint(double x);
+
+DEVICE_EXTERN_C
 float __devicelib_fmaxf(float x, float y);
 
 DEVICE_EXTERN_C

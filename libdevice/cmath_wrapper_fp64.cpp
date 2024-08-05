@@ -179,6 +179,10 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
+DEVICE_EXTERN_C_INLINE
+long int lrint(double x) { return static_cast<long int>(round(x)); }
+
+
 #ifdef __NVPTX__
 extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
 DEVICE_EXTERN_C_INLINE
