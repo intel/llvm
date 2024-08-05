@@ -29,6 +29,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/Internalize.h"
@@ -181,11 +182,8 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph except if
-    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
-
-      if (SupportDynamicLinking && canBeImportedFunction(F))
+      if (canBeImportedFunction(F))
         continue;
 
       // case (1), see comment above the class definition
@@ -442,6 +440,19 @@ private:
 
 namespace llvm {
 namespace module_split {
+
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
+  static const StringMap<IRSplitMode> Values = {{"kernel", SPLIT_PER_KERNEL},
+                                                {"source", SPLIT_PER_TU},
+                                                {"auto", SPLIT_AUTO},
+                                                {"none", SPLIT_NONE}};
+
+  auto It = Values.find(S);
+  if (It == Values.end())
+    return std::nullopt;
+
+  return It->second;
+}
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
@@ -1215,6 +1226,61 @@ static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
   return SM;
 }
 
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
+  auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
+
+  if (!EntriesMBOrErr)
+    return createFileError(File, EntriesMBOrErr.getError());
+
+  line_iterator LI(**EntriesMBOrErr);
+  if (LI.is_at_eof() || *LI != "[Code|Properties|Symbols]")
+    return createStringError(inconvertibleErrorCode(),
+                             "invalid SYCL Table file.");
+
+  ++LI;
+  std::vector<module_split::SplitModule> Modules;
+  while (!LI.is_at_eof()) {
+    StringRef Line = *LI;
+    if (Line.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL table row.");
+
+    SmallVector<StringRef, 3> Parts;
+    Line.split(Parts, "|");
+    if (Parts.size() != 3)
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto [IRFilePath, PropertyFilePath, SymbolsFilePath] =
+        std::tie(Parts[0], Parts[1], Parts[2]);
+    if (PropertyFilePath.empty() || SymbolsFilePath.empty())
+      return createStringError(inconvertibleErrorCode(),
+                               "invalid SYCL Table row.");
+
+    auto MBOrErr = MemoryBuffer::getFile(PropertyFilePath);
+    if (!MBOrErr)
+      return createFileError(PropertyFilePath, MBOrErr.getError());
+
+    auto &MB = **MBOrErr;
+    auto PropSetOrErr = llvm::util::PropertySetRegistry::read(&MB);
+    if (!PropSetOrErr)
+      return PropSetOrErr.takeError();
+
+    llvm::util::PropertySetRegistry Properties = std::move(**PropSetOrErr);
+    MBOrErr = MemoryBuffer::getFile(SymbolsFilePath);
+    if (!MBOrErr)
+      return createFileError(SymbolsFilePath, MBOrErr.getError());
+
+    auto &MB2 = *MBOrErr;
+    std::string Symbols =
+        std::string(MB2->getBufferStart(), MB2->getBufferEnd());
+    Modules.emplace_back(IRFilePath, std::move(Properties), std::move(Symbols));
+    ++LI;
+  }
+
+  return Modules;
+}
+
 Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
@@ -1243,8 +1309,26 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+  // It may be theoretically possible to determine what is importable
+  // based solely on function F, but the "SYCL/imported symbols"
+  // property list MUST NOT have any imported symbols that are not supplied
+  // the exported symbols from another device image.  This will lead to a
+  // runtime crash "No device image found for external symbol". Generating
+  // precise "SYCL/imported symbols" can be difficult because there exist
+  // functions that may look like they can be imported, but are supplied outside
+  // of user device code (e.g. _Z38__spirv_JointMatrixWorkItemLength...) In
+  // order to be safe and not require perfect name analysis just start with this
+  // simple check.
+  if (!SupportDynamicLinking)
+    return false;
+
+  // SYCL_EXTERNAL property is not recorded for a declaration
+  // in a header file.  Thus SYCL IR that is a declaration
+  // will be considered as SYCL_EXTERNAL for the purposes of
+  // this function.
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+      (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
   bool ReturnValue = true;

@@ -48,12 +48,7 @@ static int getDevicePreference(const device &Device) {
 }
 
 static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
-  bool shouldTrace = false;
-  if (Chosen) {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
-  } else {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
-  }
+  bool shouldTrace = detail::ur::trace();
   if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
@@ -61,11 +56,11 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
     auto selectionMsg = Chosen ? "Selected device: -> final score = "
                                : "Candidate device: -> score = ";
 
-    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << Score
+    std::cout << "SYCL_UR_TRACE: " << selectionMsg << Score
               << ((Score < 0) ? " (REJECTED)" : "") << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  platform: " << PlatformName << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  device: " << DeviceName << std::endl;
   }
 }
@@ -167,10 +162,9 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 4. Accelerator
 
 static void traceDeviceSelector(const std::string &DeviceType) {
-  bool ShouldTrace = false;
-  ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  bool ShouldTrace = detail::ur::trace();
   if (ShouldTrace) {
-    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
+    std::cout << "SYCL_UR_TRACE: Requested device_type: " << DeviceType
               << std::endl;
   }
 }
@@ -283,8 +277,8 @@ int accelerator_selector::operator()(const device &dev) const {
 
 namespace ext::oneapi {
 
-filter_selector::filter_selector(const std::string &Input)
-    : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
+filter_selector::filter_selector(sycl::detail::string_view Input)
+    : impl(std::make_shared<detail::filter_selector_impl>(Input.data())) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
@@ -316,7 +310,7 @@ device filter_selector::select_device() const {
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
-filter_selector::filter_selector(const std::string &Input)
+filter_selector::filter_selector(sycl::detail::string_view Input)
     : ext::oneapi::filter_selector(Input) {}
 
 int filter_selector::operator()(const device &Dev) const {

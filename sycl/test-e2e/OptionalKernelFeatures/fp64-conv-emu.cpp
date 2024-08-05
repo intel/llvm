@@ -1,7 +1,7 @@
-// REQUIRES: ocloc, gpu
+// REQUIRES: ocloc, gpu, linux
 // UNSUPPORTED: cuda, hip
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu %if system-windows %{ -Od %} %else %{ -O0 %} %s -o %t_opt.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
 // TODO: Enable when GPU driver is updated.
 // RUNx: %{run} %t_opt.out
 

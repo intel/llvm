@@ -1,13 +1,13 @@
 // RUN: %{build} %{embed-ir} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 env SYCL_RT_WARNING_LEVEL=1 \
+// RUN: env SYCL_UR_TRACE=2 env SYCL_RT_WARNING_LEVEL=1 \
 // RUN: SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:64 %{run} %t.out 2>&1 \
 // RUN: | FileCheck %s --implicit-check-not "ERROR: JIT compilation for kernel fusion failed with message:"
 
 // Test complete fusion of kernels with different ND-ranges.
 
 // Kernels with different ND-ranges should be fused.
-// CHECK-COUNT-26: piEnqueueKernelLaunch
-// CHECK-NOT: piEnqueueKernelLaunch
+// CHECK-COUNT-26: urEnqueueKernelLaunch
+// CHECK-NOT: urEnqueueKernelLaunch
 
 #include <sycl/detail/core.hpp>
 

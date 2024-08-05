@@ -58,6 +58,7 @@
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
+#include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/BuryPointer.h"
 #include "llvm/Support/CommandLine.h"
@@ -992,6 +993,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     if (LangOpts.SYCLIsDevice)
       PB.registerPipelineStartEPCallback([&](ModulePassManager &MPM,
                                              OptimizationLevel Level) {
+        MPM.addPass(SYCLVirtualFunctionsAnalysisPass());
         MPM.addPass(ESIMDVerifierPass(LangOpts.SYCLESIMDForceStatelessMem));
         if (Level == OptimizationLevel::O0)
           MPM.addPass(ESIMDRemoveOptnoneNoinlinePass());
