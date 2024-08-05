@@ -10785,8 +10785,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   // TODO: Try to extend this feature for non-Intel GPUs.
   if ((!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                        options::OPT_fsycl_remove_unused_external_funcs,
-                       false) &&
-       !isSYCLNativeCPU(TC)) &&
+                       false)) &&
       // When supporting dynamic linking, non-kernels in a device image can be called
       !supportDynamicLinking(TCArgs) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
