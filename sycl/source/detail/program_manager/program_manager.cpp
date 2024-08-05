@@ -229,7 +229,7 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
   {
     std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
     // associate the UR program with the image it was created for
-    NativePrograms.insert({Res, &Img});
+    NativePrograms[Res] = &Img;
   }
 
   Ctx->addDeviceGlobalInitializer(Res, {Device}, &Img);
@@ -500,11 +500,9 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto ProgMetadata = Img->getProgramMetadata();
-      for (const auto &Prop : ProgMetadata) {
-        ProgMetadataVector.push_back(
-            ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
-      }
+      auto &ImgProgMetadata = Img->getProgramMetadataUR();
+      ProgMetadataVector.insert(ProgMetadataVector.end(),
+                                ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     // TODO: Build for multiple devices once supported by program manager
     NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
@@ -842,7 +840,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      NativePrograms.insert({BuiltProgram.get(), &Img});
+      NativePrograms[BuiltProgram.get()] = &Img;
       for (RTDeviceBinaryImage *LinkedImg : DeviceImagesToLink) {
         NativePrograms.insert({BuiltProgram.get(), LinkedImg});
       }
@@ -1509,14 +1507,9 @@ ProgramManager::ProgramPtr ProgramManager::build(
   LinkPrograms.push_back(Program.get());
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
-    auto Result =
-        Plugin->call_nocheck(urProgramCompileExp, Prg, /* num devices =*/1,
-                             &Device, CompileOptions.c_str());
-    if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Plugin->call(urProgramCompile, Context->getHandleRef(), Prg,
-                   CompileOptions.c_str());
-    }
-    Plugin->checkUrResult(Result);
+    auto Res = doCompile(Plugin, Prg, /*num devices =*/1, &Device,
+                         Context->getHandleRef(), CompileOptions.c_str());
+    Plugin->checkUrResult(Res);
 
     LinkPrograms.push_back(Prg);
   }
@@ -2507,7 +2500,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      NativePrograms.insert({BuiltProgram.get(), &Img});
+      NativePrograms[BuiltProgram.get()] = &Img;
     }
 
     ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), Devs, &Img);

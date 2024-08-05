@@ -336,7 +336,10 @@ public:
   /// query `CL_DEVICE_PROFILE`, as defined in section 4.2 "Querying Devices" of
   /// the OpenCL specification. If the device does not support kernel bundles
   /// written in `source_language::opencl`, returns the empty string.
-  std::string ext_oneapi_cl_profile() const;
+  std::string ext_oneapi_cl_profile() const {
+    detail::string profile = ext_oneapi_cl_profile_impl();
+    return profile.c_str();
+  }
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
@@ -370,6 +373,7 @@ private:
   bool ext_oneapi_supports_cl_extension(
       detail::string_view name,
       ext::oneapi::experimental::cl_version *version = nullptr) const;
+  detail::string ext_oneapi_cl_profile_impl() const;
 };
 
 } // namespace _V1
