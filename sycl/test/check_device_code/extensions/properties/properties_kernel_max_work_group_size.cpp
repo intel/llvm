@@ -32,6 +32,6 @@ int main() {
 // CHECK-IR: attributes #[[MaxWGSizeAttr1]] = { {{.*}}"sycl-max-work-group-size"="8,4"
 // CHECK-IR: attributes #[[MaxWGSizeAttr2]] = { {{.*}}"sycl-max-work-group-size"="8,4,2"
 
-// CHECK-IR: ![[MaxWGSizeMD0]] = !{i64 8}
-// CHECK-IR: ![[MaxWGSizeMD1]] = !{i64 4, i64 8}
+// CHECK-IR: ![[MaxWGSizeMD0]] = !{i64 8, i64 1, i64 1}
+// CHECK-IR: ![[MaxWGSizeMD1]] = !{i64 4, i64 8, i64 1}
 // CHECK-IR: ![[MaxWGSizeMD2]] = !{i64 2, i64 4, i64 8}

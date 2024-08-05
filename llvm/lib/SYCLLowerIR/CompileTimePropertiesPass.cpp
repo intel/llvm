@@ -416,6 +416,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
+  if (AttrKindStr == "sycl-max-linear-work-group-size") {
+    auto MaxLinearSize = getAttributeAsInteger<uint64_t>(Attr);
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
+    // Get the integers from the strings.
+    Metadata *MD = ConstantAsMetadata::get(Constant::getIntegerValue(
+        SizeTTy, APInt(SizeTBitSize, MaxLinearSize, 10)));
+
+    return std::pair<std::string, MDNode *>("max_linear_work_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
   // The sycl-single-task attribute currently only has an effect when targeting
   // SPIR FPGAs, in which case it will generate a "max_global_work_dim" MD node
   // with a 0 value, similar to applying [[intel::max_global_work_dim(0)]] to

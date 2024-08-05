@@ -36,16 +36,17 @@ int main() {
 // CHECK-IR-SAME: "sycl-max-work-group-size"="8,4,2"
 
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn0]], !"kernel", i32 1}
+// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn1]], !"kernel", i32 1}
+// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"kernel", i32 1}
+
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn0]], !"maxntidx", i32 8}
 // CHECK-IR-NOT: !{ptr @[[MaxWGSizeKernelFn0]], !"maxntidy",
 // CHECK-IR-NOT: !{ptr @[[MaxWGSizeKernelFn0]], !"maxntidz",
 
-// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn1]], !"kernel", i32 1}
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn1]], !"maxntidx", i32 4}
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn1]], !"maxntidy", i32 8}
 // CHECK-IR-NOT: !{ptr @[[MaxWGSizeKernelFn1]], !"maxntidz",
 
-// CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"kernel", i32 1}
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"maxntidx", i32 2}
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"maxntidy", i32 4}
 // CHECK-IR:     !{ptr @[[MaxWGSizeKernelFn2]], !"maxntidz", i32 8}
