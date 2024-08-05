@@ -54,7 +54,7 @@ permissions:
 jobs:
   changed-files:
     name: Check for changed files
-    runs-on: ubuntu-22.04
+    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
     outputs:
       any_changed: ${{ steps.get-changed.outputs.any_changed }}
     steps:
