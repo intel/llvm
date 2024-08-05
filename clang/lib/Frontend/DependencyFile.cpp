@@ -256,10 +256,9 @@ bool DependencyFileGenerator::sawDependency(StringRef Filename, bool FromModule,
     return false;
 
   // Remove dependencies that are prefixed by the Filter string.
-  for (const std::string &FD : DependencyFilter) {
-    if (strncmp(Filename.data(), FD.c_str(), DependencyFilter.size()) == 0)
+  for (const std::string &FD : DependencyFilter)
+    if (FD.compare(0, FD.size(), Filename.data(), FD.size()) == 0)
       return false;
-  }
 
   if (IncludeSystemHeaders)
     return true;
