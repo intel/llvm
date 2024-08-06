@@ -4,6 +4,8 @@
 // RUN: %{build}  -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: cuda || hip || cpu
+
 #include "group_joint_KV_sort_p1p1_p1.hpp"
 #include <algorithm>
 #include <cassert>
