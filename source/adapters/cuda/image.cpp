@@ -1058,8 +1058,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     ur_exp_external_mem_type_t memHandleType,
-    ur_exp_interop_mem_desc_t *pInteropMemDesc,
-    ur_exp_interop_mem_handle_t *phInteropMem) {
+    ur_exp_external_mem_desc_t *pExternalMemDesc,
+    ur_exp_external_mem_handle_t *phExternalMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1071,7 +1071,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {};
     extMemDesc.size = size;
 
-    void *pNext = const_cast<void *>(pInteropMemDesc->pNext);
+    void *pNext = const_cast<void *>(pExternalMemDesc->pNext);
     while (pNext != nullptr) {
       const ur_base_desc_t *BaseDesc =
           static_cast<const ur_base_desc_t *>(pNext);
@@ -1103,7 +1103,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 
     CUexternalMemory extMem;
     UR_CHECK_ERROR(cuImportExternalMemory(&extMem, &extMemDesc));
-    *phInteropMem = (ur_exp_interop_mem_handle_t)extMem;
+    *phExternalMem = (ur_exp_external_mem_handle_t)extMem;
 
   } catch (ur_result_t Err) {
     return Err;
@@ -1117,7 +1117,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_interop_mem_handle_t hInteropMem,
+    ur_exp_external_mem_handle_t hExternalMem,
     ur_exp_image_mem_native_handle_t *phImageMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
@@ -1150,7 +1150,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     // If desired, a CUarray is retrieved from the mipmaps 0th level
     CUmipmappedArray memMipMap;
     UR_CHECK_ERROR(cuExternalMemoryGetMappedMipmappedArray(
-        &memMipMap, (CUexternalMemory)hInteropMem, &mipmapDesc));
+        &memMipMap, (CUexternalMemory)hExternalMem, &mipmapDesc));
 
     if (pImageDesc->numMipLevel > 1) {
       *phImageMem = (ur_exp_image_mem_native_handle_t)memMipMap;
@@ -1169,9 +1169,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_interop_mem_handle_t hInteropMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **ppRetMem) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1179,7 +1179,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 
   try {
     ScopedContext Active(hDevice);
-    UR_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)hInteropMem));
+
+    CUDA_EXTERNAL_MEMORY_BUFFER_DESC BufferDesc = {};
+    BufferDesc.size = size;
+    BufferDesc.offset = offset;
+    BufferDesc.flags = 0;
+
+    CUdeviceptr retMem;
+    UR_CHECK_ERROR(cuExternalMemoryGetMappedBuffer(
+        &retMem, (CUexternalMemory)hExternalMem, &BufferDesc));
+
+    *ppRetMem = (void *)retMem;
+
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_mem_handle_t hExternalMem) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  try {
+    ScopedContext Active(hDevice);
+    UR_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)hExternalMem));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -1191,8 +1221,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_type_t semHandleType,
-    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
-    ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
+    ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
+    ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1203,7 +1233,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 
     CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC extSemDesc = {};
 
-    void *pNext = const_cast<void *>(pInteropSemaphoreDesc->pNext);
+    void *pNext = const_cast<void *>(pExternalSemaphoreDesc->pNext);
     while (pNext != nullptr) {
       const ur_base_desc_t *BaseDesc =
           static_cast<const ur_base_desc_t *>(pNext);
@@ -1234,7 +1264,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     CUexternalSemaphore semaphore;
     UR_CHECK_ERROR(cuImportExternalSemaphore(&semaphore, &extSemDesc));
 
-    *phInteropSemaphoreHandle = (ur_exp_interop_semaphore_handle_t)semaphore;
+    *phExternalSemaphoreHandle = (ur_exp_external_semaphore_handle_t)semaphore;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -1245,7 +1275,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
+    ur_exp_external_semaphore_handle_t hExternalSemaphore) {
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),
@@ -1254,7 +1284,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
   try {
     ScopedContext Active(hDevice);
     UR_CHECK_ERROR(
-        cuDestroyExternalSemaphore((CUexternalSemaphore)hInteropSemaphore));
+        cuDestroyExternalSemaphore((CUexternalSemaphore)hExternalSemaphore));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
@@ -1264,7 +1294,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
@@ -1286,7 +1316,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
     if (phEvent) {
       auto NewEvent = ur_event_handle_t_::makeNative(
-          UR_COMMAND_INTEROP_SEMAPHORE_WAIT_EXP, hQueue, Stream);
+          UR_COMMAND_EXTERNAL_SEMAPHORE_WAIT_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
@@ -1299,7 +1329,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
-    ur_queue_handle_t hQueue, ur_exp_interop_semaphore_handle_t hSemaphore,
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
     bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
@@ -1321,7 +1351,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 
     if (phEvent) {
       auto NewEvent = ur_event_handle_t_::makeNative(
-          UR_COMMAND_INTEROP_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
+          UR_COMMAND_EXTERNAL_SEMAPHORE_SIGNAL_EXP, hQueue, Stream);
       NewEvent->record();
       *phEvent = NewEvent;
     }

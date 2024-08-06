@@ -12,7 +12,7 @@ permissions:
 jobs:
   analyze-ubuntu:
     name: Analyze on Ubuntu
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
     permissions:
       security-events: write
 
@@ -30,6 +30,11 @@ jobs:
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
+
+    - name: Install apt packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libhwloc-dev
 
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_ENABLE_TRACING=ON -DUR_BUILD_TOOLS=ON -DUMF_ENABLE_POOL_TRACKING=ON
@@ -61,8 +66,13 @@ jobs:
     - name: Install pip packages
       run: python3 -m pip install -r third_party/requirements.txt
 
+    - name: Install hwloc
+      run: vcpkg install hwloc:x64-windows
+
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_POLICY_DEFAULT_CMP0094=NEW -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_ENABLE_TRACING=ON -DUR_BUILD_TOOLS=ON -DUMF_ENABLE_POOL_TRACKING=ON
+      env:
+        VCPKG_PATH: "C:/vcpkg/packages/hwloc_x64-windows"
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_POLICY_DEFAULT_CMP0094=NEW -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_ENABLE_TRACING=ON -DUR_BUILD_TOOLS=ON -DUMF_ENABLE_POOL_TRACKING=ON -DCMAKE_PREFIX_PATH="${{env.VCPKG_PATH}}"
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc) --config Release
