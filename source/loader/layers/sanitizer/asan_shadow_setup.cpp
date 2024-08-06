@@ -29,6 +29,7 @@ ur_result_t SetupShadowMemory(uptr &ShadowBegin, uptr &ShadowEnd) {
         if (SHADOW_BEGIN == 0) {
             return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
+        DontCoredumpRange(SHADOW_BEGIN, SHADOW_SIZE);
         SHADOW_END = SHADOW_BEGIN + SHADOW_SIZE;
         IsShadowMemInited = true;
         return UR_RESULT_SUCCESS;
