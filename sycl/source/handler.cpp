@@ -842,6 +842,41 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
+    bool IsESIMD) {
+  const bool IsKernelCreatedFromSource = false;
+  size_t IndexShift = 0;
+  impl->MArgs.reserve(MaxNumAdditionalArgs * ParamDescs.size());
+
+  for (size_t I = 0; I < ParamDescs.size(); ++I) {
+    void *Ptr = LambdaPtr + ParamDescs[I].offset;
+    const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
+    const int &Size = ParamDescs[I].info;
+    if (Kind == detail::kernel_param_kind_t::kind_accessor) {
+      // For args kind of accessor Size is information about accessor.
+      // The first 11 bits of Size encodes the accessor target.
+      const access::target AccTarget =
+          static_cast<access::target>(Size & AccessTargetMask);
+      if ((AccTarget == access::target::device ||
+           AccTarget == access::target::constant_buffer) ||
+          (AccTarget == access::target::image ||
+           AccTarget == access::target::image_array)) {
+        detail::AccessorBaseHost *AccBase =
+            static_cast<detail::AccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*AccBase).get();
+      } else if (AccTarget == access::target::local) {
+        detail::LocalAccessorBaseHost *LocalAccBase =
+            static_cast<detail::LocalAccessorBaseHost *>(Ptr);
+        Ptr = detail::getSyclObjImpl(*LocalAccBase).get();
+      }
+    }
+    processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
+               IsESIMD);
+  }
+}
+
+// TODO Unused, remove during ABI breaking window
+void handler::extractArgsAndReqsFromLambda(
     char *LambdaPtr, size_t KernelArgsNum,
     const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
