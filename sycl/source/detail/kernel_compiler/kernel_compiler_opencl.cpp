@@ -340,6 +340,12 @@ bool OpenCLC_Supports_Extension(
         "trouble parsing query returned from CL_DEVICE_EXTENSIONS_WITH_VERSION "
         "- extension not followed by colon (:)");
   }
+
+  // Note that VersionPtr is an optional parameter in
+  // ext_oneapi_supports_cl_extension().
+  if (!VersionPtr)
+    return true;
+
   colon++; // move it forward
 
   size_t space = ExtensionByVersionLog.find(' ', colon); // could be npos
@@ -360,7 +366,6 @@ bool OpenCLC_Supports_Extension(
   VersionPtr->major = std::stoi(versionVec[0]);
   VersionPtr->minor = std::stoi(versionVec[1]);
   VersionPtr->patch = std::stoi(versionVec[2]);
-
   return true;
 }
 
