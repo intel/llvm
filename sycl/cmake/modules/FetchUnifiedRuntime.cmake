@@ -115,14 +115,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
-  # Merge: 84f5e705 ca2916e9
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 5 21:02:44 2024 +0100
-  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
-  #     Revert "[L0] L0 impl for enqueue native command"
-  set(UNIFIED_RUNTIME_TAG 9deaabcbef168015df251c4ac0d47c2cba7bfbfb)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit 0a2197f4da59ea0e791fecfb995355bb234f5918
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Tue Aug 6 14:17:57 2024 +0100
+  # [XPTI] Use `ur.call` rather than `ur` in XPTI
+  set(UNIFIED_RUNTIME_TAG 0a2197f4da59ea0e791fecfb995355bb234f5918)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
