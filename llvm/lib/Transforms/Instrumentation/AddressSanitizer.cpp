@@ -3716,8 +3716,12 @@ void FunctionStackPoisoner::copyArgsPassedByValToAllocas() {
       const Align Alignment =
           DL.getValueOrABITypeAlignment(Arg.getParamAlign(), Ty);
 
+      unsigned int AS = Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
+                            ? Arg.getType()->getPointerAddressSpace()
+                            : DL.getAllocaAddrSpace();
+
       AllocaInst *AI = IRB.CreateAlloca(
-          Ty, nullptr,
+          Ty, AS, nullptr,
           (Arg.hasName() ? Arg.getName() : "Arg" + Twine(Arg.getArgNo())) +
               ".byval");
       AI->setAlignment(Alignment);
