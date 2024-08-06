@@ -89,7 +89,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
-  if (WIN32) 
+  if (WIN32)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
@@ -110,7 +110,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-                           
+
     # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
     # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
     # Seems to be no way to suppress it except use -Wno-psabi
@@ -140,20 +140,20 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE OpenCL-Headers
   )
 
-  if(SYCL_ENABLE_KERNEL_FUSION)
-    if(NOT DEFINED LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR)
-      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR variable: Must be set when SYCL fusion is enabled")
+  if(SYCL_ENABLE_EXTENSION_JIT)
+    if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
+      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
     endif()
-    set(SYCL_FUSION_INCLUDE_DIRS 
-        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/common/include
-        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/jit-compiler/include)
-    add_dependencies(${LIB_NAME} sycl-fusion)
-    add_dependencies(${LIB_OBJ_NAME} sycl-fusion)
-    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
-    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    set(SYCL_JIT_INCLUDE_DIRS
+        ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include
+        ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
+    add_dependencies(${LIB_NAME} sycl-jit)
+    add_dependencies(${LIB_OBJ_NAME} sycl-jit)
+    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-       sycl-fusion)
-  endif(SYCL_ENABLE_KERNEL_FUSION)
+       sycl-jit)
+  endif(SYCL_ENABLE_EXTENSION_JIT)
 
   find_package(Threads REQUIRED)
 

@@ -30,7 +30,7 @@ static inline void printPerformanceWarning(const std::string &Message) {
 
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
-    static const std::string JITLibraryName = "libsycl-fusion.so";
+    static const std::string JITLibraryName = "libsycl-jit.so";
 
     void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
