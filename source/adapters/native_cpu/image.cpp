@@ -132,6 +132,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] uint64_t offset, [[maybe_unused]] uint64_t size,
+    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
+    [[maybe_unused]] void **phRetMem) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,

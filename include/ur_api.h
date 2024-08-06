@@ -227,6 +227,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,        ///< Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 231,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7963,6 +7964,36 @@ urBindlessImagesMapExternalArrayExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Map an external memory handle to a device memory region described by
+///        void*
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hExternalMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppRetMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext,              ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                ///< [in] handle of the device object
+    uint64_t offset,                           ///< [in] offset into memory region to map
+    uint64_t size,                             ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem                            ///< [out] pointer of the externally allocated memory
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Release external memory
 ///
 /// @remarks
@@ -11230,6 +11261,19 @@ typedef struct ur_bindless_images_map_external_array_exp_params_t {
     ur_exp_external_mem_handle_t *phExternalMem;
     ur_exp_image_mem_native_handle_t **pphImageMem;
 } ur_bindless_images_map_external_array_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urBindlessImagesMapExternalLinearMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_bindless_images_map_external_linear_memory_exp_params_t {
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    uint64_t *poffset;
+    uint64_t *psize;
+    ur_exp_external_mem_handle_t *phExternalMem;
+    void ***pppRetMem;
+} ur_bindless_images_map_external_linear_memory_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesReleaseExternalMemoryExp
