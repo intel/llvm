@@ -203,6 +203,7 @@ class SanitizerInterceptor {
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
     ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+        std::scoped_lock<ur_shared_mutex> Guard(m_AdaptersMutex);
         if (m_Adapters.find(Adapter) != m_Adapters.end()) {
             return UR_RESULT_SUCCESS;
         }
@@ -274,6 +275,7 @@ class SanitizerInterceptor {
     logger::Logger &logger;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
+    ur_shared_mutex m_AdaptersMutex;
 };
 
 } // namespace ur_sanitizer_layer
