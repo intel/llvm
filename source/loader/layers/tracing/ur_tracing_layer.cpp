@@ -21,7 +21,7 @@
 namespace ur_tracing_layer {
 context_t *getContext() { return context_t::get_direct(); }
 
-constexpr auto CALL_STREAM_NAME = "ur";
+constexpr auto CALL_STREAM_NAME = "ur.call";
 constexpr auto STREAM_VER_MAJOR = UR_MAJOR_VERSION(UR_API_VERSION_CURRENT);
 constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 
