@@ -241,14 +241,14 @@ function(process_bc out_file)
     ${ARG_IN_FILE}
     DEPENDS libclc::opt ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
-add_custom_target( ${ARG_LIB_TGT}
-  ALL DEPENDS ${ARG_LIB_TGT}.bc
-  )
-set_target_properties( ${ARG_LIB_TGT}
-  PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
-  )
+  add_custom_target( ${ARG_LIB_TGT}
+    ALL DEPENDS ${ARG_LIB_TGT}.bc
+    )
+  set_target_properties( ${ARG_LIB_TGT}
+    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
+    )
 
-set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
+  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
 
   # Add prepare target
   add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
