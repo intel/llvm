@@ -90,7 +90,7 @@ add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_LIB_DUMPS_ONLY=True"
-  DEPENDS sycl-runtime-libraries llvm-readobj
+  DEPENDS FileCheck sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
 
@@ -137,6 +137,6 @@ if(SYCL_BUILD_BACKEND_HIP)
   endif()
 endif()
 
-if(SYCL_ENABLE_KERNEL_FUSION)
-  add_dependencies(check-sycl check-sycl-fusion)
-endif(SYCL_ENABLE_KERNEL_FUSION)
+if(SYCL_ENABLE_EXTENSION_JIT)
+  add_dependencies(check-sycl check-sycl-jit)
+endif(SYCL_ENABLE_EXTENSION_JIT)
