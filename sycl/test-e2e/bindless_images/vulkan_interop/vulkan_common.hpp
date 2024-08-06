@@ -50,6 +50,8 @@ static PFN_vkGetMemoryFdKHR vk_getMemoryFdKHR;
 static PFN_vkGetSemaphoreFdKHR vk_getSemaphoreFdKHR;
 #endif
 
+static PFN_vkGetImageMemoryRequirements2 vk_getImageMemoryRequirements2;
+
 static uint32_t vk_computeQueueFamilyIndex;
 static uint32_t vk_transferQueueFamilyIndex;
 
@@ -380,6 +382,15 @@ VkResult setupDevice(std::string device) {
   }
 #endif
 
+  vk_getImageMemoryRequirements2 =
+      reinterpret_cast<PFN_vkGetImageMemoryRequirements2>(
+          vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements2KHR"));
+  if (!vk_getImageMemoryRequirements2) {
+    std::cerr << "Could not get func pointer to "
+                 "\"vkGetImageMemoryRequirements2KHR\"!\n";
+    return VK_ERROR_UNKNOWN;
+  }
+
   return VK_SUCCESS;
 }
 
@@ -578,15 +589,8 @@ uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
       VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
   imageRequirementsInfo.image = image;
 
-  auto pfn_vkGetImageMemoryRequirements2 =
-      reinterpret_cast<PFN_vkGetImageMemoryRequirements2>(
-          vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements2KHR"));
-  if (!pfn_vkGetImageMemoryRequirements2) {
-    std::cerr << "Failed to get address of vkGetImageMemoryRequirements2KHR\n";
-    return 0;
-  }
-  pfn_vkGetImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
-                                    &memoryRequirements2);
+  vk_getImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
+                                 &memoryRequirements2);
 
   if (dedicatedRequirements.requiresDedicatedAllocation)
     requiresDedicatedAllocation = true;
