@@ -461,12 +461,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
       *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
-      if (ImageArray) {
+      if (ImageArray != CUarray{}) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
       }
       return Err;
     } catch (...) {
-      if (ImageArray) {
+      if (ImageArray != CUarray{}) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
       }
       return UR_RESULT_ERROR_UNKNOWN;
