@@ -1245,8 +1245,8 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
 
 const char *getArchName(const device &Device) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto arch = Device.get_info<syclex::info::device::architecture>();
-  switch (arch) {
+  auto Arch = Device.get_info<syclex::info::device::architecture>();
+  switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
     return #ARCH;
