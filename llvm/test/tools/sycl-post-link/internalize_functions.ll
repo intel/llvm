@@ -1,5 +1,5 @@
 ; Test that when -support-dynamic-linking is used
-; non SYCL-EXTERNAL functions are internalized.
+; non SYCL_EXTERNAL functions are internalized.
 ; Variables must not be internalized.
 
 ; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
@@ -8,8 +8,8 @@
 
 ; CHECK-SYM-0: foo0
 
-; Non SYCL-EXTERNAL Functions are internalized
-; foo0 is a SYCL-EXTERNAL function
+; Non SYCL_EXTERNAL Functions are internalized
+; foo0 is a SYCL_EXTERNAL function
 ; CHECK-LL-0-DAG: define weak_odr spir_kernel void @foo0() #0 {
 ; Internalize does not change available_externally
 ; CHECK-LL-0-DAG: define available_externally spir_func void @internalA() {
