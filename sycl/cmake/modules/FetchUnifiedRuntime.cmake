@@ -116,11 +116,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit d257de15ee78aed27189c0cc0961d72a93adeb59 
+  # commit 709e467237d838077ad80f4440b2d1efd7c64f96 
   # Author: Isaac Ault <isaac.ault@codeplay.com>
   # Date:   Tue Aug 6 11:21:28 2024 +0100
   #     Feedback: Security on handle type changes.
-  set(UNIFIED_RUNTIME_TAG d257de15ee78aed27189c0cc0961d72a93adeb59 )
+  set(UNIFIED_RUNTIME_TAG 709e467237d838077ad80f4440b2d1efd7c64f96 )
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
