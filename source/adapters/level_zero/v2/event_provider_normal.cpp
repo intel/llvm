@@ -38,7 +38,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
                     (context->ZeContext, &desc, 1,
                      const_cast<ze_device_handle_t *>(&device->ZeDevice),
-                     &pool));
+                     pool.ptr()));
 
   freelist.resize(EVENTS_BURST);
   for (int i = 0; i < EVENTS_BURST; ++i) {
@@ -46,25 +46,19 @@ provider_pool::provider_pool(ur_context_handle_t context,
     desc.index = i;
     desc.signal = 0;
     desc.wait = 0;
-    ZE2UR_CALL_THROWS(zeEventCreate, (pool, &desc, &freelist[i]));
+    ZE2UR_CALL_THROWS(zeEventCreate, (pool.get(), &desc, freelist[i].ptr()));
   }
-}
-
-provider_pool::~provider_pool() {
-  for (auto e : freelist) {
-    ZE_CALL_NOCHECK(zeEventDestroy, (e));
-  }
-  ZE_CALL_NOCHECK(zeEventPoolDestroy, (pool));
 }
 
 event_borrowed provider_pool::allocate() {
   if (freelist.empty()) {
     return nullptr;
   }
-  ze_event_handle_t e = freelist.back();
+  auto e = std::move(freelist.back());
   freelist.pop_back();
-  return event_borrowed(
-      e, [this](ze_event_handle_t handle) { freelist.push_back(handle); });
+  return event_borrowed(e.release(), [this](ze_event_handle_t handle) {
+    freelist.push_back(handle);
+  });
 }
 
 size_t provider_pool::nfree() const { return freelist.size(); }
