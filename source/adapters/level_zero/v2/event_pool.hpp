@@ -19,8 +19,8 @@
 #include <vector>
 #include <ze_api.h>
 
+#include "../common.hpp"
 #include "../device.hpp"
-#include "common.hpp"
 #include "event.hpp"
 #include "event_provider.hpp"
 
