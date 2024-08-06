@@ -37,6 +37,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 #include <sycl/sampler.hpp>                           // for addressing_mode
+#include <ur_api.h>                                   // for UR_RESULT_ERRO...
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash

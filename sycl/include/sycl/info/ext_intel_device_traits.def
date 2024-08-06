@@ -2,20 +2,20 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, device_id, pi_uint32, PI_DEVICE_INFO_DEVICE_ID)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, pci_address, std::string, PI_DEVICE_INFO_PCI_ADDRESS)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_count, pi_uint32, PI_DEVICE_INFO_GPU_EU_COUNT)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_simd_width, pi_uint32, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_slices, pi_uint32, PI_DEVICE_INFO_GPU_SLICES)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_subslices_per_slice, pi_uint32, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_count_per_subslice, pi_uint32, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_hw_threads_per_eu, pi_uint32, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_mem_bandwidth, pi_uint64, PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, uuid, detail::uuid_type, PI_DEVICE_INFO_UUID)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, free_memory, pi_uint64, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_clock_rate, pi_uint32, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_bus_width, pi_uint32, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH)
-__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_compute_queue_indices, pi_int32, PI_EXT_INTEL_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, device_id, uint32_t, UR_DEVICE_INFO_DEVICE_ID)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, pci_address, std::string, UR_DEVICE_INFO_PCI_ADDRESS)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_count, uint32_t, UR_DEVICE_INFO_GPU_EU_COUNT)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_simd_width, uint32_t, UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_slices, uint32_t, UR_DEVICE_INFO_GPU_EU_SLICES)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_subslices_per_slice, uint32_t, UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_eu_count_per_subslice, uint32_t, UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, gpu_hw_threads_per_eu, uint32_t, UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_mem_bandwidth, uint64_t, UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, uuid, detail::uuid_type, UR_DEVICE_INFO_UUID)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, free_memory, uint64_t, UR_DEVICE_INFO_GLOBAL_MEM_FREE)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_clock_rate, uint32_t, UR_DEVICE_INFO_MEMORY_CLOCK_RATE)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, memory_bus_width, uint32_t, UR_DEVICE_INFO_MEMORY_BUS_WIDTH)
+__SYCL_PARAM_TRAITS_SPEC(ext::intel, device, max_compute_queue_indices, int32_t, UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES)
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
