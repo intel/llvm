@@ -244,10 +244,14 @@ void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
   group_barrier();
   bool data_in_scratch = false;
   KeyT *scratch_keys = reinterpret_cast<KeyT *>(scratch);
-  uint8_t *val_offset = scratch + sizeof(KeyT) * (n + 1);
-  val_offset +=
-      alignof(ValT) - reinterpret_cast<uint64_t>(val_offset) % alignof(ValT);
-  ValT *scratch_vals = reinterpret_cast<ValT *>(val_offset);
+  ValT *scratch_vals = nullptr;
+  uint64_t val_offset = reinterpret_cast<uint64_t>(scratch + sizeof(KeyT) * n);
+  uint64_t temp1 = val_offset % alignof(ValT);
+  if (temp1)
+    scratch_vals = reinterpret_cast<ValT *>(val_offset + alignof(ValT) - temp1);
+  else
+    scratch_vals = reinterpret_cast<ValT *>(val_offset);
+
   size_t chunks_to_merge = (n - 1) / chunk_size + 1;
   size_t merge_size = chunk_size;
   while (chunks_to_merge > 1) {

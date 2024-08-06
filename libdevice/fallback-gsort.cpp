@@ -1177,14 +1177,14 @@ DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(
     uint32_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
   private_merge_sort_key_value_close(keys, vals, n, scratch,
-                                     std::less<uint32_t>{});
+                                     std::less_equal<uint32_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1u32_u32_p1i8(
     uint8_t *keys, uint32_t *vals, uint32_t n, uint8_t *scratch) {
   private_merge_sort_key_value_close(keys, vals, n, scratch,
-                                     std::less<uint8_t>{});
+                                     std::less_equal<uint8_t>{});
 }
 
 #endif // __SPIR__ || __SPIRV__
