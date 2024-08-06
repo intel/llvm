@@ -64,6 +64,7 @@ BUILTIN_GENF_CUSTOM(ONE_ARG, exp10,
                     [](auto x) -> decltype(x) { return std::pow(10, x); })
 BUILTIN_GENF(ONE_ARG, expm1)
 BUILTIN_GENF(ONE_ARG, fabs)
+BUILTIN_GENF(ONE_ARG, lround)
 BUILTIN_GENF(TWO_ARGS, fdim)
 BUILTIN_GENF(ONE_ARG, floor)
 BUILTIN_GENF(THREE_ARGS, fma)
