@@ -20,3 +20,4 @@ jobs:
       prefix: ""
       config: ""
       unit: "cpu"
+      extra_lit_flags: "-sv --max-time=3600"
