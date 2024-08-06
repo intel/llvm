@@ -113,10 +113,6 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_factory.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
@@ -136,9 +132,6 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
 )
 
 if(NOT WIN32)
@@ -175,3 +168,81 @@ target_include_directories(${TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../../"
     LevelZeroLoader-Headers
 )
+
+if(UR_BUILD_ADAPTER_L0_V2)
+    add_ur_adapter(ur_adapter_level_zero_v2
+        SHARED
+        # sources shared with legacy adapter
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
+        # v2-only sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool_cache.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool_cache.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_pool.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+    )
+
+    # api.cpp contains NOT_SUPPORTED functions-only
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
+        PROPERTIES APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-unused-parameter")
+
+    if(NOT WIN32)
+        target_sources(ur_adapter_level_zero_v2
+            PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
+        )
+    endif()
+
+    # TODO: fix level_zero adapter conversion warnings
+    target_compile_options(ur_adapter_level_zero_v2 PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
+    )
+
+    set_target_properties(ur_adapter_level_zero_v2 PROPERTIES
+        VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
+        SOVERSION "${PROJECT_VERSION_MAJOR}"
+    )
+
+    if (WIN32)
+    # 0x800: Search for the DLL only in the System32 folder
+    target_link_options(ur_adapter_level_zero_v2 PUBLIC /DEPENDENTLOADFLAG:0x800)
+    endif()
+
+    target_link_libraries(ur_adapter_level_zero_v2 PRIVATE
+        ${PROJECT_NAME}::headers
+        ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
+        LevelZeroLoader
+        LevelZeroLoader-Headers
+    )
+
+    target_include_directories(ur_adapter_level_zero_v2 PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+        LevelZeroLoader-Headers
+    )
+endif()
