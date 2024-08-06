@@ -1,8 +1,9 @@
+#define B_EXPORT
 #include "b.hpp"
 #include "c.hpp"
 #include <iostream>
 
-SYCL_EXTERNAL int levelB(int val) {
+B_DECLSPEC SYCL_EXTERNAL int levelB(int val) {
 #ifndef __SYCL_DEVICE_ONLY__
   std::cerr << "Host symbol used" << std::endl;
   return 0;
