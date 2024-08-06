@@ -499,11 +499,9 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto ProgMetadata = Img->getProgramMetadata();
-      for (const auto &Prop : ProgMetadata) {
-        ProgMetadataVector.push_back(
-            ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
-      }
+      auto &ImgProgMetadata = Img->getProgramMetadataUR();
+      ProgMetadataVector.insert(ProgMetadataVector.end(),
+                                ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     // TODO: Build for multiple devices once supported by program manager
     NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
@@ -1524,7 +1522,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
     if (!CreatedFromBinary) {
-      auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
+      auto Res = doCompile(Plugin, Prg, /*num devices =*/1, &Device,
                            Context->getHandleRef(), CompileOptions.c_str());
       Plugin->checkUrResult<errc::build>(Res);
     }
