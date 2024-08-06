@@ -17,11 +17,10 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -1138,7 +1137,7 @@ private:
            AccessMode == access::mode::discard_read_write;
   }
 
-  // PI APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
+  // UR APIs only support select fill sizes: 1, 2, 4, 8, 16, 32, 64, 128
   constexpr static bool isBackendSupportedFillSize(size_t Size) {
     return Size == 1 || Size == 2 || Size == 4 || Size == 8 || Size == 16 ||
            Size == 32 || Size == 64 || Size == 128;
@@ -1876,7 +1875,7 @@ private:
     setArgsToAssociatedAccessors();
 
     SetHostTask(std::move(Func));
-    setType(detail::CGType::CodeplayHostTask);
+    setType(detail::CGType::EnqueueNativeCommand);
   }
 
   /// @brief Get the command graph if any associated with this handler. It can
@@ -2865,7 +2864,7 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // CG::Fill will result in urEnqueueMemBufferFill which requires that mem
     // data is contiguous. Thus we check range and offset when dim > 1
     // Images don't allow ranged accessors and are fine.
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
@@ -3304,45 +3303,45 @@ public:
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Submit a non-blocking device-side wait on an external
   //  semaphore to the queue.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support waiting on an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param WaitValue is the value that this semaphore will wait upon, until it
   ///                  allows any further commands to execute on the queue.
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t WaitValue);
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands submitted to the queue have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle);
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore);
 
   /// Instruct the queue to set the state of the external semaphore to
   /// \p SignalValue once all previous commands submitted to the queue have
   /// completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete, or if the
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
   /// type of semaphore does not support signalling an explicitly passed value.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object.
   /// \param SignalValue is the value that this semaphore signal, once all
   ///                    prior opeartions on the queue complete.
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       uint64_t SignalValue);
 
 private:

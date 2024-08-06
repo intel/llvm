@@ -98,8 +98,8 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -607,7 +607,7 @@ void Scheduler::cancelFusion(QueueImplPtr Queue) {
   enqueueCommandForCG(nullptr, ToEnqueue);
 }
 
-sycl::detail::pi::PiKernel Scheduler::completeSpecConstMaterialization(
+ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] QueueImplPtr Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] const std::string &KernelName,
@@ -726,7 +726,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   if (SyclEventImplPtr->getContextImpl() != Context)
     return false;
 
-  // A nullptr here means that the commmand does not produce a PI event or it
+  // A nullptr here means that the commmand does not produce a UR event or it
   // hasn't been enqueued yet.
   return SyclEventImplPtr->getHandleRef() != nullptr;
 }

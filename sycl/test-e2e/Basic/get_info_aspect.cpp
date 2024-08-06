@@ -17,7 +17,7 @@ int main() {
     sycl::device d(sycl::default_selector_v);
     size_t mem_free = d.get_info<sycl::ext::intel::info::device::free_memory>();
   } catch (const sycl::exception &e) {
-    assert(e.code() == sycl::errc::invalid);
+    assert(e.code() == sycl::errc::feature_not_supported);
     std::cout << "Expected exception encountered: " << e.what() << std::endl;
     failed = false;
   }
