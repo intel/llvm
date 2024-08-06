@@ -19,9 +19,10 @@
 #include <ur_api.h>
 #include <ze_api.h>
 
-#include "../common.hpp"
-#include "../device.hpp"
+#include "common.hpp"
 #include "event.hpp"
+
+#include "../device.hpp"
 
 namespace v2 {
 
@@ -35,7 +36,7 @@ public:
   provider_pool(ur_context_handle_t, ur_device_handle_t, event_type,
                 queue_type);
 
-  event_borrowed allocate();
+  raii::cache_borrowed_event allocate();
   size_t nfree() const;
 
 private:
@@ -45,10 +46,14 @@ private:
 
 class provider_normal : public event_provider {
 public:
-  provider_normal(ur_context_handle_t, ur_device_handle_t, event_type,
-                  queue_type);
+  provider_normal(ur_context_handle_t context, ur_device_handle_t device,
+                  event_type etype, queue_type qtype)
+      : producedType(etype), queueType(qtype), urContext(context),
+        urDevice(device) {
+    urDeviceRetain(device);
+  }
 
-  ~provider_normal() override;
+  ~provider_normal() override { urDeviceRelease(urDevice); }
 
   event_allocation allocate() override;
   ur_device_handle_t device() override;

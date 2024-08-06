@@ -10,8 +10,12 @@
  *
  */
 
+#include "logger/ur_logger.hpp"
 #include "queue_api.hpp"
 #include "queue_immediate_in_order.hpp"
+
+#include <tuple>
+#include <utility>
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
@@ -20,4 +24,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   *phQueue =
       new v2::ur_queue_immediate_in_order_t(hContext, hDevice, pProperties);
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
+    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
+    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
+    ur_queue_handle_t *phQueue) {
+  std::ignore = hNativeQueue;
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = pProperties;
+  std::ignore = phQueue;
+  logger::error("{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

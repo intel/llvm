@@ -14,12 +14,12 @@ namespace v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
-ur_event *event_pool::allocate() {
+ur_event_handle_t_ *event_pool::allocate() {
   if (freelist.empty()) {
     auto start = events.size();
     auto end = start + EVENTS_BURST;
     for (; start < end; ++start) {
-      events.emplace_back(provider->allocate());
+      events.emplace_back(provider->allocate(), this);
       freelist.push_back(&events.at(start));
     }
   }
@@ -30,9 +30,11 @@ ur_event *event_pool::allocate() {
   return event;
 }
 
-void event_pool::free(ur_event *event) {
+void event_pool::free(ur_event_handle_t_ *event) {
   event->reset();
   freelist.push_back(event);
 }
+
+event_provider *event_pool::getProvider() { return provider.get(); }
 
 } // namespace v2
