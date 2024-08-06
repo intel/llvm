@@ -10,8 +10,8 @@
 
 // expected-no-diagnostics
 
-// This test checks that specifying SYCL_EXTERN is not necessary on a free
-// function definition. The free function property implies SYCL_EXTERN.
+// This test checks that specifying SYCL_EXTERNAL is not necessary on a free
+// function definition. The free function property implies SYCL_EXTERNAL.
 // If this feature were not implemented correctly then each call to
 // get_kernel_id would produce a diagnostic because the expected free function
 // definition would be missing.
