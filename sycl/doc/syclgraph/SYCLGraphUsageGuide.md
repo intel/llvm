@@ -21,7 +21,7 @@ unless specifically noted.
 SYCL Graph cannot capture work done on the host in application code which does
 not go through the SYCL runtime, including direct operations (for example kernel
 submissions) through a backend API (level-zero, cuda, etc). Any work to be done
-on the host should be captured within a `sycl::host-task` as a node in the
+on the host should be captured within a SYCL host-task as a node in the
 graph. Workloads which require a lot of host-tasks may see reduced performance
 due to host synchronization or preventing the runtime from submitted the entire
 graph to the device at once.
@@ -46,7 +46,7 @@ In normal SYCL usage `do_some_host_work()` will be evaluated during the call to
 submit. With SYCL Graph this code will be evaluated once during the call to
 `submit()` or `command_graph::add()` but will not be evaluated on subsequent
 runs of the graph which may lead to incorrect behavior. This code should be
-placed into a `host-task` node which the kernel (or other operation) depends on,
+placed into a host-task node which the kernel (or other operation) depends on,
 like so:
 
 ```c++
