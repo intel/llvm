@@ -122,7 +122,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon Jul 29 09:11:29 2024 +0200
   #     Merge pull request #1905 from igchor/umf_hwloc_disable
   #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG d8f745ea22b2fb18b6ac5f3632614a77d8ffa211)
+  set(UNIFIED_RUNTIME_TAG 210613b4aa7055d43bc4d9f542d653096a13acfb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

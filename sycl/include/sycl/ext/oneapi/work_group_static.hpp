@@ -91,10 +91,10 @@ std::enable_if_t<
 
 struct work_group_static_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>
-          /*,
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
       ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem> */{
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
+          property_value<work_group_static_size>{
   // Compile time property
   using value_t = property_value<work_group_static_size>;
   // Runtime property part
@@ -115,7 +115,7 @@ struct is_property_value<work_group_static_size_key>
     : is_property_key<work_group_static_size_key> {};
 
 namespace detail {
-template <> struct PropertyMetaInfo<work_group_static_size_key::value_t> {
+template <> struct PropertyMetaInfo<work_group_static_size_key> {
   static constexpr const char *name = "work-group-static";
   static constexpr int value = 1;
 };
