@@ -103,6 +103,8 @@ static std::atomic<bool> LTOError;
 
 static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
+SmallString<128> SPIRVDumpDir;
+
 using OffloadingImage = OffloadBinary::OffloadingImage;
 
 namespace llvm {
@@ -861,6 +863,30 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef File,
   CmdArgs.push_back(File);
   if (Error Err = executeCommands(*LLVMToSPIRVPath, CmdArgs))
     return std::move(Err);
+
+  if (!SPIRVDumpDir.empty()) {
+    std::error_code EC =
+        llvm::sys::fs::create_directory(SPIRVDumpDir, /*IgnoreExisting*/ true);
+    if (EC)
+      return createStringError(
+          EC,
+          formatv("failed to create dump directory. path: {0}, error_code: {1}",
+                  SPIRVDumpDir, EC.value()));
+
+    StringRef Sep = llvm::sys::path::get_separator();
+    StringRef Path = *TempFileOrErr;
+    StringRef Filename = Path.rsplit(Sep).second;
+    SmallString<128> CopyPath = SPIRVDumpDir;
+    CopyPath.append(Filename);
+    EC = llvm::sys::fs::copy_file(Path, CopyPath);
+    if (EC)
+      return createStringError(
+          EC,
+          formatv(
+              "failed to copy file. original: {0}, copy: {1}, error_code: {2}",
+              Path, CopyPath, EC.value()));
+  }
+
   return *TempFileOrErr;
 }
 
@@ -2660,6 +2686,17 @@ int main(int Argc, char **Argv) {
           inconvertibleErrorCode(),
           formatv("sycl-module-split-mode value isn't recognized: {0}",
                   StrMode)));
+  }
+
+  if (Args.hasArg(OPT_sycl_dump_device_code_EQ)) {
+    Arg *A = Args.getLastArg(OPT_sycl_dump_device_code_EQ);
+    SmallString<128> Dir(A->getValue());
+    if (Dir.empty())
+      llvm::sys::path::native(Dir = "./");
+    else
+      Dir.append(llvm::sys::path::get_separator());
+
+    SPIRVDumpDir = Dir;
   }
 
   {

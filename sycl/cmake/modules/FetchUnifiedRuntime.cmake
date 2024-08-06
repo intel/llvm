@@ -41,7 +41,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -117,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c1d81628c49331b1dd7e14dc28be871f4ec6cf43
-  # Merge: 4f2ce7f0 7ce73878
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Aug 2 07:44:20 2024 +0200
-  #     Merge pull request #1920 from zhaomaosu/devsan-add-missing-lib
-  #     [DeviceSanitizer] Add missing required library
-  set(UNIFIED_RUNTIME_TAG c1d81628c49331b1dd7e14dc28be871f4ec6cf43)
+  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
+  # Merge: 84f5e705 ca2916e9
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Mon Aug 5 21:02:44 2024 +0100
+  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
+  #     Revert "[L0] L0 impl for enqueue native command"
+  set(UNIFIED_RUNTIME_TAG 9deaabcbef168015df251c4ac0d47c2cba7bfbfb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
