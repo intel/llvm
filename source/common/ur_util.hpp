@@ -462,7 +462,7 @@ template <typename T> class AtomicSingleton {
 
     static int release(std::function<void(T *)> deleter) {
         auto val = instance.acquire();
-        int ret = val->release(deleter);
+        int ret = val->release(std::move(deleter));
         instance.release();
 
         return ret;
