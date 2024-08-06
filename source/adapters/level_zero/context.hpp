@@ -147,9 +147,10 @@ struct ur_context_handle_t_ : _ur_object {
   // head.
   //
   // Cache of event pools to which host-visible events are added to.
-  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{12};
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{
+      ZeEventPoolCacheTypeCount * 2};
   std::vector<std::unordered_map<ze_device_handle_t, size_t>>
-      ZeEventPoolCacheDeviceMap{12};
+      ZeEventPoolCacheDeviceMap{ZeEventPoolCacheTypeCount * 2};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -171,9 +172,9 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Caches for events.
   using EventCache = std::vector<std::list<ur_event_handle_t>>;
-  EventCache EventCaches{6};
+  EventCache EventCaches{EventCacheTypeCount};
   std::vector<std::unordered_map<ur_device_handle_t, size_t>>
-      EventCachesDeviceMap{6};
+      EventCachesDeviceMap{EventCacheTypeCount};
 
   // Initialize the PI context.
   ur_result_t initialize();
@@ -223,7 +224,8 @@ struct ur_context_handle_t_ : _ur_object {
     HostVisibleCounterBasedRegularCacheType,
     HostInvisibleCounterBasedRegularCacheType,
     HostVisibleCounterBasedImmediateCacheType,
-    HostInvisibleCounterBasedImmediateCacheType
+    HostInvisibleCounterBasedImmediateCacheType,
+    ZeEventPoolCacheTypeCount
   };
 
   enum EventCacheType {
@@ -232,7 +234,8 @@ struct ur_context_handle_t_ : _ur_object {
     HostInvisibleProfilingCacheType,
     HostInvisibleRegularCacheType,
     CounterBasedImmediateCacheType,
-    CounterBasedRegularCacheType
+    CounterBasedRegularCacheType,
+    EventCacheTypeCount
   };
 
   std::list<ze_event_pool_handle_t> *
