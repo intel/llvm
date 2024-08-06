@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit 129929750495eec450f4535b1ff69c6dcba0fc48 
+  # commit 76eaa15f7e788c8b60c10b2ec1d2704558f8107c 
   # Author: Isaac Ault <isaac.ault@codeplay.com>
   # Date:   Wed Jul 24 08:57:49 2024 +0100
   #     [Bindless][Exp] Image Array Sub-Region Copies
   #     * Add support for sub-region copies.
 
-  set(UNIFIED_RUNTIME_TAG 129929750495eec450f4535b1ff69c6dcba0fc48)
+  set(UNIFIED_RUNTIME_TAG 76eaa15f7e788c8b60c10b2ec1d2704558f8107c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
