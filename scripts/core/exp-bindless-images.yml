@@ -737,6 +737,37 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
+desc: "Map an external memory handle to a device memory region described by void*"
+class: $xBindlessImages
+name: MapExternalLinearMemoryExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: uint64_t
+      name: offset
+      desc: "[in] offset into memory region to map"
+    - type: uint64_t
+      name: size
+      desc: "[in] size of memory region to map"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
+    - type: void**
+      name: ppRetMem
+      desc: "[out] pointer of the externally allocated memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
 desc: "Release external memory"
 class: $xBindlessImages
 name: ReleaseExternalMemoryExp

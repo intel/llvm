@@ -942,6 +942,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP";
         break;
+    case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP:
+        os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -15191,6 +15194,48 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_bindless_images_map_external_linear_memory_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_bindless_images_map_external_linear_memory_exp_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur::details::printPtr(os,
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".offset = ";
+
+    os << *(params->poffset);
+
+    os << ", ";
+    os << ".size = ";
+
+    os << *(params->psize);
+
+    os << ", ";
+    os << ".hExternalMem = ";
+
+    ur::details::printPtr(os,
+                          *(params->phExternalMem));
+
+    os << ", ";
+    os << ".ppRetMem = ";
+
+    ur::details::printPtr(os,
+                          *(params->pppRetMem));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_bindless_images_release_external_memory_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -17803,6 +17848,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP: {
         os << (const struct ur_bindless_images_map_external_array_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP: {
+        os << (const struct ur_bindless_images_map_external_linear_memory_exp_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP: {
         os << (const struct ur_bindless_images_release_external_memory_exp_params_t *)params;
