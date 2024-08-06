@@ -15,7 +15,7 @@
 ; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
 ; RUN:     --implicit-check-not kernel0
 
-; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: llvm-split -sycl-split=auto -S < %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2.table --check-prefix CHECK-TABLE
 ;
 ; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefix CHECK-M0-SYMS \

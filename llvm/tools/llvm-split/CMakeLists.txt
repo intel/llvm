@@ -10,6 +10,7 @@ set(LLVM_LINK_COMPONENTS
   IRReader
   MC
   Support
+  SYCLLowerIR
   Target
   TargetParser
   )
