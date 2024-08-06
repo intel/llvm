@@ -35,7 +35,6 @@ class provider_counter : public event_provider {
 public:
   provider_counter(ur_platform_handle_t platform, ur_context_handle_t,
                    ur_device_handle_t);
-  ~provider_counter() override;
 
   event_allocation allocate() override;
   ur_device_handle_t device() override;
@@ -48,7 +47,7 @@ private:
 
   zexCounterBasedEventCreate eventCreateFunc;
 
-  std::vector<ze_event_handle_t> freelist;
+  std::vector<raii::ze_event_handle_t> freelist;
 };
 
 } // namespace v2
