@@ -255,7 +255,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
               << A->getSpelling() << Val;
         }
         DeviceLibLinkInfo[Val] = !NoDeviceLibs && !IgnoreSingleLibs;
-        PrintUnusedLibWarning = IgnoreSingleLibs && !NoDeviceLibs && true;
+        PrintUnusedLibWarning = IgnoreSingleLibs && !NoDeviceLibs;
       }
       if (PrintUnusedLibWarning)
         C.getDriver().Diag(diag::warn_ignored_clang_option)
