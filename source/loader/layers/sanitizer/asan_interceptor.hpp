@@ -203,6 +203,9 @@ class SanitizerInterceptor {
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
     ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+        if (m_Adapters.find(Adapter) != m_Adapters.end()) {
+            return UR_RESULT_SUCCESS;
+        }
         UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
         m_Adapters.insert(Adapter);
         return UR_RESULT_SUCCESS;
