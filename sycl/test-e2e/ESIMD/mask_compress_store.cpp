@@ -24,12 +24,12 @@ using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 template <int N> bool test(sycl::queue &Queue) {
   shared_allocator<uint32_t> Allocator(Queue);
 
-  shared_vector<uint32_t> Output(N * 2, 0, Allocator);
-  shared_vector<uint32_t> OutputVector(N * 2, 0, Allocator);
+  shared_vector<uint32_t> Output(N, 0, Allocator);
+  shared_vector<uint32_t> OutputVector(N, 0, Allocator);
   std::vector<uint32_t> ExpectedOutput(Output.begin(), Output.end());
   std::vector<uint32_t> OutputAcc(Output.begin(), Output.end());
   int idx = 0;
-  for (int I = 0; I < N * 2; I++) {
+  for (int I = 0; I < N; I++) {
     if ((I % 2) == 0)
       ExpectedOutput[idx++] = I + 1;
   }
@@ -42,7 +42,7 @@ template <int N> bool test(sycl::queue &Queue) {
     auto OutputAcc_out = OutputAcc_buffer.get_access<access::mode::write>(cgh);
     auto Kernel = ([=]() SYCL_ESIMD_KERNEL {
       simd<uint32_t, N> Input(1, 1);
-      simd<uint32_t, 2 * N> Result(0);
+      simd<uint32_t, N> Result(0);
       simd_mask<N> Mask;
       for (int i = 0; i < N; i++)
         Mask[i] = (i % 2) == 0;
@@ -55,7 +55,7 @@ template <int N> bool test(sycl::queue &Queue) {
   });
   Queue.wait();
 
-  for (int I = 0; I < N * 2; I++) {
+  for (int I = 0; I < N; I++) {
     if (Output[I] != OutputVector[I] && OutputAcc[I] != Output[I] &&
         Output[I] != ExpectedOutput[I]) {
       std::cout << "mask_compress_store: error at I = " << std::to_string(I)
