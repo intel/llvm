@@ -255,11 +255,10 @@ bool DependencyFileGenerator::sawDependency(StringRef Filename, bool FromModule,
   if (isSpecialFilename(Filename))
     return false;
 
-  if (DependencyFilter.size() &&
-      DependencyFilter.compare(0, DependencyFilter.size(), Filename.data(),
-                               DependencyFilter.size()) == 0)
-    // Remove dependencies that are prefixed by the Filter string.
-    return false;
+  // Remove dependencies that are prefixed by the Filter string.
+  for (const std::string &FD : DependencyFilter)
+    if (FD.compare(0, FD.size(), Filename.data(), FD.size()) == 0)
+      return false;
 
   if (IncludeSystemHeaders)
     return true;
