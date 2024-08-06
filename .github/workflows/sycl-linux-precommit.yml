@@ -80,7 +80,7 @@ jobs:
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu          
+            target_devices: ext_oneapi_cuda:gpu
           - name: Intel
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
