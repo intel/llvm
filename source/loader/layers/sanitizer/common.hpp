@@ -132,11 +132,26 @@ using BacktraceInfo = std::string;
 struct SourceInfo {
     std::string file;
     std::string function;
-    int line;
-    int column;
+    int line = 0;
+    int column = 0;
 };
 
 enum class DeviceType : uint64_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
+
+inline const char *ToString(DeviceType Type) {
+    switch (Type) {
+    case DeviceType::UNKNOWN:
+        return "UNKNOWN";
+    case DeviceType::CPU:
+        return "CPU";
+    case DeviceType::GPU_PVC:
+        return "PVC";
+    case DeviceType::GPU_DG2:
+        return "DG2";
+    default:
+        return "UNKNOWN";
+    }
+}
 
 bool IsInASanContext();
 

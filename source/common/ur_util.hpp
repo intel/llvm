@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022-2023 Intel Corporation
+ * Copyright (C) 2022-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -27,6 +27,8 @@
 #include <vector>
 
 int ur_getpid(void);
+int ur_close_fd(int fd);
+int ur_duplicate_fd(int pid, int fd_in);
 
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)

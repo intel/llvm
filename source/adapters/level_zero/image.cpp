@@ -496,6 +496,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -675,9 +677,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hImage;
+  UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
+
+  if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
+    ZE2UR_CALL(zeImageDestroy, (item->second));
+    hDevice->ZeOffsetToImageHandleMap.erase(item);
+  } else {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -984,17 +993,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     ur_exp_external_mem_type_t memHandleType,
-    ur_exp_interop_mem_desc_t *pInteropMemDesc,
-    ur_exp_interop_mem_handle_t *phInteropMem) {
+    ur_exp_external_mem_desc_t *pExternalMemDesc,
+    ur_exp_external_mem_handle_t *phExternalMem) {
 
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pInteropMemDesc && phInteropMem,
+  UR_ASSERT(pExternalMemDesc && phExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   struct ur_ze_external_memory_data *externalMemoryData =
       new struct ur_ze_external_memory_data;
 
-  void *pNext = const_cast<void *>(pInteropMemDesc->pNext);
+  void *pNext = const_cast<void *>(pExternalMemDesc->pNext);
   while (pNext != nullptr) {
     const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
     if (BaseDesc->stype == UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR) {
@@ -1034,23 +1043,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
   }
   externalMemoryData->size = size;
 
-  *phInteropMem =
-      reinterpret_cast<ur_exp_interop_mem_handle_t>(externalMemoryData);
+  *phExternalMem =
+      reinterpret_cast<ur_exp_external_mem_handle_t>(externalMemoryData);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    ur_exp_interop_mem_handle_t hInteropMem,
+    ur_exp_external_mem_handle_t hExternalMem,
     ur_exp_image_mem_native_handle_t *phImageMem) {
 
-  UR_ASSERT(hContext && hDevice && hInteropMem,
+  UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pImageFormat && pImageDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   struct ur_ze_external_memory_data *externalMemoryData =
-      reinterpret_cast<ur_ze_external_memory_data *>(hInteropMem);
+      reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
 
   ze_image_bindless_exp_desc_t ZeImageBindlessDesc = {};
   ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
@@ -1074,15 +1083,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_interop_mem_handle_t hInteropMem) {
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = size;
+  std::ignore = offset;
+  std::ignore = hExternalMem;
+  std::ignore = phRetMem;
+  logger::error("[UR][L0] {} function not implemented!",
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
 
-  UR_ASSERT(hContext && hDevice && hInteropMem,
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_exp_external_mem_handle_t hExternalMem) {
+
+  UR_ASSERT(hContext && hDevice && hExternalMem,
             UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   struct ur_ze_external_memory_data *externalMemoryData =
-      reinterpret_cast<ur_ze_external_memory_data *>(hInteropMem);
+      reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
 
   UR_CALL(urMemRelease(externalMemoryData->urMemoryHandle));
 
@@ -1107,13 +1130,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_type_t semHandleType,
-    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
-    ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle) {
+    ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
+    ur_exp_external_semaphore_handle_t *phExternalSemaphoreHandle) {
   std::ignore = hContext;
   std::ignore = hDevice;
   std::ignore = semHandleType;
-  std::ignore = pInteropSemaphoreDesc;
-  std::ignore = phInteropSemaphoreHandle;
+  std::ignore = pExternalSemaphoreDesc;
+  std::ignore = phExternalSemaphoreHandle;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -1121,17 +1144,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
+    ur_exp_external_semaphore_handle_t hExternalSemaphore) {
   std::ignore = hContext;
   std::ignore = hDevice;
-  std::ignore = hInteropSemaphore;
+  std::ignore = hExternalSemaphore;
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_interop_semaphore_handle_t hSemaphore, bool hasValue,
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
     uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hSemaphore;
@@ -1146,7 +1169,7 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
 }
 
 ur_result_t ur_queue_handle_legacy_t_::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_interop_semaphore_handle_t hSemaphore, bool hasValue,
+    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
     uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = hSemaphore;

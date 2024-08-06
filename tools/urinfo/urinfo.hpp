@@ -372,16 +372,10 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
         hDevice, UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP);
+        hDevice, UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP);
-    std::cout << prefix;
-    printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP);
-    std::cout << prefix;
-    printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP);
+        hDevice, UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP);
     std::cout << prefix;
@@ -401,13 +395,21 @@ inline void printDeviceInfos(ur_device_handle_t hDevice,
         hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
-        hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP);
-    std::cout << prefix;
-    printDeviceInfo<ur_bool_t>(
         hDevice, UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(hDevice,
                                UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice, UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(
+        hDevice, UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice,
+                               UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP);
+    std::cout << prefix;
+    printDeviceInfo<ur_bool_t>(hDevice,
+                               UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP);
     std::cout << prefix;
     printDeviceInfo<ur_bool_t>(
         hDevice, UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP);

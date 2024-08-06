@@ -424,9 +424,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
   urDeviceRetain(Device);
 }
 
-// The ur_exp_command_buffer_handle_t_ destructor releases all the memory
-// objects allocated for command_buffer management.
-ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // Release the memory allocated to the Context stored in the command_buffer
   urContextRelease(Context);
 
@@ -703,6 +701,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  CommandBuffer->cleanupCommandBufferResources();
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
 }
@@ -922,6 +921,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
                           !IsDevicePointer(CommandBuffer->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (CommandBuffer->Device->isDG2() &&
+      (IsSharedPointer(CommandBuffer->Context, Src) ||
+       IsSharedPointer(CommandBuffer->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueCommandBufferMemCopyHelper(
