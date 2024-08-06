@@ -142,6 +142,7 @@ bool IsInASanContext();
 
 uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
+bool DontCoredumpRange(uptr Addr, uptr Size);
 
 void *GetMemFunctionPointer(const char *);
 
