@@ -207,11 +207,11 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
     )
 
-    # api.cpp contains NOT_SUPPORTED functions-only
-    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
-        PROPERTIES APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-unused-parameter")
-
     if(NOT WIN32)
+        # api.cpp contains NOT_SUPPORTED functions-only
+        set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
+            PROPERTIES APPEND_STRING PROPERTY COMPILE_FLAGS "-Wno-unused-parameter")
+
         target_sources(ur_adapter_level_zero_v2
             PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp

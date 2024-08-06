@@ -538,16 +538,6 @@ ur_result_t UR_APICALL urEventWait(uint32_t numEvents,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ur_native_handle_t *phNativeEvent) {
   logger::error("{} function not implemented!", __FUNCTION__);

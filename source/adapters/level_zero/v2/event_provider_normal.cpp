@@ -7,14 +7,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include "event_provider_normal.hpp"
-#include "../common.hpp"
-#include "../context.hpp"
-#include "event_provider.hpp"
-#include "latency_tracker.hpp"
-#include "ur_api.h"
-#include "ze_api.h"
+
+#include <ur_api.h>
+#include <ze_api.h>
+
 #include <memory>
+
+#include "context.hpp"
+#include "event_provider.hpp"
+#include "event_provider_normal.hpp"
+
+#include "../common/latency_tracker.hpp"
+
+#include "../common.hpp"
 
 namespace v2 {
 static constexpr int EVENTS_BURST = 64;
@@ -37,7 +42,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   }
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->ZeContext, &desc, 1,
+                    (context->hContext, &desc, 1,
                      const_cast<ze_device_handle_t *>(&device->ZeDevice),
                      pool.ptr()));
 
@@ -51,28 +56,18 @@ provider_pool::provider_pool(ur_context_handle_t context,
   }
 }
 
-event_borrowed provider_pool::allocate() {
+raii::cache_borrowed_event provider_pool::allocate() {
   if (freelist.empty()) {
     return nullptr;
   }
   auto e = std::move(freelist.back());
   freelist.pop_back();
-  return event_borrowed(e.release(), [this](ze_event_handle_t handle) {
-    freelist.push_back(handle);
-  });
+  return raii::cache_borrowed_event(
+      e.release(),
+      [this](ze_event_handle_t handle) { freelist.push_back(handle); });
 }
 
 size_t provider_pool::nfree() const { return freelist.size(); }
-
-provider_normal::provider_normal(ur_context_handle_t context,
-                                 ur_device_handle_t device, event_type etype,
-                                 queue_type qtype)
-    : producedType(etype), queueType(qtype), urContext(context),
-      urDevice(device) {
-  urDeviceRetain(device);
-}
-
-provider_normal::~provider_normal() { urDeviceRelease(urDevice); }
 
 std::unique_ptr<provider_pool> provider_normal::createProviderPool() {
   return std::make_unique<provider_pool>(urContext, urDevice, producedType,

@@ -7,14 +7,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <ur_api.h>
+#include <ze_api.h>
+
+#include "context.hpp"
+#include "event_provider.hpp"
 #include "event_provider_counter.hpp"
-#include "../context.hpp"
+#include "loader/ze_loader.h"
+
 #include "../device.hpp"
 #include "../platform.hpp"
-#include "event_provider.hpp"
-#include "loader/ze_loader.h"
-#include "ur_api.h"
-#include "ze_api.h"
 
 namespace v2 {
 
@@ -27,7 +29,7 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
                      (void **)&this->eventCreateFunc));
   ZE2UR_CALL_THROWS(
       zelLoaderTranslateHandle,
-      (ZEL_HANDLE_CONTEXT, context->ZeContext, (void **)&translatedContext));
+      (ZEL_HANDLE_CONTEXT, context->hContext, (void **)&translatedContext));
   ZE2UR_CALL_THROWS(
       zelLoaderTranslateHandle,
       (ZEL_HANDLE_DEVICE, device->ZeDevice, (void **)&translatedDevice));
@@ -52,9 +54,10 @@ event_allocation provider_counter::allocate() {
   freelist.pop_back();
 
   return {event_type::EVENT_COUNTER,
-          event_borrowed(event.release(), [this](ze_event_handle_t handle) {
-            freelist.push_back(handle);
-          })};
+          raii::cache_borrowed_event(event.release(),
+                                     [this](ze_event_handle_t handle) {
+                                       freelist.push_back(handle);
+                                     })};
 }
 
 ur_device_handle_t provider_counter::device() { return urDevice; }

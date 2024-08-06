@@ -23,12 +23,17 @@ namespace v2 {
 
 enum event_type { EVENT_REGULAR, EVENT_COUNTER };
 
-using event_borrowed =
-    std::unique_ptr<_ze_event_handle_t, std::function<void(ze_event_handle_t)>>;
+class event_provider;
+
+namespace raii {
+using cache_borrowed_event =
+    std::unique_ptr<_ze_event_handle_t,
+                    std::function<void(::ze_event_handle_t)>>;
+} // namespace raii
 
 struct event_allocation {
   event_type type;
-  event_borrowed borrow;
+  raii::cache_borrowed_event borrow;
 };
 
 class event_provider {
