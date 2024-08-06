@@ -84,7 +84,7 @@ add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   DEPENDS sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
-  
-if(SYCL_ENABLE_KERNEL_FUSION)
-  add_dependencies(check-sycl check-sycl-fusion)
-endif(SYCL_ENABLE_KERNEL_FUSION)
+
+if(SYCL_ENABLE_EXTENSION_JIT)
+  add_dependencies(check-sycl check-sycl-jit)
+endif(SYCL_ENABLE_EXTENSION_JIT)
