@@ -112,7 +112,7 @@ struct AsanOptions {
 
         KV = OptionsEnvMap->find("redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MinRZSize = std::stoul(Value);
                 if (MinRZSize < 16) {
