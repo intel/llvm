@@ -6,6 +6,7 @@
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
+    latency_tracker.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
     $<$<PLATFORM_ID:Linux,Darwin>:linux/ur_lib_loader.cpp>
 )
@@ -44,6 +45,24 @@ set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 
 FetchContent_MakeAvailable(unified-memory-framework)
 FetchContent_GetProperties(unified-memory-framework)
+
+if(UR_ENABLE_LATENCY_HISTOGRAM)
+    set(HDR_HISTOGRAM_BUILD_STATIC CACHE INTERNAL ON "")
+    set(HDR_HISTOGRAM_BUILD_SHARED CACHE INTERNAL OFF "")
+
+    include(FetchContent)
+    FetchContent_Declare(hdr_histogram
+        GIT_REPOSITORY    https://github.com/HdrHistogram/HdrHistogram_c.git
+        GIT_TAG           0.11.8
+    )
+
+    FetchContent_MakeAvailable(hdr_histogram)
+    FetchContent_GetProperties(hdr_histogram)
+
+    target_link_libraries(ur_common PUBLIC hdr_histogram_static)
+    target_include_directories(ur_common PUBLIC $<BUILD_INTERFACE:${hdr_histogram_SOURCE_DIR}/include>)
+    target_compile_options(ur_common PUBLIC -DUR_ENABLE_LATENCY_HISTOGRAM=1)
+endif()
 
 target_link_libraries(ur_common PUBLIC
     ${CMAKE_DL_LIBS}
