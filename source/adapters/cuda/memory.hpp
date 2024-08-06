@@ -409,10 +409,14 @@ struct ur_mem_handle_t_ {
   }
 
   ur_result_t clear() {
-    if (isBuffer()) {
-      return std::get<BufferMem>(Mem).clear();
+    try {
+      if (isBuffer()) {
+        return std::get<BufferMem>(Mem).clear();
+      }
+      return std::get<SurfaceMem>(Mem).clear();
+    } catch (const ur_result_t &error) {
+      return error;
     }
-    return std::get<SurfaceMem>(Mem).clear();
   }
 
   ur_context_handle_t getContext() const noexcept { return Context; }
