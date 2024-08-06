@@ -396,7 +396,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     event FlushEvent = submit_impl(
         [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
         Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, {});
-    EventImpl->attachEventToComplete(detail::getSyclObjImpl(FlushEvent));
+    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
 
