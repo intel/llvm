@@ -180,8 +180,10 @@
 /// Check selective passing of -support-dynamic-linking to sycl-post-link tool
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_NO_PASS %s
 // RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
 // RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_NO_PASS %s
 
 // CHECK_SYCL_POST_LINK_SHARED_PASS: sycl-post-link{{.*}}support-dynamic-linking
 // CHECK_SYCL_POST_LINK_SHARED_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
