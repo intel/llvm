@@ -588,12 +588,12 @@ bool run_all() {
   valid &= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rgba, class fp16_3d_c4>(
       {64, 16, 2}, {2, 2, 2}, seed);
-#if 0
+
   printString("Running 3D unorm_int8_c4\n");
   valid &= run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
                     sycl::image_channel_order::rgba, class unorm_int8_3d_c4>(
       {64, 16, 2}, {2, 2, 2}, seed);
-#endif
+
   printString("Running 2D float\n");
   valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::r, class fp32_2d_c1>(
@@ -606,12 +606,11 @@ bool run_all() {
   valid &= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rgba, class fp16_2d_c4>(
       {32, 32}, {2, 2}, seed);
-#if 0
+
   printString("Running 2D unorm_int8_c4\n");
   valid &= run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
                     sycl::image_channel_order::rgba, class unorm_int8_2d_c4>(
       {32, 32}, {2, 2}, seed);
-#endif
 #else
   printString("Running 3D uint4\n");
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
