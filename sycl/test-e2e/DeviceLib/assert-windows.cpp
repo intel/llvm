@@ -13,7 +13,7 @@
 // explicitly. Since the test is going to crash, we'll have to follow a similar
 // approach as on Linux - call the test in a subprocess.
 //
-// RUN: env SYCL_UR_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
+// RUN: env SYCL_UR_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
 // RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-MESSAGE
 //
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:

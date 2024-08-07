@@ -1,13 +1,13 @@
 // REQUIRES: opencl
 
 // RUN: %{build} %if cl_options %{/Od%} %else %{-O0%} -o %t0.out
-// RUN: %if !acc %{ env SYCL_UR_TRACE=1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL0 %}
+// RUN: %if !acc %{ env SYCL_UR_TRACE=2 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL0 %}
 // RUN: %{build} -O1 -o %t1.out
-// RUN: %if !acc %{ env SYCL_UR_TRACE=1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL1 %}
+// RUN: %if !acc %{ env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL1 %}
 // RUN: %{build} -O2 -o %t2.out
-// RUN: %if !acc %{ env SYCL_UR_TRACE=1 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL2 %}
+// RUN: %if !acc %{ env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL2 %}
 // RUN: %{build} -O3 -o %t3.out
-// RUN: %if !acc %{ env SYCL_UR_TRACE=1 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL3 %}
+// RUN: %if !acc %{ env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL3 %}
 
 // RUN: %{build} -O0 -o %t.out
 // RUN: %{run} %t.out

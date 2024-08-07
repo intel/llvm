@@ -4,9 +4,9 @@
 // RUN: %{build} -o %t_without.out
 // RUN: %{build} -ftarget-register-alloc-mode=pvc:default -o %t_default.out
 
-// RUN: env SYCL_UR_TRACE=1 %{run} %t_with.out 2>&1 | FileCheck --check-prefix=CHECK-OPT %s
-// RUN: env SYCL_UR_TRACE=1 %{run} %t_without.out 2>&1 | FileCheck %if system-windows %{ --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %} %else %{ --check-prefix=CHECK-OPT %} %s
-// RUN: env SYCL_UR_TRACE=1 %{run} %t_default.out 2>&1 | FileCheck --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_with.out 2>&1 | FileCheck --check-prefix=CHECK-OPT %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_without.out 2>&1 | FileCheck %if system-windows %{ --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %} %else %{ --check-prefix=CHECK-OPT %} %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t_default.out 2>&1 | FileCheck --implicit-check-not=-ze-intel-enable-auto-large-GRF-mode %s
 
 // CHECK-OPT: ---> urProgramBuild(
 // CHECK-SAME-OPT: -ze-intel-enable-auto-large-GRF-mode
