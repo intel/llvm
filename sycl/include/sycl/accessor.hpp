@@ -242,8 +242,7 @@ namespace detail {
 // A helper structure which is shared between buffer accessor and accessor_impl
 // TODO: Unify with AccessorImplDevice?
 struct AccHostDataT {
-  AccHostDataT(const sycl::id<3> &Offset, const sycl::range<3> &Range,
-               const sycl::range<3> &MemoryRange, void *Data = nullptr)
+  AccHostDataT(const sycl::id<3> &Offset, const sycl::range<3> &Range, const sycl::range<3> &MemoryRange, void *Data = nullptr)
       : MOffset(Offset), MAccessRange(Range), MMemoryRange(MemoryRange),
         MData(Data) {}
 
