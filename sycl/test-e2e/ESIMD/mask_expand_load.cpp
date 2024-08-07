@@ -60,7 +60,7 @@ template <int N> bool test(sycl::queue &Queue) {
   Queue.wait();
 
   for (int I = 0; I < N; I++) {
-    if (OutputAcc[I] != Output[I] && Output[I] != ExpectedOutput[I]) {
+    if (OutputAcc[I] != Output[I] || Output[I] != ExpectedOutput[I]) {
       std::cout << "mask_compress_load: error at I = " << std::to_string(I)
                 << ": " << std::to_string(ExpectedOutput[I])
                 << " != " << std::to_string(OutputAcc[I])
@@ -81,8 +81,8 @@ int main() {
   Pass &= test<16>(Q);
   Pass &= test<32>(Q);
 
-  if (Pass) {
+  if (Pass)
     std::cout << "Pass" << std::endl;
-  }
+
   return !Pass;
 }

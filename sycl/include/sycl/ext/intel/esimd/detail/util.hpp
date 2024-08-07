@@ -291,17 +291,17 @@ template <uint32_t... args>
 const uint32_t CompressedBitmask<args...>::value[sizeof...(args)] = {args...};
 
 template <int N, unsigned... args> struct GenerateCompressedBitmaskImpl {
-  typedef
+  using value =
       typename GenerateCompressedBitmaskImpl<N - 1, ~(((uint32_t)(~0)) << N),
-                                             args...>::value value;
+                                             args...>::value;
 };
 
 template <unsigned... args> struct GenerateCompressedBitmaskImpl<0, args...> {
-  typedef CompressedBitmask<0, args...> value;
+  using value = CompressedBitmask<0, args...>;
 };
 
 template <int N> struct GenerateCompressedBitmask {
-  typedef typename GenerateCompressedBitmaskImpl<N - 1>::value value;
+  using value = typename GenerateCompressedBitmaskImpl<N - 1>::value;
 };
 
 } // namespace ext::intel::esimd::detail
