@@ -590,7 +590,9 @@ elif platform.system() == "Windows":
     else:
         xptifw_dispatcher_name = "xptifw.dll"
 
-    xptifw_dispatcher = os.path.join(config.dpcpp_root_dir, "bin", xptifw_dispatcher_name)
+    xptifw_dispatcher = os.path.join(
+        config.dpcpp_root_dir, "bin", xptifw_dispatcher_name
+    )
 xptifw_includes = os.path.join(config.dpcpp_root_dir, "include")
 if os.path.exists(xptifw_lib_dir) and os.path.exists(
     os.path.join(xptifw_includes, "xpti", "xpti_trace_framework.h")
