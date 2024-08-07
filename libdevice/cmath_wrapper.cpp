@@ -64,6 +64,9 @@ DEVICE_EXTERN_C_INLINE
 float roundf(float x) { return __devicelib_roundf(x); }
 
 DEVICE_EXTERN_C_INLINE
+long int lroundf(float x) { return __devicelib_lroundf(x); }
+
+DEVICE_EXTERN_C_INLINE
 float floorf(float x) { return __devicelib_floorf(x); }
 
 DEVICE_EXTERN_C_INLINE
