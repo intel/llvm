@@ -238,7 +238,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
                                       (n2 * NCache2 + n1 * NCache1 + n * TN),
                                   colsB);
 #endif // VNNI
-#endif // VNNI
+#endif // OOB
 #ifdef MANUAL_UNROLL
               }); // n
 #else             // MANUAL_UNROLL
