@@ -1157,6 +1157,8 @@ static void memcpyFromDeviceGlobalUSM(
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<ur_event_handle_t> &DepEvents,
     ur_event_handle_t *OutEvent, const detail::EventImplPtr &OutEventImpl) {
+  assert(Queue && "Copying from device global USM must be called with a valid "
+                  "device queue");
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =

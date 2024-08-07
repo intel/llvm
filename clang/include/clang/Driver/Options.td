@@ -7696,7 +7696,7 @@ def show_includes : Flag<["--"], "show-includes">,
   HelpText<"Print cl.exe style /showIncludes to stdout">;
 def dependency_filter : Separate<["-"], "dependency-filter">,
   HelpText<"Filter dependencies with prefix from the dependency output.">,
-  MarshallingInfoString<DependencyOutputOpts<"DependencyFilter">>;
+  MarshallingInfoStringVector<DependencyOutputOpts<"DependencyFilter">>;
 
 } // let Visibility = [CC1Option]
 
