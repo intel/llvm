@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
-  # Merge: b7b0c8b3 f772f907
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Jul 29 09:11:29 2024 +0200
-  #     Merge pull request #1905 from igchor/umf_hwloc_disable
-  #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG a985a81dc9ba8adfcc8b54e35ad287e97766fb3e)
+  # commit a89657c2e36d7152820b9ecc088422a54ca1d844
+  # Merge: 2355a7d6 be7057c4
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Aug 7 12:01:33 2024 +0100
+  #     Merge pull request #1699 from PietroGhg/pietro/usm_fixes
+  #     [NATIVECPU] Implement urUSMGetMemAllocInfo and aligned alloc
+  set(UNIFIED_RUNTIME_TAG a89657c2e36d7152820b9ecc088422a54ca1d844)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
