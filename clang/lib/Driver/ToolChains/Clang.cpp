@@ -10788,7 +10788,10 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
        !isSYCLNativeCPU(TC)) &&
       // When supporting dynamic linking, non-kernels in a device image can be
       // called.
-      !supportDynamicLinking(TCArgs) && !Triple.isNVPTX() && !Triple.isAMDGPU())
+      !supportDynamicLinking(TCArgs) && !Triple.isNVPTX() &&
+      !Triple.isAMDGPU()
+      // With thinLTO, final entry point handing is done in clang-linker-wrapper
+      && (!IsUsingLTO || LTOMode != LTOK_Thin))
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   if (!Triple.isAMDGCN())
