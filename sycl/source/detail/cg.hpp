@@ -268,8 +268,7 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGType Type, ur_kernel_cache_config_t KernelCacheConfig,
                bool KernelIsCooperative, bool MKernelUsesClusterLaunch,
-               size_t KernelWorkGroupMemorySize,
-               detail::code_location loc = {})
+               size_t KernelWorkGroupMemorySize, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),

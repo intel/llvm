@@ -194,7 +194,7 @@ associated with this instance of `work_group_static`.
 ----
 const work_group_static<T>& operator=(const T& value) const noexcept;
 ----
-_Constraints_: Available only if `std::is_array_v<T>>` is false.
+_Constraints_: Available only if `std::is_array_v<T>` is false.
 
 _Effects_: Replaces the value referenced by `*ptr` with `value`.
 
@@ -271,14 +271,14 @@ void bar() {
 ----
 using namespace syclex = sycl::ext::oneapi::experimental;
 
-/* optional: static const */ syclex::work_group_static<int[]> dynamic_program_scope_array;
 
 ...
 
 q.parallel_for(sycl::nd_range<1>{N, M},
   syclex::properties{syclex::work_group_static_size(M * sizeof(int))},
   [=](sycl::nd_item<1> it) {
-  ...
+ auto ptr= get_dynamic_work_group_memory<int>();
+ auto ptr2= get_dynamic_work_group_memory<float>();
 });
 ----
 

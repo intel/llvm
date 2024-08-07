@@ -221,7 +221,8 @@ struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
 struct run_time_property_key_base_tag : property_key_base_tag {};
 
-template <PropKind Kind_> struct run_time_property_key : run_time_property_key_base_tag {
+template <PropKind Kind_>
+struct run_time_property_key : run_time_property_key_base_tag {
 protected:
   static constexpr PropKind Kind = Kind_;
 

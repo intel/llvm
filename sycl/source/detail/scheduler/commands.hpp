@@ -637,7 +637,7 @@ void enqueueImpKernel(
     const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     ur_kernel_cache_config_t KernelCacheConfig, bool KernelIsCooperative,
-    const bool KernelUsesClusterLaunch,const size_t WorkGroupMemorySize,
+    const bool KernelUsesClusterLaunch, const size_t WorkGroupMemorySize,
     const RTDeviceBinaryImage *BinImage = nullptr);
 
 class KernelFusionCommand;

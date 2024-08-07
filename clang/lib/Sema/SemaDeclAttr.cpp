@@ -6199,6 +6199,18 @@ static void handleSYCLDeviceIndirectlyCallableAttr(Sema &S, Decl *D,
   handleSimpleAttribute<SYCLDeviceIndirectlyCallableAttr>(S, D, AL);
 }
 
+static void handleSYCLScopeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (auto *CRD = dyn_cast<CXXRecordDecl>(D);
+      !CRD || !(CRD->isClass() || CRD->isStruct())) {
+    S.Diag(AL.getRange().getBegin(), diag::err_attribute_wrong_decl_type_str)
+        << AL << AL.isRegularKeywordAttribute() << "classes";
+    return;
+  }
+
+  D->addAttr(SYCLScopeAttr::Create(S.getASTContext(),
+                                   SYCLScopeAttr::Level::WorkGroup, AL));
+}
+
 static void handleSYCLGlobalVarAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!S.Context.getSourceManager().isInSystemHeader(D->getLocation())) {
     S.Diag(AL.getLoc(), diag::err_attribute_only_system_header) << AL;
@@ -9763,6 +9775,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLDevice:
     handleSYCLDeviceAttr(S, D, AL);
+    break;
+  case ParsedAttr::AT_SYCLScope:
+    handleSYCLScopeAttr(S, D, AL);
     break;
   case ParsedAttr::AT_SYCLDeviceIndirectlyCallable:
     handleSYCLDeviceIndirectlyCallableAttr(S, D, AL);

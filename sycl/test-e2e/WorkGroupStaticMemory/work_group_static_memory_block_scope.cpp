@@ -13,7 +13,6 @@ constexpr size_t WgSize = 32;
 constexpr size_t WgCount = 4;
 constexpr size_t Size = WgSize * WgCount;
 
-
 struct Foo {
   Foo() = delete;
   Foo(int Value, int &Counter) {
@@ -45,8 +44,10 @@ int main() {
       auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
       Cgh.parallel_for<KernelA>(
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
-            sycl::ext::oneapi::experimental::work_group_static<int[WgSize]> localIDBuff;
-            localIDBuff[Item.get_local_linear_id()] = Item.get_local_linear_id();
+            sycl::ext::oneapi::experimental::work_group_static<int[WgSize]>
+                localIDBuff;
+            localIDBuff[Item.get_local_linear_id()] =
+                Item.get_local_linear_id();
 
             Item.barrier();
             // Check that the memory is accessible from other work-items
@@ -85,6 +86,4 @@ int main() {
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == (I / WgSize) * WgSize);
   }
-
-
 }

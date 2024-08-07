@@ -23,11 +23,17 @@ namespace experimental {
 
 namespace detail {
 
-template <typename T> class work_group_static {
+#ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_WG_SCOPE [[__sycl_detail__::wg_scope]]
+#else
+#define __SYCL_WG_SCOPE
+#endif
+
+template <typename T> class __SYCL_WG_SCOPE work_group_static {
 public:
-  //static_assert(std::is_unbounded_array<T>,
-  //              "Use get_dynamic_work_group_memory for dynamic work group "
-  //              "memory allocation");
+  // static_assert(std::is_unbounded_array<T>,
+  //               "Use get_dynamic_work_group_memory for dynamic work group "
+  //               "memory allocation");
 
   __SYCL_ALWAYS_INLINE work_group_static() = default;
   work_group_static(const work_group_static &) = delete;
@@ -47,38 +53,30 @@ public:
 
 private:
   using decorated_pointer =
-  #ifdef __SYCL_DEVICE_ONLY__
-  __attribute__((opencl_local)) T*;
-  #else
-  T*;
-  #endif
+#ifdef __SYCL_DEVICE_ONLY__
+      __attribute__((opencl_local)) T *;
+#else
+      T *;
+#endif
 
   // Small trick, memcpy of the class is UB so assume this is in the local
   // space. As the address space may get lost, explicitly cast it to this
   // address space to help the optimizer.
-  decorated_pointer getDecorated() const {
-    return (decorated_pointer)&data;
-  }
+  decorated_pointer getDecorated() const { return (decorated_pointer)&data; }
 
   T data;
 };
 
 } // namespace detail
 
-template <typename T>
-using work_group_static =
-#ifdef __SYCL_DEVICE_ONLY__
-    __attribute__((opencl_local)) detail::work_group_static<T>;
-#else
-    detail::work_group_static<T>;
-#endif
+template <typename T> using work_group_static = detail::work_group_static<T>;
 
 template <typename T>
-std::enable_if_t<
-    std::is_trivially_destructible_v<T> &&
-        std::is_trivially_constructible_v<T>,
-    multi_ptr<T, access::address_space::local_space, access::decorated::legacy>>
-    __SYCL_ALWAYS_INLINE get_dynamic_work_group_memory() {
+std::enable_if_t<std::is_trivially_destructible_v<T> &&
+                     std::is_trivially_constructible_v<T>,
+                 multi_ptr<T, access::address_space::local_space,
+                           access::decorated::legacy>> __SYCL_ALWAYS_INLINE
+get_dynamic_work_group_memory() {
 #ifdef __SYCL_DEVICE_ONLY__
   return reinterpret_cast<__attribute__((opencl_local)) T *>(
       __sycl_dynamicLocalMemoryPlaceholder(alignof(T)));
@@ -94,7 +92,7 @@ struct work_group_static_size
           ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
       ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
           ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
-          property_value<work_group_static_size>{
+      property_value<work_group_static_size> {
   // Compile time property
   using value_t = property_value<work_group_static_size>;
   // Runtime property part
@@ -105,11 +103,13 @@ struct work_group_static_size
 
 using work_group_static_size_key = work_group_static_size;
 
-//inline constexpr work_group_static_size_key::value_t work_group_static_size;
+// inline constexpr work_group_static_size_key::value_t work_group_static_size;
 
-template <> struct is_property_key<work_group_static_size_key> : std::true_type {};
+template <>
+struct is_property_key<work_group_static_size_key> : std::true_type {};
 
-template <typename T> struct is_property_key_of<work_group_static_size_key, T> : std::true_type {};
+template <typename T>
+struct is_property_key_of<work_group_static_size_key, T> : std::true_type {};
 template <>
 struct is_property_value<work_group_static_size_key>
     : is_property_key<work_group_static_size_key> {};
@@ -122,10 +122,12 @@ template <> struct PropertyMetaInfo<work_group_static_size_key> {
 
 } // namespace detail
 
-inline bool operator==(const work_group_static_size_key &lhs, const work_group_static_size_key &rhs) {
+inline bool operator==(const work_group_static_size_key &lhs,
+                       const work_group_static_size_key &rhs) {
   return lhs.size == rhs.size;
 }
-inline bool operator!=(const work_group_static_size_key &lhs, const work_group_static_size_key &rhs) {
+inline bool operator!=(const work_group_static_size_key &lhs,
+                       const work_group_static_size_key &rhs) {
   return !(lhs == rhs);
 }
 

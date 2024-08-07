@@ -287,7 +287,8 @@ event handler::finalize() {
                          KernelBundleImpPtr, MKernel, MKernelName.c_str(),
                          RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
                          impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,BinImage);
+                         impl->MKernelUsesClusterLaunch,
+                         impl->MKernelWorkGroupMemorySize, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {

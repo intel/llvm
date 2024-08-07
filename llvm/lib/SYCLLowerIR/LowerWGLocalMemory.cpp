@@ -12,17 +12,19 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/Pass.h"
+#include "llvm/TargetParser/Triple.h"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "LowerWGLocalMemory"
 
 static constexpr char SYCL_ALLOCLOCALMEM_CALL[] = "__sycl_allocateLocalMemory";
-static constexpr char SYCL_DYNAMIC_LOCALMEM_CALL[] = "__sycl_dynamicLocalMemoryPlaceholder";
+static constexpr char SYCL_DYNAMIC_LOCALMEM_CALL[] =
+    "__sycl_dynamicLocalMemoryPlaceholder";
 static constexpr char LOCALMEMORY_GV_PREF[] = "WGLocalMem";
-static constexpr char DYNAMIC_LOCALMEM_GV[] = "__sycl_dynamicLocalMemoryPlaceholder_GV";
+static constexpr char DYNAMIC_LOCALMEM_GV[] =
+    "__sycl_dynamicLocalMemoryPlaceholder_GV";
 
 namespace {
 class SYCLLowerWGLocalMemoryLegacy : public ModulePass {
@@ -93,16 +95,16 @@ static void lowerAllocaLocalMemCall(CallInst *CI, Module &M) {
   CI->replaceAllUsesWith(GVPtr);
 }
 
-static void lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT, GlobalVariable *LocalMemPlaceholder) {
+static void
+lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
+                               GlobalVariable *LocalMemPlaceholder) {
   assert(CI);
 
-  Value *GVPtr = [&]() -> Value* {
+  Value *GVPtr = [&]() -> Value * {
     IRBuilder<> Builder(CI);
     if (TT.isSPIROrSPIRV()) {
 
-      return Builder.CreateLoad(
-          CI->getType(),
-          LocalMemPlaceholder);
+      return Builder.CreateLoad(CI->getType(), LocalMemPlaceholder);
     } else {
       Value *ArgAlign = CI->getArgOperand(0);
       Align RequestedAlignment{
@@ -112,8 +114,7 @@ static void lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT, GlobalVariab
           (CurrentAlignment.value() < RequestedAlignment))
         LocalMemPlaceholder->setAlignment(RequestedAlignment);
 
-      return Builder.CreatePointerCast(LocalMemPlaceholder,
-                                       CI->getType());
+      return Builder.CreatePointerCast(LocalMemPlaceholder, CI->getType());
     }
   }();
   CI->replaceAllUsesWith(GVPtr);
@@ -154,12 +155,12 @@ static bool allocaWGLocalMemory(Module &M) {
 
 // For dynamic memory we have 2 case:
 //   - Direct for CUDA/HIP: we create a placeholder and set the memory on launch
-//   - Indirect for OpenCL/Level0: we create a shared value holding the pointer to the buffer passed as argument
+//   - Indirect for OpenCL/Level0: we create a shared value holding the pointer
+//   to the buffer passed as argument
 static bool dynamicWGLocalMemory(Module &M) {
   Function *DLMFunc = M.getFunction(SYCL_DYNAMIC_LOCALMEM_CALL);
   if (!DLMFunc)
     return false;
-
 
   GlobalVariable *LocalMemArrayGV = M.getGlobalVariable(DYNAMIC_LOCALMEM_GV);
   Triple TT(M.getTargetTriple());
@@ -168,18 +169,21 @@ static bool dynamicWGLocalMemory(Module &M) {
 
     assert(DLMFunc->isDeclaration() && "should have declaration only");
     unsigned LocalAS = DLMFunc->getReturnType()->getPointerAddressSpace();
-    Type *LocalMemArrayTy = TT.isSPIROrSPIRV() ? static_cast<Type*>(PointerType::get(M.getContext(), LocalAS)) :
-    static_cast<Type*>(ArrayType::get(Type::getInt8Ty(M.getContext()), 0));
+    Type *LocalMemArrayTy =
+        TT.isSPIROrSPIRV()
+            ? static_cast<Type *>(PointerType::get(M.getContext(), LocalAS))
+            : static_cast<Type *>(
+                  ArrayType::get(Type::getInt8Ty(M.getContext()), 0));
     LocalMemArrayGV =
-        new GlobalVariable(M,                             // module
-                          LocalMemArrayTy,                // type
-                          false,                          // isConstant
-                          GlobalValue::ExternalLinkage,   // Linkage
-                          nullptr,                        // Initializer
-                          DYNAMIC_LOCALMEM_GV,            // Name prefix
-                          nullptr,                        // InsertBefore
-                          GlobalVariable::NotThreadLocal, // ThreadLocalMode
-                          LocalAS                         // AddressSpace
+        new GlobalVariable(M,                              // module
+                           LocalMemArrayTy,                // type
+                           false,                          // isConstant
+                           GlobalValue::ExternalLinkage,   // Linkage
+                           nullptr,                        // Initializer
+                           DYNAMIC_LOCALMEM_GV,            // Name prefix
+                           nullptr,                        // InsertBefore
+                           GlobalVariable::NotThreadLocal, // ThreadLocalMode
+                           LocalAS                         // AddressSpace
         );
   }
   lowerLocalMemCall(DLMFunc, [&](CallInst *CI) {

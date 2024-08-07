@@ -36,8 +36,8 @@
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
-#include <sycl/ext/oneapi/work_group_static.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -1023,9 +1023,10 @@ private:
     }
 
     if constexpr (PropertiesT::template has_property<
-                      sycl::ext::oneapi::experimental::work_group_static_size_key>()) {
-      auto WorkGroupMemSize =
-          Props.template get_property<sycl::ext::oneapi::experimental::work_group_static_size_key>();
+                      sycl::ext::oneapi::experimental::
+                          work_group_static_size_key>()) {
+      auto WorkGroupMemSize = Props.template get_property<
+          sycl::ext::oneapi::experimental::work_group_static_size_key>();
       setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 
@@ -3683,7 +3684,6 @@ private:
 
   // Set the request work group memory size (work_group_static ext).
   void setKernelWorkGroupMem(uint32_t Size);
-
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
