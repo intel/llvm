@@ -16,7 +16,7 @@
 
 using namespace sycl;
 
-namespace sycl::unittest {
+namespace sycl::_V1::unittest {
 static inline UrImage
 generateImageWithCompileTarget(std::string KernelName,
                                std::string CompileTarget) {
@@ -44,7 +44,7 @@ generateImageWithCompileTarget(std::string KernelName,
 
   return Img;
 }
-} // namespace sycl::unittest
+} // namespace sycl::_V1::unittest
 
 class SingleTaskKernel;
 class NDRangeKernel;
