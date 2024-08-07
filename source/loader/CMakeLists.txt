@@ -142,6 +142,8 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.hpp
