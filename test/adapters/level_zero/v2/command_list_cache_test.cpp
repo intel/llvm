@@ -192,10 +192,10 @@ TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
                         QueueProps.pNext = &IndexProps;
                     }
 
-                    ur_queue_handle_t Queue;
-                    ASSERT_EQ(
-                        urQueueCreate(context, device, &QueueProps, &Queue),
-                        UR_RESULT_SUCCESS);
+                    uur::raii::Queue Queue;
+                    ASSERT_EQ(urQueueCreate(context, device, &QueueProps,
+                                            Queue.ptr()),
+                              UR_RESULT_SUCCESS);
 
                     Queues.emplace_back(Queue);
                 }

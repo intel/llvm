@@ -32,7 +32,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
                                     (void *)Addr);
     }
 
-    assert(!AI->IsReleased && "Chunk must be not released");
+    assert(AI && !AI->IsReleased && "Chunk must be not released");
 
     getContext()->logger.always("{} is located inside of {} region [{}, {})",
                                 (void *)Addr, ToString(AI->Type),
