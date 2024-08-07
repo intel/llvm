@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/global_handler.hpp>
+#include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -81,7 +82,7 @@ void XPTIRegistry::bufferAssociateNotification(const void *UserObj,
   xpti::offload_association_data_t BufAssoc{(uintptr_t)UserObj,
                                             (uintptr_t)MemObj};
 
-  // Add association between user level and PI level memory object
+  // Add association between user level and UR level memory object
   xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
                         nullptr, IId, &BufAssoc);
 #endif
@@ -100,7 +101,7 @@ void XPTIRegistry::bufferReleaseNotification(const void *UserObj,
   xpti::offload_association_data_t BufRelease{(uintptr_t)UserObj,
                                               (uintptr_t)MemObj};
 
-  // Release PI level memory object
+  // Release UR level memory object
   xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
                         nullptr, IId, &BufRelease);
 #endif
@@ -360,6 +361,20 @@ void XPTIRegistry::sampledImageHostAccessorNotification(
   xptiNotifySubscribers(GImageStreamID, NotificationTraceType, nullptr,
                         TraceEvent, IId, &AccessorConstr);
 #endif
+}
+
+std::string queueDeviceToString(const queue_impl *const &Queue) {
+  if (!Queue)
+    return "HOST";
+  auto Device = Queue->get_device();
+  if (Device.is_cpu())
+    return "CPU";
+  else if (Device.is_gpu())
+    return "GPU";
+  else if (Device.is_accelerator())
+    return "ACCELERATOR";
+  else
+    return "UNKNOWN";
 }
 
 } // namespace detail

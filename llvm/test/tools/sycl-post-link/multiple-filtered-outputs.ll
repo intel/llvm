@@ -41,26 +41,45 @@
 ; CHECK-ALL-EMPTY:
 
 ; PVC does not support sg8 (=1) or sg64 (=2) 
-; CHECK-PVC:      _0.sym
-; CHECK-PVC-NEXT: _3.sym
-; CHECK-PVC-NEXT: _4.sym
-; CHECK-PVC-NEXT: _5.sym
+; CHECK-PVC:      _intel_gpu_pvc_0.prop|{{.*}}_0.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_3.prop|{{.*}}_3.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_4.prop|{{.*}}_4.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_5.prop|{{.*}}_5.sym
 ; CHECK-PVC-EMPTY:
 
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_0.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_3.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_4.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_5.prop -check-prefix=CHECK-PVC-PROP
+; CHECK-PVC-PROP: compile_target=2|oBAAAAAAAAQauRXZs91ZwV3XwZ3Y
+
 ; TGLLP does not support fp64 (=0) or sg64 (=2)
-; CHECK-TGLLP:      _1.sym
-; CHECK-TGLLP-NEXT: _3.sym
-; CHECK-TGLLP-NEXT: _4.sym
-; CHECK-TGLLP-NEXT: _5.sym
+; CHECK-TGLLP:      _intel_gpu_tgllp_1.prop|{{.*}}_1.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_3.prop|{{.*}}_3.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_4.prop|{{.*}}_4.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_5.prop|{{.*}}_5.sym
 ; CHECK-TGLLP-EMPTY:
 
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_1.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_3.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_4.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_5.prop -check-prefix=CHECK-TGLLP-PROP
+; CHECK-TGLLP-PROP: compile_target=2|4BAAAAAAAAQauRXZs91ZwV3X0dGbsBH
+
 ; CFL does not support sg64 (=2)
-; CHECK-CFL:      _0.sym
-; CHECK-CFL-NEXT: _1.sym
-; CHECK-CFL-NEXT: _3.sym
-; CHECK-CFL-NEXT: _4.sym
-; CHECK-CFL-NEXT: _5.sym
+; CHECK-CFL:      _intel_gpu_cfl_0.prop|{{.*}}_0.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_1.prop|{{.*}}_1.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_3.prop|{{.*}}_3.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_4.prop|{{.*}}_4.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_5.prop|{{.*}}_5.sym
 ; CHECK-CFL-EMPTY:
+
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_0.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_1.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_3.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_4.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_5.prop -check-prefix=CHECK-CFL-PROP
+; CHECK-CFL-PROP: compile_target=2|oBAAAAAAAAQauRXZs91ZwV3XjZGb
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

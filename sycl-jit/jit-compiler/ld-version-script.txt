@@ -1,0 +1,11 @@
+{
+  global:
+    /* Export the library entry points */
+    fuseKernels;
+    materializeSpecConstants;
+    resetJITConfiguration;
+    addToJITConfiguration;
+
+  local:
+    *;
+};

@@ -1,4 +1,4 @@
-// RUN: %{build} %{embed-ir} -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Windows doesn't yet have full shutdown().
@@ -8,7 +8,6 @@
 // complete_fusion.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/properties/all_properties.hpp>
 

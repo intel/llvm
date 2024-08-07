@@ -35,7 +35,7 @@
 // to fail. The same applies to each test within this directory
 // UNSUPPORTED: hip
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <type_traits>

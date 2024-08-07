@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // TODO: Can we move it to sycl/test?
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 
 //==--------------- sampler.cpp - SYCL sampler basic test ------------------==//

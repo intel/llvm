@@ -15,12 +15,12 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -157,14 +157,9 @@ public:
   /// \return true if specified extension is supported by this SYCL platform.
   __SYCL2020_DEPRECATED(
       "use platform::has() function with aspects APIs instead")
-  bool has_extension(const std::string &ExtensionName) const;
-
-  /// Checks if this SYCL platform is a host platform.
-  ///
-  /// \return true if this SYCL platform is a host platform.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
+  bool has_extension(const std::string &ExtensionName) const {
+    return has_extension(detail::string_view{ExtensionName});
+  }
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -236,7 +231,7 @@ public:
   std::vector<device> ext_oneapi_get_composite_devices() const;
 
 private:
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
@@ -246,7 +241,8 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
@@ -256,6 +252,8 @@ private:
   typename detail::ABINeutralT_t<
       typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
+
+  bool has_extension(detail::string_view ExtensionName) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

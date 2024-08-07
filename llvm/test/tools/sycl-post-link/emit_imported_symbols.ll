@@ -1,12 +1,12 @@
 ; This test checks that the -emit-imported-symbols option generates a list of imported symbols
 ; Function names were chosen so that no function with a 'inside' in their function name is imported
-;
+; Note that -emit-imported-symbols will not emit any imported symbols without -support-dynamic-linking.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Test with -split=kernel
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: sycl-post-link -properties -symbols -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
 
 ; RUN: FileCheck %s -input-file=%t_kernel_0.sym --check-prefixes CHECK-KERNEL-SYM-0
 ; RUN: FileCheck %s -input-file=%t_kernel_1.sym --check-prefixes CHECK-KERNEL-SYM-1
@@ -23,17 +23,17 @@
 
 ; CHECK-KERNEL-SYM-1: foo
 ; CHECK-KERNEL-IMPORTED-SYM-1: [SYCL/imported symbols]
+; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: middle
 ; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childA
 ; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childC
-; CHECK-KERNEL-IMPORTED-SYM-1-NEXT: childD
 ; CHECK-KERNEL-IMPORTED-SYM-1-EMPTY:
 
 
 ; CHECK-KERNEL-SYM-2: bar
 ; CHECK-KERNEL-IMPORTED-SYM-2: [SYCL/imported symbols]
+; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: middle
 ; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childB
 ; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childC
-; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: childD
 ; CHECK-KERNEL-IMPORTED-SYM-2-NEXT: _Z7outsidev
 ; CHECK-KERNEL-IMPORTED-SYM-2-EMPTY:
 
@@ -41,11 +41,11 @@
 ; Test with -split=source
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: sycl-post-link -properties -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=source -S < %s -o %t_source.table
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
 ; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0
 
-; RUN: sycl-post-link -properties -symbols -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
+; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
 ; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0
 
@@ -73,7 +73,7 @@ define weak_odr spir_kernel void @foo() #0 {
 }
 
 define weak_odr spir_kernel void @bar() #0 {
-  ;; Functions that are not SYCL External (i.e. they have no sycl-module-id) cannot be imported
+  ;; Functions whose name start with '__' cannot be imported
   call spir_func void @__itt_offload_wi_start_wrapper()
 
   call void @childB()

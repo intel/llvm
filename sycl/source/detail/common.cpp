@@ -8,6 +8,8 @@
 
 #include <sycl/detail/common.hpp>
 
+#include <ur_api.h>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -25,6 +27,16 @@ tls_code_loc_t::tls_code_loc_t() {
   // Check TLS to see if a previously stashed code_location object is
   // available; if so, we are in a local scope.
   MLocalScope = GCodeLocTLS.fileName() && GCodeLocTLS.functionName();
+}
+
+ur_code_location_t codeLocationCallback(void *) {
+  ur_code_location_t codeloc;
+  codeloc.columnNumber = GCodeLocTLS.columnNumber();
+  codeloc.lineNumber = GCodeLocTLS.lineNumber();
+  codeloc.functionName = GCodeLocTLS.functionName();
+  codeloc.sourceFile = GCodeLocTLS.fileName();
+
+  return codeloc;
 }
 
 /// @brief Constructor to use at the top level of the calling stack

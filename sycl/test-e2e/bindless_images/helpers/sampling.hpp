@@ -662,6 +662,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
     }
   }
   assert(false && "Invalid sampler encountered!");
+  return {};
 }
 
 }; // namespace sampling_helpers

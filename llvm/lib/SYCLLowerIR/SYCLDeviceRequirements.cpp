@@ -137,7 +137,7 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   // SYCLDeviceRequirements has a value/is non-empty.
   std::vector<uint32_t> AspectValues;
   AspectValues.reserve(Aspects.size());
-  for (auto Aspect : Aspects)
+  for (const auto &Aspect : Aspects)
     AspectValues.push_back(Aspect.Value);
   Requirements["aspects"] = std::move(AspectValues);
 

@@ -76,7 +76,7 @@ template <int FusionStartPoint> void test() {
 int main() {
   std::cerr << "FusionStartPoint = 0:\n";
   // COM: memcpy leads to a CG being created as it depends on CGs not producing
-  // a PI event (coming from the CGs to be fused), so not safe to bypass. Fusion
+  // a UR event (coming from the CGs to be fused), so not safe to bypass. Fusion
   // should be cancelled as a dependency with an event to be fused is found.
 
   // CHECK:      FusionStartPoint = 0:

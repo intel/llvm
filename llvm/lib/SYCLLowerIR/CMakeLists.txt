@@ -59,21 +59,20 @@ add_llvm_component_library(LLVMSYCLLowerIR
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLConditionalCallOnDevice.cpp
+  SYCLCreateNVVMAnnotations.cpp
   SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
-  PrepareSYCLNativeCPU.cpp
-  RenameKernelSYCLNativeCPU.cpp
-  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

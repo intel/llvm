@@ -36,9 +36,9 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate1 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
   // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
@@ -67,8 +67,8 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate1 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CompoundStmt
   FunctionTemplate1<1, 2, 3>();
   FunctionTemplate1<1, 2>();
@@ -94,9 +94,9 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:         DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'Is' 'int'
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate2 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CompoundStmt
   // CHECK-NEXT:     SYCLAddIRAttributesFunctionAttr
   // CHECK-NEXT:       InitListExpr {{.*}} 'void'
@@ -128,8 +128,8 @@ void InstantiateFunctionTemplates() {
   // CHECK-NEXT:           IntegerLiteral {{.*}} 'int' 3
   // CHECK-NEXT:   FunctionDecl {{.*}} used FunctionTemplate2 'void ()'
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CompoundStmt
   FunctionTemplate2<1, 2, 3>();
   FunctionTemplate2<1, 2>();
@@ -584,9 +584,9 @@ template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_globa
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
-// CHECK-NEXT:       TemplateArgument integral 3
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
+// CHECK-NEXT:       TemplateArgument integral '3'
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:       ConstantExpr {{.*}} 'const char[6]' lvalue
 // CHECK-NEXT:         value: LValue
@@ -628,8 +628,8 @@ template <const char *...Strs> struct [[__sycl_detail__::add_ir_attributes_globa
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate1
 // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used constexpr GlobalVarStructTemplate1 'void () noexcept'
 // CHECK-NEXT:       CompoundStmt {{.*}}
@@ -675,9 +675,9 @@ GlobalVarStructTemplate1<1, 2> InstantiatedGV2;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
-// CHECK-NEXT:       TemplateArgument integral 3
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
+// CHECK-NEXT:       TemplateArgument integral '3'
 // CHECK-NEXT:     SYCLAddIRAttributesGlobalVariableAttr
 // CHECK-NEXT:       InitListExpr {{.*}} 'void'
 // CHECK-NEXT:         StringLiteral {{.*}} 'const char[6]' lvalue "Attr1"
@@ -722,8 +722,8 @@ GlobalVarStructTemplate1<1, 2> InstantiatedGV2;
 // CHECK-NEXT:       MoveAssignment
 // CHECK-NEXT:       Destructor
 // CHECK-NEXT:     TemplateArgument pack
-// CHECK-NEXT:       TemplateArgument integral 1
-// CHECK-NEXT:       TemplateArgument integral 2
+// CHECK-NEXT:       TemplateArgument integral '1'
+// CHECK-NEXT:       TemplateArgument integral '2'
 // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct GlobalVarStructTemplate2
 // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used constexpr GlobalVarStructTemplate2 'void () noexcept'
 // CHECK-NEXT:       CompoundStmt {{.*}}
@@ -1384,9 +1384,9 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1431,8 +1431,8 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate1
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1485,9 +1485,9 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'
@@ -1535,8 +1535,8 @@ void InstantiateSpecialClassStructTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     SYCLSpecialClassAttr
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct SpecialClassStructTemplate2
   // CHECK-NEXT:     CXXMethodDecl {{.*}} __init 'void (int)'

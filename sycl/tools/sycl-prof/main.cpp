@@ -46,6 +46,7 @@ int main(int argc, char **argv, char *env[]) {
   NewEnv.push_back("XPTI_SUBSCRIBERS=libsycl_profiler_collector.so");
   NewEnv.push_back("XPTI_TRACE_ENABLE=1");
   NewEnv.push_back("ZE_ENABLE_TRACING_LAYER=1");
+  NewEnv.push_back("UR_ENABLE_LAYERS=UR_LAYER_TRACING");
 
   std::vector<std::string> Args;
 

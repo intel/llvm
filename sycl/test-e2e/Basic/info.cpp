@@ -1,4 +1,4 @@
-// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -D__SYCL_INTERNAL_API -o %t.out
 // RUN: %{run} %t.out
 
 //==----------------info.cpp - SYCL objects get_info() test ----------------==//

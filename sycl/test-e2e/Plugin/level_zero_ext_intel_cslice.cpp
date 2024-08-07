@@ -2,7 +2,7 @@
 // REQUIRES: aspect-ext_intel_device_id
 // UNSUPPORTED: gpu-intel-pvc-1T
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
 // TODO: at this time PVC 1T systems are not correctly supporting CSLICE
 // affinity partitioning So the test is marked as UNSUPPORTED until that is

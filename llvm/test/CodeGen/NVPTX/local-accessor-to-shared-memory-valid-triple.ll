@@ -4,13 +4,10 @@
 ; RUN: llc -march=nvptx64 -mcpu=sm_20 < %s | FileCheck --check-prefix=CHECK-OPT %s
 ; CHECK-OPT: .param .u32 _ZTS14example_kernel_param_0
 
-; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
-source_filename = "local-accessor-to-shared-memory-valid-triple.ll"
 target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
-; Function Attrs: noinline
-define weak_odr dso_local void @_ZTS14example_kernel(ptr addrspace(3) %a) {
+define void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
   %0 = load i32, ptr addrspace(3) %a
   ret void
@@ -19,7 +16,7 @@ entry:
 !nvvm.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 !llvm.ident = !{!7, !8}
 !nvvmir.version = !{!9}
-!llvm.module.flags = !{!10, !11}
+!llvm.module.flags = !{!10, !11, !12}
 
 !0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !1 = !{null, !"align", i32 8}
@@ -33,3 +30,4 @@ entry:
 !9 = !{i32 1, i32 4}
 !10 = !{i32 2, !"SDK Version", [2 x i32] [i32 10, i32 0]}
 !11 = !{i32 1, !"wchar_size", i32 4}
+!12 = !{i32 1, !"sycl-device", i32 1}

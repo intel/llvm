@@ -8,7 +8,11 @@
 // See comments in the header.
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Demangle/Demangle.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
@@ -187,6 +191,10 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (GlobProps.EmitExportedSymbols) {
     // extract exported functions if any and save them into property set
     for (const auto *F : EntryPoints) {
+      // Virtual functions use a different mechanism of dynamic linking, they
+      // should not be registered here.
+      if (F->hasFnAttribute("indirectly-callable"))
+        continue;
       // TODO FIXME some of SYCL/ESIMD functions maybe marked with __regcall CC,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
@@ -200,11 +208,19 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (GlobProps.EmitImportedSymbols) {
     // record imported functions in the property set
     for (const auto &F : M) {
-      if ( // A function that can be imported may still be defined in one split
-           // image. Only add import property if this is not the image where the
-           // function is defined.
-          F.isDeclaration() && module_split::canBeImportedFunction(F)) {
+      // A function that can be imported may still be defined in one split
+      // image. Only add import property if this is not the image where the
+      // function is defined.
+      if (!F.isDeclaration())
+        continue;
 
+      // Even though virtual functions are considered to be imported by the
+      // function below, we shouldn't list them in the property because they
+      // use different mechanism for dynamic linking.
+      if (F.hasFnAttribute("indirectly-callable"))
+        continue;
+
+      if (module_split::canBeImportedFunction(F)) {
         // StripDeadPrototypes is called during module splitting
         // cleanup.  At this point all function decls should have uses.
         assert(!F.use_empty() && "Function F has no uses");
@@ -352,6 +368,50 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (IsSpecConstantDefault)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
                 1);
+
+  { // Properties related to virtual functions
+    StringSet<> UsedVFSets;
+    bool AddedVFSetProperty = false;
+    for (const Function &F : M) {
+      if (F.isDeclaration())
+        continue;
+
+      if (F.hasFnAttribute("indirectly-callable")) {
+        PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
+                    "virtual-functions-set",
+                    F.getFnAttribute("indirectly-callable").getValueAsString());
+        AddedVFSetProperty = true;
+        // Device code split should ensure that virtual functions that belong
+        // to different sets are split into separate device images and hence
+        // there is no need to scan other functions.
+        break;
+      }
+
+      if (F.hasFnAttribute("calls-indirectly")) {
+        SmallVector<StringRef, 4> Sets;
+        F.getFnAttribute("calls-indirectly")
+            .getValueAsString()
+            .split(Sets, ',', /* MaxSplits */ -1, /* KeepEmpty */ false);
+        for (auto Set : Sets)
+          UsedVFSets.insert(Set);
+      }
+    }
+
+    if (!UsedVFSets.empty()) {
+      assert(!AddedVFSetProperty &&
+             "device image cannot have both virtual-functions-set and "
+             "uses-virtual-functions-set property");
+      SmallString<128> AllSets;
+      for (auto &It : UsedVFSets) {
+        if (!AllSets.empty())
+          AllSets += ',';
+        AllSets += It.getKey();
+      }
+
+      PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
+                   "uses-virtual-functions-set", AllSets);
+    }
+  }
 
   return PropSet;
 }

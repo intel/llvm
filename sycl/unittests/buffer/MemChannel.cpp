@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -19,57 +19,52 @@
 constexpr uint32_t DEFAULT_VALUE = 7777;
 static uint32_t PassedChannel = DEFAULT_VALUE;
 
-static pi_result
-redefinedMemBufferCreateBefore(pi_context, pi_mem_flags, size_t size, void *,
-                               pi_mem *, const pi_mem_properties *properties) {
+static ur_result_t redefinedMemBufferCreateBefore(void *pParams) {
+  auto &Params = *reinterpret_cast<ur_mem_buffer_create_params_t *>(pParams);
   PassedChannel = DEFAULT_VALUE;
-  if (!properties)
-    return PI_SUCCESS;
+  if (!*Params.ppProperties)
+    return UR_RESULT_SUCCESS;
 
-  // properties must ended by 0
-  size_t I = 0;
-  while (properties[I] != 0) {
-    if (properties[I] == PI_MEM_PROPERTIES_CHANNEL) {
-      PassedChannel = properties[I + 1];
-      break;
+  auto Next =
+      reinterpret_cast<ur_base_properties_t *>((*Params.ppProperties)->pNext);
+  while (Next) {
+    if (Next->stype == UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES) {
+      auto ChannelProperties =
+          reinterpret_cast<ur_buffer_channel_properties_t *>(Next);
+      PassedChannel = ChannelProperties->channel;
     }
-    I += 2;
+    Next = reinterpret_cast<ur_base_properties_t *>(Next->pNext);
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 template <bool RetVal>
-static pi_result
-redefinedDeviceGetInfoAfter(pi_device device, pi_device_info param_name,
-                            size_t param_value_size, void *param_value,
-                            size_t *param_value_size_ret) {
-  if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEM_CHANNEL_SUPPORT) {
-    if (param_value)
-      *reinterpret_cast<pi_bool *>(param_value) = RetVal;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_bool);
+static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto &Params = *reinterpret_cast<ur_device_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT) {
+    if (*Params.ppPropValue)
+      *reinterpret_cast<ur_bool_t *>(*Params.ppPropValue) = RetVal;
+    if (*Params.ppPropSizeRet)
+      **Params.ppPropSizeRet = sizeof(ur_bool_t);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class BufferMemChannelTest : public ::testing::Test {
 public:
-  BufferMemChannelTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  BufferMemChannelTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
-  void SetUp() override {}
-
-protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
 // Test that the mem channel aspect and info query correctly reports true when
 // device supports it.
 TEST_F(BufferMemChannelTest, MemChannelAspectTrue) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter<true>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter<true>);
 
   sycl::device Dev = Plt.get_devices()[0];
   EXPECT_TRUE(Dev.get_info<sycl::info::device::ext_intel_mem_channel>());
@@ -79,8 +74,8 @@ TEST_F(BufferMemChannelTest, MemChannelAspectTrue) {
 // Test that the mem channel aspect and info query correctly reports false when
 // device supports it.
 TEST_F(BufferMemChannelTest, MemChannelAspectFalse) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter<false>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter<false>);
 
   sycl::device Dev = Plt.get_devices()[0];
   EXPECT_FALSE(Dev.get_info<sycl::info::device::ext_intel_mem_channel>());
@@ -90,10 +85,10 @@ TEST_F(BufferMemChannelTest, MemChannelAspectFalse) {
 // Tests that the right buffer property identifier and values are passed to
 // buffer creation.
 TEST_F(BufferMemChannelTest, MemChannelProp) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter<true>);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
-      redefinedMemBufferCreateBefore);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter<true>);
+  mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                           &redefinedMemBufferCreateBefore);
 
   sycl::queue Q{Plt.get_devices()[0]};
   sycl::buffer<int, 1> Buf(3, sycl::property::buffer::mem_channel{42});

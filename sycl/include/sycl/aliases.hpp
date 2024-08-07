@@ -15,7 +15,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
+template <typename T, int N> class __SYCL_EBO vec;
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl

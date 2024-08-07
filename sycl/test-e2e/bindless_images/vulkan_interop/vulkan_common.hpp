@@ -232,6 +232,11 @@ VkResult setupDevice(std::string device) {
 #endif
   };
 
+  // Make lowercase to fix inconsistent capitalization between SYCL and Vulkan
+  // device naming.
+  std::transform(device.begin(), device.end(), device.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+
   // From all physical devices, find the first one that supports all our
   // required device extensions.
   for (int i = 0; i < physicalDeviceCount; i++) {
@@ -239,6 +244,10 @@ VkResult setupDevice(std::string device) {
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(vk_physical_device, &props);
     std::string name(props.deviceName);
+
+    // Make lowercase for comparision.
+    std::transform(name.begin(), name.end(), name.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
 
     if (name.find(device) == std::string::npos) {
       continue;
@@ -261,7 +270,8 @@ VkResult setupDevice(std::string device) {
     }
 
     foundDevice = true;
-    std::cout << "Found suitable Vulkan device: " << name << std::endl;
+    std::cout << "Found suitable Vulkan device: " << props.deviceName
+              << std::endl;
     break;
   }
 
@@ -462,7 +472,7 @@ program is compiled for.
 */
 VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
                     VkImageUsageFlags usage, size_t mipLevels,
-                    bool exportable = true) {
+                    bool linearTiling = false, bool exportable = true) {
   VkImageCreateInfo ici = {};
   ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   ici.imageType = type;
@@ -473,6 +483,10 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
   ici.usage = usage;
   ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   ici.samples = VK_SAMPLE_COUNT_1_BIT;
+
+  if (linearTiling) {
+    ici.tiling = VK_IMAGE_TILING_LINEAR;
+  }
 
   VkExternalMemoryImageCreateInfo emici = {};
   if (exportable) {
@@ -492,6 +506,24 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
     return VK_NULL_HANDLE;
   }
   return image;
+}
+
+/*
+Returns the row pitch with which a linear image's first subresource was
+created with in bytes.
+*/
+VkDeviceSize getImageRowPitch(VkImage image) {
+
+  VkImageSubresource imageSubresource = {};
+  imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageSubresource.mipLevel = 0;
+  imageSubresource.arrayLayer = 0;
+
+  VkSubresourceLayout subresourceLayout = {};
+  vkGetImageSubresourceLayout(vk_device, image, &imageSubresource,
+                              &subresourceLayout);
+
+  return subresourceLayout.rowPitch;
 }
 
 /*

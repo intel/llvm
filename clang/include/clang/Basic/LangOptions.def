@@ -276,6 +276,8 @@ LANGOPT(RenderScript      , 1, 0, "RenderScript")
 
 LANGOPT(HLSL, 1, 0, "HLSL")
 ENUM_LANGOPT(HLSLVersion, HLSLLangStd, 16, HLSL_Unset, "HLSL Version")
+LANGOPT(HLSLStrictAvailability, 1, 0,
+        "Strict availability diagnostic mode for HLSL built-in functions.")
 
 LANGOPT(CUDAIsDevice      , 1, 0, "compiling for CUDA device")
 LANGOPT(CUDAAllowVariadicFunctions, 1, 0, "allowing variadic functions in CUDA device code")
@@ -302,6 +304,7 @@ ENUM_LANGOPT(SYCLVersion  , SYCLMajorVersion, 2, SYCL_None, "Version of the SYCL
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, "Enable Dead Argument Elimination in SPIR kernels")
+LANGOPT(SYCLDecomposeStruct, 1, 1, "Force top level decomposition of SYCL functor")
 LANGOPT(
     SYCLValueFitInMaxInt, 1, 1,
     "SYCL compiler assumes value fits within MAX_INT for member function of "
@@ -313,8 +316,6 @@ ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
 LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
-LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
-        "Allow virtual functions calls in code for SYCL device")
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
@@ -539,6 +540,14 @@ COMPATIBLE_LANGOPT(IncrementalExtensions, 1, 0, " True if we want to process sta
 
 BENIGN_LANGOPT(CheckNew, 1, 0, "Do not assume C++ operator new may not return NULL")
 
+// FIXME: It would be better for us to find a way to encode the state of this
+// diagnostic in tablegen so that we can specify a particular diagnostic option
+// is disabled or enabled based on other language options or made it easier to
+// do this from the compiler invocation without hitting option round-tripping
+// issues.
+BENIGN_LANGOPT(CheckConstexprFunctionBodies, 1, 1,
+               "Emit diagnostics for a constexpr function body that can never "
+               "be used in a constant expression.")
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT
 #undef BENIGN_LANGOPT

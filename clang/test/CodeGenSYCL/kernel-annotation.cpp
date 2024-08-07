@@ -23,14 +23,11 @@ public:
 };
 
 // CHECK-SPIR-NOT: annotations =
+// CHECK-AMDGCN-NOT: annotations =
 
 // CHECK-NVPTX: nvvm.annotations = !{[[FIRST:![0-9]]], [[SECOND:![0-9]]]}
 // CHECK-NVPTX: [[FIRST]] = !{ptr @_ZTS7Functor, !"kernel", i32 1}
 // CHECK-NVPTX: [[SECOND]] = !{ptr @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
-
-// CHECK-AMDGCN: amdgcn.annotations = !{[[FIRST:![0-9]]], [[SECOND:![0-9]]]}
-// CHECK-AMDGCN: [[FIRST]] = !{ptr @_ZTS7Functor, !"kernel", i32 1}
-// CHECK-AMDGCN: [[SECOND]] = !{ptr @_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E5foo_2, !"kernel", i32 1}
 
 int main() {
   sycl::queue q;

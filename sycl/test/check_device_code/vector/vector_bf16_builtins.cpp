@@ -36,7 +36,7 @@ using namespace sycl::ext::oneapi::experimental;
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <2 x i16> [[TMP0]], ptr [[VEC_ADDR_I_I_I_I_I]], align 4, !tbaa [[TBAA14:![0-9]+]], !noalias [[META11]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6:[0-9]+]], !noalias [[META11]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5:[0-9]+]], !noalias [[META11]]
 // CHECK-NEXT:    [[TMP2:%.*]] = load <2 x float>, ptr [[DST_I_I_I_I_I]], align 4, !tbaa [[TBAA14]], !noalias [[META11]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META11]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META11]]
@@ -45,18 +45,18 @@ using namespace sycl::ext::oneapi::experimental;
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I4_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I2_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I5_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I3_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <2 x i16> [[TMP1]], ptr [[VEC_ADDR_I_I_I_I2_I]], align 4, !tbaa [[TBAA14]], !noalias [[META17]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR6]], !noalias [[META17]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR5]], !noalias [[META17]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load <2 x float>, ptr [[DST_I_I_I_I3_I]], align 4, !tbaa [[TBAA14]], !noalias [[META17]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META17]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META17]]
-// CHECK-NEXT:    [[CALL2_I_I:%.*]] = call spir_func noundef <2 x float> @_Z16__spirv_ocl_fminDv2_fS_(<2 x float> noundef [[TMP2]], <2 x float> noundef [[TMP3]]) #[[ATTR7:[0-9]+]]
+// CHECK-NEXT:    [[CALL2_I_I:%.*]] = call spir_func noundef <2 x float> @_Z16__spirv_ocl_fminDv2_fS_(<2 x float> noundef [[TMP2]], <2 x float> noundef [[TMP3]]) #[[ATTR6:[0-9]+]]
 // CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META20:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I8_I]]), !noalias [[META23:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[DST_I_I_I_I9_I]]), !noalias [[META23]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I10_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I8_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I11_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I9_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <2 x float> [[CALL2_I_I]], ptr [[VEC_ADDR_I_I_I_I8_I]], align 8, !tbaa [[TBAA14]], !noalias [[META23]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I10_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I11_I]]) #[[ATTR6]], !noalias [[META23]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec2(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I10_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I11_I]]) #[[ATTR5]], !noalias [[META23]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[DST_I_I_I_I9_I]], align 2, !tbaa [[TBAA14]], !noalias [[META23]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I8_I]]), !noalias [[META23]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[DST_I_I_I_I9_I]]), !noalias [[META23]]
@@ -68,7 +68,7 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestFMaxN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.4") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.4") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.4") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.5") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I12_I:%.*]] = alloca <3 x float>, align 16
 // CHECK-NEXT:    [[DST_I_I_I_I13_I:%.*]] = alloca [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -85,7 +85,7 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I_I:%.*]] = shufflevector <4 x i16> [[TMP0]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC_I_I_I_I_I]], ptr [[VEC_ADDR_I_I_I_I_I]], align 8, !tbaa [[TBAA14]], !noalias [[META28]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META28]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5]], !noalias [[META28]]
 // CHECK-NEXT:    [[LOADVEC4_I_I_I_I_I_I:%.*]] = load <4 x float>, ptr [[DST_I_I_I_I_I]], align 4, !noalias [[META28]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META28]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META28]]
@@ -95,13 +95,13 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I6_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I3_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I7_I:%.*]] = shufflevector <4 x i16> [[TMP1]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC_I_I_I_I7_I]], ptr [[VEC_ADDR_I_I_I_I2_I]], align 8, !tbaa [[TBAA14]], !noalias [[META31]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I5_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I6_I]]) #[[ATTR6]], !noalias [[META31]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I5_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I6_I]]) #[[ATTR5]], !noalias [[META31]]
 // CHECK-NEXT:    [[LOADVEC4_I_I_I_I_I8_I:%.*]] = load <4 x float>, ptr [[DST_I_I_I_I3_I]], align 4, !noalias [[META31]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META31]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META31]]
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I:%.*]] = shufflevector <4 x float> [[LOADVEC4_I_I_I_I_I_I]], <4 x float> poison, <3 x i32> <i32 0, i32 1, i32 2>
 // CHECK-NEXT:    [[EXTRACTVEC_I_I4_I_I:%.*]] = shufflevector <4 x float> [[LOADVEC4_I_I_I_I_I8_I]], <4 x float> poison, <3 x i32> <i32 0, i32 1, i32 2>
-// CHECK-NEXT:    [[CALL2_I_I:%.*]] = call spir_func noundef <3 x float> @_Z16__spirv_ocl_fmaxDv3_fS_(<3 x float> noundef [[EXTRACTVEC_I_I_I_I]], <3 x float> noundef [[EXTRACTVEC_I_I4_I_I]]) #[[ATTR7]]
+// CHECK-NEXT:    [[CALL2_I_I:%.*]] = call spir_func noundef <3 x float> @_Z16__spirv_ocl_fmaxDv3_fS_(<3 x float> noundef [[EXTRACTVEC_I_I_I_I]], <3 x float> noundef [[EXTRACTVEC_I_I4_I_I]]) #[[ATTR6]]
 // CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META34:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I12_I]]), !noalias [[META37:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[DST_I_I_I_I13_I]]), !noalias [[META37]]
@@ -109,12 +109,12 @@ SYCL_EXTERNAL auto TestFMin(vec<bfloat16, 2> a, vec<bfloat16, 2> b) {
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I16_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I13_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[EXTRACTVEC_I_I_I_I17_I:%.*]] = shufflevector <3 x float> [[CALL2_I_I]], <3 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I_I_I_I17_I]], ptr [[VEC_ADDR_I_I_I_I12_I]], align 16, !tbaa [[TBAA14]], !noalias [[META37]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I15_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I16_I]]) #[[ATTR6]], !noalias [[META37]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec3(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I15_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I16_I]]) #[[ATTR5]], !noalias [[META37]]
 // CHECK-NEXT:    [[LOADVEC4_I_I_I_I_I18_I:%.*]] = load <4 x i16>, ptr [[DST_I_I_I_I13_I]], align 2, !noalias [[META37]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I12_I]]), !noalias [[META37]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[DST_I_I_I_I13_I]]), !noalias [[META37]]
-// CHECK-NEXT:    [[EXTRACTVEC5_I19_I:%.*]] = shufflevector <4 x i16> [[LOADVEC4_I_I_I_I_I18_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-// CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC5_I19_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META37]]
+// CHECK-NEXT:    [[EXTRACTVEC4_I19_I:%.*]] = shufflevector <4 x i16> [[LOADVEC4_I_I_I_I_I18_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
+// CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC4_I19_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META37]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
@@ -122,7 +122,7 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestIsNanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.12") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.16") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META38:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.15") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.20") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META38:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I_I:%.*]] = alloca <4 x i16>, align 8
 // CHECK-NEXT:    [[DST_I_I_I_I_I:%.*]] = alloca [4 x float], align 4
@@ -133,13 +133,13 @@ SYCL_EXTERNAL auto TestFMax(vec<bfloat16, 3> a, vec<bfloat16, 3> b) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <4 x i16> [[TMP0]], ptr [[VEC_ADDR_I_I_I_I_I]], align 8, !tbaa [[TBAA14]], !noalias [[META42]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec4(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META42]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec4(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5]], !noalias [[META42]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load <4 x float>, ptr [[DST_I_I_I_I_I]], align 4, !tbaa [[TBAA14]], !noalias [[META42]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META42]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META42]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef <4 x i8> @_Z13__spirv_IsNanDv4_f(<4 x float> noundef [[TMP1]]) #[[ATTR7]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef <4 x i32> @_Z22__spirv_SConvert_Rint4Dv4_a(<4 x i8> noundef [[CALL_I_I_I_I]]) #[[ATTR7]]
-// CHECK-NEXT:    [[CALL_I_I_I2_I:%.*]] = call spir_func noundef <4 x i16> @_Z24__spirv_SConvert_Rshort4Dv4_i(<4 x i32> noundef [[CALL_I_I_I_I_I_I]]) #[[ATTR7]]
+// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef <4 x i8> @_Z13__spirv_IsNanDv4_f(<4 x float> noundef [[TMP1]]) #[[ATTR6]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef <4 x i32> @_Z22__spirv_SConvert_Rint4Dv4_a(<4 x i8> noundef [[CALL_I_I_I_I]]) #[[ATTR6]]
+// CHECK-NEXT:    [[CALL_I_I_I2_I:%.*]] = call spir_func noundef <4 x i16> @_Z24__spirv_SConvert_Rshort4Dv4_i(<4 x i32> noundef [[CALL_I_I_I_I_I_I]]) #[[ATTR6]]
 // CHECK-NEXT:    store <4 x i16> [[CALL_I_I_I2_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META45:![0-9]+]]
 // CHECK-NEXT:    ret void
 //
@@ -148,7 +148,7 @@ SYCL_EXTERNAL auto TestIsNan(vec<bfloat16, 4> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestFabsN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.30") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.30") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.38") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.38") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I2_I:%.*]] = alloca <8 x float>, align 32
 // CHECK-NEXT:    [[DST_I_I_I_I3_I:%.*]] = alloca [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -161,18 +161,18 @@ SYCL_EXTERNAL auto TestIsNan(vec<bfloat16, 4> a) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <8 x i16> [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]], ptr [[VEC_ADDR_I_I_I_I_I]], align 16, !tbaa [[TBAA14]], !noalias [[META52]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META52]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5]], !noalias [[META52]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load <8 x float>, ptr [[DST_I_I_I_I_I]], align 4, !tbaa [[TBAA14]], !noalias [[META52]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META52]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META52]]
-// CHECK-NEXT:    [[CALL1_I_I:%.*]] = call spir_func noundef <8 x float> @_Z16__spirv_ocl_fabsDv8_f(<8 x float> noundef [[TMP0]]) #[[ATTR7]]
+// CHECK-NEXT:    [[CALL1_I_I:%.*]] = call spir_func noundef <8 x float> @_Z16__spirv_ocl_fabsDv8_f(<8 x float> noundef [[TMP0]]) #[[ATTR6]]
 // CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META55:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META58:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META58]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I4_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I2_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I5_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I3_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <8 x float> [[CALL1_I_I]], ptr [[VEC_ADDR_I_I_I_I2_I]], align 32, !tbaa [[TBAA14]], !noalias [[META58]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR6]], !noalias [[META58]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR5]], !noalias [[META58]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i16>, ptr [[DST_I_I_I_I3_I]], align 2, !tbaa [[TBAA14]], !noalias [[META58]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META58]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META58]]
@@ -184,7 +184,7 @@ SYCL_EXTERNAL auto TestFabs(vec<bfloat16, 8> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z8TestCeilN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.30") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.30") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META59:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.38") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.38") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META59:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I2_I:%.*]] = alloca <8 x float>, align 32
 // CHECK-NEXT:    [[DST_I_I_I_I3_I:%.*]] = alloca [8 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -197,18 +197,18 @@ SYCL_EXTERNAL auto TestFabs(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <8 x i16> [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]], ptr [[VEC_ADDR_I_I_I_I_I]], align 16, !tbaa [[TBAA14]], !noalias [[META63]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META63]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5]], !noalias [[META63]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load <8 x float>, ptr [[DST_I_I_I_I_I]], align 4, !tbaa [[TBAA14]], !noalias [[META63]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META63]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META63]]
-// CHECK-NEXT:    [[CALL1_I_I:%.*]] = call spir_func noundef <8 x float> @_Z16__spirv_ocl_ceilDv8_f(<8 x float> noundef [[TMP0]]) #[[ATTR7]]
+// CHECK-NEXT:    [[CALL1_I_I:%.*]] = call spir_func noundef <8 x float> @_Z16__spirv_ocl_ceilDv8_f(<8 x float> noundef [[TMP0]]) #[[ATTR6]]
 // CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META66:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META69:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META69]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I4_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I2_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I5_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I3_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <8 x float> [[CALL1_I_I]], ptr [[VEC_ADDR_I_I_I_I2_I]], align 32, !tbaa [[TBAA14]], !noalias [[META69]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR6]], !noalias [[META69]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec8(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I4_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I5_I]]) #[[ATTR5]], !noalias [[META69]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i16>, ptr [[DST_I_I_I_I3_I]], align 2, !tbaa [[TBAA14]], !noalias [[META69]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I2_I]]), !noalias [[META69]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[DST_I_I_I_I3_I]]), !noalias [[META69]]
@@ -220,7 +220,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestFMAN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEES5_S5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.38") align 32 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.38") align 32 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.38") align 32 [[B:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.38") align 32 [[C:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META70:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.48") align 32 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.48") align 32 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.48") align 32 [[B:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.48") align 32 [[C:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META70:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VEC_ADDR_I_I_I_I14_I:%.*]] = alloca <16 x float>, align 64
 // CHECK-NEXT:    [[DST_I_I_I_I15_I:%.*]] = alloca [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], align 2
@@ -239,7 +239,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <16 x i16> [[AGG_TMP_SROA_0_SROA_0_0_COPYLOAD]], ptr [[VEC_ADDR_I_I_I_I_I]], align 32, !tbaa [[TBAA14]], !noalias [[META74]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR6]], !noalias [[META74]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I_I]]) #[[ATTR5]], !noalias [[META74]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load <16 x float>, ptr [[DST_I_I_I_I_I]], align 4, !tbaa [[TBAA14]], !noalias [[META74]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I_I]]), !noalias [[META74]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 64, ptr nonnull [[DST_I_I_I_I_I]]), !noalias [[META74]]
@@ -248,7 +248,7 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I5_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I3_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I6_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I4_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <16 x i16> [[AGG_TMP1_SROA_0_SROA_0_0_COPYLOAD]], ptr [[VEC_ADDR_I_I_I_I3_I]], align 32, !tbaa [[TBAA14]], !noalias [[META77]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I5_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I6_I]]) #[[ATTR6]], !noalias [[META77]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I5_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I6_I]]) #[[ATTR5]], !noalias [[META77]]
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x float>, ptr [[DST_I_I_I_I4_I]], align 4, !tbaa [[TBAA14]], !noalias [[META77]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I3_I]]), !noalias [[META77]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 64, ptr nonnull [[DST_I_I_I_I4_I]]), !noalias [[META77]]
@@ -257,18 +257,18 @@ SYCL_EXTERNAL auto TestCeil(vec<bfloat16, 8> a) {
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I9_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I7_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I10_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I8_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <16 x i16> [[AGG_TMP2_SROA_0_SROA_0_0_COPYLOAD]], ptr [[VEC_ADDR_I_I_I_I7_I]], align 32, !tbaa [[TBAA14]], !noalias [[META80]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I9_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I10_I]]) #[[ATTR6]], !noalias [[META80]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertBF16ToFINTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I9_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I10_I]]) #[[ATTR5]], !noalias [[META80]]
 // CHECK-NEXT:    [[TMP2:%.*]] = load <16 x float>, ptr [[DST_I_I_I_I8_I]], align 4, !tbaa [[TBAA14]], !noalias [[META80]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[VEC_ADDR_I_I_I_I7_I]]), !noalias [[META80]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 64, ptr nonnull [[DST_I_I_I_I8_I]]), !noalias [[META80]]
-// CHECK-NEXT:    [[CALL3_I_I:%.*]] = call spir_func noundef <16 x float> @_Z15__spirv_ocl_fmaDv16_fS_S_(<16 x float> noundef [[TMP0]], <16 x float> noundef [[TMP1]], <16 x float> noundef [[TMP2]]) #[[ATTR7]]
+// CHECK-NEXT:    [[CALL3_I_I:%.*]] = call spir_func noundef <16 x float> @_Z15__spirv_ocl_fmaDv16_fS_S_(<16 x float> noundef [[TMP0]], <16 x float> noundef [[TMP1]], <16 x float> noundef [[TMP2]]) #[[ATTR6]]
 // CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META83:![0-9]+]])
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 64, ptr nonnull [[VEC_ADDR_I_I_I_I14_I]]), !noalias [[META86:![0-9]+]]
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[DST_I_I_I_I15_I]]), !noalias [[META86]]
 // CHECK-NEXT:    [[VEC_ADDR_ASCAST_I_I_I_I16_I:%.*]] = addrspacecast ptr [[VEC_ADDR_I_I_I_I14_I]] to ptr addrspace(4)
 // CHECK-NEXT:    [[DST_ASCAST_I_I_I_I17_I:%.*]] = addrspacecast ptr [[DST_I_I_I_I15_I]] to ptr addrspace(4)
 // CHECK-NEXT:    store <16 x float> [[CALL3_I_I]], ptr [[VEC_ADDR_I_I_I_I14_I]], align 64, !tbaa [[TBAA14]], !noalias [[META86]]
-// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I16_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I17_I]]) #[[ATTR6]], !noalias [[META86]]
+// CHECK-NEXT:    call spir_func void @__devicelib_ConvertFToBF16INTELVec16(ptr addrspace(4) noundef [[VEC_ADDR_ASCAST_I_I_I_I16_I]], ptr addrspace(4) noundef [[DST_ASCAST_I_I_I_I17_I]]) #[[ATTR5]], !noalias [[META86]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load <16 x i16>, ptr [[DST_I_I_I_I15_I]], align 2, !tbaa [[TBAA14]], !noalias [[META86]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 64, ptr nonnull [[VEC_ADDR_I_I_I_I14_I]]), !noalias [[META86]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 32, ptr nonnull [[DST_I_I_I_I15_I]]), !noalias [[META86]]

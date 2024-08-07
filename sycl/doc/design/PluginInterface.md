@@ -71,14 +71,12 @@ with arguments and returned values.
 SYCL_PI_TRACE=-1 lists all PI Traces above and more debug messages.
 
 #### Plugin binary interface
-Plugins should implement all the Interface APIs required for the PI Version
-it supports. There is [pi.def](../../include/sycl/detail/pi.def)/
-[pi.h](../../include/sycl/detail/pi.h) file listing all PI API names that
-can be called by the specific version of Plugin Interface.
-It exports a function - "piPluginInit" that returns the plugin details and
-function pointer table containing the list of pointers to implemented Interface
-Functions defined in pi.h.
-In the future, this document will list the minimum set of Interface APIs
+Plugins should implement all the Interface APIs required for the PI Version it
+supports. There is pi.def/ pi.h file listing all PI API names that can be
+called by the specific version of Plugin Interface. It exports a function -
+"piPluginInit" that returns the plugin details and function pointer table
+containing the list of pointers to implemented Interface Functions defined in
+pi.h. In the future, this document will list the minimum set of Interface APIs
 to be supported by Plugins. This will also require adding functionality to SYCL
 Runtime to work with such limited functionality plugins.
 
@@ -149,8 +147,7 @@ into
 - **Interoperability API** which allows interoperability with underlying
 runtimes such as OpenCL.
 
-See [pi.h](../../include/sycl/detail/pi.h) header for the full list and
-descriptions of PI APIs.
+See pi.h header for the full list and descriptions of PI APIs.
 
 ### The Core OpenCL-based PI APIs
 

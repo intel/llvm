@@ -83,6 +83,10 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
 static __SYCL_CONSTANT__ const char __generic_to_fail[] =
     "[kernel] %p(4) - unknown address space\n";
 
+static __SYCL_CONSTANT__ const char __mem_launch_info[] =
+    "[kernel] launch_info: %p (local_shadow=%p~%p, numLocalArgs=%d, "
+    "localArgs=%p)\n";
+
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
 #define ASAN_REPORT_FINISH 2
@@ -111,56 +115,120 @@ __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
 
+inline bool ConvertGenericPointer(uptr &addr, uint32_t &as) {
+  auto old = addr;
+  if ((addr = (uptr)ToPrivate((void *)old))) {
+    as = ADDRESS_SPACE_PRIVATE;
+  } else if ((addr = (uptr)ToLocal((void *)old))) {
+    as = ADDRESS_SPACE_LOCAL;
+  } else if ((addr = (uptr)ToGlobal((void *)old))) {
+    as = ADDRESS_SPACE_GLOBAL;
+  } else {
+    if (__AsanDebug)
+      __spirv_ocl_printf(__generic_to_fail, old);
+    return false;
+  }
+  if (__AsanDebug)
+    __spirv_ocl_printf(__generic_to, old, addr, as);
+  return true;
+}
+
 inline uptr MemToShadow_CPU(uptr addr) {
   return __AsanShadowMemoryGlobalStart + (addr >> ASAN_SHADOW_SCALE);
 }
 
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
-  uptr shadow_ptr = 0;
-  if (addr & (~0xffffffffffff)) {
-    shadow_ptr = (((addr & 0xffffffffffff) >> ASAN_SHADOW_SCALE) +
-                  __AsanShadowMemoryGlobalStart) |
-                 (~0xffffffffffff);
-  } else {
-    shadow_ptr = (addr >> ASAN_SHADOW_SCALE) + __AsanShadowMemoryGlobalStart;
-  }
-
-  if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-    if (__asan_report_out_of_shadow_bounds()) {
-      __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr);
-    }
-  }
-
-  return shadow_ptr;
-}
-
-static __SYCL_CONSTANT__ const char __mem_launch_info[] =
-    "[kernel] launch_info: %p (local_shadow=%p~%p, numLocalArgs=%d, "
-    "localArgs=%p)\n";
-
-static __SYCL_CONSTANT__ const char __generic_to[] =
-    "[kernel] %p(4) - %p(%d)\n";
-
-static __SYCL_CONSTANT__ const char __generic_to_fail[] =
-    "[kernel] %p(4) - unknown address space\n";
-
-inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
-
   if (as == ADDRESS_SPACE_GENERIC) {
-    auto old = addr;
-    if ((addr = (uptr)ToPrivate((void *)old))) {
-      as = ADDRESS_SPACE_PRIVATE;
-    } else if ((addr = (uptr)ToLocal((void *)old))) {
-      as = ADDRESS_SPACE_LOCAL;
-    } else if ((addr = (uptr)ToGlobal((void *)old))) {
-      as = ADDRESS_SPACE_GLOBAL;
-    } else {
-      if (__AsanDebug)
-        __spirv_ocl_printf(__generic_to_fail, old);
+    if (!ConvertGenericPointer(addr, as)) {
       return 0;
     }
+  }
+
+  if (as == ADDRESS_SPACE_GLOBAL) {     // global
+    if (addr & 0xFFFF000000000000ULL) { // Device USM
+      return __AsanShadowMemoryGlobalStart + 0x80000000000ULL +
+             ((addr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
+    } else { // Host/Shared USM
+      return __AsanShadowMemoryGlobalStart + (addr >> ASAN_SHADOW_SCALE);
+    }
+  } else if (as == ADDRESS_SPACE_LOCAL) { // local
+    // The size of SLM is 64KB on DG2
+    constexpr unsigned slm_size = 64 * 1024;
+    const auto wg_lid =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+    const auto shadow_offset = launch_info->LocalShadowOffset;
+    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+
+    if (shadow_offset == 0) {
+      return 0;
+    }
+
     if (__AsanDebug)
-      __spirv_ocl_printf(__generic_to, old, addr, as);
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->LocalShadowOffset,
+                         launch_info->LocalShadowOffsetEnd,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+    auto shadow_ptr = shadow_offset +
+                      ((wg_lid * slm_size) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
+
+    if (shadow_ptr > shadow_offset_end) {
+      if (__asan_report_out_of_shadow_bounds()) {
+        __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
+                           wg_lid, (uptr)shadow_offset);
+      }
+      return 0;
+    }
+    return shadow_ptr;
+  } else if (as == ADDRESS_SPACE_PRIVATE) { // private
+    // work-group linear id
+    const auto WG_LID =
+        __spirv_BuiltInWorkgroupId.x * __spirv_BuiltInNumWorkgroups.y *
+            __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.y * __spirv_BuiltInNumWorkgroups.z +
+        __spirv_BuiltInWorkgroupId.z;
+
+    auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+    const auto shadow_offset = launch_info->PrivateShadowOffset;
+    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+
+    if (shadow_offset == 0) {
+      return 0;
+    }
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_launch_info, launch_info,
+                         launch_info->PrivateShadowOffset, 0,
+                         launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+    uptr shadow_ptr = shadow_offset +
+                      ((WG_LID * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
+
+    if (shadow_ptr > shadow_offset_end) {
+      if (__asan_report_out_of_shadow_bounds()) {
+        __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr,
+                           WG_LID, (uptr)shadow_offset);
+      }
+      return 0;
+    }
+    return shadow_ptr;
+  }
+
+  return 0;
+}
+
+inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
+  if (as == ADDRESS_SPACE_GENERIC) {
+    if (!ConvertGenericPointer(addr, as)) {
+      return 0;
+    }
   }
 
   if (as == ADDRESS_SPACE_GLOBAL) { // global
@@ -262,6 +330,8 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
     shadow_ptr = MemToShadow_CPU(addr);
   } else if (__DeviceType == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
+  } else if (__DeviceType == DeviceType::GPU_DG2) {
+    shadow_ptr = MemToShadow_DG2(addr, as);
   } else {
     if (__asan_report_unknown_device() && __AsanDebug) {
       __spirv_ocl_printf(__asan_print_unsupport_device_type, (int)__DeviceType);
@@ -322,6 +392,9 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 /// ASAN Save Report
 ///
 
+static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
+    "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
+
 bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
@@ -339,8 +412,14 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
       Expected) {
     SanitizerReport.ErrorType = error_type;
+    SanitizerReport.IsRecover = false;
+
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
+                         SanitizerReport.IsRecover);
     return true;
   }
   return false;
@@ -419,6 +498,10 @@ bool __asan_internal_report_save(
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
+
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
+                         SanitizerReport.IsRecover);
     return true;
   }
   return false;
@@ -427,6 +510,32 @@ bool __asan_internal_report_save(
 ///
 /// ASAN Error Reporters
 ///
+
+DeviceSanitizerMemoryType GetMemoryTypeByShadowValue(int shadow_value) {
+  switch (shadow_value) {
+  case kUsmDeviceRedzoneMagic:
+  case kUsmDeviceDeallocatedMagic:
+    return DeviceSanitizerMemoryType::USM_DEVICE;
+  case kUsmHostRedzoneMagic:
+  case kUsmHostDeallocatedMagic:
+    return DeviceSanitizerMemoryType::USM_HOST;
+  case kUsmSharedRedzoneMagic:
+  case kUsmSharedDeallocatedMagic:
+    return DeviceSanitizerMemoryType::USM_SHARED;
+  case kPrivateLeftRedzoneMagic:
+  case kPrivateMidRedzoneMagic:
+  case kPrivateRightRedzoneMagic:
+    return DeviceSanitizerMemoryType::PRIVATE;
+  case kMemBufferRedzoneMagic:
+    return DeviceSanitizerMemoryType::MEM_BUFFER;
+  case kSharedLocalRedzoneMagic:
+    return DeviceSanitizerMemoryType::LOCAL;
+  case kDeviceGlobalRedzoneMagic:
+    return DeviceSanitizerMemoryType::DEVICE_GLOBAL;
+  default:
+    return DeviceSanitizerMemoryType::UNKNOWN;
+  }
+}
 
 void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
                                 bool is_write, uptr poisoned_addr,
@@ -442,56 +551,51 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   }
   // FIXME: check if shadow_address out-of-bound
 
-  DeviceSanitizerMemoryType memory_type;
+  DeviceSanitizerMemoryType memory_type =
+      GetMemoryTypeByShadowValue(shadow_value);
   DeviceSanitizerErrorType error_type;
 
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kUsmHostRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kUsmSharedRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
-  case kUsmDeviceDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
-  case kUsmHostDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
-  case kUsmSharedDeallocatedMagic:
-    memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
-    break;
   case kPrivateLeftRedzoneMagic:
   case kPrivateMidRedzoneMagic:
   case kPrivateRightRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::PRIVATE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kMemBufferRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
-    break;
   case kSharedLocalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::LOCAL;
+  case kDeviceGlobalRedzoneMagic:
     error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
-  case kDeviceGlobalRedzoneMagic:
-    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
+  case kUsmDeviceDeallocatedMagic:
+  case kUsmHostDeallocatedMagic:
+  case kUsmSharedDeallocatedMagic:
+    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
     break;
   default:
-    memory_type = DeviceSanitizerMemoryType::UNKNOWN;
     error_type = DeviceSanitizerErrorType::UNKNOWN;
   }
+
+  __asan_internal_report_save(addr, as, file, line, func, is_write, size,
+                              memory_type, error_type, is_recover);
+}
+
+void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
+                                  bool is_write, uptr poisoned_addr,
+                                  const char __SYCL_CONSTANT__ *file,
+                                  uint32_t line,
+                                  const char __SYCL_CONSTANT__ *func,
+                                  bool is_recover = false) {
+
+  auto *shadow = (__SYCL_GLOBAL__ s8 *)MemToShadow(addr, as);
+  while (*shadow >= 0) {
+    ++shadow;
+  }
+  int shadow_value = *shadow;
+
+  DeviceSanitizerErrorType error_type = DeviceSanitizerErrorType::MISALIGNED;
+  DeviceSanitizerMemoryType memory_type =
+      GetMemoryTypeByShadowValue(shadow_value);
 
   __asan_internal_report_save(addr, as, file, line, func, is_write, size,
                               memory_type, error_type, is_recover);
@@ -589,6 +693,8 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   return 0;
 }
 
+constexpr size_t AlignMask(size_t n) { return n - 1; }
+
 } // namespace
 
 ///
@@ -599,6 +705,10 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
       uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (addr & AlignMask(size)) {                                              \
+      __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
+                                   func);                                      \
+    }                                                                          \
     if (__asan_address_is_poisoned(addr, as, size)) {                          \
       __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
                                  func);                                        \
@@ -607,6 +717,10 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, size_t size) {
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
       uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (addr & AlignMask(size)) {                                              \
+      __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
+                                   func, true);                                \
+    }                                                                          \
     if (__asan_address_is_poisoned(addr, as, size)) {                          \
       __asan_report_access_error(addr, as, size, is_write, addr, file, line,   \
                                  func, true);                                  \
@@ -746,6 +860,37 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
 
   if (__AsanDebug)
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_end);
+}
+
+///
+/// ASAN initialize shdadow memory of private memory
+///
+
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private_begin[] =
+    "[kernel] BEGIN __asan_set_shadow_private\n";
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private_end[] =
+    "[kernel] END   __asan_set_shadow_private\n";
+static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
+    "[kernel] set_shadow_private(beg=%p, end=%p, val:%02X)\n";
+
+DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
+                                                        char val) {
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private_begin);
+
+  auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+  if (launch_info->PrivateShadowOffset == 0)
+    return;
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private, (void *)begin,
+                       (void *)(begin + size), val & 0xFF);
+
+  for (size_t i = 0; i < size; i++)
+    ((__SYCL_GLOBAL__ u8 *)begin)[i] = val;
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_private_end);
 }
 
 #endif // __SPIR__ || __SPIRV__

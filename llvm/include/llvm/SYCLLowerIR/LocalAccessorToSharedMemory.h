@@ -25,10 +25,6 @@ class PassRegistry;
 /// functions.
 class LocalAccessorToSharedMemoryPass
     : public PassInfoMixin<LocalAccessorToSharedMemoryPass> {
-private:
-  using KernelPayload = TargetHelpers::KernelPayload;
-  using ArchType = TargetHelpers::ArchType;
-
 public:
   explicit LocalAccessorToSharedMemoryPass() {}
 
@@ -48,12 +44,6 @@ private:
   ///
   /// \returns A new function with global symbol accesses.
   Function *processKernel(Module &M, Function *F);
-
-  /// Update kernel metadata to reflect the change in the signature.
-  ///
-  /// \param A map of original kernels to the modified ones.
-  void postProcessKernels(
-      SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels);
 
 private:
   /// The value for NVVM's ADDRESS_SPACE_SHARED and AMD's LOCAL_ADDRESS happen

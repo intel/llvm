@@ -30,7 +30,7 @@ namespace syclcompat {
 
 class dim3 {
 public:
-  const size_t x, y, z;
+  unsigned int x, y, z;
 
   dim3(const sycl::range<3> &r) : x(r[2]), y(r[1]), z(r[0]) {}
 
@@ -38,7 +38,8 @@ public:
 
   dim3(const sycl::range<1> &r) : x(r[0]), y(1), z(1) {}
 
-  constexpr dim3(size_t x, size_t y = 1, size_t z = 1) : x(x), y(y), z(z) {}
+  constexpr dim3(unsigned int x = 1, unsigned int y = 1, unsigned int z = 1)
+      : x(x), y(y), z(z) {}
 
   constexpr size_t size() const { return x * y * z; }
 

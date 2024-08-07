@@ -1032,8 +1032,26 @@ inline dot_product_acc_t<T1, T2> dp2a_lo(T1 a, T2 b,
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp2a_lo expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp2a_lo(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.lo.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp2a.lo.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.lo.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp2a.lo.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
@@ -1061,8 +1079,26 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp2a_hi expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp2a_hi(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.hi.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp2a.hi.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp2a.hi.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp2a.hi.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend2(a);
@@ -1088,8 +1124,26 @@ inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b, dot_product_acc_t<T1, T2> c) {
   static_assert(detail::is_int32_type<T1> && detail::is_int32_type<T2>,
                 "[SYCLcompat] dp4a expects 32-bit integers as operands.");
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
-    defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-  return __dp4a(a, b, c);
+    defined(__SYCL_CUDA_ARCH__) && __SYCL_CUDA_ARCH__ >= 610
+  dot_product_acc_t<T1, T2> res;
+  if constexpr (std::is_signed_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp4a.s32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_signed_v<T1> && std::is_unsigned_v<T2>) {
+    asm volatile("dp4a.s32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else if constexpr (std::is_unsigned_v<T1> && std::is_signed_v<T2>) {
+    asm volatile("dp4a.u32.s32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  } else {
+    asm volatile("dp4a.u32.u32 %0, %1, %2, %3;"
+                 : "=r"(res)
+                 : "r"(a), "r"(b), "r"(c));
+  }
+  return res;
 #else
   dot_product_acc_t<T1, T2> res = c;
   auto va = detail::extract_and_sign_or_zero_extend4(a);

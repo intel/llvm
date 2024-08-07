@@ -358,7 +358,7 @@ template <class T1, class T2> bool test_simd_iselect() SYCL_ESIMD_FUNCTION {
   simd<T2, 8> a(0, 2);
   auto data = v.iselect(a);
   data += 16;
-  v.template iupdate(a, data, simd_mask<8>(1));
+  v.iupdate(a, data, simd_mask<8>(1));
   auto ref = v.template select<8, 2>(0);
   return ref[0] == 16 && ref[14] == 32;
 }

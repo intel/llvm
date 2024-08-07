@@ -8,7 +8,7 @@
 
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
@@ -29,61 +29,39 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
-pi_result redefinedEnqueueMemBufferWrite(pi_queue command_queue, pi_mem buffer,
-                                         pi_bool blocking_write, size_t offset,
-                                         size_t size, const void *ptr,
-                                         pi_uint32 num_events_in_wait_list,
-                                         const pi_event *event_wait_list,
-                                         pi_event *event) {
+ur_result_t redefinedEnqueueMemBufferWrite(void *) {
   TestContext->BufferWriteCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemBufferRead(pi_queue queue, pi_mem buffer,
-                                        pi_bool blocking_read, size_t offset,
-                                        size_t size, void *ptr,
-                                        pi_uint32 num_events_in_wait_list,
-                                        const pi_event *event_wait_list,
-                                        pi_event *event) {
+ur_result_t redefinedEnqueueMemBufferRead(void *) {
   TestContext->BufferReadCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemBufferCopy(pi_queue command_queue,
-                                        pi_mem src_buffer, pi_mem dst_buffer,
-                                        size_t src_offset, size_t dst_offset,
-                                        size_t size,
-                                        pi_uint32 num_events_in_wait_list,
-                                        const pi_event *event_wait_list,
-                                        pi_event *event) {
+ur_result_t redefinedEnqueueMemBufferCopy(void *) {
   TestContext->BufferCopyCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemBufferFill(pi_queue command_queue, pi_mem buffer,
-                                        const void *pattern,
-                                        size_t pattern_size, size_t offset,
-                                        size_t size,
-                                        pi_uint32 num_events_in_wait_list,
-                                        const pi_event *event_wait_list,
-                                        pi_event *event) {
+ur_result_t redefinedEnqueueMemBufferFill(void *) {
   TestContext->BufferFillCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
 
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferWrite>(
-      redefinedEnqueueMemBufferWrite);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferRead>(
-      redefinedEnqueueMemBufferRead);
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferCopy>(
-      redefinedEnqueueMemBufferCopy);
+  mock::getCallbacks().set_replace_callback("urEnqueueMemBufferWrite",
+                                            &redefinedEnqueueMemBufferWrite);
+  mock::getCallbacks().set_replace_callback("urEnqueueMemBufferRead",
+                                            &redefinedEnqueueMemBufferRead);
+  mock::getCallbacks().set_replace_callback("urEnqueueMemBufferCopy",
+                                            &redefinedEnqueueMemBufferCopy);
 
-  Mock.redefine<detail::PiApiKind::piEnqueueMemBufferFill>(
-      redefinedEnqueueMemBufferFill);
+  mock::getCallbacks().set_replace_callback("urEnqueueMemBufferFill",
+                                            &redefinedEnqueueMemBufferFill);
 
   context Ctx(Plt);
   queue Q{Ctx, default_selector()};
@@ -212,7 +190,7 @@ TEST(ShortcutFunctions, ShortcutsCallCorrectPIFunctions) {
     Q.update_host(Acc);
     Q.wait();
 
-    // No PI functions expected.
+    // No UR functions expected.
   }
 
   // Queue.fill<T>(accessor Dest, T src)

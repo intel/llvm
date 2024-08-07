@@ -59,7 +59,7 @@ int test(sycl::queue queue) {
 
             esimd::simd<int, 8> data = input_load_vec.iselect(offset);
             data += 3;
-            input_load_vec.template iupdate(offset, data,
+            input_load_vec.iupdate(offset, data,
                                             esimd::simd_mask<8>(1));
             input_load_vec.copy_to(out_ptr);
           });

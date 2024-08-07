@@ -21,8 +21,8 @@ constexpr size_t N = 1024;
 int main() {
   sycl::queue Q;
 
-  if (!oneapiext::is_source_kernel_bundle_supported(
-          Q.get_backend(), oneapiext::source_language::opencl)) {
+  if (!Q.get_device().ext_oneapi_can_compile(
+          oneapiext::source_language::opencl)) {
     std::cout
         << "Backend does not support OpenCL C source kernel bundle extension: "
         << Q.get_backend() << std::endl;

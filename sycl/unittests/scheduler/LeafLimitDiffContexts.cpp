@@ -10,8 +10,8 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -37,7 +37,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
   // Ensure the mock plugin has been initialized prior to selecting a device.
-  unittest::PiMock::EnsureMockPluginInitialized();
+  // unittest::UrMock::EnsureMockPluginInitialized();
+  sycl::unittest::UrMock<> Mock;
 
   device Device;
   struct QueueRelatedObjects {
@@ -60,8 +61,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       std::vector<detail::Command *> ToEnqueue;
       AllocaCmd = MS.getOrCreateAllocaForReq(
           Rec, &MockReq, detail::getSyclObjImpl(Queue), ToEnqueue);
-      std::ignore = MS.getOrCreateAllocaForReq(
-          Rec, &MockReq, MS.getDefaultHostQueue(), ToEnqueue);
+      std::ignore =
+          MS.getOrCreateAllocaForReq(Rec, &MockReq, nullptr, ToEnqueue);
       DepCmd =
           std::make_unique<MockCommand>(detail::getSyclObjImpl(Queue), MockReq);
     }

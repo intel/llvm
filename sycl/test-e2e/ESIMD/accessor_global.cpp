@@ -52,7 +52,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
                T *Ptr = TmpAcc.template get_multi_ptr<access::decorated::yes>()
                             .get();
                simd<T, VL> Values = block_load<T, VL>(Ptr + (GID + LID) * VL);
-               Values.template copy_to(Out + (GID + LID) * VL);
+               Values.copy_to(Out + (GID + LID) * VL);
              }
            } // end for (int LID = 0; LID < LocalRange; LID++)
          } // end if (LID == 0)

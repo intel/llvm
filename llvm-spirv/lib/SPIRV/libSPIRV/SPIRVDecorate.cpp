@@ -126,6 +126,7 @@ void SPIRVDecorate::encode(spv_ostream &O) const {
     break;
   case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::encodeLiterals(Encoder, Literals);
+    break;
   case internal::DecorationHostAccessINTEL:
     SPIRVDecorateHostAccessINTELLegacy::encodeLiterals(Encoder, Literals);
     break;
@@ -163,6 +164,7 @@ void SPIRVDecorate::decode(std::istream &I) {
     break;
   case internal::DecorationFuncParamDescINTEL:
     SPIRVDecorateFuncParamDescAttr::decodeLiterals(Decoder, Literals);
+    break;
   case internal::DecorationHostAccessINTEL:
     SPIRVDecorateHostAccessINTELLegacy::decodeLiterals(Decoder, Literals);
     break;

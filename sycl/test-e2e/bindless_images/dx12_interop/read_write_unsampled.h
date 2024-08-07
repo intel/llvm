@@ -81,14 +81,14 @@ private:
   // Shared handles and values
   uint64_t m_sharedFenceValue;
   HANDLE m_sharedMemoryHandle;
-  HANDLE m_sharedSemaphoreHandle;
+  HANDLE m_sharedSemaphoreHandle = INVALID_HANDLE_VALUE;
 
   // SYCL Objects
   sycl::queue m_syclQueue;
   sycl::device m_syclDevice;
   syclexp::image_descriptor m_syclImageDesc;
-  syclexp::interop_mem_handle m_syclInteropMemHandle;
-  syclexp::interop_semaphore_handle m_syclInteropSemaphoreHandle;
+  syclexp::external_mem m_syclExternalMemHandle;
+  syclexp::external_semaphore m_syclExternalSemaphoreHandle;
   syclexp::image_mem_handle m_syclImageMemHandle;
   syclexp::unsampled_image_handle m_syclImageHandle;
 };

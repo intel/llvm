@@ -9,7 +9,7 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: cpu, gpu-intel-dg2
+// XFAIL: cpu
 
 #include "common.hpp"
 #include "get_coord_int8_matB_impl.hpp"

@@ -5,12 +5,15 @@
 // UNSUPPORTED: opencl && gpu
 
 // TODO: Fails at JIT compilation for some reason.
-// UNSUPPORTED: hip
+// TODO: Reenable windows/linux, see https://github.com/intel/llvm/issues/14598
+// UNSUPPORTED: hip, windows, linux
 #define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 
