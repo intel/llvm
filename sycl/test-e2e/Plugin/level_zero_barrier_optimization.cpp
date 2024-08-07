@@ -1,6 +1,6 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test to check that we don't insert unnecessary L0 commands for
 // queue::ext_oneapi_submit_barrier() when we have in-order queue.
