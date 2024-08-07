@@ -539,9 +539,8 @@ static void collectSYCLAttributes(SemaSYCL &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
-  // are applied to onto the kernel which calls the function.
-  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
+  // In SYCL 2020 mode, the attributes aren't propagated from the function they
+  // are applied on to the kernel which calls the function.
   if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
