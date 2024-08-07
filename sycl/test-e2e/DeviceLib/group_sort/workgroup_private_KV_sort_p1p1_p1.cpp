@@ -123,4 +123,31 @@ int main() {
         q, ikeys, ivals, work_group_sorter);
     std::cout << "KV private sort p1u32_p1u32_u32_p1i8 pass." << std::endl;
   }
+
+  {
+    constexpr static int NUM = 35;
+    uint8_t ikeys[NUM] = {1,    11,    1,   9,     3,  100,  34,  8,   121,
+                           77,   125,   23,  36,    2,  111,  91,  88,  2,
+                           51,   213, 181, 183, 31, 142,  216, 1, 199,
+                           124, 12,  0,   181,  17, 15, 101, 44};
+    uint32_t ivals[NUM] = {99,   32,    1,    2,      67,   9123, 453,
+                           435,  91111, 777,  165,    145,  2456, 88811,
+                           761,  96,    765,  10000,  6364, 90,   525,
+                           882,  1,     2423, 9,      4324, 9123, 0,
+                           1232, 777,   555,  314159, 905,  9831, 84341};
+    auto work_group_sorter = [](uint8_t *keys, uint32_t *vals, uint32_t n,
+                                uint8_t *scratch) {
+#ifdef DES
+      __devicelib_default_work_group_private_sort_close_descending_p1u8_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+    };
+    test_work_group_KV_private_sort<uint8_t, uint32_t, 7, NUM,
+                                    decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV private sort p1u8_p1u32_u32_p1i8 pass." << std::endl;
+  }
 }
