@@ -69,7 +69,9 @@ def do_configure(args):
         sycl_enabled_plugins.append("level_zero")
 
     # lld is needed on Windows or for the HIP plugin on AMD
-    if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
+    if platform.system() == "Windows" or (
+        args.hip and args.hip_platform == "AMD" and not args.shared_libs
+    ):
         llvm_enable_projects += ";lld"
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
