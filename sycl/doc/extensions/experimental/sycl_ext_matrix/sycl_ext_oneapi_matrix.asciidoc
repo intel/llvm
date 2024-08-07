@@ -1015,12 +1015,12 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `architecture::intel_gpu_pvc`
 |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.7+|  `matrix_type::bf16`       .7+|  `matrix_type::bf16`   .7+|
+.6+|  `matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::fp32`  | 16 | 16 | 16 .4+|`architecture::intel_gpu_pvc`
 | 1 | 64 | 16 | 32 | 64 | 16
 .2+|  +<=+ 8 |  16   .2+|  16
-|8 .3+| `architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12` .2+| 32 .2+| 32 .2+| 16| `matrix_type::tf32`       |  `matrix_type::tf32`   |
+|8 .2+| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12` .1+| 32 .1+| 32 .1+| 16| `matrix_type::tf32`       |  `matrix_type::tf32`   |
 `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
 `architecture::intel_gpu_pvc`
 |======================
@@ -1146,4 +1146,6 @@ load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
 |12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
+|13  |2024-08-07 |Yixing Zhang | Add 32x32x16 supported combination for
+Intel XMX (intel_gpu_dg2)
 |======================
