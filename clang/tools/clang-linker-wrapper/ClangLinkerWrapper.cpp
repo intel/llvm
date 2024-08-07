@@ -1031,20 +1031,15 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   M.setTargetTriple(
       Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
 
-  auto CompileOptionsFromImage =
-      Args.getLastArgValue(OPT_sycl_backend_compile_options_from_image_EQ);
-  auto LinkOptionsFromImage =
-      Args.getLastArgValue(OPT_sycl_backend_link_options_from_image_EQ);
   auto CompileOptionsFromSYCLBackendCompileOptions =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
   auto LinkOptionsFromSYCLTargetLinkOptions =
       Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
 
   StringRef CompileOptions(
-      Args.MakeArgString(CompileOptionsFromImage.str() +
-                         CompileOptionsFromSYCLBackendCompileOptions.str()));
-  StringRef LinkOptions(Args.MakeArgString(
-      LinkOptionsFromImage.str() + LinkOptionsFromSYCLTargetLinkOptions.str()));
+      Args.MakeArgString(CompileOptionsFromSYCLBackendCompileOptions.str()));
+  StringRef LinkOptions(
+      Args.MakeArgString(LinkOptionsFromSYCLTargetLinkOptions.str()));
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
