@@ -231,7 +231,15 @@ jobs:
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target install-clang-libraries
         cmake --build $GITHUB_WORKSPACE/build --target install-llvm-libraries
-
+    - name: Additional Install for "--shared-libs" HIP build
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' && contains(inputs.build_configure_extra_args, '--shared-libs') && contains(inputs.build_configure_extra_args, '--hip')}}
+      # Building for HIP requires lld, however in a shared library build lld depends on shared libraries that are not installed as part of the SYCL toolchain, so copy over the
+      # statically-built lld executable from the build image.
+      run: |
+        PREINSTALLED_CLANG_PATH=`which clang`
+        PREINSTALLED_INSTALL_DIR=`echo $PREINSTALLED_CLANG_PATH | rev | cut -c7- | rev`
+        cp "${PREINSTALLED_INSTALL_DIR}/lld" $GITHUB_WORKSPACE/build/install/bin/
+        cp "${PREINSTALLED_INSTALL_DIR}/ld.lld" $GITHUB_WORKSPACE/build/install/bin/
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .

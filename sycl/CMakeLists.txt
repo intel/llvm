@@ -507,10 +507,15 @@ if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
     message(FATAL_ERROR
       "HIP support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
-
-  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
+  find_program(
+    SYSTEM_LLD
+    NAMES
+        lld
+    DOC "Pre-installed system lld executable"
+  )
+  if(NOT TARGET lld AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD" AND NOT SYSTEM_LLD)
     message(FATAL_ERROR
-      "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
+      "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\" or installing a pre-built lld")
   endif()
 
   add_dependencies(sycl-toolchain ur_adapter_hip)
