@@ -3238,10 +3238,16 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder())
+    if (!MQueue->isInOrder()) {
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PreTimestampBarrierEvent{};
       Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                    /*num_events_in_wait_list=*/0,
-                   /*event_wait_list=*/nullptr, /*event=*/nullptr);
+                   /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
+      Plugin->call(urEventRelease, PreTimestampBarrierEvent);
+    }
 
     Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getHandleRef(),
                  /*blocking=*/false,
