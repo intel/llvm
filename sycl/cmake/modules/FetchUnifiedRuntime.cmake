@@ -115,14 +115,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
-  # Merge: 84f5e705 ca2916e9
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 5 21:02:44 2024 +0100
-  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
-  #     Revert "[L0] L0 impl for enqueue native command"
-  set(UNIFIED_RUNTIME_TAG 9deaabcbef168015df251c4ac0d47c2cba7bfbfb)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit put-git-commit-hash-here
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Fri Mar 22 17:18:22 2024 +0000
+  #
+  #     [Spec Constants] Improved handling of invalid/unsupported spec. constants
+  #
+  #     Two main changes to how `Kernel/ProgramSetSpecializationConstants`
+  #     are handled:
+  #     * They may now output either `INVALID_VALUE` or the new
+  #       `INVALID_SPEC_ID` when the provided list is invalid.
+  #     * The OpenCL and level 0 adapters now respond to
+  #       `UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS` with `false`
+  #       rather than erroring out. This fixes some tests that were
+  #       incorrectly not being skipped.
+  #     * `urKernelSetSpecializationConstants` now "implemented" (as a
+  #       function that returns `UNSUPPORTED_FEATURE` for a number of
+  #       adapters.
+  set(UNIFIED_RUNTIME_TAG 9c07bc24fe8039d40b1c6ee487256c5d63db3792)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
