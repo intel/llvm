@@ -4190,9 +4190,11 @@ def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-extern
 def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
   Group<sycl_Group>, HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
 def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependencies">,
-  Group<sycl_Group>, HelpText<"Allow dependencies between device code images">;
+  Group<sycl_Group>, Visibility<[ClangOption, CLOption]>,
+  HelpText<"Allow dependencies between device code images">;
 def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
-  Group<sycl_Group>, HelpText<"Do not allow dependencies between device code images (default)">;
+  Group<sycl_Group>, Visibility<[ClangOption, CLOption]>,
+  HelpText<"Do not allow dependencies between device code images (default)">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,

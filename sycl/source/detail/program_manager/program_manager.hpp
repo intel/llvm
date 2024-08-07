@@ -123,14 +123,11 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool>
-  getOrCreateURProgram(
+  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const context &Context,
-      const device &Device,
-      const std::string &CompileAndLinkOptions,
-      SerializedObj SpecConsts);
+      const context &Context, const device &Device,
+      const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS
@@ -306,7 +303,8 @@ private:
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, ur_device_handle_t Device,
                    uint32_t DeviceLibReqMask,
-                   const std::vector<ur_program_handle_t> &ProgramsToLink);
+                   const std::vector<ur_program_handle_t> &ProgramsToLink,
+                   bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;

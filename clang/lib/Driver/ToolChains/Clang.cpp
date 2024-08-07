@@ -10705,8 +10705,7 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 
 static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
-                     options::OPT_fno_sycl_allow_device_dependencies,
-                     false))
+                     options::OPT_fno_sycl_allow_device_dependencies, false))
     return true;
   return false;
 }
@@ -10787,9 +10786,9 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                        options::OPT_fsycl_remove_unused_external_funcs,
                        false) &&
        !isSYCLNativeCPU(TC)) &&
-      // When supporting dynamic linking, non-kernels in a device image can be called
-      !supportDynamicLinking(TCArgs) &&
-      !Triple.isNVPTX() && !Triple.isAMDGPU())
+      // When supporting dynamic linking, non-kernels in a device image can be
+      // called.
+      !supportDynamicLinking(TCArgs) && !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   if (!Triple.isAMDGCN())

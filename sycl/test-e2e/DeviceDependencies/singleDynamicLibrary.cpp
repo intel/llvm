@@ -21,6 +21,4 @@
 
 #include "wrapper.hpp"
 
-int main() {
-  return(wrapper());
-}
+int main() { return (wrapper()); }

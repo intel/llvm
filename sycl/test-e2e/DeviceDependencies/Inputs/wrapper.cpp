@@ -1,6 +1,6 @@
-#include <sycl/detail/core.hpp>
 #include "a.hpp"
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #define EXPORT
 #include "wrapper.hpp"
 
@@ -15,12 +15,12 @@ int wrapper() {
     queue q;
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access(cgh);
-      cgh.single_task<ExeKernel>([=]() {acc[0] = levelA(acc[0]);});
+      cgh.single_task<ExeKernel>([=]() { acc[0] = levelA(acc[0]); });
     });
   }
 
   std::cout << "val=" << std::hex << val << "\n";
-  if (val!=0xDCBA)
-    return (1);  
-  return(0);
+  if (val != 0xDCBA)
+    return (1);
+  return (0);
 }

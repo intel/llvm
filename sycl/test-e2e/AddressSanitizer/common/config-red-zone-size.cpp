@@ -5,9 +5,6 @@
 // RUN: env UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=redzone:8 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MIN %s
 // RUN: env UR_LOG_SANITIZER=level:debug UR_LAYER_ASAN_OPTIONS=max_redzone:4096 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-MAX %s
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14658
-// UNSUPPORTED: windows, linux
-
 #include <sycl/usm.hpp>
 
 int main() {

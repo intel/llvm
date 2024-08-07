@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
-  # Merge: 84f5e705 ca2916e9
+  # commit a89657c2e36d7152820b9ecc088422a54ca1d844
+  # Merge: 2355a7d6 be7057c4
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 5 21:02:44 2024 +0100
-  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
-  #     Revert "[L0] L0 impl for enqueue native command"
-  set(UNIFIED_RUNTIME_TAG 9deaabcbef168015df251c4ac0d47c2cba7bfbfb)
+  # Date:   Wed Aug 7 12:01:33 2024 +0100
+  #     Merge pull request #1699 from PietroGhg/pietro/usm_fixes
+  #     [NATIVECPU] Implement urUSMGetMemAllocInfo and aligned alloc
+  set(UNIFIED_RUNTIME_TAG a89657c2e36d7152820b9ecc088422a54ca1d844)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
