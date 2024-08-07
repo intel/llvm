@@ -83,8 +83,12 @@ initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 // Get the plugin serving given backend.
 template <backend BE> const PluginPtr &getPlugin();
 
+// The SYCL_UR_TRACE sets what we will trace.
+// This is a bit-mask of various things we'd want to trace.
+enum TraceLevel { TRACE_BASIC = 0x1, TRACE_CALLS = 0x2, TRACE_ALL = -1 };
+
 // Return true if we want to trace UR related activities.
-bool trace();
+bool trace(TraceLevel level);
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);

@@ -69,7 +69,7 @@
 // extension is a new feature and may not be supported by the runtime used with
 // SYCL.
 //
-// RUN: %if cpu %{ env SYCL_UR_TRACE=1 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if cpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
 // RUN: %if gpu %{ env                 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT  %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if gpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
