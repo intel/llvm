@@ -171,6 +171,7 @@ math/remquo.cl
 math/rint.cl
 math/rootn.cl
 math/round.cl
+math/scalbln.cl
 math/sin.cl
 math/sincos.cl
 math/sincos_helpers.cl

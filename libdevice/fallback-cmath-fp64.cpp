@@ -30,6 +30,11 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_cospi(double x) { return __spirv_ocl_cospi(x); }
 
 DEVICE_EXTERN_C_INLINE
+double __devicelib_scalbln(double x, long int y) {
+  return __spirv_ocl_ldexp(x, (int)y);
+}
+
+DEVICE_EXTERN_C_INLINE
 double __devicelib_fmax(double x, double y) { return __spirv_ocl_fmax(x, y); }
 
 DEVICE_EXTERN_C_INLINE
