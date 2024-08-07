@@ -579,11 +579,11 @@ typename std::enable_if_t<(VecLength == 2 || VecLength == 4 || VecLength == 8 ||
                           unsigned>
 VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
-  unsigned Len =
-      VecToStr<T, VecLength / 2>(Vec.lo(), VecStr, Flags, Width, Precision);
+  unsigned Len = VecToStr<T, VecLength / 2>(vec<T, VecLength / 2>{Vec.lo()},
+                                            VecStr, Flags, Width, Precision);
   Len += append(VecStr + Len, VEC_ELEMENT_DELIMITER);
-  Len += VecToStr<T, VecLength / 2>(Vec.hi(), VecStr + Len, Flags, Width,
-                                    Precision);
+  Len += VecToStr<T, VecLength / 2>(vec<T, VecLength / 2>{Vec.hi()},
+                                    VecStr + Len, Flags, Width, Precision);
   return Len;
 }
 
@@ -593,7 +593,8 @@ VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
   unsigned Len = VecToStr<T, 2>(Vec.lo(), VecStr, Flags, Width, Precision);
   Len += append(VecStr + Len, VEC_ELEMENT_DELIMITER);
-  Len += VecToStr<T, 1>(Vec.z(), VecStr + Len, Flags, Width, Precision);
+  Len +=
+      VecToStr<T, 1>(vec<T, 1>(Vec.z()), VecStr + Len, Flags, Width, Precision);
   return Len;
 }
 

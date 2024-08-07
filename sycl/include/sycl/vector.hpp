@@ -835,7 +835,9 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   operator vector_t() const {
-    return static_cast<vector_t>(static_cast<ResultVec>(*this));
+    // operator ResultVec() isn't available for single-element swizzle, create
+    // sycl::vec explicitly here.
+    return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
   }
 #endif
 
@@ -1037,10 +1039,11 @@ public:
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN,
-            typename = std::enable_if_t<
-                ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
-                ((num_elements<argTN>() + ...)) == NumElements>>
+  template <
+      typename... argTN,
+      typename = std::enable_if_t<
+          (NumElements > 1 && ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+           ((num_elements<argTN>() + ...)) == NumElements)>>
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
