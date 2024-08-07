@@ -16,6 +16,7 @@
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
+#include "asan_validator.hpp"
 #include "stacktrace.hpp"
 #include "ur_sanitizer_utils.hpp"
 
@@ -615,6 +616,9 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
 
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
+    DI->IsSupportSharedSystemUSM = GetDeviceUSMCapability(
+        Device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
+
     // Query alignment
     UR_CALL(getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
@@ -683,8 +687,25 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     auto Program = GetProgram(Kernel);
 
     do {
-        // Set membuffer arguments
         auto KernelInfo = getKernelInfo(Kernel);
+
+        // Validate pointer arguments
+        if (Options(logger).DetectKernelArguments) {
+            for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
+                auto Ptr = PtrPair.first;
+                if (Ptr == nullptr) {
+                    continue;
+                }
+                if (auto ValidateResult = ValidateUSMPointer(
+                        Context, DeviceInfo->Handle, (uptr)Ptr)) {
+                    ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
+                                                ValidateResult, PtrPair.second);
+                    exit(1);
+                }
+            }
+        }
+
+        // Set membuffer arguments
         for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
             char *ArgPointer = nullptr;
             UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));

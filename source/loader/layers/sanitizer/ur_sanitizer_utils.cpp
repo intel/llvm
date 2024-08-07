@@ -152,6 +152,23 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
     }
 }
 
+ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
+    ur_device_handle_t ParentDevice{};
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
+        &ParentDevice, nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getParentDevice() failed");
+    return ParentDevice;
+}
+
+bool GetDeviceUSMCapability(ur_device_handle_t Device,
+                            ur_device_info_t USMInfo) {
+    ur_device_usm_access_capability_flags_t Flag;
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, USMInfo, sizeof(Flag), &Flag, nullptr);
+    return (bool)Flag;
+}
+
 std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
     size_t PropSize;
     [[maybe_unused]] ur_result_t Result =

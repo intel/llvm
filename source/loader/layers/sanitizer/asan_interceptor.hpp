@@ -41,6 +41,9 @@ struct DeviceInfo {
     uptr ShadowOffset = 0;
     uptr ShadowOffsetEnd = 0;
 
+    // Device features
+    bool IsSupportSharedSystemUSM;
+
     ur_mutex Mutex;
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
@@ -78,6 +81,8 @@ struct KernelInfo {
     ur_shared_mutex Mutex;
     std::atomic<int32_t> RefCount = 1;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
+    std::unordered_map<uint32_t, std::pair<const void *, StackTrace>>
+        PointerArgs;
 
     // Need preserve the order of local arguments
     std::map<uint32_t, LocalArgsInfo> LocalArgs;
