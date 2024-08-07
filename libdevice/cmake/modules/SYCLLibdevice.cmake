@@ -152,7 +152,7 @@ function(add_devicelib filename)
   add_devicelib_obj(${filename} SRC ${DL_SRC} DEP ${DL_DEP} EXTRA_ARGS ${DL_EXTRA_ARGS})
 endfunction()
 
-set(crt_obj_deps wrapper.h device.h spirv_vars.h sycl-compiler)
+set(crt_obj_deps wrapper.h device.h atomic.hpp spirv_decls.hpp spirv_vars.h sycl-compiler)
 set(complex_obj_deps device_complex.h device.h sycl-compiler)
 set(cmath_obj_deps device_math.h device.h sycl-compiler)
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
@@ -160,12 +160,14 @@ set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC)
   set(sanitizer_obj_deps
-    device.h atomic.hpp spirv_vars.h
+    device.h atomic.hpp
+    spirv_decls.hpp spirv_vars.h
     include/asan_libdevice.hpp
     include/sanitizer_utils.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 endif()
+set(gsort_obj_deps device.h spirv_decls.hpp spirv_vars.h group_helper.hpp sort_helper.hpp sycl-compiler)
 
 if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   if (NOT DEFINED NATIVE_CPU_DIR)
@@ -204,6 +206,7 @@ add_devicelib(libsycl-fallback-cmath SRC fallback-cmath.cpp DEP ${cmath_obj_deps
 add_devicelib(libsycl-fallback-cmath-fp64 SRC fallback-cmath-fp64.cpp DEP ${cmath_obj_deps})
 add_devicelib(libsycl-fallback-bfloat16 SRC fallback-bfloat16.cpp DEP ${bfloat16_obj_deps})
 add_devicelib(libsycl-native-bfloat16 SRC bfloat16_wrapper.cpp DEP ${bfloat16_obj_deps})
+add_devicelib(libsycl-fallback-gsort SRC fallback-gsort.cpp DEP ${gsort_obj_deps} EXTRA_ARGS -fno-sycl-instrument-device-code)
 
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
 set(imf_fallback_src_dir ${obj_binary_dir}/libdevice)
