@@ -9,6 +9,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch_intel-gpu-pvc && !igc-dev
+
 #include "common.hpp"
 
 constexpr size_t TN = 16;
