@@ -5,8 +5,7 @@
 // UNSUPPORTED: opencl && gpu
 
 // TODO: Fails at JIT compilation for some reason.
-// TODO: Reenable windows/linux, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: hip, windows, linux
+// UNSUPPORTED: hip
 #define SYCL_FALLBACK_ASSERT 1
 
 #include <sycl/detail/core.hpp>
