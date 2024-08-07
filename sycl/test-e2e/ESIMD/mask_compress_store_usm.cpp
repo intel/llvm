@@ -1,4 +1,4 @@
-//==-mask_compress_store.cpp - Test to verify compressed store functionality==//
+//=mask_compress_store_usm.cpp-Test to verify compressed store functionality=//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -27,7 +27,7 @@ template <int N> bool test(sycl::queue &Queue) {
   shared_vector<uint32_t> Output(N, 0, Allocator);
   shared_vector<uint32_t> OutputVector(N, 0, Allocator);
   std::vector<uint32_t> ExpectedOutput(Output.begin(), Output.end());
-  std::vector<uint32_t> OutputAcc(Output.begin(), Output.end());
+
   int idx = 0;
   for (int I = 0; I < N; I++) {
     if ((I % 2) == 0)
@@ -36,10 +36,8 @@ template <int N> bool test(sycl::queue &Queue) {
 
   auto *OutputPtr = Output.data();
   auto *OutputVectorPtr = OutputVector.data();
-  buffer<uint32_t, 1> OutputAcc_buffer(OutputAcc.data(), OutputAcc.size());
 
   Queue.submit([&](sycl::handler &cgh) {
-    auto OutputAcc_out = OutputAcc_buffer.get_access<access::mode::write>(cgh);
     auto Kernel = ([=]() SYCL_ESIMD_KERNEL {
       simd<uint32_t, N> Input(1, 1);
       simd<uint32_t, N> Result(0);
@@ -48,7 +46,6 @@ template <int N> bool test(sycl::queue &Queue) {
         Mask[i] = (i % 2) == 0;
       mask_compress_store(OutputPtr, Input, Mask);
       mask_compress_store(Result, 0, Input, Mask);
-      mask_compress_store(OutputAcc_out, 0, Input, Mask);
       Result.copy_to(OutputVectorPtr);
     });
     cgh.single_task(Kernel);
@@ -56,12 +53,10 @@ template <int N> bool test(sycl::queue &Queue) {
   Queue.wait();
 
   for (int I = 0; I < N; I++) {
-    if (Output[I] != OutputVector[I] || OutputAcc[I] != Output[I] ||
-        Output[I] != ExpectedOutput[I]) {
+    if (Output[I] != OutputVector[I] || Output[I] != ExpectedOutput[I]) {
       std::cout << "mask_compress_store: error at I = " << std::to_string(I)
                 << ": " << std::to_string(ExpectedOutput[I])
                 << " != " << std::to_string(OutputVector[I])
-                << " != " << std::to_string(OutputAcc[I])
                 << " != " << std::to_string(Output[I]) << std::endl;
       return false;
     }
