@@ -1,7 +1,7 @@
 // REQUIRES: cuda || (windows && level_zero && gpu-intel-dg2)
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
@@ -572,10 +572,50 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
 
 bool run_all() {
   unsigned int seed = 0;
+  bool valid = true;
+#ifdef TEST_L0_SUPPORTED_VK_FORMAT
+  printString("Running 3D float\n");
+  valid &= run_test<3, float, 1, sycl::image_channel_type::fp32,
+                    sycl::image_channel_order::r, class fp32_3d_c1>(
+      {64, 16, 2}, {2, 2, 2}, seed);
 
+  printString("Running 3D half2\n");
+  valid &= run_test<3, sycl::half, 2, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rg, class fp16_3d_c2>(
+      {64, 16, 2}, {2, 2, 2}, seed);
+
+  printString("Running 3D half4\n");
+  valid &= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rgba, class fp16_3d_c4>(
+      {64, 16, 2}, {2, 2, 2}, seed);
+#if 0
+  printString("Running 3D unorm_int8_c4\n");
+  valid &= run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                    sycl::image_channel_order::rgba, class unorm_int8_3d_c4>(
+      {64, 16, 2}, {2, 2, 2}, seed);
+#endif
+  printString("Running 2D float\n");
+  valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
+                    sycl::image_channel_order::r, class fp32_2d_c1>(
+      {32, 32}, {2, 2}, seed);
+  printString("Running 2D half2\n");
+  valid &= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rg, class fp16_2d_c2>(
+      {32, 32}, {2, 2}, seed);
+  printString("Running 2D half4\n");
+  valid &= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rgba, class fp16_2d_c4>(
+      {32, 32}, {2, 2}, seed);
+#if 0
+  printString("Running 2D unorm_int8_c4\n");
+  valid &= run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                    sycl::image_channel_order::rgba, class unorm_int8_2d_c4>(
+      {32, 32}, {2, 2}, seed);
+#endif
+#else
   printString("Running 3D uint4\n");
-  bool valid = run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
-                        sycl::image_channel_order::rgba, class uint4_3d>(
+  valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
+                    sycl::image_channel_order::rgba, class uint4_3d>(
       {272, 144, 4}, {16, 16, 4}, seed);
 
   printString("Running 3D uint2\n");
@@ -631,7 +671,7 @@ bool run_all() {
   valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::r, class float1_2d>(
       {32, 32}, {2, 2}, seed);
-
+#endif
   return valid;
 }
 
