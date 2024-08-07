@@ -3233,6 +3233,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
+    assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Plugin = MQueue->getPlugin();
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following

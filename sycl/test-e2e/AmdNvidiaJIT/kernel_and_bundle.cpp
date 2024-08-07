@@ -1,5 +1,8 @@
 // REQUIRES: cuda || hip
 
+// https://github.com/intel/llvm/issues/14989
+// XFAIL: hip_amd
+
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_JIT_AMDGCN_PTX_KERNELS=1 env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 

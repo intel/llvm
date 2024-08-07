@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -115,14 +115,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e
-  # Merge: c805a71a a2a053de
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit a89657c2e36d7152820b9ecc088422a54ca1d844
+  # Merge: 2355a7d6 be7057c4
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 12:26:34 2024 +0100
-  #     Merge pull request #1884 from callumfare/callum/fix_printtrace
-  #     Enable PrintTrace when SYCL UR tracing is enabled
-  set(UNIFIED_RUNTIME_TAG 3e762e00bcf13d158fb58e8e8c2eabcfc8934b4e)
+  # Date:   Wed Aug 7 12:01:33 2024 +0100
+  #     Merge pull request #1699 from PietroGhg/pietro/usm_fixes
+  #     [NATIVECPU] Implement urUSMGetMemAllocInfo and aligned alloc
+  set(UNIFIED_RUNTIME_TAG a89657c2e36d7152820b9ecc088422a54ca1d844)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
