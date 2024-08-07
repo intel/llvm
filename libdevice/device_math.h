@@ -53,6 +53,12 @@ DEVICE_EXTERN_C
 double __devicelib_ceil(double x);
 
 DEVICE_EXTERN_C
+long int __devicelib_lround(double x);
+
+DEVICE_EXTERN_C
+long int __devicelib_lroundf(float x);
+
+DEVICE_EXTERN_C
 float __devicelib_copysignf(float x, float y);
 
 DEVICE_EXTERN_C
