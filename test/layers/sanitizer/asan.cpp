@@ -41,6 +41,9 @@ TEST(DeviceASan, Initialization) {
     status = urContextCreate(1, &device, nullptr, &context);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
+    status = urContextRelease(context);
+    ASSERT_EQ(status, UR_RESULT_SUCCESS);
+
     status = urDeviceRelease(device);
     ASSERT_EQ(status, UR_RESULT_SUCCESS);
 
