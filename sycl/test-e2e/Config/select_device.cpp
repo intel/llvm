@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = dev->get_info<info::device::driver_version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -257,6 +258,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -292,6 +294,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver("98.76.54321");
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -333,6 +336,7 @@ int main(int argc, char *argv[]) {
           assert(false);
         }
       }();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver << "}}"
          << std::endl;
       return 0;
@@ -572,6 +576,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                       << ver << "}}" << std::endl;
@@ -605,6 +610,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                 << ver << "}}" << std::endl;
       return 0;
