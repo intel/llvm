@@ -583,7 +583,14 @@ xptifw_dispatcher = ""
 if platform.system() == "Linux":
     xptifw_dispatcher = os.path.join(xptifw_lib_dir, "libxptifw.so")
 elif platform.system() == "Windows":
-    xptifw_dispatcher = os.path.join(config.dpcpp_root_dir, "bin", "xptifw.dll")
+    # Use debug version of xptifw library if tests are built \MDd.
+    xptifw_dispatcher_name = ""
+    if "/MDd" in config.cxx_flags:
+        xptifw_dispatcher_name = "xptifwd.dll"
+    else:
+        xptifw_dispatcher_name = "xptifw.dll"
+
+    xptifw_dispatcher = os.path.join(config.dpcpp_root_dir, "bin", xptifw_dispatcher_name)
 xptifw_includes = os.path.join(config.dpcpp_root_dir, "include")
 if os.path.exists(xptifw_lib_dir) and os.path.exists(
     os.path.join(xptifw_includes, "xpti", "xpti_trace_framework.h")
@@ -591,11 +598,18 @@ if os.path.exists(xptifw_lib_dir) and os.path.exists(
     config.available_features.add("xptifw")
     config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
     if cl_options:
-        xptifw_lib_name = os.path.normpath(os.path.join(xptifw_lib_dir, "xptifw.lib"))
+        # Use debug version of xptifw library if tests are built \MDd.
+        xptifw_lib_name = ""
+        if "/MDd" in config.cxx_flags:
+            xptifw_lib_name = "xptifwd.lib"
+        else:
+            xptifw_lib_name = "xptifw.lib"
+
+        xptifw_lib = os.path.normpath(os.path.join(xptifw_lib_dir, xptifw_lib_name))
         config.substitutions.append(
             (
                 "%xptifw_lib",
-                " {} /I{} ".format(xptifw_lib_name, xptifw_includes),
+                " {} /I{} ".format(xptifw_lib, xptifw_includes),
             )
         )
     else:
