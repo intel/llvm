@@ -10787,7 +10787,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                        false) &&
        !isSYCLNativeCPU(TC)) &&
       // When supporting dynamic linking, non-kernels in a device image can be
-      // called
+      // called.
       !supportDynamicLinking(TCArgs) && !Triple.isNVPTX() && !Triple.isAMDGPU())
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
