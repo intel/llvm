@@ -23,7 +23,8 @@ apt update && apt install -yqq \
       unzip \
       jq \
       curl \
-      libhwloc-dev
+      libhwloc-dev \
+      lld
 
 pip3 install psutil
 
