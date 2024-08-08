@@ -11,7 +11,7 @@
 // RUN: %{build} -o %t_gpu_vnni.out -ffp-model=precise -DOOB -DVNNI
 // RUN: %{run} %t_gpu_vnni.out
 
-// RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB 
+// RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB
 // RUN: %{run} %t_gpu.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.

@@ -10,7 +10,6 @@
 
 // UNSUPPORTED: gpu-intel-dg2, cpu
 
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
