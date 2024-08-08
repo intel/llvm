@@ -6,9 +6,8 @@
 A_DECLSPEC SYCL_EXTERNAL int levelA(int val) {
 #ifndef __SYCL_DEVICE_ONLY__
   std::cerr << "Host symbol used" << std::endl;
-  val^=0x1234;
+  val ^= 0x1234;
 #endif
   val = levelB(val);
   return val |= (0xA << 0);
 }
-
