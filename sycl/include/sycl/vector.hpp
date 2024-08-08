@@ -878,6 +878,32 @@ public:
 
   auto &operator[](int index) const { return this->Vec[get_vec_idx(index)]; }
 };
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename DataT>
+using element_type_for_vector_t = typename detail::map_type<
+    DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::byte, /*->*/ std::uint8_t, //
+#endif
+    bool, /*->*/ std::uint8_t,                            //
+    sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
+    sycl::ext::oneapi::bfloat16,
+    /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
+    char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
+    DataT, /*->*/ DataT                                 //
+    >::type;
+
+// Type used for passing sycl::vec to SPIRV builtins.
+// We can not use ext_vector_type(1) as it's not supported by SPIRV
+// plugins (CTS fails).
+template <typename DataT, int NumElements>
+using vector_t =
+    typename std::conditional_t<NumElements == 1,
+                                element_type_for_vector_t<DataT>,
+                                element_type_for_vector_t<DataT> __attribute__((
+                                    ext_vector_type(NumElements)))>;
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -888,6 +914,13 @@ class __SYCL_EBO vec :
     // Conversion to scalar DataT for single-element vec:
     public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
                                            NumElements == 1>,
+#ifdef __SYCL_DEVICE_ONLY__
+      public detail::ConversionOperatorMixin<
+          vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
+          // if `vector_t` and `DataT` are the same, then the `operator DataT`
+          // from the above is enough.
+          !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
+#endif
     public detail::IncDecMixin<vec<DataT, NumElements>, DataT,
                                /* AllowAssignOps = */ true>,
     public detail::ByteShiftsMixin<vec<DataT, NumElements>,
@@ -923,30 +956,12 @@ class __SYCL_EBO vec :
   using DataType = std::array<DataT, AdjustedNum>;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using element_type_for_vector_t = typename detail::map_type<
-      DataT,
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-      std::byte, /*->*/ std::uint8_t, //
-#endif
-      bool, /*->*/ std::uint8_t,                            //
-      sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
-      sycl::ext::oneapi::bfloat16,
-      /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
-      char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
-      DataT, /*->*/ DataT                                 //
-      >::type;
-
 public:
-  // Type used for passing sycl::vec to SPIRV builtins.
-  // We can not use ext_vector_type(1) as it's not supported by SPIRV
-  // plugins (CTS fails).
-  using vector_t =
-      typename std::conditional_t<NumElements == 1, element_type_for_vector_t,
-                                  element_type_for_vector_t __attribute__((
-                                      ext_vector_type(NumElements)))>;
+  using vector_t = detail::vector_t<DataT, NumElements>;
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
+
 
   template <typename Self, typename To, bool Enable>
   friend struct detail::ConversionOperatorMixin;
@@ -954,6 +969,15 @@ private:
   template <class To> To convertOperatorImpl() const {
     if constexpr (std::is_same_v<To, DataT> && NumElements == 1) {
       return m_Data[0];
+#ifdef __SYCL_DEVICE_ONLY__
+    } else if constexpr (std::is_same_v<To, vector_t>) {
+      /* @SYCL2020
+       * Available only when: compiled for the device.
+       * Converts this SYCL vec instance to the underlying backend-native vector
+       * type defined by vector_t.
+       */
+      return sycl::bit_cast<vector_t>(m_Data);
+#endif
     } else {
       static_assert(!std::is_same_v<To, To>,
                     "Must not be instantiated like this!");
@@ -1075,16 +1099,6 @@ public:
   constexpr vec(vector_t_ openclVector) {
     m_Data = sycl::bit_cast<DataType>(openclVector);
   }
-
-  // @SYCL2020
-  //  * Available only when: compiled for the device.
-  //  * Converts this SYCL vec instance to the underlying backend-native vector
-  //  * type defined by vector_t.
-  //
-  // Note, `vector_t` might be the same as `DataT` for single-element vectors.
-  // In this case this operator simply hides a duplicate one from the base class
-  // mixin allowing the code to compile cleanly.
-  operator vector_t() const { return sycl::bit_cast<vector_t>(m_Data); }
 #endif // __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -1114,7 +1128,7 @@ private:
     using RetType =
         typename std::conditional_t<detail::is_byte_v<DataT>, int8_t,
 #ifdef __SYCL_DEVICE_ONLY__
-                                    element_type_for_vector_t
+                                    detail::element_type_for_vector_t<DataT>
 #else
                                     DataT
 #endif
