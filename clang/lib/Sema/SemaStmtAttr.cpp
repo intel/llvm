@@ -18,6 +18,7 @@
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
+#include "clang/Sema/SemaSYCL.h"
 #include "llvm/ADT/StringExtras.h"
 #include <optional>
 
@@ -97,7 +98,7 @@ Sema::BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelMaxConcurrencyAttr(Sema &S, Stmt *St,
                                                const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxConcurrencyAttr(A, E);
@@ -126,7 +127,7 @@ Sema::BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelInitiationIntervalAttr(Sema &S, Stmt *St,
                                                    const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelInitiationIntervalAttr(A, E);
@@ -154,7 +155,7 @@ Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelMaxInterleavingAttr(Sema &S, Stmt *St,
                                                 const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxInterleavingAttr(A, E);
@@ -183,7 +184,7 @@ Sema::BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelLoopCoalesceAttr(Sema &S, Stmt *St,
                                              const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.isArgExpr(0) ? A.getArgAsExpr(0) : nullptr;
   return S.BuildSYCLIntelLoopCoalesceAttr(A, E);
@@ -212,7 +213,7 @@ Sema::BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
 
 static Attr *handleSYCLIntelSpeculatedIterationsAttr(Sema &S, Stmt *St,
                                                      const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelSpeculatedIterationsAttr(A, E);
@@ -220,7 +221,7 @@ static Attr *handleSYCLIntelSpeculatedIterationsAttr(Sema &S, Stmt *St,
 
 static Attr *handleSYCLIntelDisableLoopPipeliningAttr(Sema &S, Stmt *,
                                                       const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
   return new (S.Context) SYCLIntelDisableLoopPipeliningAttr(S.Context, A);
 }
 
@@ -384,7 +385,7 @@ CheckRedundantSYCLIntelIVDepAttrs(Sema &S, ArrayRef<const Attr *> Attrs) {
 static Attr *handleIntelIVDepAttr(Sema &S, Stmt *St, const ParsedAttr &A) {
   unsigned NumArgs = A.getNumArgs();
 
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   return S.BuildSYCLIntelIVDepAttr(
       A, NumArgs >= 1 ? A.getArgAsExpr(0) : nullptr,
@@ -444,7 +445,7 @@ Sema::BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E) {
 
 static Attr *handleSYCLIntelLoopCountAttr(Sema &S, Stmt *St,
                                           const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelLoopCountAttr(A, E);
@@ -478,7 +479,7 @@ Sema::BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
 
 static Attr * handleSYCLIntelMaxReinvocationDelayAttr(Sema &S, Stmt *St,
                                                       const ParsedAttr &A) {
-  S.CheckDeprecatedSYCLAttributeSpelling(A);
+  S.SYCL().checkDeprecatedSYCLAttributeSpelling(A);
 
   Expr *E = A.getArgAsExpr(0);
   return S.BuildSYCLIntelMaxReinvocationDelayAttr(A, E);
