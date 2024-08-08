@@ -675,9 +675,9 @@ static bool mustPreserveGV(const GlobalValue &GV) {
     // Otherwise, we are being even more aggressive: SYCL modules are expected
     // to be self-contained, meaning that they have no external dependencies.
     // Therefore, we can internalize every function that is not an entry point.
-    // One exception here is virtual functions, because their implementation
-    // relies on dynamic linking and therefore they must be preserved if present
-    // in a module.
+    // One exception here is virtual functions: when they are in use, modules
+    // are not self-contained anymore and some device images has to be linked
+    // at runtime to resolve all symbols.
     // Functions marked with referenced-indirectly attribute is another
     // exception: that attribute was originally introduced for function pointers
     // and even though its main usage was deprecated and dropped, it is still
