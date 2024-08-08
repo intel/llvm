@@ -202,6 +202,12 @@ public:
     launch_config(Range, Properties = {});
 };
 
+// Deduction guides
+template <typename Range, typename Properties>
+launch_config(Range, Properties) -> launch_config<Range, Properties>;
+template <typename Range>
+launch_config(Range,
+              empty_properties_t) -> launch_config<Range, empty_properties_t>;
 }
 ----
 

@@ -73,6 +73,16 @@ private:
   friend struct detail::LaunchConfigAccess;
 };
 
+// Deduction guides for launch_config
+#ifdef __cpp_deduction_guides
+template <typename RangeT, typename PropertiesT>
+launch_config(RangeT, PropertiesT) -> launch_config<RangeT, PropertiesT>;
+
+template <typename RangeT>
+launch_config(RangeT,
+              empty_properties_t) -> launch_config<RangeT, empty_properties_t>;
+#endif // __cpp_deduction_guides
+
 namespace detail {
 // Helper for accessing the members of launch_config.
 template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess {
