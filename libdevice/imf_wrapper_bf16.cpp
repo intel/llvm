@@ -7,9 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "imf_bf16.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "imf_bf16.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_bfloat162float(_iml_bf16_internal);
