@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a89657c2e36d7152820b9ecc088422a54ca1d844
-  # Merge: 2355a7d6 be7057c4
+  # commit 83f7ad9551ce0134931b44804b5a254ae2e93068
+  # Merge: ab9baf57 8fb6824d
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 7 12:01:33 2024 +0100
-  #     Merge pull request #1699 from PietroGhg/pietro/usm_fixes
-  #     [NATIVECPU] Implement urUSMGetMemAllocInfo and aligned alloc
-  set(UNIFIED_RUNTIME_TAG a89657c2e36d7152820b9ecc088422a54ca1d844)
+  # Date:   Thu Aug 8 11:11:13 2024 +0100
+  #     Merge pull request #1860 from PietroGhg/pietro/fill
+  #     [NATIVECPU] Fix pointer arithmetic in USMfill
+  set(UNIFIED_RUNTIME_TAG 83f7ad9551ce0134931b44804b5a254ae2e93068)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -155,8 +155,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    "https://github.com/PietroGhg/unified-runtime.git"
-    pietro/fill
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
