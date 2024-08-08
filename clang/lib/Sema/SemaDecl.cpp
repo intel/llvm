@@ -16318,7 +16318,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
   // Handle free functions.
-  if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLDeviceAttr>() && Body &&
+  if (LangOpts.SYCLIsDevice && FD && Body &&
       (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate ||
        FD->getTemplatedKind() ==
            FunctionDecl::TK_FunctionTemplateSpecialization))
