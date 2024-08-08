@@ -1305,7 +1305,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
     }
   }
 
-  if (DeviceFilteredImgs.size() == 0)
+  if (DeviceFilteredImgs.empty())
     return nullptr;
 
   std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
