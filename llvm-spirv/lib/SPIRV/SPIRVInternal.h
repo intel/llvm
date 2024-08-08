@@ -369,6 +369,7 @@ const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
 const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
 const static char ConvertHandleToSampledImageINTEL[] =
     "ConvertHandleToSampledImageINTEL";
+const static char EntrypointPrefix[] = "__spirv_entry_";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
