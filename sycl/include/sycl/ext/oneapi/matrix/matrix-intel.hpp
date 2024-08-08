@@ -120,7 +120,7 @@ public:
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
 #else
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_CooperativeMatrixGetElementCoordINTEL(M.spvm, idx);
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
     const size_t row = coord[0];
     const size_t col = coord[1];
@@ -299,7 +299,7 @@ public:
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
 #else
     __ocl_vec_t<uint32_t, 2> coord =
-        __spirv_CooperativeMatrixGetElementCoordINTEL(M.spvm, idx);
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
     const uint32_t row = coord[0];
     const uint32_t col = coord[1];
