@@ -5,7 +5,7 @@
 //
 #pragma once
 
-#include "spin_lock.hpp"
+#include "xpti/xpti_spin_lock.hpp"
 
 #include <array>
 #include <functional>
