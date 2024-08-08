@@ -10,8 +10,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
-
 #include "common.hpp"
 #include "element_wise_all_ops_impl.hpp"
