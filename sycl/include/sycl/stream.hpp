@@ -30,7 +30,7 @@
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for multi_ptr
-#include <sycl/types.hpp>                     // for vec, SwizzleOp
+#include <sycl/types.hpp>                     // for vec, Swizzle
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr
@@ -579,11 +579,11 @@ typename std::enable_if_t<(VecLength == 2 || VecLength == 4 || VecLength == 8 ||
                           unsigned>
 VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
-  unsigned Len =
-      VecToStr<T, VecLength / 2>(Vec.lo(), VecStr, Flags, Width, Precision);
+  unsigned Len = VecToStr<T, VecLength / 2>(vec<T, VecLength / 2>{Vec.lo()},
+                                            VecStr, Flags, Width, Precision);
   Len += append(VecStr + Len, VEC_ELEMENT_DELIMITER);
-  Len += VecToStr<T, VecLength / 2>(Vec.hi(), VecStr + Len, Flags, Width,
-                                    Precision);
+  Len += VecToStr<T, VecLength / 2>(vec<T, VecLength / 2>{Vec.hi()},
+                                    VecStr + Len, Flags, Width, Precision);
   return Len;
 }
 
@@ -593,7 +593,8 @@ VecToStr(const vec<T, VecLength> &Vec, char *VecStr, unsigned Flags, int Width,
          int Precision) {
   unsigned Len = VecToStr<T, 2>(Vec.lo(), VecStr, Flags, Width, Precision);
   Len += append(VecStr + Len, VEC_ELEMENT_DELIMITER);
-  Len += VecToStr<T, 1>(Vec.z(), VecStr + Len, Flags, Width, Precision);
+  Len +=
+      VecToStr<T, 1>(vec<T, 1>(Vec.z()), VecStr + Len, Flags, Width, Precision);
   return Len;
 }
 
@@ -748,21 +749,17 @@ inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
   write(GlobalFlushBuf, FlushBufferSize, WIOffset, Buf, Len);
 }
 
-template <typename> struct IsSwizzleOp : std::false_type {};
+template <typename> struct IsSwizzle : std::false_type {};
 
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct IsSwizzleOp<sycl::detail::SwizzleOp<
-    VecT, OperationLeftT, OperationRightT, OperationCurrentT, Indexes...>>
-    : std::true_type {
+template <typename VecT, int... Indexes>
+struct IsSwizzle<sycl::detail::Swizzle<VecT, Indexes...>> : std::true_type {
   using T = typename VecT::element_type;
   using Type = typename sycl::vec<T, (sizeof...(Indexes))>;
 };
 
 template <typename T>
 using EnableIfSwizzleVec =
-    typename std::enable_if_t<IsSwizzleOp<T>::value,
-                              typename IsSwizzleOp<T>::Type>;
+    typename std::enable_if_t<IsSwizzle<T>::value, typename IsSwizzle<T>::Type>;
 
 } // namespace detail
 

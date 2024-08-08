@@ -43,8 +43,8 @@
 
 template <typename T> bool check(T x, float *e) {
   float precision = ERROR_TOLERANCE;
-  if ((x.x() - e[0] < precision) && (x.x() - e[0] > -precision) &&
-      (x.y() - e[1] < precision) && (x.y() - e[1] > -precision)) {
+  if ((x[0] - e[0] < precision) && (x[0] - e[0] > -precision) &&
+      (x[1] - e[1] < precision) && (x[1] - e[1] > -precision)) {
     return true;
   }
   return false;

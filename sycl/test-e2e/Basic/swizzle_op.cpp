@@ -46,7 +46,7 @@ int main() {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_2>([=]() {
           float2 ab = {4, 2};
-          float c = ab.x() * 2;
+          float c = ab.x() * 2.f;
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c;
@@ -67,7 +67,7 @@ int main() {
         auto B = b.get_access<access::mode::write>(cgh);
         cgh.single_task<class test_3>([=]() {
           float2 ab = {4, 2};
-          float c = 4 * ab.y();
+          float c = 4.f * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c;
@@ -113,7 +113,7 @@ int main() {
         cgh.single_task<class test_5>([=]() {
           float2 ab = {4, 2};
           float2 c = {0, 0};
-          c.x() = 4 * ab.y();
+          c.x() = 4.f * ab.y();
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c.x();
@@ -137,7 +137,7 @@ int main() {
         cgh.single_task<class test_6>([=]() {
           float2 ab = {4, 2};
           float2 c = {0, 0};
-          c.x() = ab.x() * 2;
+          c.x() = ab.x() * 2.f;
           B[0] = ab.x();
           B[1] = ab.y();
           B[2] = c.x();
@@ -242,10 +242,10 @@ int main() {
           vec.z() = 6;
           vec.w() = 8;
 
-          B[0] = add + vec.x() / factor;
-          B[1] = add + vec.y() / factor;
-          B[2] = add + vec.z() / factor;
-          B[3] = add + vec.w() / factor;
+          B[0] = add + static_cast<unsigned char>(vec.x() / factor);
+          B[1] = add + static_cast<unsigned char>(vec.y() / factor);
+          B[2] = add + static_cast<unsigned char>(vec.z() / factor);
+          B[3] = add + static_cast<unsigned char>(vec.w() / factor);
         });
       });
     }

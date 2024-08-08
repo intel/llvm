@@ -302,10 +302,10 @@ sycl::half hfma_relu(sycl::half x, sycl::half y, sycl::half z) {
 
 sycl::half2 hfma2_relu(sycl::half2 x, sycl::half2 y, sycl::half2 z) {
   sycl::half2 r = sycl::fma(x, y, z);
-  if (!hisnan(r.s0()) && r.s0() < 0.f)
-    r.s0() = 0.f;
-  if (!hisnan(r.s1()) && r.s1() < 0.f)
-    r.s1() = 0.f;
+  if (!hisnan(r.s0()) && static_cast<sycl::half>(r.s0()) < 0.f)
+    r.s0() = sycl::half{0.f};
+  if (!hisnan(r.s1()) && static_cast<sycl::half>(r.s1()) < 0.f)
+    r.s1() = sycl::half{0.f};
   return r;
 }
 
