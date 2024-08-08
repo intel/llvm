@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a89657c2e36d7152820b9ecc088422a54ca1d844
-  # Merge: 2355a7d6 be7057c4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 7 12:01:33 2024 +0100
-  #     Merge pull request #1699 from PietroGhg/pietro/usm_fixes
-  #     [NATIVECPU] Implement urUSMGetMemAllocInfo and aligned alloc
-  set(UNIFIED_RUNTIME_TAG a89657c2e36d7152820b9ecc088422a54ca1d844)
+  # commit 2d3524e74ab6a09d1ad1a96d977973fac32ca55d
+  # Merge: 6b2e678d d6e93fa1
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Aug 7 14:23:09 2024 +0100
+  #     Merge pull request #1930 from oneapi-src/benie/no-import-in-pragma-region
+  #     Make pragma region names joined by _
+  set(UNIFIED_RUNTIME_TAG 2d3524e74ab6a09d1ad1a96d977973fac32ca55d)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
