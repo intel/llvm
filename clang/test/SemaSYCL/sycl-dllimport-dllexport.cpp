@@ -36,7 +36,6 @@ int zoo() __attribute__((dllimport));
 
 #else
 
-// emit error if dllimport function is called in sycl kernel
 int  __declspec(dllexport) foo(int a) {
    return a;
 }
