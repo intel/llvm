@@ -10705,8 +10705,7 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 
 static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
-                     options::OPT_fno_sycl_allow_device_dependencies,
-                     false))
+                     options::OPT_fno_sycl_allow_device_dependencies, false))
     return true;
   return false;
 }
@@ -10740,6 +10739,32 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   if (supportDynamicLinking(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+}
+
+// On Intel targets we don't need non-kernel functions as entry points,
+// because it only increases amount of code for device compiler to handle,
+// without any actual benefits.
+// TODO: Try to extend this feature for non-Intel GPUs.
+static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
+                                               const llvm::opt::ArgList &TCArgs,
+                                               llvm::Triple Triple) {
+  if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
+                     options::OPT_fsycl_remove_unused_external_funcs, false))
+    return false;
+  if (isSYCLNativeCPU(TC))
+    return false;
+  // When supporting dynamic linking, non-kernels in a device image can be
+  // called.
+  if (supportDynamicLinking(TCArgs))
+    return false;
+  if (Triple.isNVPTX() || Triple.isAMDGPU())
+    return false;
+  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
+  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  // With thinLTO, final entry point handing is done in clang-linker-wrapper
+  if (IsUsingLTO && LTOMode == LTOK_Thin)
+    return false;
+  return true;
 }
 
 // Add any sycl-post-link options that rely on a specific Triple in addition
@@ -10779,17 +10804,7 @@ static void getTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
       (Triple.getArchName() != "spir64_fpga"))
     addArgs(PostLinkArgs, TCArgs, {"-split=auto"});
 
-  // On Intel targets we don't need non-kernel functions as entry points,
-  // because it only increases amount of code for device compiler to handle,
-  // without any actual benefits.
-  // TODO: Try to extend this feature for non-Intel GPUs.
-  if ((!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
-                       options::OPT_fsycl_remove_unused_external_funcs,
-                       false) &&
-       !isSYCLNativeCPU(TC)) &&
-      // When supporting dynamic linking, non-kernels in a device image can be called
-      !supportDynamicLinking(TCArgs) &&
-      !Triple.isNVPTX() && !Triple.isAMDGPU())
+  if (shouldEmitOnlyKernelsAsEntryPoints(TC, TCArgs, Triple))
     addArgs(PostLinkArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   if (!Triple.isAMDGCN())
@@ -11211,6 +11226,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(Args.MakeArgString(
         Twine("-sycl-device-library-location=") + DeviceLibDir));
+
+    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+      SmallString<128> DumpDir;
+      Arg *A = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      DumpDir = A ? A->getValue() : "";
+      CmdArgs.push_back(
+          Args.MakeArgString(Twine("-sycl-dump-device-code=") + DumpDir));
+    }
 
     auto appendOption = [](SmallString<128> &OptString, StringRef AddOpt) {
       if (!OptString.empty())
