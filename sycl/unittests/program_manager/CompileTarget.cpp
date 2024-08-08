@@ -94,9 +94,9 @@ ur_device_handle_t MockPvcDeviceHandle =
     reinterpret_cast<ur_device_handle_t>(2);
 ur_device_handle_t MockX86DeviceHandle =
     reinterpret_cast<ur_device_handle_t>(3);
-int SklIp = 0x02400009;
-int PvcIp = 0x030f0000;
-int X86Ip = 0;
+constexpr int SklIp = 0x02400009;
+constexpr int PvcIp = 0x030f0000;
+constexpr int X86Ip = 0;
 
 ur_device_handle_t MockDevices[] = {
     MockSklDeviceHandle,
