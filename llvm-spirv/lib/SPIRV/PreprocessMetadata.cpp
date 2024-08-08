@@ -187,16 +187,17 @@ void PreprocessMetadataBase::visit(Module *M) {
     //         i32 Y, i32 Z}
     if (MDNode *MaxWorkgroupSizeINTEL =
             Kernel.getMetadata(kSPIR2MD::MaxWGSize)) {
-      assert(MaxWorkgroupSizeINTEL->getNumOperands() == 3 &&
-             "max_work_group_size does not have 3 operands.");
+      assert(MaxWorkgroupSizeINTEL->getNumOperands() >= 1 &&
+             MaxWorkgroupSizeINTEL->getNumOperands() <= 3 &&
+             "max_work_group_size does not have between 1 and 3 operands.");
       SmallVector<unsigned, 3> DecodedVals =
           decodeMDNode(MaxWorkgroupSizeINTEL);
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeMaxWorkgroupSizeINTEL)
           .add(DecodedVals[0])
-          .add(DecodedVals[1])
-          .add(DecodedVals[2])
+          .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
+          .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
           .done();
     }
 
