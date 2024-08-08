@@ -94,8 +94,6 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #ifdef VNNI
           // In the VNNI case, each subgroup still gets prefRow x prefCol
           // In the PVC case: subgroups distribution become
-          // NCache2*2/prefCol = 16 subgroups on the col dimension and
-          // (KCache2/2)/prefRow = 2 on the row dimension
           // (NCache2*2)/prefCol = 512/32 = 16 SGs on the column dimension and
           // (KCache2/2)/prefRow = 16/8 = 2 SGs on the row dimension
           // pm1B and pn1B are used to identify the distribution of subgroups
