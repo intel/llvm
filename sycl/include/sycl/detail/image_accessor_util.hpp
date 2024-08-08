@@ -56,8 +56,7 @@ UnnormalizeCoordinates(const vec<T, 2> &Coords, const range<3> &Range) {
 template <typename T>
 std::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
 UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
-  return {Coords[0] * Range[0], Coords[1] * Range[1], Coords[2] * Range[2],
-          0};
+  return {Coords[0] * Range[0], Coords[1] * Range[1], Coords[2] * Range[2], 0};
 }
 
 // Converts the Coordinates from any dimensions into float4.

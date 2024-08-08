@@ -97,8 +97,10 @@ namespace detail {
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self, typename To, bool Enable> struct ConversionOperatorMixin {};
-template <typename Self, typename To> struct ConversionOperatorMixin<Self, To, true> {
+template <typename Self, typename To, bool Enable>
+struct ConversionOperatorMixin {};
+template <typename Self, typename To>
+struct ConversionOperatorMixin<Self, To, true> {
   operator To() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
   }
@@ -749,7 +751,8 @@ public:
     return *static_cast<const Self *>(this);
   }
 
-  // Default copy-assignment. Self's implicitly generated copy-assignment uses this.
+  // Default copy-assignment. Self's implicitly generated copy-assignment uses
+  // this.
   //
   // We're templated on "Self", so each Swizzle has its own SwizzleBase and the
   // following is ok (1-to-1 bidirectional mapping between Self and its
@@ -915,11 +918,11 @@ class __SYCL_EBO vec :
     public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
                                            NumElements == 1>,
 #ifdef __SYCL_DEVICE_ONLY__
-      public detail::ConversionOperatorMixin<
-          vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
-          // if `vector_t` and `DataT` are the same, then the `operator DataT`
-          // from the above is enough.
-          !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
+    public detail::ConversionOperatorMixin<
+        vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
+        // if `vector_t` and `DataT` are the same, then the `operator DataT`
+        // from the above is enough.
+        !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
 #endif
     public detail::IncDecMixin<vec<DataT, NumElements>, DataT,
                                /* AllowAssignOps = */ true>,
@@ -961,7 +964,6 @@ public:
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
-
 
   template <typename Self, typename To, bool Enable>
   friend struct detail::ConversionOperatorMixin;
