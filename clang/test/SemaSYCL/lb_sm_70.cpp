@@ -48,9 +48,14 @@ int main() {
               intel::min_work_groups_per_cu(4),
               intel::min_work_groups_per_cu(8)]] () { volatile int A = 42; });
 
-    // expected-error@+2 {{'min_work_groups_per_cu' attribute requires a non-negative integral compile time constant expression}}
+    // expected-warning@+2 {{'min_work_groups_per_cu' attribute ignored, as it requires: maximum work group size to be also specified}}
     cgh.single_task<class T5>(
-        [=] [[intel::min_work_groups_per_cu(-8)]] () { volatile int A = 42; });
+        [=] [[intel::min_work_groups_per_cu(8)]] () { volatile int A = 42; });
+
+    // expected-error@+3 {{'min_work_groups_per_cu' attribute requires a non-negative integral compile time constant expression}}
+    cgh.single_task<class T5>(
+        [=] [[intel::max_work_group_size(1, 1, 256),
+              intel::min_work_groups_per_cu(-8)]] () { volatile int A = 42; });
   });
 
   Q.submit([&](sycl::handler &cgh) {
