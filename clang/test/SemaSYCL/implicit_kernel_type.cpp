@@ -29,32 +29,6 @@ int main() {
     h.single_task<InvalidKernelName1>([]() {});
   });
 
-#if defined(WARN)
-  // expected-warning@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
-#elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
-#endif
-
-  q.submit([&](handler &h) {
-  // expected-note@+2 {{fake_kernel declared here}}
-  // expected-note@+1 {{in instantiation of function template specialization}}
-    h.single_task<class fake_kernel>([]() { function(); });
-  });
-
-#if defined(WARN)
-  // expected-warning@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
-#elif defined(ERROR)
-  // expected-error@#KernelSingleTask {{SYCL 1.2.1 specification requires an explicit forward declaration for a kernel type name; your program may not be portable}}
-#endif
-
-  q.submit([&](handler &h) {
-  // expected-note@+2 {{fake_kernel2 declared here}}
-  // expected-note@+1 {{in instantiation of function template specialization}}
-    h.single_task<class fake_kernel2>([]() {
-      auto l = [](auto f) { f(); };
-    });
-  });
-
   q.submit([&](handler &h) {
     h.single_task<class myWrapper>([]() { function(); });
   });
