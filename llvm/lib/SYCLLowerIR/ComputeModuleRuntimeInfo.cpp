@@ -29,12 +29,7 @@ constexpr int DebugModuleProps = 0;
 
 namespace llvm::sycl {
 bool isModuleUsingAsan(const Module &M) {
-  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
-  if (MD == nullptr)
-    return false;
-  assert(MD->getNumOperands() != 0);
-  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
-  return MDVal->getString() == "asan";
+  return M.getGlobalVariable("__AsanLaunchInfo") != nullptr;
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
