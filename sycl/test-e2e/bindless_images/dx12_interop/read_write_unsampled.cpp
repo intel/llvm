@@ -258,6 +258,7 @@ void DX12InteropTest<NDims, DType, NChannels>::initDX12Resources() {
   // Create the DX12 fence and map to a SYCL semaphore.
   ThrowIfFailed(m_dx12Device->CreateFence(
       m_sharedFenceValue, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&m_dx12Fence)));
+  m_sharedFenceValue++;
 
 #ifdef TEST_SEMAPHORE_IMPORT
   ThrowIfFailed(m_dx12Device->CreateSharedHandle(m_dx12Fence.Get(), nullptr,
