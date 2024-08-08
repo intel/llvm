@@ -332,7 +332,11 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xpti xptifw)
+  if (MSVC)
+    set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
+  else()
+    set(XPTIFW_LIBS xpti xptifw)
+  endif()
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -378,13 +382,6 @@ cmake_policy(SET CMP0057 NEW)
 
 if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl-toolchain libsycldevice)
-endif()
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_dependencies( sycl-toolchain xpti)
-  if (MSVC)
-    add_dependencies( sycl-toolchain xptid)
-  endif()
 endif()
 
 if (SYCL_ENABLE_STACK_PRINTING)
