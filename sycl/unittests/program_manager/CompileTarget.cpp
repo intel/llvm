@@ -34,10 +34,14 @@ generateImageWithCompileTarget(std::string KernelName,
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_NATIVE,          // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN, // DeviceTargetSpec
-              "",                                      // Compile options
-              "",                                      // Link options
+  auto DeviceTargetSpec = CompileTarget == "spir64_x86_64"
+                              ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+                              : __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+
+  UrImage Img{SYCL_DEVICE_BINARY_TYPE_NATIVE, // Format
+              DeviceTargetSpec,               // DeviceTargetSpec
+              "",                             // Compile options
+              "",                             // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -146,6 +150,29 @@ static ur_result_t redefinedDeviceGetInfo(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+static ur_result_t redefinedDeviceSelectBinary(void *pParams) {
+  auto params = *static_cast<ur_device_select_binary_params_t *>(pParams);
+  auto target = *params.phDevice == MockX86DeviceHandle
+                    ? UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64
+                    : UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+  uint32_t fallback = *params.pNumBinaries;
+  for (uint32_t i = 0; i < *params.pNumBinaries; ++i) {
+    if (strcmp((*params.ppBinaries)[i].pDeviceTargetSpec, target) == 0) {
+      **params.ppSelectedBinary = i;
+      return UR_RESULT_SUCCESS;
+    }
+    if (strcmp((*params.ppBinaries)[i].pDeviceTargetSpec,
+               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+      fallback = i;
+    }
+  }
+  if (fallback != *params.pNumBinaries) {
+    **params.ppSelectedBinary = fallback;
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
 namespace syclex = sycl::ext::oneapi::experimental;
 auto archSelector(syclex::architecture arch) {
   return [=](const device &dev) {
@@ -165,16 +192,18 @@ protected:
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &redefinedDeviceGetInfo);
     mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
+    mock::getCallbacks().set_after_callback("urDeviceSelectBinary",
+                                            &redefinedDeviceSelectBinary);
   }
 };
 
 template <typename F>
 void checkUsedImageWithCompileTarget(const char *compile_target, F &&f) {
   createWithBinaryLog.clear();
-  ASSERT_EQ(createWithBinaryLog.size(), 0U);
+  ASSERT_EQ(createWithBinaryLog.size(), 0U) << compile_target;
   f();
-  ASSERT_EQ(createWithBinaryLog.size(), 1U);
-  EXPECT_EQ(createWithBinaryLog.back(), compile_target);
+  ASSERT_EQ(createWithBinaryLog.size(), 1U) << compile_target;
+  EXPECT_EQ(createWithBinaryLog.back(), compile_target) << compile_target;
 }
 
 void launchSingleTaskKernel(queue q) {
