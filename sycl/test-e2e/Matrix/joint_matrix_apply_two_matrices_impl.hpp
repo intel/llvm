@@ -25,7 +25,7 @@ bool apply_verify(Tc *C, Tc *D, Ta *A, Ta *Ar) {
         }
       }
     }
-  return true;=
+  return true;
 }
 template <typename Tc, typename Ta, size_t TM, size_t TN, size_t TK, size_t M,
           size_t N, size_t K, class kernel_name>
@@ -104,14 +104,6 @@ bool test() {
   matrix_rand(M, N, (Tc *)C, (Tc)100);
   matrix_rand(M, K, (Ta *)A, (Ta)100);
 
-  // std::cout << "Matrix A" << std::endl;
-  //   for(int i = 0; i < K; i++) {
-  //       for(int j = 0; j < M ; j++) {
-  //           std::cout << A[i*M+j] << " ";
-  //       }
-  //       std::cout << std::endl;
-  //   }
-
   bool res = apply_two_matrices<Tc, Ta, TM, TN, TK, M, N, K, kernel_name>(
       C, D, A, Ar, q);
 
@@ -121,39 +113,6 @@ bool test() {
   else if constexpr (std::is_same_v<Ta, int8_t>)
     std::cout << "int8_t " << TM << "x" << TN << "x" << TK << ": "
               << (res ? "passed" : "failed") << std::endl;
-
-    // std::cout << "Matrix A" << std::endl;
-    // for(int i = 0; i < K; i++) {
-    //     for(int j = 0; j < M; j++) {
-    //         std::cout << A[i*M+j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // std::cout << "Matrix Ar" << std::endl;
-    // for(int i = 0; i < K; i++) {
-    //     for(int j = 0; j < M; j++) {
-    //         std::cout << Ar[i*M+j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // std::cout << "Matrix C" << std::endl;
-    // for(int i = 0; i < 64; i++) {
-    //     for(int j = 0; j < 64; j++) {
-    //         std::cout << C[i*64+j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
-    // std::cout << "Matrix D" << std::endl;
-    // for(int i = 0; i < 64; i++) {
-    //     for(int j = 0; j < 64; j++) {
-    //         std::cout << D[i*64+j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
   free(C, q);
   free(D, q);
   free(A, q);
@@ -171,25 +130,25 @@ int main() {
 
   bool passed = true;
   for (unsigned int i = 0; i < combinations.size(); i++) {
-//     if (combinations[i].nsize == 0) { // Intel AMX
-//       passed &= test<int8_t, int32_t, 16, 16, 64, class amx_int_16x16x64>();
-//       passed &= test<bfloat16, float, 16, 16, 32, class amx_bf16_16x16x32>();
-//       break;
-//     }
+    if (combinations[i].nsize == 0) { // Intel AMX
+      passed &= test<int8_t, int32_t, 16, 16, 64, class amx_int_16x16x64>();
+      passed &= test<bfloat16, float, 16, 16, 32, class amx_bf16_16x16x32>();
+      break;
+    }
 
-//     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
-//       passed &= test<int8_t, int32_t, 8, 16, 32, class pvc_int_8x16x32>();
-//       passed &= test<bfloat16, float, 8, 16, 16, class pvc_bf16_8x16x16>();
-// // This combination is not currently supported for sub group size = 32 in IGC
-// #if (!defined(SG_SZ) || SG_SZ != 32)
-//       passed &= test<bfloat16, float, 16, 16, 16, class pvc_bf16_16x16x16>();
-// #endif
-//       break;
-//     }
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      passed &= test<int8_t, int32_t, 8, 16, 32, class pvc_int_8x16x32>();
+      passed &= test<bfloat16, float, 8, 16, 16, class pvc_bf16_8x16x16>();
+// This combination is not currently supported for sub group size = 32 in IGC
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      passed &= test<bfloat16, float, 16, 16, 16, class pvc_bf16_16x16x16>();
+#endif
+      break;
+    }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
-      // passed &= test<int8_t, int32_t, 8, 8, 32, class dg2_int_8x8x32>();
-      // passed &= test<bfloat16, float, 8, 8, 16, class dg2_bf16_8x16x16>();
+      passed &= test<int8_t, int32_t, 8, 8, 32, class dg2_int_8x8x32>();
+      passed &= test<bfloat16, float, 8, 8, 16, class dg2_bf16_8x16x16>();
       passed &= test<bfloat16, float, 32, 32, 16, class dg2_bf16_32x32x16>();
       break;
     }
