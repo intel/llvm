@@ -1442,7 +1442,7 @@ The alternative `queue_state::recording` state is used for graph construction.
 Instead of being scheduled for execution, command-groups submitted to the queue
 are recorded to a graph object as new nodes for each submission. After recording
 has finished and the queue returns to the executing state, the recorded commands are
-not then executed, they are transparent to any following queue operations. The state
+not executed, they are transparent to any following queue operations. The state
 of a queue can be queried with `queue::ext_oneapi_get_state()`.
 
 .Queue State Diagram
@@ -1452,6 +1452,43 @@ graph LR
     Executing -->|Begin Recording| Recording
     Recording -->|End Recording| Executing
 ....
+
+==== Transitive Queue Recording
+
+Submitting a command-group to a queue in the executable state can implicitly
+change its state to `queue_state::recording`. This will occur when the
+command-group depends on an event that has been returned by a queue in the
+recording state. The change of state happens before the command-group is
+submitted to the device (i.e. a new graph node will be created for that command-group).
+
+A queue whose state has been set to `queue_state::recording` using this
+mechanism, will behave as if it had been passed as an argument to
+`command_graph::begin_recording()`. In particular, its state will not change
+again until `command_graph::end_recording()` is called.
+
+The recording properties of the queue whose event triggered the state change
+will also be inherited (i.e. any properties passed to the original call of
+`command_graph::begin_recording()` will be inherited by the queue whose state
+is being transitioned).
+
+===== Example
+
+[source,c++]
+----
+// q1 state is set to recording.
+graph.begin_recording(q1);
+
+// Node is added to the graph by submitting to a recording queue.
+auto e1 = q1.single_task(...);
+
+// Since there is a dependency on e1 which was created by a queue being
+// recorded, q2 immediately enters record mode, and a new node is created
+// with an edge between e1 and e2.
+auto e2 = q2.single_task(e1, ...);
+
+// Ends recording on q1 and q2.
+graph.end_recording();
+----
 
 ==== Queue Properties
 

@@ -621,6 +621,15 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents(
   return Events;
 }
 
+void graph_impl::beginRecording(
+    std::shared_ptr<sycl::detail::queue_impl> Queue) {
+  graph_impl::WriteLock Lock(MMutex);
+  if (Queue->getCommandGraph() == nullptr) {
+    Queue->setCommandGraph(shared_from_this());
+    addQueue(Queue);
+  }
+}
+
 // Check if nodes are empty and if so loop back through predecessors until we
 // find the real dependency.
 void exec_graph_impl::findRealDeps(
@@ -1584,27 +1593,14 @@ void modifiable_command_graph::begin_recording(
                           "can NOT be recorded.");
   }
 
-  if (QueueImpl->get_context() != impl->getContext()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue whose context "
-                          "differs from the graph context.");
-  }
-  if (QueueImpl->get_device() != impl->getDevice()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue whose device "
-                          "differs from the graph device.");
-  }
-
-  if (QueueImpl->getCommandGraph() == nullptr) {
-    QueueImpl->setCommandGraph(impl);
-    graph_impl::WriteLock Lock(impl->MMutex);
-    impl->addQueue(QueueImpl);
-  }
-  if (QueueImpl->getCommandGraph() != impl) {
+  auto QueueGraph = QueueImpl->getCommandGraph();
+  if (QueueGraph != nullptr && QueueGraph != impl) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue which is already "
                           "recording to a different graph.");
   }
+
+  impl->beginRecording(QueueImpl);
 }
 
 void modifiable_command_graph::begin_recording(
