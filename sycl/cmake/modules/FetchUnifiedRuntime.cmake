@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,12 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit bc1a28ede0df7f837047b632e00437587672c134
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Jul 29 16:44:58 2024 +0100
-  #     Merge pull request #1819 from DBDuncan/sean/rename-interop-to-external
-  #    [Bindless][Exp] Rename interop related structs/funcs with "external"
-  set(UNIFIED_RUNTIME_TAG bc1a28ede0df7f837047b632e00437587672c134)
+  # commit 2d3524e74ab6a09d1ad1a96d977973fac32ca55d
+  # Merge: 6b2e678d d6e93fa1
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Aug 7 14:23:09 2024 +0100
+  #     Merge pull request #1930 from oneapi-src/benie/no-import-in-pragma-region
+  #     Make pragma region names joined by _
+  set(UNIFIED_RUNTIME_TAG 2d3524e74ab6a09d1ad1a96d977973fac32ca55d)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
