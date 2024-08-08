@@ -1146,4 +1146,4 @@ load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
 |12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
-|======================
+|====================== 
