@@ -22,12 +22,13 @@ if (NOT DEFINED SYCL_ENABLE_PLUGINS)
   set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
 endif()
 
-# Option to enable online kernel fusion via a JIT compiler
-option(SYCL_ENABLE_KERNEL_FUSION "Enable kernel fusion via JIT compiler" ON)
-if(SYCL_ENABLE_KERNEL_FUSION AND WIN32)
-  message(WARNING "Kernel fusion not yet supported on Windows")
-  set(SYCL_ENABLE_KERNEL_FUSION OFF CACHE
-      BOOL "Kernel fusion not yet supported on Windows" FORCE)
+# Option to enable JIT, this in turn makes kernel fusion and spec constant
+# materialization possible.
+option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
+if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
+  message(WARNING "Extension to JIT kernels not yet supported on Windows")
+  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
+      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
 endif()
 
 if (NOT XPTI_INCLUDES)
@@ -332,7 +333,11 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xpti xptifw)
+  if (MSVC)
+    set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
+  else()
+    set(XPTIFW_LIBS xpti xptifw)
+  endif()
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -378,13 +383,6 @@ cmake_policy(SET CMP0057 NEW)
 
 if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl-toolchain libsycldevice)
-endif()
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_dependencies( sycl-toolchain xpti)
-  if (MSVC)
-    add_dependencies( sycl-toolchain xptid)
-  endif()
 endif()
 
 if (SYCL_ENABLE_STACK_PRINTING)

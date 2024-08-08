@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
-  # Merge: 99489ad4 c86beb60
+  # commit ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c
+  # Merge: 1fef4e29 c571ec40
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 14:52:26 2024 +0100
-  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
-  #    [Bindless][Exp] Add interop memory mapping to USM.
-  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
+  # Date:   Thu Aug 8 11:09:15 2024 +0100
+  #     Merge pull request #1911 from ProGTX/peter/xpti-static
+  #    [CUDA] Don't import XPTI symbols in the plugin library
+  set(UNIFIED_RUNTIME_TAG ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
