@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c
-  # Merge: 1fef4e29 c571ec40
+  # commit 83f7ad9551ce0134931b44804b5a254ae2e93068
+  # Merge: ab9baf57 8fb6824d
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Aug 8 11:09:15 2024 +0100
-  #     Merge pull request #1911 from ProGTX/peter/xpti-static
-  #    [CUDA] Don't import XPTI symbols in the plugin library
-  set(UNIFIED_RUNTIME_TAG ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c)
+  # Date:   Thu Aug 8 11:11:13 2024 +0100
+  #     Merge pull request #1860 from PietroGhg/pietro/fill
+  #     [NATIVECPU] Fix pointer arithmetic in USMfill
+  set(UNIFIED_RUNTIME_TAG 83f7ad9551ce0134931b44804b5a254ae2e93068)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
