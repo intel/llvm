@@ -38,7 +38,6 @@ template <int N> bool test() {
 
       auto kernel = ([=]() [[intel::sycl_explicit_simd]] {
         simd<uint32_t, N> Input(1, 1);
-        simd<uint32_t, N> Result(0);
         simd_mask<N> Mask;
         for (int i = 0; i < N; i++)
           Mask[i] = (i % 2) == 0;
