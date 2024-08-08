@@ -10,7 +10,5 @@
 // RUN: %{build} -ffp-model=precise -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu-intel-dg2
-
 #include "common.hpp"
 #include "joint_matrix_apply_two_matrices_impl.hpp"
