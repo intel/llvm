@@ -12,6 +12,5 @@
 // XFAIL: cpu
 // REQUIRES-INTEL-DRIVER: lin: 30049
 
-
 #include "common.hpp"
 #include "get_coord_int8_matB_impl.hpp"
