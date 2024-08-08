@@ -485,8 +485,13 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
   ThrowIfFailed(
       m_dx12CommandQueue->Signal(m_dx12Fence.Get(), m_sharedFenceValue));
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Don't wait for the fence here. We will use the SYCL API to wait for this
   // fence in `callSYCLKernel`.
+#else
+  waitDX12Fence();
+  m_sharedFenceValue++;
+#endif
 }
 
 template <int NDims, typename DType, int NChannels>
