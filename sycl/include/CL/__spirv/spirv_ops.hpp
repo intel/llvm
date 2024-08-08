@@ -175,7 +175,7 @@ template <typename Ts, typename T, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *
 __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
                             Ts val, size_t i);
-#else // __SPIRV_USE_COOPERATIVE_MATRIX
+#else  // __SPIRV_USE_COOPERATIVE_MATRIX
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
           __spv::MatrixLayout L = __spv::MatrixLayout::RowMajor,
