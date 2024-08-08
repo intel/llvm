@@ -5651,6 +5651,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
 
+    if (Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                     options::OPT_fno_sycl_use_integration_headers, true)) {
+      CmdArgs.push_back("-fsycl-use-integration-headers");
+      CmdArgs.push_back("-D__INTEL_SYCL_USE_INTEGRATION_HEADERS");
+    }
+
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
     for (const auto &Arg : DeviceTraitsMacrosArgs) {
       CmdArgs.push_back(Arg);
