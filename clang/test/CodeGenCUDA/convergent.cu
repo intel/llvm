@@ -85,7 +85,7 @@ __host__ __device__ void bar() {
 // HOST: attributes #[[ATTR3]] = { nounwind }
 //.
 // DEVICE: [[META0:![0-9]+]] = !{i32 1, !"wchar_size", i32 4}
-// DEVICE: [[META1:![0-9]+]] = !{i32 4, !"nvvm-reflect-ftz", i32 0}
+// DEVICE: [[META1:![0-9]+]] = !{i32 7, !"nvvm-reflect-ftz", i32 0}
 // DEVICE: [[META2:![0-9]+]] = !{!"{{.*}}clang version {{.*}}"}
 // DEVICE: [[META3]] = !{i64 3120}
 // DEVICE: [[META4]] = !{i64 3155}
