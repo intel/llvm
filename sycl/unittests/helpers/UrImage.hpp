@@ -109,62 +109,24 @@ private:
   NativeType MNative;
 };
 
-/// Generic array of UR entries.
-template <typename T> class UrArray {
-public:
-  explicit UrArray(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
-    updateEntries();
-  }
+namespace {
+template <typename T>
+std::vector<typename T::NativeType>
+convertToNative(const std::vector<T> &MockEntries) {
+  std::vector<typename T::NativeType> NativeEntries;
+  NativeEntries.reserve(MockEntries.size());
+  std::transform(
+      MockEntries.begin(), MockEntries.end(), std::back_inserter(NativeEntries),
+      [](const T &MockEntry) { return MockEntry.convertToNativeType(); });
+  return NativeEntries;
+}
 
-  UrArray(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
-    updateEntries();
-  }
-
-  UrArray() = default;
-
-  void push_back(const T &Entry) {
-    MMockEntries.push_back(Entry);
-    MEntriesNeedUpdate = true;
-  }
-
-  typename T::NativeType *begin() {
-    if (MEntriesNeedUpdate) {
-      updateEntries();
-    }
-
-    if (MEntries.empty())
-      return nullptr;
-
-    return &*MEntries.begin();
-  }
-  typename T::NativeType *end() {
-    if (MEntriesNeedUpdate) {
-      updateEntries();
-    }
-
-    if (MEntries.empty())
-      return nullptr;
-
-    return &*MEntries.rbegin() + 1;
-  }
-
-private:
-  void updateEntries() {
-    MEntries.clear();
-    std::transform(MMockEntries.begin(), MMockEntries.end(),
-                   std::back_inserter(MEntries),
-                   [](const T &Entry) { return Entry.convertToNativeType(); });
-  }
-  std::vector<T> MMockEntries;
-  std::vector<typename T::NativeType> MEntries;
-  bool MEntriesNeedUpdate = false;
-};
-
-#ifdef __cpp_deduction_guides
-template <typename T> UrArray(std::vector<T>) -> UrArray<T>;
-
-template <typename T> UrArray(std::initializer_list<T>) -> UrArray<T>;
-#endif // __cpp_deduction_guides
+template <typename T>
+std::vector<typename T::NativeType>
+convertToNative(std::initializer_list<T> MockEntries) {
+  return convertToNative(std::vector<T>{MockEntries});
+}
+}
 
 /// Convenience wrapper for sycl_device_binary_property_set.
 class UrPropertySet {
@@ -187,19 +149,44 @@ public:
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     UrProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, UrArray{DeviceLibReqMask});
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, DeviceLibReqMask);
   }
 
   /// Adds a new array of properties to the set.
   ///
   /// \param Name is a property array name. See ur.hpp for list of known names.
   /// \param Props is an array of property values.
-  void insert(const std::string &Name, UrArray<UrProperty> Props) {
+  void insert(const std::string &Name, std::vector<UrProperty> Props) {
     MNames.push_back(Name);
-    MMockProperties.push_back(std::move(Props));
+    MMockPropertiesStorage.push_back(Props);
+    MNativePropertiesStorage.push_back(
+        std::move(convertToNative(MMockPropertiesStorage.back())));
+
+    UrProperty::NativeType *Begin =
+        &*MNativePropertiesStorage.back().begin();
+    UrProperty::NativeType *End = nullptr;
+    if (!MNativePropertiesStorage.back().empty())
+      End = &*MNativePropertiesStorage.back().rbegin() + 1;
+
     MProperties.push_back(_sycl_device_binary_property_set_struct{
-        MNames.back().data(), MMockProperties.back().begin(),
-        MMockProperties.back().end()});
+        MNames.back().data(), Begin, End});
+  }
+
+  /// Adds a list of properties to the set.
+  ///
+  /// \param Name is a property array name. See ur.hpp for list of known names.
+  /// \param Props is an array of property values.
+  void insert(const std::string &Name,
+              std::initializer_list<UrProperty> Props) {
+    insert(Name, std::vector<UrProperty>{Props});
+  }
+
+  /// Adds a new property to the set.
+  ///
+  /// \param Name is a property array name. See ur.hpp for list of known names.
+  /// \param Prop is a property value.
+  void insert(const std::string &Name, const UrProperty &Prop) {
+    insert(Name, {Prop});
   }
 
   _sycl_device_binary_property_set_struct *begin() {
@@ -216,7 +203,8 @@ public:
 
 private:
   std::vector<std::string> MNames;
-  std::vector<UrArray<UrProperty>> MMockProperties;
+  std::vector<std::vector<UrProperty>> MMockPropertiesStorage;
+  std::vector<std::vector<UrProperty::NativeType>> MNativePropertiesStorage;
   std::vector<_sycl_device_binary_property_set_struct> MProperties;
 };
 
@@ -229,24 +217,44 @@ public:
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+          std::vector<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
-        MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
+        MBinary(std::move(Binary)),
+        MMockOffloadEntriesStorage(std::move(OffloadEntries)),
         MPropertySet(std::move(PropertySet)) {}
 
   /// Constructs a SYCL device image of the latest version.
   UrImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
-          UrArray<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+          std::initializer_list<UrOffloadEntry> OffloadEntries,
+          UrPropertySet PropertySet)
+      : UrImage(SYCL_DEVICE_BINARY_VERSION,
+                SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format, DeviceTargetSpec,
+                CompileOptions, LinkOptions, {}, std::move(Binary),
+                std::move(OffloadEntries), std::move(PropertySet)) {}
+
+  /// Constructs a SYCL device image of the latest version.
+  UrImage(uint8_t Format, const std::string &DeviceTargetSpec,
+          const std::string &CompileOptions, const std::string &LinkOptions,
+          std::vector<unsigned char> Binary,
+          std::vector<UrOffloadEntry> OffloadEntries,
+          UrPropertySet PropertySet)
       : UrImage(SYCL_DEVICE_BINARY_VERSION,
                 SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format, DeviceTargetSpec,
                 CompileOptions, LinkOptions, {}, std::move(Binary),
                 std::move(OffloadEntries), std::move(PropertySet)) {}
 
   sycl_device_binary_struct convertToNativeType() {
+    MNativeOffloadEntriesStorage = convertToNative(MMockOffloadEntriesStorage);
+    UrOffloadEntry::NativeType *EntriesBegin =
+        &*MNativeOffloadEntriesStorage.begin();
+    UrOffloadEntry::NativeType *EntriesEnd = nullptr;
+    if (!MNativeOffloadEntriesStorage.empty())
+      EntriesEnd = &*MNativeOffloadEntriesStorage.rbegin() + 1;
+
     return sycl_device_binary_struct{
         MVersion,
         MKind,
@@ -258,8 +266,8 @@ public:
         MManifest.empty() ? nullptr : &*MManifest.crbegin() + 1,
         &*MBinary.begin(),
         (&*MBinary.begin()) + MBinary.size(),
-        MOffloadEntries.begin(),
-        MOffloadEntries.end(),
+        EntriesBegin,
+        EntriesEnd,
         MPropertySet.begin(),
         MPropertySet.end(),
     };
@@ -275,7 +283,8 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  UrArray<UrOffloadEntry> MOffloadEntries;
+  std::vector<UrOffloadEntry::NativeType> MNativeOffloadEntriesStorage;
+  std::vector<UrOffloadEntry> MMockOffloadEntriesStorage;
   UrPropertySet MPropertySet;
 };
 
@@ -392,7 +401,8 @@ inline UrProperty makeSpecConstant(std::vector<char> &ValData,
 /// Utility function to mark kernel as the one using assert
 inline void setKernelUsesAssert(const std::vector<std::string> &Names,
                                 UrPropertySet &Set) {
-  UrArray<UrProperty> Value;
+  std::vector<UrProperty> Value;
+  Value.reserve(Names.size());
   for (const std::string &N : Names)
     Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
   Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
@@ -401,13 +411,12 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
-inline void addSpecConstants(UrArray<UrProperty> SpecConstants,
+inline void addSpecConstants(std::initializer_list<UrProperty> SpecConstants,
                              std::vector<char> ValData, UrPropertySet &Props) {
   Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
-  UrProperty Prop{"all", std::move(ValData), SYCL_PROPERTY_TYPE_BYTE_ARRAY};
-
-  UrArray<UrProperty> DefaultValues{std::move(Prop)};
+  UrProperty DefaultValues{"all", std::move(ValData),
+                           SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
                std::move(DefaultValues));
@@ -419,15 +428,14 @@ inline void addESIMDFlag(UrPropertySet &Props) {
   ValData[0] = 1;
   UrProperty Prop{"isEsimdImage", ValData, SYCL_PROPERTY_TYPE_UINT32};
 
-  UrArray<UrProperty> Value{std::move(Prop)};
-
-  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Prop));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline UrArray<UrOffloadEntry>
+inline std::vector<UrOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  UrArray<UrOffloadEntry> Entries;
+  std::vector<UrOffloadEntry> Entries;
+  Entries.reserve(KernelNames.size());
 
   for (const auto &Name : KernelNames) {
     UrOffloadEntry E{Name, {}, 0};
@@ -531,7 +539,7 @@ inline void
 addDeviceRequirementsProps(UrPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
                            const std::vector<int> &ReqdWGSize = {}) {
-  UrArray<UrProperty> Value{makeAspectsProp(Aspects)};
+  std::vector<UrProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
   Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS, std::move(Value));
@@ -543,7 +551,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
