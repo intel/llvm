@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2d3524e74ab6a09d1ad1a96d977973fac32ca55d
-  # Merge: 6b2e678d d6e93fa1
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Aug 7 14:23:09 2024 +0100
-  #     Merge pull request #1930 from oneapi-src/benie/no-import-in-pragma-region
-  #     Make pragma region names joined by _
-  set(UNIFIED_RUNTIME_TAG 2d3524e74ab6a09d1ad1a96d977973fac32ca55d)
+  # commit ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c
+  # Merge: 1fef4e29 c571ec40
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Thu Aug 8 11:09:15 2024 +0100
+  #     Merge pull request #1911 from ProGTX/peter/xpti-static
+  #    [CUDA] Don't import XPTI symbols in the plugin library
+  set(UNIFIED_RUNTIME_TAG ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
