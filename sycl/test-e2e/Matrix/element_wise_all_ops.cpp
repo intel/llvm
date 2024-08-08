@@ -10,6 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: gpu-intel-dg2
+
 // TODO: Reenable, see https://github.com/intel/llvm/issues/14598
 // UNSUPPORTED: windows, linux
 

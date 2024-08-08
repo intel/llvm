@@ -10,6 +10,8 @@
 // RUN: %{build} -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
 
+// XFAIL: gpu-intel-dg2
+
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"

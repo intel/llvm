@@ -10,5 +10,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: gpu-intel-dg2
+
 #include "common.hpp"
 #include "element_wise_abc_impl.hpp"

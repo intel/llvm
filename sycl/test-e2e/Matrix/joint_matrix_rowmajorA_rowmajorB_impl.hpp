@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/stream.hpp>
 
 template <size_t TM, size_t TN, size_t TK, class kernel_name, typename TA,
           typename TB, typename TC, size_t M, size_t N, size_t K>
@@ -22,7 +23,8 @@ void matrix_multiply(big_matrix<TC, M, N> &C, big_matrix<TA, M, K> &A,
      sycl::accessor accC{bufC, cgh, sycl::read_write};
      sycl::accessor accA{bufA, cgh, sycl::read_only};
      sycl::accessor accB{bufB, cgh, sycl::read_only};
-
+    
+     sycl::stream os { 5000, 5000, cgh};
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
@@ -61,6 +63,23 @@ void matrix_multiply(big_matrix<TC, M, N> &C, big_matrix<TA, M, K> &A,
                  N);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
+          //   os << "After A load \n";
+          //   joint_matrix_apply(sg, sub_a, [=](TA &x) {
+          //       os << (int)x << " ";
+          //   });
+          //   os << "\n";
+
+          //   os << "After B load \n";
+          //   joint_matrix_apply(sg, sub_b, [=](TB &x) {
+          //       os << (int)x << " ";
+          //   });
+          //   os << "\n";
+
+          //   os << "After C load \n";
+          //  joint_matrix_apply(sg, sub_c, [=](TC &x) {
+          //       os << (int)x << " ";
+          //   });
+          //   os << "\n";
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
@@ -96,6 +115,22 @@ int gemm_row_major() {
   matrix_multiply_ref((TA *)A, (TB *)B, (TC *)D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (TC *)C, (TC *)D);
+
+  // std::cout << "ref matrix " << std::endl;
+  // for(int i = 0; i < MATRIX_M; i++) {
+  //     for(int j = 0; j < MATRIX_N; j++) {
+  //         std::cout << D[i][j] << " ";
+  //     }
+  //     std::cout << std::endl;
+  // }
+  // std::cout << "source matrix " << std::endl;
+  // for(int i = 0; i < MATRIX_M; i++) {
+  //     for(int j = 0; j < MATRIX_N; j++) {
+  //         std::cout << C[i][j] << " ";
+  //     }
+  //     std::cout << std::endl;
+  // }
+
   std::cout << TM << "x" << TN << "x" << TK << ": ";
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;

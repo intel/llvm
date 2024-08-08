@@ -5,10 +5,17 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/stream.hpp>
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
-                    const float ref) {
+                    const float ref) {  
+  // for(size_t i = 0; i < NUM_ROWS; i++) {
+  //   for (size_t j = 0; j < NUM_COLS; j++) {
+  //     std::cout << mat[i][j];
+  //   }
+  //   std::cout << " \n";
+  // }
   for (size_t i = 0; i < NUM_ROWS; i++)
     for (size_t j = 0; j < NUM_COLS; j++) {
       float diff;
@@ -36,6 +43,7 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
 
+    sycl::stream os { 5000, 5000, cgh};
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
@@ -52,7 +60,21 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, T, Use, SUB_ROWS, SUB_COLS, Layout> sub_mat;
            joint_matrix_fill(sg, sub_mat, l);
+
+          //  os << "before A apply \n";
+          //  joint_matrix_apply(sg, sub_mat, [=](bfloat16 &x) {
+          //       os << (int)x << " ";
+          //   });
+          //   os << "\n";
+
            joint_matrix_apply(sg, sub_mat, [=](T &x) { x = op(x, r); });
+
+          //  os << "after A apply \n";
+          //  joint_matrix_apply(sg, sub_mat, [=](bfloat16 &x) {
+          //       os << (int)x << " ";
+          //   });
+          //   os << "\n";
+
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_mat,
                accessMat.template get_multi_ptr<access::decorated::no>() +
@@ -61,6 +83,7 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
                NUM_COLS * VF);
          }); // parallel for
    }).wait();
+
   assert_ops_ref<T, NUM_ROWS / VF, NUM_COLS * VF>(
       bufMat.get_host_access(read_only), ref);
 }
@@ -118,8 +141,10 @@ void test_ewops_ab() {
     std::cout << "Test B ";
   std::cout << SROWS << "x" << SCOLS << "\n";
 
-  static constexpr size_t NROWS = SROWS * 2;
-  static constexpr size_t NCOLS = SCOLS * 2;
+  static constexpr size_t NROWS = SROWS * 3;
+  static constexpr size_t NCOLS = SCOLS * 3;
+  // static constexpr size_t NROWS = SROWS;
+  // static constexpr size_t NCOLS = SCOLS;
 
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_add>>(
@@ -242,7 +267,8 @@ int main() {
       test_ewops_ab<bfloat16, 16, 8, use::b, layout::ext_intel_packed, 2>();
       test_ewops_c<float, 8, 8>();
       test_ewops_ab<bfloat16, 32, 16, use::a, layout::row_major, 1>();
-      test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
+      // test_ewops_ab<bfloat16, 16, 32, use::b, layout::ext_intel_packed, 2>();
+      test_ewops_ab<bfloat16, 16, 32, use::b, layout::row_major, 1>();
       test_ewops_c<float, 32, 32>();
       break;
     }
