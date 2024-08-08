@@ -115,8 +115,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/ProGTX/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c571ec40db499b36834be12b6a7ab1129aa00193)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c
+  # Merge: 1fef4e29 c571ec40
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Thu Aug 8 11:09:15 2024 +0100
+  #     Merge pull request #1911 from ProGTX/peter/xpti-static
+  #    [CUDA] Don't import XPTI symbols in the plugin library
+  set(UNIFIED_RUNTIME_TAG ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
