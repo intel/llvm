@@ -62,9 +62,10 @@ on:
         default: ''
         required: False
 
-      reset_intel_gpu:
+      reset_gpu:
         type: string
         required: False
+        default: true
       install_drivers:
         type: string
         required: False
@@ -154,10 +155,21 @@ jobs:
     env: ${{ fromJSON(inputs.env) }}
     steps:
     - name: Reset Intel GPU
-      if: inputs.reset_intel_gpu == 'true'
+      if: inputs.reset_gpu == 'true' && inputs.runner != '["Linux", "cuda"]' && inputs.runner != '["Linux", "amdgpu"]'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
+    - name: Reset AMD GPU
+      if: inputs.reset_gpu == 'true' && inputs.runner == '["Linux", "amdgpu"]'
+      # rocm-smi --gpureset doesn't support the GPU the runner uses,
+      # so reset through the sysfs interface as we do for Intel GPUs
+      run: |
+        sudo mount -t debugfs none /sys/kernel/debug
+        sudo bash -c 'cat /sys/kernel/debug/dri/0/amdgpu_gpu_recover'
+    - name: Reset NVIDIA GPU
+      if: inputs.reset_gpu == 'true' && inputs.runner == '["Linux", "cuda"]'
+      run: |
+        sudo bash -c 'nvidia-smi -r'
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.ref }}
