@@ -10,7 +10,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-//
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && igc-dev
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store

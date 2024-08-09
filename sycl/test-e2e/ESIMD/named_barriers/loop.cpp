@@ -15,6 +15,9 @@
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
 // then all threads read SLM and store data to surface.
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
+
 #include "../esimd_test_utils.hpp"
 
 #define NS __ESIMD_NS
