@@ -50,7 +50,6 @@ static sycl::unittest::UrImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
   sycl::unittest::UrPropertySet PropSet;
-  std::vector<sycl::unittest::UrProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
                             /* null terminator */ 1);
@@ -64,13 +63,9 @@ generateImage(std::initializer_list<std::string> KernelNames,
   sycl::unittest::UrProperty Prop(PropName, Storage,
                                   SYCL_PROPERTY_TYPE_BYTE_ARRAY);
 
-  Props.push_back(Prop);
-  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Props));
+  PropSet.insert(__SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS, std::move(Prop));
 
   std::vector<unsigned char> Bin{Magic};
-
-  std::vector<sycl::unittest::UrOffloadEntry> Entries =
-      sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::UrImage Img{
       SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
@@ -78,7 +73,7 @@ generateImage(std::initializer_list<std::string> KernelNames,
       "",                                  // Compile options
       "",                                  // Link options
       std::move(Bin),
-      std::move(Entries),
+      sycl::unittest::makeEmptyKernels(KernelNames),
       std::move(PropSet)};
 
   return Img;

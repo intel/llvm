@@ -37,14 +37,12 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
-
   UrImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
               std::move(Bin),
-              std::move(Entries),
+              makeEmptyKernels(KernelNames),
               std::move(PropSet)};
 
   return Img;

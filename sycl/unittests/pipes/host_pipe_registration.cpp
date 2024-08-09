@@ -36,21 +36,17 @@ static sycl::unittest::UrImage generateDefaultImage() {
                                    "test_host_pipe_unique_id");
 
   UrPropertySet PropSet;
-  UrProperty HostPipeInfo =
-      makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                 std::move(HostPipeInfo));
+                 makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int)));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                  // Compile options
               "",                                  // Link options
               std::move(Bin),
-              std::move(Entries),
+              makeEmptyKernels({"TestKernel"}),
               std::move(PropSet)};
 
   return Img;

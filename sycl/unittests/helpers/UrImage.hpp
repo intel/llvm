@@ -149,14 +149,14 @@ public:
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     UrProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, DeviceLibReqMask);
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, std::move(DeviceLibReqMask));
   }
 
   /// Adds a new array of properties to the set.
   ///
   /// \param Name is a property array name. See ur.hpp for list of known names.
   /// \param Props is an array of property values.
-  void insert(const std::string &Name, std::vector<UrProperty> Props) {
+  void insert(const std::string &Name, std::vector<UrProperty> &&Props) {
     MNames.push_back(Name);
     MMockPropertiesStorage.push_back(Props);
     MNativePropertiesStorage.push_back(
@@ -185,7 +185,7 @@ public:
   ///
   /// \param Name is a property array name. See ur.hpp for list of known names.
   /// \param Prop is a property value.
-  void insert(const std::string &Name, const UrProperty &Prop) {
+  void insert(const std::string &Name, UrProperty &&Prop) {
     insert(Name, {Prop});
   }
 
@@ -217,7 +217,8 @@ public:
           const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<char> Manifest, std::vector<unsigned char> Binary,
-          std::vector<UrOffloadEntry> OffloadEntries, UrPropertySet PropertySet)
+          std::vector<UrOffloadEntry> &&OffloadEntries,
+          UrPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -240,7 +241,7 @@ public:
   UrImage(uint8_t Format, const std::string &DeviceTargetSpec,
           const std::string &CompileOptions, const std::string &LinkOptions,
           std::vector<unsigned char> Binary,
-          std::vector<UrOffloadEntry> OffloadEntries,
+          std::vector<UrOffloadEntry> &&OffloadEntries,
           UrPropertySet PropertySet)
       : UrImage(SYCL_DEVICE_BINARY_VERSION,
                 SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format, DeviceTargetSpec,

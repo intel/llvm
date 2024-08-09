@@ -46,14 +46,12 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   static unsigned char NImage = 0;
   std::vector<unsigned char> Bin{NImage++};
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
-
   UrImage Img{BinaryType, // Format
               DeviceTargetSpec,
               "", // Compile options
               "", // Link options
               std::move(Bin),
-              std::move(Entries),
+              makeEmptyKernels(KernelNames),
               std::move(PropSet)};
   const void *BinaryPtr = Img.getBinaryPtr();
   TrackedImages.insert(BinaryPtr);

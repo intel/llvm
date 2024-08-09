@@ -24,7 +24,8 @@ MOCK_INTEGRATION_HEADER(TestKernelACC)
 
 static sycl::unittest::UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames,
-                     const std::vector<sycl::aspect> &Aspects, const std::vector<int> &ReqdWGSize = {}) {
+                     const std::vector<sycl::aspect> &Aspects,
+                     const std::vector<int> &ReqdWGSize = {}) {
   using namespace sycl::unittest;
 
   UrPropertySet PropSet;
@@ -32,14 +33,12 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
-
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "",                                  // Compile options
               "",                                  // Link options
               std::move(Bin),
-              std::move(Entries),
+              makeEmptyKernels(KernelNames),
               std::move(PropSet)};
 
   return Img;
