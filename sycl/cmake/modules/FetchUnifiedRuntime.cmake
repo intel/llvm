@@ -117,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3c12bbceec33cf5cf5fc4fa85e641b4f95e820b7
-  # Merge: 83f7ad95 ac7eb171
+  # commit e50a4ddcdb450ab11f8b2f0a1b54f01a3d6de44f
+  # Merge: 3c12bbce 6b373e33
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Aug 9 10:51:05 2024 +0100
-  #     Merge pull request #1910 from Bensuo/sync_point
-  #     [CUDA][HIP] Improve command-buffer sync points
-  set(UNIFIED_RUNTIME_TAG 3c12bbceec33cf5cf5fc4fa85e641b4f95e820b7)
+  # Date:   Fri Aug 9 14:34:49 2024 +0100
+  #     Merge pull request #1923 from sarnex/buildlog
+  #     [L0] Return the build log on compilation failure
+  set(UNIFIED_RUNTIME_TAG e50a4ddcdb450ab11f8b2f0a1b54f01a3d6de44f)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
