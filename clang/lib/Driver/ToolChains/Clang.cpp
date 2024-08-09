@@ -10822,8 +10822,8 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
     return false;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;
-  bool IsUsingLTO = TC.getDriver().isUsingLTO(/*IsDeviceOffloadAction=*/true);
-  auto LTOMode = TC.getDriver().getLTOMode(/*IsDeviceOffloadAction=*/true);
+  bool IsUsingLTO = TC.getDriver().isUsingOffloadLTO();
+  auto LTOMode = TC.getDriver().getOffloadLTOMode();
   // With thinLTO, final entry point handing is done in clang-linker-wrapper
   if (IsUsingLTO && LTOMode == LTOK_Thin)
     return false;
