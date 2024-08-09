@@ -599,7 +599,7 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      Queue->RefCount.decrementAndTest();
+      static_cast<void>(Queue->RefCount.decrementAndTest());
       return UR_RESULT_SUCCESS;
     }
 
