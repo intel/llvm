@@ -1299,6 +1299,8 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
     std::string_view CompileTarget(
         reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
         CompileTargetByteArray.size());
+    // Note: there are no explicit targets for CPUs, so on x86_64,
+    // so we use a spir64_x86_64 compile target image.
     if ((ArchName == CompileTarget) ||
         (ArchName == "x86_64" && CompileTarget == "spir64_x86_64")) {
       AddImg();
