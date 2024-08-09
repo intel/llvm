@@ -15,8 +15,9 @@ function(add_xpti_library LIB_NAME)
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
 
   target_include_directories(${LIB_NAME} PUBLIC
-      $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
-      $<BUILD_INTERFACE:${XPTI_DIR}/include>
+    $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
+    $<BUILD_INTERFACE:${XPTIFW_DIR}/include/external>
+    $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )
 
   target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS})

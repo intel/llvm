@@ -24,6 +24,8 @@ namespace xpti {
 /// to allow passing them as metadata. If an object being added already exists,
 /// an existing ID will be returned.
 ///
+/// @note Using emhash8 container will affect backward compatibility.
+///
 /// @tparam KeyType is the data type of the returned key.
 /// @tparam SmallSize is the size of an object, that will fit within table
 /// without allocation of additional memory (i.e. small size optimization).
