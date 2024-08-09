@@ -5500,7 +5500,6 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    // TODO: only for SYCL next.
     if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
         (SemaRef.isConstantEvaluatedContext() ||
          SemaRef.currentEvaluationContext().isDiscardedStatementContext()))
