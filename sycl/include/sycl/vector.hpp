@@ -97,11 +97,17 @@ namespace detail {
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self, typename To, bool Enable>
+template <typename Self, typename To, bool Explicit, bool Enable>
 struct ConversionOperatorMixin {};
 template <typename Self, typename To>
-struct ConversionOperatorMixin<Self, To, true> {
+struct ConversionOperatorMixin<Self, To, false, true> {
   operator To() const {
+    return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
+  }
+};
+template <typename Self, typename To>
+struct ConversionOperatorMixin<Self, To, true, true> {
+  explicit operator To() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
   }
 };
@@ -775,13 +781,26 @@ class __SYCL_EBO Swizzle
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Swizzle<VecT, Indexes...>,
                                      typename VecT::element_type,
-                                     sizeof...(Indexes) == 1>,
+                                     /* Explicit = */ false,
+                                     /* Enable = */ sizeof...(Indexes) == 1>,
       // Conversion to sycl::vec, must be available only when `NumElements > 1`
       // per the SYCL 2020 specification:
       public ConversionOperatorMixin<
           Swizzle<VecT, Indexes...>,
           vec<typename VecT::element_type, sizeof...(Indexes)>,
-          (sizeof...(Indexes) > 1)>,
+          /* Explicit = */ false, /* Enable = */ (sizeof...(Indexes) > 1)>,
+#ifdef __SYCL_DEVICE_ONLY__
+      public detail::ConversionOperatorMixin<
+          Swizzle<VecT, Indexes...>,
+          typename vec<typename VecT::element_type,
+                       sizeof...(Indexes)>::vector_t,
+          /* Explicit = */ false,
+          // if `vector_t` and `DataT` are the same, then the `operator DataT`
+          // from the above is enough.
+          !std::is_same_v<typename VecT::element_type,
+                          typename vec<typename VecT::element_type,
+                                       sizeof...(Indexes)>::vector_t>>,
+#endif
       public IncDecMixin<const Swizzle<VecT, Indexes...>,
                          typename VecT::element_type,
                          is_assignable_swizzle<VecT, Indexes...>>,
@@ -806,8 +825,16 @@ class __SYCL_EBO Swizzle
     return result;
   }
 
+#ifdef __SYCL_DEVICE_ONLY__
+public:
+  using vector_t =
+      typename vec<typename VecT::element_type, sizeof...(Indexes)>::vector_t;
+
+private:
+#endif // __SYCL_DEVICE_ONLY__
+
   // This mixin calls `convertOperatorImpl` below so has to be a friend.
-  template <typename Self, typename To, bool Enable>
+  template <typename Self, typename To, bool Explicit, bool Enable>
   friend struct ConversionOperatorMixin;
 
   template <class To> To convertOperatorImpl() const {
@@ -815,6 +842,12 @@ class __SYCL_EBO Swizzle
       return (*this)[0];
     } else if constexpr (std::is_same_v<To, ResultVec> && NumElements > 1) {
       return ResultVec{this->Vec[Indexes]...};
+#ifdef __SYCL_DEVICE_ONLY__
+    } else if constexpr (std::is_same_v<To, vector_t>) {
+    // operator ResultVec() isn't available for single-element swizzle, create
+    // sycl::vec explicitly here.
+      return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
+#endif
     } else {
       static_assert(!std::is_same_v<To, To>,
                     "Must not be instantiated like this!");
@@ -827,22 +860,10 @@ public:
   using element_type = DataT;
   using value_type = DataT;
 
-#ifdef __SYCL_DEVICE_ONLY__
-  using vector_t = typename ResultVec::vector_t;
-#endif
-
   Swizzle() = delete;
   Swizzle(const Swizzle &) = delete;
 
   explicit Swizzle(VecT &Vec) : Base(Vec) {}
-
-#ifdef __SYCL_DEVICE_ONLY__
-  operator vector_t() const {
-    // operator ResultVec() isn't available for single-element swizzle, create
-    // sycl::vec explicitly here.
-    return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
-  }
-#endif
 
   static constexpr size_t byte_size() noexcept {
     return ResultVec::byte_size();
@@ -916,10 +937,12 @@ template <typename DataT, int NumElements>
 class __SYCL_EBO vec :
     // Conversion to scalar DataT for single-element vec:
     public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
-                                           NumElements == 1>,
+                                           /* Explicit = */ false,
+                                           /* Enable = */ NumElements == 1>,
 #ifdef __SYCL_DEVICE_ONLY__
     public detail::ConversionOperatorMixin<
         vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
+        /* Explicit = */ false,
         // if `vector_t` and `DataT` are the same, then the `operator DataT`
         // from the above is enough.
         !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
@@ -965,7 +988,7 @@ public:
 private:
 #endif // __SYCL_DEVICE_ONLY__
 
-  template <typename Self, typename To, bool Enable>
+  template <typename Self, typename To, bool Explicit, bool Enable>
   friend struct detail::ConversionOperatorMixin;
 
   template <class To> To convertOperatorImpl() const {
