@@ -1,0 +1,729 @@
+= sycl_ext_oneapi_async_memory_alloc
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
+* link:../supported/sycl_ext_oneapi_default_context.asciidoc[
+  sycl_ext_oneapi_default_context]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Backend support status
+
+This extension is not yet implemented in {dpcpp}.
+
+== Overview
+
+This extension introduces an interface for allocating and freeing USM memory
+asynchronously, as well as introducing a USM memory pool from which this memory
+is allocated and freed from.
+
+The asynchornous memory allocation and free are exposed via new free functions
+taking a queue, which enqueue an asynchronous malloc or free command and return
+immediately. The functions can take a memory pool object in order to allocate
+from that memory pool specifically, however, if no memory pool object is
+provided there is a default memory pool which will be used.
+
+The memory pool introduced is a dynamic memory pool, as such no memory is
+immediately allocated on construction, instead memory is allocated by the OS
+for the pool when allocations are made and are freed back to the OS when the
+queue which enqueued the malloc and free commands is synchronized with.
+
+The immediate benefit of using the asynchornous malloc and free functions, as
+opposed to the existing synchronous malloc and free functions, is that they no
+longer block the calling thread. So applications which wish to allocate
+temporary USM memory but not carry around the pointer no longer have to
+synchronize with the execution of kernels accessing that memory and call the
+free function before continuing.
+
+A further benefit comes from the use of a memory pool for allocations, as
+malloc and free commands are asynchronous, the runtime can opportunistically
+re-use memory allocations from one kernel to another, without any intermediate
+freeing and re-allocation. This benefit can be further extended beyond queue
+synchronization by specify a threshold, which will instruct the runtime to (if
+possible) maintain a certain size of memory and not release that back to the OS
+even when the queue is synchronized with.
+
+There are also other properties which can be used when constructing a memory
+pool object to control other aspects of how the memory is allocated.
+
+== Integration with other extensions
+
+It is a priority for this extension to integrate with the
+link:../supported/sycl_ext_oneapi_graph.asciidoc[
+sycl_ext_oneapi_graph] extension. The asynchornous commands introduces in this
+extension are intended to be compatible with the SYCL Graph record and replay
+mode, however, the specifics of this will be defined in that extension.
+
+It is a priority for this extension to integrate with the
+link:../supported/sycl_ext_oneapi_bindless_images.asciidoc[
+sycl_ext_oneapi_bindless_images] extension. It is the intention that the memory
+allocations from the memory pool in this extension be used for the bindless
+images, however, this will need to be investigated further and so the details of
+this are not included in this version of the extension.
+
+== Examples
+
+There are various ways in which this extension can be used but a typical usage
+of the memory pool and the asynchronous malloc and free commands is described
+below. In this example an explicit memory pool is created and this is used to
+share memory allocated from the OS between multiple asynchornous malloc
+commands.
+
+[source,c++]
+----
+int main(int argc, char *argv[])
+{
+  queue q(property::queue::in_order);
+
+  ext::oneapi::experimental::memory_pool memPool(q.get_context(),
+    q.get_device(), usm::alloc::device);
+  
+  {
+    // memory pool allocates memory from the OS
+    void *temp = async_malloc_from_pool(q, 1024, memPool);
+
+    // memory allocation is used for first kernel
+    parallel_for(q, range{1024}, [=](id<1> idx) {
+      do_something(idx, temp);
+    });
+
+    // memory is available to be used by another allocation
+    async_free(q, temp);
+  }
+
+  {
+    // memory pool re-uses previously allocated memory
+    void *temp = async_malloc_from_pool(q, 1024, memPool);
+
+    // memory allocation is used for second kernel
+    parallel_for(q, range{1024}, [=](id<1> idx) {
+      do_something_else(idx, temp);
+    });
+
+    // memory is available to be used by another allocation
+    async_free(q, temp);
+  }
+
+  // memory pool releases memory back to the OS
+  q.wait();
+}
+----
+
+The above example does not use SYCL events, so below is the same example using
+an out-of-order SYCL queue and SYCL events to manage dependencies.
+
+[source,c++]
+----
+int main(int argc, char *argv[])
+{
+  queue q;
+
+  ext::oneapi::experimental::memory_pool memPool(q.get_context(),
+    q.get_device(), usm::alloc::device);
+  
+  {
+    void *temp = null;
+
+    // memory pool allocates memory from the OS
+    auto e1 = q.submit_with_event([&](handler &cgh) {
+      temp = async_malloc_from_pool(q, 1024, memPool);
+    });
+
+    // memory allocation is used for first kernel
+    auto e2 = q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e1);
+      parallel_for(q, range{1024}, [=](id<1> idx) {
+        do_something(idx, temp);
+      });
+    });
+
+    // memory is available to be used by another allocation
+    auto e3 = q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e2);
+      async_free(q, temp);
+    });
+  }
+
+  {
+    void *temp = null;
+
+    // memory pool re-uses previously allocated memory
+    auto e1 = q.submit_with_event([&](handler &cgh) {
+      temp = async_malloc_from_pool(q, 1024, memPool);
+    });
+
+    // memory allocation is used for second kernel
+    auto e2 = q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e1);
+      parallel_for(q, range{1024}, [=](id<1> idx) {
+        do_something_else(idx, temp);
+      });
+    });
+
+    // memory is available to be used by another allocation
+    auto e3 = q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e2);
+      async_free(q, temp);
+    });
+  }
+
+  // memory pool releases memory back to the OS
+  q.wait();
+}
+----
+
+Another example of memory pool usage is described in the example below. In this
+example rather than creating an explicit memory pool the default memory pool is
+being used instead. There is also additional queue synchronization between the
+commands enqueued which would ordinarily lead to memory being released back to
+the OS, however, the threshold for the memory pool is extended to the SYCL RT
+will maintain this memory allocation, and therefore still provide the benefit of
+re-allocating memory from the memory pool.
+
+[source,c++]
+----
+int main(int argc, char *argv[])
+{
+  queue q(property::queue::in_order);
+
+  ext::oneapi::experimental::memory_pool memPool
+    = q.get_context().ext_oneapi_get_default_memory_pool(usm::alloc::device);
+
+  memPool.set_new_threshold(1024);
+  
+  {
+    // memory pool allocates memory from the OS
+    void *temp = async_malloc_from_pool(q, 1024, memPool);
+
+    // memory allocation is used for first kernel
+    parallel_for(q, range{1024}, [=](id<1> idx) {
+      do_something(idx, temp);
+    });
+
+    // memory is available to be used by another allocation
+    async_free(q, temp);
+  }
+
+  // memory pool does not release memory back to the OS as it is still within
+  // the specified threshold
+  q.wait();
+
+  {
+    // memory pool re-uses previously allocated memory
+    void *temp = async_malloc_from_pool(q, 1024, memPool);
+
+    // memory allocation is used for second kernel
+    parallel_for(q, range{1024}, [=](id<1> idx) {
+      do_something_else(idx, temp);
+    });
+
+    // memory is available to be used by another allocation
+    async_free(q, temp);
+  }
+
+  // again memory pool does not release memory back to the OS
+  q.wait();
+}
+----
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ASYNC_MEMORY_ALLOC` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Memory pool
+
+This extension introduces the `memory_pool` class, which provides a handle to a
+memory pool owned by the SYCL runtime or a specific backend, and adheres to the
+SYCL common reference semantics.
+
+Memory pools have the following properties:
+
+* An allocation max size (in bytes) is used to manage to total amount of memory
+  which can be allocated in the memory pool. If the max size is exceeded an
+  error is triggered. The default max size is implementation-defined.
+* A deallocation threshold (in bytes) is used to determine how much memory the
+  SYCL runtime should aim to maintain in the memory pool, without releasing back
+  to the OS. The default deallocation threshold is zero.
+* No memory is immediately allocated on construction, instead memory is
+  allocated from the OS for the pool when requested via the asynchronous malloc
+  and free functions.
+* Memory is freed back to the OS when the SYCL queue which enqueued the
+  respective allocations and frees is synchronized with, i.e. when `queue::wait`
+  or `queue::wait_and_throw` is called, unless the current total memory
+  allocated to the memory pool under the deallocation threshold, in which case
+  the memory may be retained by the pool, though this can vary dependening on
+  implementation defined parameters.
+* Memory is allocated as USM memory, in one of the USM memory allocation kinds
+  enumerated in `usm::alloc`, this is specified on construction of the
+  `memory_pool` object.
+* They are associated with a specific context and one or more device(s),
+  depending on the allocation kind, this is specified on construction of the
+  `memory_pool` object.
+
+Memory pools are intended to be used for both in-order and out-of-order SYCL
+queues.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental {
+
+class memory_pool {
+
+  template <typename Properties = empty_properties_t>
+  memory_pool(context ctx, Properties props = {});
+
+  template <typename Properties = empty_properties_t>
+  memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
+
+  ~memory_pool();
+
+  context get_context() const;
+
+  std::vector<device> get_devices() const;
+
+  usm::alloc get_alloc_kind() const;
+
+  size_t get_max_size() const;
+
+  size_t get_threshold() const;
+
+  void set_new_threshold(size_t newThreshold);
+
+}; // memory_pool
+
+}  // ext::oneapi::experimental
+----
+
+[source, c++]
+----
+template <typename Properties = empty_properties_t>
+memory_pool(context ctx, Properties props = {});
+----
+
+_Effects_: Constructs a memory pool associated with `ctx` and all SYCL devices
+associated with it, with the allocation kind `usm::host` and applying any
+properties in `props`.
+
+[source, c++]
+----
+template <typename Properties = empty_properties_t>
+memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
+----
+
+_Effects_: Constructs a memory pool associated with `ctx` and `dev`, with the
+allocation kind `kind` and applying any properties in `props`.
+
+_Throws_: An exception with the `errc::invalid` error code if `kind` is
+`usm::host`.
+
+[source, c++]
+----
+~memory_pool();
+----
+
+_Effects_: If this was the last copy, signals to the SYCL runtime for the memory
+pool to be destroyed after all remaining allocations have been freed, and
+returns immediately without waiting.
+
+[source, c++]
+----
+context get_context() const;
+----
+
+_Returns_: The SYCL context associated with the memory pool.
+
+[source, c++]
+----
+std::vector get_devices() const;
+----
+
+_Returns_: The SYCL device(s) associated with the memory pool.
+
+[source, c++]
+----
+usm::alloc get_alloc_kind() const;
+----
+
+_Returns_: The memory allocation kind of the memory pool.
+
+[source, c++]
+----
+size_t get_max_size() const;
+----
+
+_Returns_: The maximum size of the memory pool.
+
+[source, c++]
+----
+size_t get_threshold() const;
+----
+
+_Returns_: The deallocation threshold of the memory pool.
+
+[source, c++]
+----
+void set_new_threshold(size_t newThreshold);
+----
+
+_Effects_: Sets the deallocation threshold of the memory pool if the value of
+`newThreshold` is larger than the current threshold.
+
+_Throws_: An exception with the `errc::invalid` error code if the value of
+`newThreshold` is lower than the current threshold.
+
+
+=== Memory pool properties
+
+A memory pool can be constructed with a number of properties which can change
+certain behaviours, these can be specified when constructing a `memory_pool`
+object.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental {
+
+struct initial_threshold_key {
+  using value_t = property_value<initial_threshold_key>;
+
+  initial_threshold_key(size_t initialThreshold);
+};
+
+struct maximum_size_key {
+  using value_t = property_value<maximum_size_key>;
+
+  initial_threshold_key(size_t maxSize);
+};
+
+struct read_only_key {
+  using value_t = property_value<read_only_key>;
+
+  read_only_key(bool readOnly);
+};
+
+
+struct zero_init_key {
+  using value_t = property_value<zero_init_key>;
+
+  read_only_key(bool zeroInit);
+};
+
+inline constexpr initial_threshold_key::value_t initial_threshold;
+inline constexpr maximum_size_key::value_t maximum_size;
+inline constexpr read_only_key::value_t read_only;
+inline constexpr zero_init_key::value_t zero_init;
+
+}  // ext::oneapi::experimental
+----
+
+|===
+|Property|Description
+
+|`initial_threshold`
+|The `initial_threshold` property specifies the initial deallocation threshold
+ value for the memory pool. If this property is not used the default value is
+ zero, and this can be increased after the memory pool is created by calling
+ `memory_pool::set_new_threshold`.
+
+|`maximum_size`
+|The `maximum_size` property specifies the maximum size of the memory pool,
+ after which any allocation will result in an exception. If the value specified
+ is larger than the implementation can support an exception with the
+ `errc::memory_allocation` error code is thrown. If this property is not used
+ the default value is implementation-defined.
+
+|`read_only`
+|The `read_only` property is a performance hint which asserts that all memory
+ allocations from the memory pool will only ever be read from, this can be used
+ by the SYCL runtime to optimize for performance.
+
+|`zero_init`
+|The `zero_init` property adds the rquirement that all memory allocated to the
+ memory as it is allocated from the OS to the memory pool will be initialised to
+ zero. Note there is no guarantee that the memory allocation be re-initialized
+ to zero when it is re-allocated from the pool, so users must re-initialize
+ memory to zero if they wish for later allocations to have this behaviour.
+
+|===
+
+
+=== Default memory pools
+
+As well as being able to construct a memory pool explicitly, this extension
+introduces a default memory pool per device for each SYCL context and device
+pair for device allocations and a default memory pool per context for host
+allocations.
+
+New member functions are added to the `context` class to retrieve the default
+memory pool as a copy of the `memory_pool` object. This can be modified and have
+those modifications reflected as it conforms to the SYCL common reference
+semantics.
+
+[source,c++]
+----
+class context {
+
+  memory_pool context::ext_oneapi_get_default_memory_pool();
+
+  memory_pool context::ext_oneapi_get_default_memory_pool(device dev);
+
+}; // context
+----
+
+[source, c++]
+----
+memory_pool context::ext_oneapi_get_default_memory_pool();
+----
+
+_Returns_: The default memory pool associated with the context for allocating
+with the allocation kind `usm::host`.
+
+[source, c++]
+----
+memory_pool context::ext_oneapi_get_default_memory_pool(device dev);
+----
+
+_Returns_: The default memory pool associated with the context and `dev` for
+allocating with the allocation kind `usm::device`.
+
+
+=== Asynchronous malloc & free
+
+This extension introduces a series of new enqueue functions for enqueueing
+asynchornous malloc and free commands which operate with the memory pools also
+introduced in this extension.
+
+All enqueue functions introduced have overloads which take a SYCL `queue` and a
+SYCL `handler`. None of enqueue functions return a SYCL `event` direction, as
+this extension is in line with the
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions] extension, so events are returned when
+calling `submit_with_event` and the `handler` overloads of these enqueue
+functions.
+
+[source,c++]
+----
+namespace ext::oneapi::experimental {
+
+void *async_malloc(queue q, size_t size);
+
+void *async_malloc(handler h, size_t size);
+
+void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
+
+void *async_malloc_from_pool(handler h, size_t size, memory_pool pool);
+
+void async_free(queue q, void *ptr);
+
+void async_free(handler h, void *ptr);
+
+}  // ext::oneapi::experimental
+----
+
+[source, c++]
+----
+void *async_malloc(queue q, size_t size);
+
+void *async_malloc(handler h, size_t size);
+
+void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
+
+void *async_malloc_from_pool(handler h, size_t size, memory_pool pool);
+----
+
+_Effects_: Enqueues a commands to `q` or the SYCL queue associated with `h`
+which will asynchornously allocate memory of size `size` in bytes, allocating
+from the memory pool `pool` if provided, otherwise allocation from the default
+memory pool associated with the SYCL context and device associated with `q` or
+`h`. Memory is first allocated from the memory pool if possible, otherwise
+memory is allocated from the OS to the memory pool to provide enough memory in
+the memory pool for the allocation.
+
+_Returns_: A pointer to the address of a memory reservation.
+
+_Throws_: An exception with the `errc::invalid` error code if `size` is zero.
+An exception with the `errc::memory_allocation` error code if the allocation
+brings the memory pool over the maximum size. This error can be thrown
+asynchornously.
+
+[_Note:_ Accessing the memory at the address of the pointer returned by
+asynchornous malloc functions before the command has completed execution is
+undefined behaviour. _{endnote}_]
+
+[source, c++]
+----
+void async_free(queue q, void *ptr);
+
+void async_free(handler h, void *ptr);
+----
+
+_Effects_: Enqueues a commands to `q` or the SYCL queue associated with `h`
+which will asynchornously free the memory allocation at the address of `ptr`.
+Memory will be freed from the memory pool to be used by other asynchronous
+malloc commands which execute later, and will not free to the OS until the SYCL
+queue associated with the asycnhronous allocation command has been synchornized
+with.
+
+_Throws_: An exception with the `errc::invalid` error code if `ptr` is not the
+address of a memory allocation allocated to a memory pool.
+
+[_Note:_ Accessing the memory at the address of `ptr`after the asynchronous free
+command has completed execution is undefined behaviour. _{endnote}_]
+
+
+=== Memory pool lifetimes
+
+The lifetime of memory allocated via a memory pool is as follows.
+
+When an asynchornous malloc command is executed it will first look to the
+memory pool to opportunistically allocate memory already available there. The
+SYCL RT may also, when possible, look at all asynchronous malloc and free
+commands and their dependencies in order to more efficiently schedule memory
+allocations. If the memory pool does not have the requirement memory available
+to allocate for the asynchronous malloc command it will then look to allocate
+from the OS to the memory pool to provide the required memory.
+
+When an asynchornous free command is executed it will free up memory in the 
+memory pool to be used for a later asynchonrous malloc command. Memory is not
+freed back to the OS at this point.
+
+When a SYCL queue which enqueued asynchronous malloc commands is synchronized
+with, i.e. when `queue::wait` oo `queue::wait_and_throw` is called, the SYCL RT\
+will check the current total memory allocated after to the memory pool against
+the memory pool's deallocation threshold. If the total memory allocated islarger
+than than the threshold then the memory will be freed back to the OS, otherwise
+it will not.
+
+[_Note:_ An implementation should maintain memory allocated to a memory pool to
+the size specified by the deallocation threshold when possible, however, an
+implementation is permitted to release this memory back to the OS if it is
+required by another memory pool or an application in another process.
+_{endnote}_]
+
+
+== Implementation notes
+
+It is expected that for L0 this extension will be implemented within the L0
+adapter, by reserving allocations for the memory pool and opportunistically
+re-using the memory allocated based on the command lists being enqueued to the
+L0 driver.
+
+It is expected that for CUDA this extension will be implemented by mapping onto
+the CUDA stream-ordered allocator feature.
+
+
+== Issues
+
+. Should we allow mixing asynchornous and synchornous memory commands?
++
+--
+*UNRESOLVED*: CUDA allows memory allocated with the asynchornous malloc command
+to be freed with the regular sycnhronous free command, should we extend this
+capability to SYCL?
+--
+
+. Should we allow freeing memory with a different queue?
++
+--
+*UNRESOLVED*: Should we allow a memory allocation allocated with an asynchronous
+malloc command from one queue to be freed by an asynchronous free command from
+another queue?
+--
+
+. How should we treat an asynchronous malloc command with a memory pool that is
+not associated with that queue?
++
+--
+*UNRESOLVED*: If an asynchornous malloc command is enqueued with a memory pool
+that is not associated with the queue that the command is enqueued from, should
+this result in an error?
+--
+
+. Should we have a default memory pool for `usm::shared`?
++
+--
+*UNRESOLVED*: Currently the proposed API means that there cannot be default
+memory pool for allocations of allocation kind `usm::shared`, and therefore a
+user must create their own explicit memory pool to do so. Is this reasonable or
+should we extend the API to include a default memory pool for allocations of
+allocation kind `usm::shared`?
+--
+
+. Should we allow setting a new threshold that is lower?
++
+--
+*UNRESOLVED*: Currently setting a new deallocation threshold is only permitted
+if it increases the size of the threshold, however, we may want to also allow
+setting a new lower threshold. This would work by by not immediately freeing any
+memory but using this lower threshold at the next synchronisation point.
+--
