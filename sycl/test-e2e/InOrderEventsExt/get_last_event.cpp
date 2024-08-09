@@ -1,3 +1,5 @@
+// https://github.com/intel/llvm/issues/14324
+// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
