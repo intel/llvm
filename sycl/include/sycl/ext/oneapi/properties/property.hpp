@@ -208,8 +208,12 @@ enum PropKind : uint32_t {
   IncludeFiles = 67,
   RegisteredKernelNames = 68,
   ClusterLaunch = 69,
+  FPGACluster = 70,
+  Balanced = 71,
+  InvocationCapacity = 72,
+  ResponseCapacity = 73,
   // PropKindSize must always be the last value.
-  PropKindSize = 70,
+  PropKindSize = 74,
 };
 
 struct property_key_base_tag {};
@@ -265,6 +269,8 @@ template <typename PropertyT> struct PropertyMetaInfo {
   static constexpr const char *name = "";
   static constexpr std::nullptr_t value = nullptr;
 };
+
+template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 

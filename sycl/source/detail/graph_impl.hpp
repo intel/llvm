@@ -115,7 +115,7 @@ public:
   /// @param Prev Predecessor to \p node being added as successor.
   ///
   /// \p Prev should be a shared_ptr to an instance of this object, but can't
-  /// use a raw \p this pointer, so the extra \Prev parameter is passed.
+  /// use a raw \p this pointer, so the extra \p Prev parameter is passed.
   void registerSuccessor(const std::shared_ptr<node_impl> &Node,
                          const std::shared_ptr<node_impl> &Prev) {
     if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
@@ -805,7 +805,7 @@ private:
 class partition {
 public:
   /// Constructor.
-  partition() : MSchedule(), MPiCommandBuffers() {}
+  partition() : MSchedule(), MCommandBuffers() {}
 
   /// List of root nodes.
   std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
@@ -813,8 +813,8 @@ public:
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
-      MPiCommandBuffers;
+  std::unordered_map<sycl::device, ur_exp_command_buffer_handle_t>
+      MCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
   /// True if the graph of this partition is a single path graph
@@ -850,7 +850,7 @@ public:
 };
 
 /// Implementation details of command_graph<modifiable>.
-class graph_impl {
+class graph_impl : public std::enable_shared_from_this<graph_impl> {
 public:
   using ReadLock = std::shared_lock<std::shared_mutex>;
   using WriteLock = std::unique_lock<std::shared_mutex>;
@@ -1194,6 +1194,11 @@ public:
   std::vector<sycl::detail::EventImplPtr>
   getExitNodesEvents(std::weak_ptr<sycl::detail::queue_impl> Queue);
 
+  /// Sets the Queue state to queue_state::recording. Adds the queue to the list
+  /// of recording queues associated with this graph.
+  /// @param[in] Queue The queue to be recorded from.
+  void beginRecording(std::shared_ptr<sycl::detail::queue_impl> Queue);
+
   /// Store the last barrier node that was submitted to the queue.
   /// @param[in] Queue The queue the barrier was recorded from.
   /// @param[in] BarrierNodeImpl The created barrier node.
@@ -1315,7 +1320,7 @@ public:
 
   /// Destructor.
   ///
-  /// Releases any PI command-buffers the object has created.
+  /// Releases any UR command-buffers the object has created.
   ~exec_graph_impl();
 
   /// Partition the graph nodes and put the partition in MPartitions.
@@ -1396,10 +1401,10 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
-  sycl::detail::pi::PiExtSyncPoint
+  /// @return UR sync point created for this node in the command-buffer.
+  ur_exp_command_buffer_sync_point_t
   enqueueNode(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-              sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+              ur_exp_command_buffer_handle_t CommandBuffer,
               std::shared_ptr<node_impl> Node);
 
   /// Enqueue a node directly to the command-buffer without going through the
@@ -1408,10 +1413,10 @@ private:
   /// @param DeviceImpl Device associated with the enqueue.
   /// @param CommandBuffer Command-buffer to add node to as a command.
   /// @param Node The node being enqueued.
-  /// @return PI sync point created for this node in the command-buffer.
-  sycl::detail::pi::PiExtSyncPoint
+  /// @return UR sync point created for this node in the command-buffer.
+  ur_exp_command_buffer_sync_point_t
   enqueueNodeDirect(sycl::context Ctx, sycl::detail::DeviceImplPtr DeviceImpl,
-                    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                    ur_exp_command_buffer_handle_t CommandBuffer,
                     std::shared_ptr<node_impl> Node);
 
   /// Iterates back through predecessors to find the real dependency.
@@ -1420,7 +1425,7 @@ private:
   /// @param[in] ReferencePartitionNum Number of the partition containing the
   /// SyncPoint for CurrentNode, otherwise we need to
   /// synchronize on the host with the completion of previous partitions.
-  void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
+  void findRealDeps(std::vector<ur_exp_command_buffer_sync_point_t> &Deps,
                     std::shared_ptr<node_impl> CurrentNode,
                     int ReferencePartitionNum);
 
@@ -1467,8 +1472,8 @@ private:
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
   std::unordered_map<std::shared_ptr<node_impl>,
-                     sycl::detail::pi::PiExtSyncPoint>
-      MPiSyncPoints;
+                     ur_exp_command_buffer_sync_point_t>
+      MSyncPoints;
   /// Map of nodes in the exec graph to the partition number to which they
   /// belong.
   std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
@@ -1488,9 +1493,9 @@ private:
   std::vector<std::shared_ptr<partition>> MPartitions;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
-  /// Map of nodes to their associated PI command handles.
+  /// Map of nodes to their associated UR command handles.
   std::unordered_map<std::shared_ptr<node_impl>,
-                     sycl::detail::pi::PiExtCommandBufferCommand>
+                     ur_exp_command_buffer_command_handle_t>
       MCommandMap;
   /// True if this graph can be updated (set with property::updatable)
   bool MIsUpdatable;

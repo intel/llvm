@@ -1225,6 +1225,26 @@ The AMDGPU backend implements the following LLVM IR intrinsics.
                                                    reduction will be performed using default iterative strategy.
                                                    Intrinsic is currently only implemented for i32.
 
+  llvm.amdgcn.permlane16                           Provides direct access to v_permlane16_b32. Performs arbitrary gather-style
+                                                   operation within a row (16 contiguous lanes) of the second input operand.
+                                                   The third and fourth inputs must be scalar values. these are combined into
+                                                   a single 64-bit value representing lane selects used to swizzle within each
+                                                   row. Currently implemented for i16, i32, float, half, bfloat, <2 x i16>,
+                                                   <2 x half>, <2 x bfloat>, i64, double, pointers, multiples of the 32-bit vectors.
+
+  llvm.amdgcn.permlanex16                          Provides direct access to v_permlanex16_b32. Performs arbitrary gather-style
+                                                   operation across two rows of the second input operand (each row is 16 contiguous
+                                                   lanes). The third and fourth inputs must be scalar values. these are combined
+                                                   into a single 64-bit value representing lane selects used to swizzle within each
+                                                   row. Currently implemented for i16, i32, float, half, bfloat, <2 x i16>, <2 x half>,
+                                                   <2 x bfloat>, i64, double, pointers, multiples of the 32-bit vectors.
+
+  llvm.amdgcn.permlane64                           Provides direct access to v_permlane64_b32. Performs a specific permutation across
+                                                   lanes of the input operand where the high half and low half of a wave64 are swapped.
+                                                   Performs no operation in wave32 mode. Currently implemented for i16, i32, float, half,
+                                                   bfloat, <2 x i16>, <2 x half>, <2 x bfloat>, i64, double, pointers, multiples of the
+                                                   32-bit vectors.
+
   llvm.amdgcn.udot2                                Provides direct access to v_dot2_u32_u16 across targets which
                                                    support such instructions. This performs unsigned dot product
                                                    with two v2i16 operands, summed with the third i32 operand. The
@@ -1373,6 +1393,84 @@ arguments.
 .. code-block:: llvm
 
   %val = load i32, ptr %in, align 4, !amdgpu.last.use !{}
+
+'``amdgpu.no.remote.memory``' Metadata
+---------------------------------------------
+
+Asserts a memory operation does not access bytes in host memory, or
+remote connected peer device memory (the address must be device
+local). This is intended for use with :ref:`atomicrmw <i_atomicrmw>`
+and other atomic instructions. This is required to emit a native
+hardware instruction for some :ref:`system scope
+<amdgpu-memory-scopes>` atomic operations on some subtargets. For most
+integer atomic operations, this is a sufficient restriction to emit a
+native atomic instruction.
+
+An :ref:`atomicrmw <i_atomicrmw>` without metadata will be treated
+conservatively as required to preserve the operation behavior in all
+cases. This will typically be used in conjunction with
+:ref:`\!amdgpu.no.fine.grained.memory<amdgpu_no_fine_grained_memory>`.
+
+
+.. code-block:: llvm
+
+  ; Indicates the atomic does not access fine-grained memory, or
+  ; remote device memory.
+  %old0 = atomicrmw sub ptr %ptr0, i32 1 acquire, !amdgpu.no.fine.grained.memory !0, !amdgpu.no.remote.memory !0
+
+  ; Indicates the atomic does not access peer device memory.
+  %old2 = atomicrmw sub ptr %ptr2, i32 1 acquire, !amdgpu.no.remote.memory !0
+
+  !0 = !{}
+
+.. _amdgpu_no_fine_grained_memory:
+
+'``amdgpu.no.fine.grained.memory``' Metadata
+-------------------------------------------------
+
+Asserts a memory access does not access bytes allocated in
+fine-grained allocated memory. This is intended for use with
+:ref:`atomicrmw <i_atomicrmw>` and other atomic instructions. This is
+required to emit a native hardware instruction for some :ref:`system
+scope <amdgpu-memory-scopes>` atomic operations on some subtargets. An
+:ref:`atomicrmw <i_atomicrmw>` without metadata will be treated
+conservatively as required to preserve the operation behavior in all
+cases. This will typically be used in conjunction with
+:ref:`\!amdgpu.no.remote.memory.access<amdgpu_no_remote_memory_access>`.
+
+.. code-block:: llvm
+
+  ; Indicates the access does not access fine-grained memory, or
+  ; remote device memory.
+  %old0 = atomicrmw sub ptr %ptr0, i32 1 acquire, !amdgpu.no.fine.grained.memory !0, !amdgpu.no.remote.memory.access !0
+
+  ; Indicates the access does not access fine-grained memory
+  %old2 = atomicrmw sub ptr %ptr2, i32 1 acquire, !amdgpu.no.fine.grained.memory !0
+
+  !0 = !{}
+
+.. _amdgpu_no_remote_memory_access:
+
+'``amdgpu.ignore.denormal.mode``' Metadata
+------------------------------------------
+
+For use with :ref:`atomicrmw <i_atomicrmw>` floating-point
+operations. Indicates the handling of denormal inputs and results is
+insignificant and may be inconsistent with the expected floating-point
+mode. This is necessary to emit a native atomic instruction on some
+targets for some address spaces where float denormals are
+unconditionally flushed. This is typically used in conjunction with
+:ref:`\!amdgpu.no.remote.memory.access<amdgpu_no_remote_memory_access>`
+and
+:ref:`\!amdgpu.no.fine.grained.memory<amdgpu_no_fine_grained_memory>`
+
+
+.. code-block:: llvm
+
+  %res0 = atomicrmw fadd ptr addrspace(1) %ptr, float %value seq_cst, align 4, !amdgpu.ignore.denormal.mode !0
+  %res1 = atomicrmw fadd ptr addrspace(1) %ptr, float %value seq_cst, align 4, !amdgpu.ignore.denormal.mode !0, !amdgpu.no.fine.grained.memory !0, !amdgpu.no.remote.memory.access !0
+
+  !0 = !{}
 
 
 LLVM IR Attributes
@@ -15846,33 +15944,6 @@ These symbols cannot identify connected components in order to automatically
 track the usage for each kernel. However, in some cases careful organization of
 the kernels and functions in the source file means there is minimal additional
 effort required to accurately calculate GPR usage.
-
-SYCL Kernel Metadata
-====================
-
-This section describes the additional metadata that is inserted for SYCL
-kernels. As SYCL is a single source programming model functions can either
-execute on a host or a device (i.e. GPU). Device kernels are akin to kernel
-entry-points in GPU program. To mark an LLVM IR function as a device kernel
-function, we make use of special LLVM metadata. The AMDGCN back-end will look
-for a named metadata node called ``amdgcn.annotations``. This named metadata
-must contain a list of metadata that describe the kernel IR. For our purposes,
-we need to declare a metadata node that assigns the `"kernel"` attribute to the
-LLVM IR function that should be emitted as a SYCL kernel function. These
-metadata nodes take the form:
-
-.. code-block:: text
-
-  !{<function ref>, metadata !"kernel", i32 1}
-
-Consider the metadata generated by global-offset pass, showing a void kernel
-function `example_kernel_with_offset` taking one argument, a pointer to 3 i32
-integers:
-
-.. code-block:: llvm
-
-  !amdgcn.annotations = !{!0}
-  !0 = !{void ([3 x i32]*)* @_ZTS14example_kernel_with_offset, !"kernel", i32 1}
 
 Additional Documentation
 ========================

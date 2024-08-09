@@ -233,14 +233,14 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_2d_usm__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__
-//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
-#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__ 0
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_external_memory_import__
+//__SYCL_ASPECT(ext_oneapi_external_memory_import, 46)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_external_memory_import__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__
-//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
-#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__ 0
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_external_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_external_semaphore_import, 48)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_external_semaphore_import__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap__
@@ -301,6 +301,11 @@
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__
 // __SYCL_ASPECT(ext_oneapi_graph, 61)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence, 62)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__
@@ -610,14 +615,14 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_2d_usm__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__
-//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
-#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__ 0
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_external_memory_import__
+//__SYCL_ASPECT(ext_oneapi_external_memory_import, 46)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_external_memory_import__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__
-//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
-#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__ 0
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_external_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_external_semaphore_import, 48)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_external_semaphore_import__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap__
@@ -678,6 +683,11 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__
 // __SYCL_ASPECT(ext_oneapi_graph, 61)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence__, 62)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__
