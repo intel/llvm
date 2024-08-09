@@ -875,7 +875,8 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
                                           convertToOpenCLType(x), LocalId);
   } else {
     // Subgroup.
-    return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup, convertToOpenCLType(x), LocalId);
+    return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup,
+                                          convertToOpenCLType(x), LocalId);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -912,7 +913,9 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_GroupNonUniformShuffleXOR(__spv::Scope::Subgroup, convertToOpenCLType(x), static_cast<uint32_t>(mask.get(0)));
+    return __spirv_GroupNonUniformShuffleXor(
+        __spv::Scope::Subgroup, convertToOpenCLType(x),
+        static_cast<uint32_t>(mask.get(0)));
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -959,7 +962,8 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_GroupNonUniformShuffleDown(__spv::Scope::Subgroup, convertToOpenCLType(x), convertToOpenCLType(x), delta);
+    return __spirv_GroupNonUniformShuffleDown(__spv::Scope::Subgroup,
+                                              convertToOpenCLType(x), delta);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -1002,7 +1006,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-     return __spirv_GroupNonUniformShuffleUp(__spv::Scope::Subgroup, convertToOpenCLType(x), convertToOpenCLType(x), delta);
+    return __spirv_GroupNonUniformShuffleUp(__spv::Scope::Subgroup,
+                                            convertToOpenCLType(x), delta);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
