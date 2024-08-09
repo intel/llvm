@@ -12,4 +12,6 @@ add_conformance_test_with_kernels_environment(exp_command_buffer
   release.cpp
   retain.cpp
   invalid_update.cpp
+  commands.cpp
+  fill.cpp
 )
