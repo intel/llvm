@@ -9,9 +9,9 @@ Scripts for running performance tests on SYCL and Unified Runtime.
 
 ## Running
 
-`$ ./main.py ~/benchmarks_workdir/ ~/llvm/build/`
+`$ ./main.py ~/benchmarks_workdir/ ~/llvm/build/ ~/ur adapter_name`
 
-This will download and build everything in `~/benchmarks_workdir/` using the compiler in `~/llvm/build/`, and then run the benchmarks. The results will be stored in `benchmark_results.md`.
+This will download and build everything in `~/benchmarks_workdir/` using the compiler in `~/llvm/build/`, UR source from `~/ur` and then run the benchmarks for `adapter_name` adapter. The results will be stored in `benchmark_results.md`.
 
 The scripts will try to reuse the files stored in `~/benchmarks_workdir/`, but the benchmarks will be rebuilt every time. To avoid that, use `-no-rebuild` option.
 
