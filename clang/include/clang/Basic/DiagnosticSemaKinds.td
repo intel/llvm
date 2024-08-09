@@ -12372,7 +12372,6 @@ def err_sycl_restrict : Error<
   "|call through a function pointer"
   "|allocate storage"
   "|use inline assembly"
-  "|call a dllimport function"
   "|call a variadic function"
   "|call an undefined function without SYCL_EXTERNAL attribute"
   "|use a const static or global variable that is neither zero-initialized "

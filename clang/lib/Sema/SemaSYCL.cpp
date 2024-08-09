@@ -598,18 +598,6 @@ public:
             << SemaSYCL::KernelCallRecursiveFunction;
       }
 
-      if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
-        // FIXME: We need check all target specified attributes for error if
-        // that function with attribute can not be called from sycl kernel.  The
-        // info is in ParsedAttr. We don't have to map from Attr to ParsedAttr
-        // currently. Erich is currently working on that in LLVM, once that is
-        // committed we need to change this".
-        if (FD->hasAttr<DLLImportAttr>()) {
-          SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << SemaSYCL::KernelCallDllimportFunction;
-          SemaSYCLRef.Diag(FD->getLocation(), diag::note_callee_decl) << FD;
-        }
-      }
       // Specifically check if the math library function corresponding to this
       // builtin is supported for SYCL
       unsigned BuiltinID = Callee->getBuiltinID();

@@ -1,13 +1,21 @@
 // Test -fsycl-allow-device-dependencies with dynamic libraries.
 
-// REQUIRES: linux
 // UNSUPPORTED: cuda || hip
 
-// RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/a.cpp -I %S/Inputs -o %T/libdevice_a.so
-// RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/b.cpp -I %S/Inputs -o %T/libdevice_b.so
-// RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/c.cpp -I %S/Inputs -o %T/libdevice_c.so
-// RUN: %clangxx -fsycl -fPIC -shared -fsycl-allow-device-dependencies %S/Inputs/d.cpp -I %S/Inputs -o %T/libdevice_d.so
-// RUN: %{build} -fsycl-allow-device-dependencies -L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -I %S/Inputs -o %t.out -Wl,-rpath=%T
+// DEFINE: %{dynamic_lib_options} = -fsycl %fPIC %shared_lib -fsycl-allow-device-dependencies -I %S/Inputs %if windows %{-DMAKE_DLL %}
+// DEFINE: %{dynamic_lib_suffix} = %if windows %{dll%} %else %{so%}
+
+// RUN: %clangxx %{dynamic_lib_options} %S/Inputs/d.cpp                                    -o %T/libdevice_d.%{dynamic_lib_suffix}
+// RUN: %clangxx %{dynamic_lib_options} %S/Inputs/c.cpp %if windows %{%T/libdevice_d.lib%} -o %T/libdevice_c.%{dynamic_lib_suffix}
+// RUN: %clangxx %{dynamic_lib_options} %S/Inputs/b.cpp %if windows %{%T/libdevice_c.lib%} -o %T/libdevice_b.%{dynamic_lib_suffix}
+// RUN: %clangxx %{dynamic_lib_options} %S/Inputs/a.cpp %if windows %{%T/libdevice_b.lib%} -o %T/libdevice_a.%{dynamic_lib_suffix}
+
+// RUN: %{build} -fsycl-allow-device-dependencies -I %S/Inputs -o %t.out                  \
+// RUN: %if windows                                                                       \
+// RUN:   %{%T/libdevice_a.lib%}                                                          \
+// RUN: %else                                                                             \
+// RUN:   %{-L%T -ldevice_a -ldevice_b -ldevice_c -ldevice_d -Wl,-rpath=%T%}
+
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
