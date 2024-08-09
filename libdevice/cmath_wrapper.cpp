@@ -189,9 +189,6 @@ float asinhf(float x) { return __devicelib_asinhf(x); }
 DEVICE_EXTERN_C_INLINE
 float atanhf(float x) { return __devicelib_atanhf(x); }
 
-DEVICE_EXTERN_C_INLINE
-long int lrintf(float x) { return static_cast<long int>(roundf(x)); }
-
 #ifdef __NVPTX__
 extern "C" SYCL_EXTERNAL float __nv_nearbyintf(float);
 DEVICE_EXTERN_C_INLINE
@@ -200,6 +197,10 @@ float nearbyintf(float x) { return __nv_nearbyintf(x); }
 extern "C" SYCL_EXTERNAL float __nv_rintf(float);
 DEVICE_EXTERN_C_INLINE
 float rintf(float x) { return __nv_rintf(x); }
+
+extern "C" SYCL_EXTERNAL float __nv_lrintf(float);
+DEVICE_EXTERN_C_INLINE
+long int lrintf(float x) { return __nv_lrintf(x); }
 #endif // __NVPTX__
 
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__
