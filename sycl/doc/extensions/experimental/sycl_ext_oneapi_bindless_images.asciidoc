@@ -1400,11 +1400,9 @@ When copying to or from image arrays, the user should copy to/from the array of
 images by calling `ext_oneapi_copy` and passing the image arrays'
 `image_mem_handle`, as outlined in <<explicit_copies>>.
 
-[NOTE]
-====
 When performing sub-region copies involving image arrays, the offset and extent
-for the layers is always the 3rd dimension of the ranges passed.
-====
+for the layers is always the 3rd dimension of the ranges passed, irregardless of
+whether the copy is performed on a 1D or 2D image array.
 
 === Reading an image array
 
