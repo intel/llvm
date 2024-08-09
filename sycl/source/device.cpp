@@ -39,7 +39,7 @@ device::device(cl_device_id DeviceId) {
   ur_device_handle_t Device;
   Plugin->call(urDeviceCreateWithNativeHandle,
                detail::ur::cast<ur_native_handle_t>(DeviceId),
-               Plugin->getUrPlatforms()[0], nullptr, &Device);
+               Plugin->getUrAdapter(), nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromUrDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
