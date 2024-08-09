@@ -605,6 +605,9 @@ static constexpr bool not_byte =
 template <typename Op, typename T>
 inline constexpr bool is_op_available = false;
 
+template <typename Lhs, typename Rhs, typename Op, int N>
+inline constexpr bool is_non_assign_binop_available = true;
+
 #define __SYCL_OP_AVAILABILITY(OP, COND)                                       \
   template <typename T> inline constexpr bool is_op_available<OP, T> = COND;
 
@@ -695,7 +698,7 @@ DELIMITER PROCESS_OP(UnaryPlus)
 // where operator's arguments don't require template paramters on the operator
 // itself. We implement all of the above with a single mixin that is
 // instantiated with different Lhs/Rhs types.
-template <typename Lhs, typename Rhs, typename Impl, typename DataT,
+template <typename Lhs, typename Rhs, typename Impl, typename DataT, int N,
           typename Op, typename = void>
 struct NonTemplateBinaryOpMixin {};
 template <typename Lhs, typename Rhs, typename DataT, typename Op,
@@ -723,10 +726,11 @@ template <typename Self, typename VecT, typename DataT, int N, typename Op,
 struct SwizzleTemplateBinaryOpAssignMixin {};
 
 #define __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                      \
-  template <typename Lhs, typename Rhs, typename Impl, typename DataT>         \
+  template <typename Lhs, typename Rhs, typename Impl, typename DataT, int N>  \
   struct NonTemplateBinaryOpMixin<                                             \
-      Lhs, Rhs, Impl, DataT, OP,                                               \
-      std::enable_if_t<is_op_available<OP, DataT>>> {                          \
+      Lhs, Rhs, Impl, DataT, N, OP,                                            \
+      std::enable_if_t<(is_non_assign_binop_available<Lhs, Rhs, OP, N> &&      \
+                        is_op_available<OP, DataT>)>> {                        \
     friend auto operator BINOP(const Lhs &lhs, const Rhs &rhs) {               \
       return Impl{}(lhs, rhs, OP{});                                           \
     }                                                                          \
@@ -852,7 +856,7 @@ struct UnaryOpMixin {};
 
 // clang-format off
 #define __SYCL_MIXIN_FOR_BINARY(OP)                                            \
-  public NonTemplateBinaryOpMixin<Lhs, Rhs, Impl, DataT, OP>
+  public NonTemplateBinaryOpMixin<Lhs, Rhs, Impl, DataT, N, OP>
 
 #define __SYCL_MIXIN_FOR_BINARY_OPASSIGN(OP)                                   \
   public NonTemplateBinaryOpAssignMixin<Lhs, Rhs, DataT, OP>
@@ -866,7 +870,7 @@ struct UnaryOpMixin {};
 #define __SYCL_MIXIN_FOR_UNARY(OP)                                             \
   public UnaryOpMixin<T, Impl, DataT, OP>
 
-template <typename Lhs, typename Rhs, typename Impl, typename DataT>
+template <typename Lhs, typename Rhs, typename Impl, typename DataT, int N>
 struct __SYCL_EBO NonTemplateBinaryOpsMixin
     : __SYCL_PROCESS_BINARY_OPS(__SYCL_MIXIN_FOR_BINARY, __SYCL_COMMA) {};
 
@@ -1058,10 +1062,10 @@ template <typename Self, typename VecT, typename DataT, int N,
           bool AllowAssignOps>
 struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, N>,
-      public NonTemplateBinaryOpsMixin<Self, DataT, SwizzleImpl, DataT>,
-      public NonTemplateBinaryOpsMixin<DataT, Self, SwizzleImpl, DataT>,
-      public NonTemplateBinaryOpsMixin<Self, vec<DataT, N>, SwizzleImpl, DataT>,
-      public NonTemplateBinaryOpsMixin<vec<DataT, N>, Self, SwizzleImpl, DataT>,
+      public NonTemplateBinaryOpsMixin<Self, DataT, SwizzleImpl, DataT, N>,
+      public NonTemplateBinaryOpsMixin<DataT, Self, SwizzleImpl, DataT, N>,
+      public NonTemplateBinaryOpsMixin<Self, vec<DataT, N>, SwizzleImpl, DataT, N>,
+      public NonTemplateBinaryOpsMixin<vec<DataT, N>, Self, SwizzleImpl, DataT, N>,
       public UnaryOpsMixin<Self, SwizzleImpl, DataT>,
       public SwizzleTemplateBinaryOpsMixin<Self, VecT, DataT, N> {};
 
@@ -1334,11 +1338,11 @@ class __SYCL_EBO vec :
     public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>, NumElements>,
     public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>,
                                              vec<DataT, NumElements>,
-                                             detail::VectorImpl, DataT>,
+                                             detail::VectorImpl, DataT, NumElements>,
     public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>, DataT,
-                                             detail::VectorImpl, DataT>,
+                                             detail::VectorImpl, DataT, NumElements>,
     public detail::NonTemplateBinaryOpsMixin<DataT, vec<DataT, NumElements>,
-                                             detail::VectorImpl, DataT>,
+                                             detail::VectorImpl, DataT, NumElements>,
     public detail::UnaryOpsMixin<vec<DataT, NumElements>, detail::VectorImpl,
                                  DataT>,
     public detail::NonTemplateBinaryOpAssignOpsMixin<
