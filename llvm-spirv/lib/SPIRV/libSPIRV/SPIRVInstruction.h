@@ -2799,6 +2799,12 @@ public:
     for (auto RC : getRequiredCapability())
       Module->addCapability(RC);
   }
+
+  void validate() const override {
+    if (OpCode == OpAtomicCompareExchangeWeak)
+      assert(this->getModule()->getSPIRVVersion() < VersionNumber::SPIRV_1_4 &&
+             "OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4");
+  }
 };
 
 class SPIRVAtomicStoreInst : public SPIRVAtomicInstBase {
