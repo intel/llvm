@@ -14,22 +14,22 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 
 class BaseIncrement {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void increment(int *Data) { *Data += 1; }
 };
 
 class IncrementBy2 : public BaseIncrement {
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 2; }
 };
 
 class IncrementBy4 : public BaseIncrement {
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 4; }
 };
 
 class IncrementBy8 : public BaseIncrement {
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 8; }
 };
 
@@ -47,7 +47,7 @@ int main() try {
 
   sycl::queue q(asyncHandler);
 
-  constexpr oneapi::properties props{oneapi::calls_indirectly<>};
+  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
     int HostData = 42;
     int Data = HostData;
