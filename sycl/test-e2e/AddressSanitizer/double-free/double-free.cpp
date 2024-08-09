@@ -30,4 +30,8 @@ int main() {
 // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}
 // CHECK-DEVICE: [[ADDR]] is located inside of Device USM region {{\[0x.*, 0x.*\)}}
 // CHECK: freed here
+// CHECH: in main {{.*double-free.cpp:}}[@LINE-33]
 // CHECK: previously allocated here
+// CHECK-HOST: in main {{.*double-free.cpp:}}[[@LINE-19]]
+// CHECK-SHARED: in main {{.*double-free.cpp:}}[[@LINE-18]]
+// CHECK-DEVICE: in main {{.*double-free.cpp:}}[[@LINE-17]]
