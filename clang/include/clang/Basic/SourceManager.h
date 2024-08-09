@@ -906,6 +906,19 @@ public:
   /// Get the file ID for the precompiled preamble if there is one.
   FileID getPreambleFileID() const { return PreambleFileID; }
 
+  ///  Get the file ID for the integration footer.
+  FileID ComputeValidFooterFileID(StringRef Footer) {
+    FileID FooterFileID;
+    llvm::Expected<FileEntryRef> ExpectedFileRef =
+        getFileManager().getFileRef(Footer);
+    if (ExpectedFileRef) {
+      FooterFileID = getOrCreateFileID(ExpectedFileRef.get(),
+                                       SrcMgr::CharacteristicKind::C_User);
+    }
+    assert(FooterFileID.isValid() && "expecting a valid footer FileID");
+    return FooterFileID;
+  }
+
   //===--------------------------------------------------------------------===//
   // Methods to create new FileID's and macro expansions.
   //===--------------------------------------------------------------------===//
