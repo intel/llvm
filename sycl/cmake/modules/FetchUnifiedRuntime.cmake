@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 76361a88a0af6502fe655144655b381260ea9706
-  # Merge: b4195cb 0db57da
+  # commit a4e2219eddf231c2a0216e69f13207e1ae9677a6
+  # Merge: 76361a88 6cd63382
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed, 31 Jul 2024 14:26:38 +0100
-  #    Merge pull request #1961 from DBDuncan/duncan/num-channels-mipmap-fix 
-  #    [Bindless][Exp] Fix urBindlessImagesImageGetInfoExp failing with mipmap images
-  set(UNIFIED_RUNTIME_TAG 76361a88a0af6502fe655144655b381260ea9706)
+  # Date:   Tue Aug 27 08:19:32 2024 +0100
+  #    Merge pull request #1951 from nrspruit/dg2_immediate_default
+  #    [L0] Enable Immediate Command List by default given Intel DG2
+  set(UNIFIED_RUNTIME_TAG a4e2219eddf231c2a0216e69f13207e1ae9677a6)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
