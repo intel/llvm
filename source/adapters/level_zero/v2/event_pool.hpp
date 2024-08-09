@@ -39,14 +39,16 @@ public:
 
   DeviceId Id() { return provider->device()->Id; };
 
-  ur_event *allocate();
-  void free(ur_event *event);
+  ur_event_handle_t_ *allocate();
+  void free(ur_event_handle_t_ *event);
+
+  event_provider *getProvider();
 
 private:
-  std::deque<ur_event> events;
-  std::vector<ur_event *> freelist;
-
   std::unique_ptr<event_provider> provider;
+
+  std::deque<ur_event_handle_t_> events;
+  std::vector<ur_event_handle_t_ *> freelist;
 };
 
 } // namespace v2
