@@ -547,7 +547,6 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
       Combined += ", ";
     Combined += *it;
   }
-  std::cerr << Combined << "\n";
   std::vector<unsigned char> Bin(Combined.begin(), Combined.end());
   Bin.push_back(0);
 
