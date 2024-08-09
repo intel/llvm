@@ -311,8 +311,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Align > 65536 || (Align & (Align - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Align > 0) {
+    if (Align > 65536 || (Align & (Align - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Context->getPlatform();
   // If indirect access tracking is enabled then lock the mutex which is
@@ -381,8 +385,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -482,8 +490,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
