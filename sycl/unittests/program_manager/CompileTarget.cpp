@@ -54,11 +54,13 @@ class SingleTaskKernel;
 class NDRangeKernel;
 class RangeKernel;
 class NoDeviceKernel;
+class JITFallbackKernel;
 
 MOCK_INTEGRATION_HEADER(SingleTaskKernel)
 MOCK_INTEGRATION_HEADER(NDRangeKernel)
 MOCK_INTEGRATION_HEADER(RangeKernel)
 MOCK_INTEGRATION_HEADER(NoDeviceKernel)
+MOCK_INTEGRATION_HEADER(JITFallbackKernel)
 
 static sycl::unittest::UrImage Img[] = {
     sycl::unittest::generateDefaultImage({"SingleTaskKernel"}),
@@ -83,6 +85,9 @@ static sycl::unittest::UrImage Img[] = {
     sycl::unittest::generateImageWithCompileTarget("RangeKernel",
                                                    "intel_gpu_skl"),
     sycl::unittest::generateImageWithCompileTarget("NoDeviceKernel",
+                                                   "intel_gpu_bdw"),
+    sycl::unittest::generateDefaultImage({"JITFallbackKernel"}),
+    sycl::unittest::generateImageWithCompileTarget("JITFallbackKernel",
                                                    "intel_gpu_bdw"),
 };
 
@@ -122,9 +127,18 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
 
 std::vector<std::string> createWithBinaryLog;
 static ur_result_t redefinedProgramCreateWithBinary(void *pParams) {
+  std::cerr << "bin\n";
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
   createWithBinaryLog.push_back(
       reinterpret_cast<const char *>(*params.ppBinary));
+  return UR_RESULT_SUCCESS;
+}
+
+std::vector<std::string> createWithILLog;
+static ur_result_t redefinedProgramCreateWithIL(void *pParams) {
+  std::cerr << "IL\n";
+  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  createWithILLog.push_back(reinterpret_cast<const char *>(*params.ppIL));
   return UR_RESULT_SUCCESS;
 }
 
@@ -189,6 +203,8 @@ protected:
   CompileTargetTest() {
     mock::getCallbacks().set_before_callback("urProgramCreateWithBinary",
                                              &redefinedProgramCreateWithBinary);
+    mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                             &redefinedProgramCreateWithIL);
     mock::getCallbacks().set_after_callback("urDeviceGetInfo",
                                             &redefinedDeviceGetInfo);
     mock::getCallbacks().set_after_callback("urDeviceGet", &redefinedDeviceGet);
@@ -200,8 +216,11 @@ protected:
 template <typename F>
 void checkUsedImageWithCompileTarget(const char *compile_target, F &&f) {
   createWithBinaryLog.clear();
+  createWithILLog.clear();
   ASSERT_EQ(createWithBinaryLog.size(), 0U) << compile_target;
+  ASSERT_EQ(createWithILLog.size(), 0U) << compile_target;
   f();
+  EXPECT_EQ(createWithILLog.size(), 0U) << compile_target;
   ASSERT_EQ(createWithBinaryLog.size(), 1U) << compile_target;
   EXPECT_EQ(createWithBinaryLog.back(), compile_target) << compile_target;
 }
@@ -275,4 +294,13 @@ TEST_F(CompileTargetTest, NoDeviceKernel) {
     ASSERT_EQ(e.what(),
               std::string("No kernel named NoDeviceKernel was found"));
   }
+}
+
+TEST_F(CompileTargetTest, JITFallbackKernel) {
+  createWithBinaryLog.clear();
+  createWithILLog.clear();
+  queue{}.single_task<JITFallbackKernel>([]() {});
+  EXPECT_EQ(createWithBinaryLog.size(), 0U);
+  ASSERT_EQ(createWithILLog.size(), 1U);
+  EXPECT_EQ(createWithILLog.back(), "JITFallbackKernel");
 }
