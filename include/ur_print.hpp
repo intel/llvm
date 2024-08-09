@@ -17357,10 +17357,10 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                                   *(params->phNativeDevice)));
 
     os << ", ";
-    os << ".hPlatform = ";
+    os << ".hAdapter = ";
 
     ur::details::printPtr(os,
-                          *(params->phPlatform));
+                          *(params->phAdapter));
 
     os << ", ";
     os << ".pProperties = ";
