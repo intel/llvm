@@ -116,7 +116,8 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
     return UR_RESULT_SUCCESS;
   }
 
-  if (*params.pphDevices && *params.pNumEntries <= std::size(MockDevices)) {
+  if (*params.pphDevices) {
+    assert(*params.pNumEntries <= std::size(MockDevices));
     for (uint32_t i = 0; i < *params.pNumEntries; ++i) {
       (*params.pphDevices)[i] = MockDevices[i];
     }
