@@ -44,7 +44,7 @@ int main() {
 
   {
     using vec_type = s::vec<char, 1>;
-    using res_type = s::vec<signed char, 1>;
+    using res_type = s::vec<int8_t, 1>;
     res_type res;
     {
       s::buffer<res_type, 1> Buf(&res, s::range<1>(1));
@@ -65,7 +65,7 @@ int main() {
 
   {
     using vec_type = s::vec<char, 1>;
-    using res_type = s::vec<signed char, 1>;
+    using res_type = s::vec<int8_t, 1>;
     res_type res;
     {
       s::buffer<res_type, 1> Buf(&res, s::range<1>(1));

@@ -244,14 +244,14 @@ __SYCL_OP_AVAILABILITY(std::greater_equal<void> , !detail::is_byte_v<T>)
 __SYCL_OP_AVAILABILITY(std::logical_and<void>   , !detail::is_byte_v<T>)
 __SYCL_OP_AVAILABILITY(std::logical_or<void>    , !detail::is_byte_v<T>)
 
-__SYCL_OP_AVAILABILITY(ShiftLeft     , !detail::is_byte_v<T> && not_fp<T>)
-__SYCL_OP_AVAILABILITY(ShiftRight    , !detail::is_byte_v<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftLeft                , !detail::is_byte_v<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftRight               , !detail::is_byte_v<T> && not_fp<T>)
 
 // Unary
-__SYCL_OP_AVAILABILITY(std::negate<void>       , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::logical_not<void>  , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::bit_not<void>      , not_fp<T>)
-__SYCL_OP_AVAILABILITY(UnaryPlus               , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::negate<void>        , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::logical_not<void>   , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::bit_not<void>       , not_fp<T>)
+__SYCL_OP_AVAILABILITY(UnaryPlus                , !detail::is_byte_v<T>)
 // clang-format on
 
 #undef __SYCL_OP_AVAILABILITY
