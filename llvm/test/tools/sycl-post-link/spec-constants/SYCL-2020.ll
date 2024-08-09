@@ -63,8 +63,8 @@
 @__builtin_unique_stable_name.id_marray3 = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_marray3EE\00", align 1
 @__builtin_unique_stable_name.id_marray4 = private unnamed_addr constant [39 x i8] c"_ZTS14name_generatorIL_Z10id_marray4EE\00", align 1
 
-; CHECK-LABEL: define dso_local void @_Z4testv
-define dso_local void @_Z4testv() local_unnamed_addr #0 {
+; CHECK-LABEL: define spir_kernel void @_Z4testv
+define spir_kernel void @_Z4testv() local_unnamed_addr #0 {
 entry:
   %call.i = tail call fast half @_Z37__sycl_getScalar2020SpecConstantValueIDhET_PKcPvS3_(ptr getelementptr inbounds ([35 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_halfE17specialization_idIdEdET1_v, i64 0, i64 0), ptr @id_half, ptr null)
 ; CHECK-DEF: %[[GEP:[0-9a-z]+]] = getelementptr i8, ptr null, i32 0
@@ -89,8 +89,8 @@ entry:
   ret void
 }
 
-; CHECK-LABEL: define dso_local void @_Z5test2v
-define dso_local void @_Z5test2v() local_unnamed_addr #0 {
+; CHECK-LABEL: define spir_kernel void @_Z5test2v
+define spir_kernel void @_Z5test2v() local_unnamed_addr #0 {
 entry:
   %tmp = alloca %struct.ComposConst, align 8
   %tmp1 = alloca %struct.ComposConst2, align 8
@@ -145,7 +145,8 @@ entry:
   ret void
 }
 
-define void @test_zeroinit() {
+; CHECK-LABEL: define spir_kernel void @test_zeroinit
+define spir_kernel void @test_zeroinit() {
   %tmp = alloca %struct.ComposConst3, align 4
 ; CHECK-DEF: %[[GEP3:[0-9a-z]+]] = getelementptr i8, ptr null, i32 56
 ; CHECK-DEF: %[[BITCAST3:[0-9a-z]+]] = bitcast ptr %[[GEP3]] to ptr
@@ -161,7 +162,8 @@ define void @test_zeroinit() {
   ret void
 }
 
-define void @test3() {
+; CHECK-LABEL: define spir_kernel void @test3
+define spir_kernel void @test3() {
   %tmp = alloca %struct.VectorConst, align 8
   %tmp1 = alloca %struct.MArrayConst, align 8
   %tmp2 = alloca %struct.MArrayConst2, align 8

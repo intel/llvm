@@ -74,18 +74,18 @@ define linkonce_odr dso_local x86_regcallcc <16 x float> @SIMD_CALL_HELPER(ptr n
 
 ;---- Check that original SIMD_CALL_HELPER retained, because there are
 ;---- invoke_simd calls where simd target can't be inferred.
-; CHECK: define {{.*}} <16 x float> @SIMD_CALL_HELPER(ptr {{.*}}%{{.*}}, <16 x float> %{{.*}}) #[[HELPER_ATTRS:[0-9]+]] !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1
+; CHECK: define weak_odr {{.*}} <16 x float> @SIMD_CALL_HELPER(ptr {{.*}}%{{.*}}, <16 x float> %{{.*}}) #[[HELPER_ATTRS:[0-9]+]] !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1
 ; CHECK:   %{{.*}} = call x86_regcallcc <16 x float> %{{.*}}(<16 x float> %{{.*}})
 ; CHECK: }
 
 ;---- Optimized version for the SIMD_CALLEE call
-; CHECK: define {{.*}} <16 x float> @[[NAME1]](<16 x float> %{{.*}}) #[[HELPER_ATTRS]]
+; CHECK: define weak_odr {{.*}} <16 x float> @[[NAME1]](<16 x float> %{{.*}}) #[[HELPER_ATTRS1:[0-9]+]]
 ; Verify that indirect call is converted to direct
 ; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @SIMD_CALLEE(<16 x float> %{{.*}})
 ; CHECK: }
 
 ;---- Optimized version for the ANOTHER_SIMD_CALLEE call
-; CHECK: define {{.*}} <16 x float> @[[NAME2]](<16 x float> %{{.*}}) #[[HELPER_ATTRS]]
+; CHECK: define weak_odr {{.*}} <16 x float> @[[NAME2]](<16 x float> %{{.*}}) #[[HELPER_ATTRS1]]
 ; Verify that indirect call is converted to direct
 ; CHECK: %{{.*}} = call x86_regcallcc <16 x float> @ANOTHER_SIMD_CALLEE(<16 x float> %{{.*}})
 ; CHECK: }
@@ -95,6 +95,10 @@ declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_
 ; Check that VCStackCall attribute is added to the invoke_simd target functions:
 attributes #0 = { "sycl-module-id"="invoke_simd.cpp" }
 ; CHECK: attributes #[[HELPER_ATTRS]] = { "VCStackCall" "sycl-module-id"="invoke_simd.cpp" }
+; If we transformed the helper, then it should receive "referenced-indirectly"
+; attribute so it is not dropped after Internalize + DCE in post-split module
+; cleanup
+; CHECK: attributes #[[HELPER_ATTRS1]] = { "VCStackCall" "referenced-indirectly" "sycl-module-id"="invoke_simd.cpp" }
 
 !0 = !{}
 !1 = !{i32 16}
