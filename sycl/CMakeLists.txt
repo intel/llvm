@@ -168,11 +168,9 @@ option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major rel
 # Needed for feature_test.hpp
 if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_BACKEND_CUDA ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_CUDA ON)
 endif()
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_BACKEND_HIP ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_HIP ON)
 endif()
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
@@ -183,6 +181,11 @@ endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
+
+# Set backend macros based on whether we can compile kernels for the target
+# rather than if we're building the runtime adapter.
+set(SYCL_EXT_ONEAPI_BACKEND_CUDA ${LLVM_HAS_NVPTX_TARGET})
+set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
