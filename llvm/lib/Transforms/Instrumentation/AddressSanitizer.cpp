@@ -1284,9 +1284,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     // FIXME: We don't have a way to check if the kernel has been extended
     // on Unified Runtime, so we always append a new argument (_AsanLaunchInfo).
     // At the same time, we always extend spir_kernels at here as well.
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       SpirFixupFuncs.emplace_back(&F);
-    }
   }
 
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
@@ -1398,7 +1397,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
     // Replace old Func to new Func in metadata
     ValueAsMetadata::handleRAUW(F, NewF);
-    F->removeFromParent();
+    F->eraseFromParent();
   }
 }
 
@@ -1430,16 +1429,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
     ExtendSpirKernelArgs(M, FAM);
-
-    for (Function &F : M)
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-        // support sanitizer for it
-        F.removeFnAttr(Attribute::SanitizeAddress);
-      }
-  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -3395,6 +3386,10 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
+      return false;
+    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    if (F.hasMetadata("sycl_explicit_simd"))
       return false;
   }
 

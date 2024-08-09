@@ -93,10 +93,6 @@ bool isMustTailCalleeAnalyzable(const CallBase &CB) {
   return CB.getCalledFunction() && !CB.getCalledFunction()->isDeclaration();
 }
 
-bool isModuleUsingAsan(const Module &M) {
-  return M.getGlobalVariable("__AsanLaunchInfo") != nullptr;
-}
-
 } // end anonymous namespace
 
 char DAE::ID = 0;
@@ -544,10 +540,10 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
     return;
   }
 
-  // Don't touch spir_kernels in sanitized kernel. The "__asan_launch" argument
-  // needs to be present at all times, even if it's not used.
+  // Don't touch sanitized functions. The "__asan_launch" argument needs to be
+  // present at all times, even if it's not used.
   if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
-      isModuleUsingAsan(*F.getParent())) {
+      F.hasFnAttribute(Attribute::SanitizeAddress)) {
     markLive(F);
     return;
   }
