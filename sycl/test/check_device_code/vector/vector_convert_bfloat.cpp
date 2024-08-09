@@ -62,7 +62,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRZ(vec<bfloat16, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestBFtointDeviceRZRN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.172") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META18:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.173") align 16 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META18:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META19:![0-9]+]])
 // CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x i16>, ptr addrspace(4) [[INP]], align 8, !noalias [[META19]]
@@ -72,7 +72,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRZ(vec<bfloat16, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i32> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EE7CONVERTIILNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EE7CONVERTIILNS0_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i16> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef i32 @__imf_bfloat162int_rz(i16 noundef zeroext [[VECEXT_I_I_I]]) #[[ATTR4]], !noalias [[META19]]
@@ -82,7 +82,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRZ(vec<bfloat16, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_VECBLEND_I_I_I]] = shufflevector <4 x i32> [[RETVAL1_SROA_0_0_VEC_EXPAND_I_I_I]], <4 x i32> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i32> <i32 0, i32 1, i32 2, i32 7>
 // CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i32 [[I_0_I_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP22:![0-9]+]]
-// CHECK:       _ZNK4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EE7convertIiLNS_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
+// CHECK:       _ZNK4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EE7convertIiLNS0_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
 // CHECK-NEXT:    [[EXTRACTVEC4_I:%.*]] = shufflevector <4 x i32> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i32> [[EXTRACTVEC4_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META19]]
 // CHECK-NEXT:    ret void
@@ -92,7 +92,7 @@ SYCL_EXTERNAL auto TestBFtointDeviceRZ(vec<bfloat16, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z20TestBFtointDeviceRNERN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.264") align 4 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 2 dereferenceable(2) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.266") align 4 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 2 dereferenceable(2) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META24:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META25:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr addrspace(4) [[INP]], align 2, !tbaa [[TBAA11]], !noalias [[META25]]
@@ -140,7 +140,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRNE(vec<float, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIFLI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIFLI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS0_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x float> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @__imf_float2bfloat16_rz(float noundef [[VECEXT_I_I_I]]) #[[ATTR4]], !noalias [[META33]]
@@ -150,7 +150,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRNE(vec<float, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_VECBLEND_I_I_I]] = shufflevector <4 x i16> [[RETVAL1_SROA_0_0_VEC_EXPAND_I_I_I]], <4 x i16> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i32> <i32 0, i32 1, i32 2, i32 7>
 // CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i32 [[I_0_I_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP36:![0-9]+]]
-// CHECK:       _ZNK4sycl3_V13vecIfLi3EE7convertINS0_3ext6oneapi8bfloat16ELNS_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
+// CHECK:       _ZNK4sycl3_V13vecIfLi3EE7convertINS0_3ext6oneapi8bfloat16ELNS0_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
 // CHECK-NEXT:    [[EXTRACTVEC4_I:%.*]] = shufflevector <4 x i16> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC4_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META33]]
 // CHECK-NEXT:    ret void
@@ -170,7 +170,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRZ(vec<float, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIILI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIILI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS0_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i32> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @__imf_int2bfloat16_rz(i32 noundef [[VECEXT_I_I_I]]) #[[ATTR4]], !noalias [[META38]]
@@ -180,7 +180,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRZ(vec<float, 3> &inp) {
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_VECBLEND_I_I_I]] = shufflevector <4 x i16> [[RETVAL1_SROA_0_0_VEC_EXPAND_I_I_I]], <4 x i16> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i32> <i32 0, i32 1, i32 2, i32 7>
 // CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i32 [[I_0_I_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP41:![0-9]+]]
-// CHECK:       _ZNK4sycl3_V13vecIiLi3EE7convertINS0_3ext6oneapi8bfloat16ELNS_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
+// CHECK:       _ZNK4sycl3_V13vecIiLi3EE7convertINS0_3ext6oneapi8bfloat16ELNS0_13rounding_modeE2EEENS1_IT_Li3EEEv.exit:
 // CHECK-NEXT:    [[EXTRACTVEC4_I:%.*]] = shufflevector <4 x i16> [[RETVAL1_SROA_0_0_I_I_I]], <4 x i16> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
 // CHECK-NEXT:    store <4 x i16> [[EXTRACTVEC4_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META38]]
 // CHECK-NEXT:    ret void
@@ -190,7 +190,7 @@ SYCL_EXTERNAL auto TestInttoBFDeviceRZ(vec<int, 3> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestLLtoBFDeviceRTPRN4sycl3_V13vecIxLi1EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.356") align 2 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META42:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.358") align 2 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 8 dereferenceable(8) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META42:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META43:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr addrspace(4) [[INP]], align 8, !tbaa [[TBAA46:![0-9]+]], !noalias [[META43]]
@@ -203,7 +203,7 @@ SYCL_EXTERNAL auto TestLLtoBFDeviceRTP(vec<long long, 1> &inp) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z22TestShorttoBFDeviceRTNRN4sycl3_V13vecIsLi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.540") align 4 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 4 dereferenceable(4) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.547") align 4 [[AGG_RESULT:%.*]], ptr addrspace(4) nocapture noundef readonly align 4 dereferenceable(4) [[INP:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META48:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META49:![0-9]+]])
 // CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i16>, ptr addrspace(4) [[INP]], align 4, !tbaa [[TBAA11]], !noalias [[META49]]
@@ -212,14 +212,14 @@ SYCL_EXTERNAL auto TestLLtoBFDeviceRTP(vec<long long, 1> &inp) {
 // CHECK-NEXT:    [[RETVAL1_0_I_I_I:%.*]] = phi <2 x i16> [ undef, [[ENTRY:%.*]] ], [ [[VECINS_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECISLI2EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE4EEENS1_IT_LI2EEEV_EXIT:%.*]]
+// CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECISLI2EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS0_13ROUNDING_MODEE4EEENS1_IT_LI2EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <2 x i16> [[TMP0]], i32 [[I_0_I_I_I]]
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef zeroext i16 @__imf_short2bfloat16_rd(i16 noundef signext [[VECEXT_I_I_I]]) #[[ATTR4]], !noalias [[META49]]
 // CHECK-NEXT:    [[VECINS_I_I_I]] = insertelement <2 x i16> [[RETVAL1_0_I_I_I]], i16 [[CALL_I_I_I_I]], i32 [[I_0_I_I_I]]
 // CHECK-NEXT:    [[INC_I_I_I]] = add nuw nsw i32 [[I_0_I_I_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I_I_I]], !llvm.loop [[LOOP52:![0-9]+]]
-// CHECK:       _ZNK4sycl3_V13vecIsLi2EE7convertINS0_3ext6oneapi8bfloat16ELNS_13rounding_modeE4EEENS1_IT_Li2EEEv.exit:
+// CHECK:       _ZNK4sycl3_V13vecIsLi2EE7convertINS0_3ext6oneapi8bfloat16ELNS0_13rounding_modeE4EEENS1_IT_Li2EEEv.exit:
 // CHECK-NEXT:    store <2 x i16> [[RETVAL1_0_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META49]]
 // CHECK-NEXT:    ret void
 //
