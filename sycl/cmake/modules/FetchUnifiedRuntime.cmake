@@ -40,7 +40,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,13 +116,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
-  # Merge: b7b0c8b3 f772f907
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Jul 29 09:11:29 2024 +0200
-  #     Merge pull request #1905 from igchor/umf_hwloc_disable
-  #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG a985a81dc9ba8adfcc8b54e35ad287e97766fb3e)
+  # commit 83f7ad9551ce0134931b44804b5a254ae2e93068
+  # Merge: ab9baf57 8fb6824d
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Thu Aug 8 11:11:13 2024 +0100
+  #     Merge pull request #1860 from PietroGhg/pietro/fill
+  #     [NATIVECPU] Fix pointer arithmetic in USMfill
+  set(UNIFIED_RUNTIME_TAG 83f7ad9551ce0134931b44804b5a254ae2e93068)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

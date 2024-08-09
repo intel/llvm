@@ -77,66 +77,14 @@ add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-combined-triples)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
-  DEPENDS ${SYCL_TEST_DEPS}
-  ${SYCL_TEST_EXCLUDE}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
 add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_LIB_DUMPS_ONLY=True"
-  DEPENDS sycl-runtime-libraries llvm-readobj
+  DEPENDS FileCheck sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
 
-if(SYCL_BUILD_BACKEND_CUDA)
-  add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
-    DEPENDS ${SYCL_TEST_DEPS}
-    ${SYCL_TEST_EXCLUDE}
-    EXCLUDE_FROM_CHECK_ALL
-  )
-
-  add_custom_target(check-sycl-cuda)
-  add_dependencies(check-sycl-cuda check-sycl-ptx)
-endif()
-
-if(SYCL_BUILD_BACKEND_HIP)
-  add_custom_target(check-sycl-hip)
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    add_lit_testsuite(check-sycl-hip-ptx "Running device-agnostic SYCL regression tests for HIP NVidia PTX"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
-      DEPENDS ${SYCL_TEST_DEPS}
-      ${SYCL_TEST_EXCLUDE}
-      EXCLUDE_FROM_CHECK_ALL
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-ptx)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_lit_testsuite(check-sycl-hip-gcn "Running device-agnostic SYCL regression tests for HIP AMDGCN"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa"
-      DEPENDS ${SYCL_TEST_DEPS}
-      ${SYCL_TEST_EXCLUDE}
-      EXCLUDE_FROM_CHECK_ALL
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-gcn)
-  else()
-    message(FATAL_ERROR "SYCL_BUILD_PI_HIP_PLATFORM must be set to either 'AMD' or 'NVIDIA' (set to: '${SYCL_BUILD_PI_HIP_PLATFORM}')")
-  endif()
-endif()
-
-if(SYCL_ENABLE_KERNEL_FUSION)
-  add_dependencies(check-sycl check-sycl-fusion)
-endif(SYCL_ENABLE_KERNEL_FUSION)
+if(SYCL_ENABLE_EXTENSION_JIT)
+  add_dependencies(check-sycl check-sycl-jit)
+endif(SYCL_ENABLE_EXTENSION_JIT)

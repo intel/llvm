@@ -7,9 +7,6 @@
 // RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %if cpu %{ env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s %}
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14764
-// UNSUPPORTED: windows, linux
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
