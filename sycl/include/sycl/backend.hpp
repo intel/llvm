@@ -96,7 +96,7 @@ struct BufferInterop {
   GetNativeObjs(const std::vector<ur_native_handle_t> &Handle) {
     ReturnType ReturnValue = 0;
     if (Handle.size()) {
-      ReturnValue = detail::ur::cast<ReturnType>(Handle[0]);
+      ReturnValue = (ReturnType)(Handle[0]);
     }
     return ReturnValue;
   }
