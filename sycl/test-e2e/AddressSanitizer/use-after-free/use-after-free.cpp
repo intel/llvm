@@ -21,7 +21,9 @@ int main() {
   // CHECK:   #0 {{.*}} {{.*use-after-free.cpp:}}[[@LINE-5]]
   // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
   // CHECK: allocated here:
+  // CHECK: in main {{.*use-after-free.cpp:}}[[@LINE-14]]
   // CHECK: freed here:
+  // CHECK: in main {{.*use-after-free.cpp:}}[[@LINE-15]]
 
   return 0;
 }
