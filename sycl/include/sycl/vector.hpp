@@ -26,30 +26,398 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif
 
-#include <sycl/access/access.hpp>              // for decorated, address_space
-#include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
-#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/memcpy.hpp>              // for memcpy
+#include <algorithm>
+#include <array>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <iterator>
+#include <ostream>
+#include <type_traits>
+#include <utility>
+
+#ifdef __SYCL_VEC_STANDALONE
+#define __SYCL_EBO
+#define __SYCL2020_DEPRECATED(...)
+
+namespace sycl {
+inline namespace _V1 {
+namespace access {
+enum class address_space { global_space };
+enum class decorated { yes, no };
+enum class placeholder;
+enum class mode;
+enum class target;
+} // namespace access
+
+namespace detail {
+template <access::target accessTarget> struct TargetToAS {
+  constexpr static access::address_space AS =
+      access::address_space::global_space;
+};
+} // namespace detail
+
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor;
+
+template <typename ElementType, access::address_space Space,
+          access::decorated DecorateAddress>
+class multi_ptr;
+
+template <typename To, typename From>
+std::enable_if_t<sizeof(To) == sizeof(From) &&
+                     std::is_trivially_copyable<From>::value &&
+                     std::is_trivially_copyable<To>::value,
+                 To>
+bit_cast(const From &from) noexcept {
+  return __builtin_bit_cast(To, from);
+}
+template <typename DataT, int NumElements> class __SYCL_EBO vec;
+
+namespace detail::half_impl {
+class half;
+#ifdef __SYCL_DEVICE_ONLY__
+using StorageT = _Float16;
+using BIsRepresentationT = _Float16;
+using VecElemT = _Float16;
+#else  // SYCL_DEVICE_ONLY
+using StorageT = uint16_t;
+// No need to extract underlying data type for built-in functions operating on
+// host
+using BIsRepresentationT = half;
+using VecElemT = half;
+#endif // SYCL_DEVICE_ONLY
+} // namespace detail::half_impl
+using half = detail::half_impl::half;
+
+namespace ext::oneapi {
+class bfloat16;
+namespace detail {
+using Bfloat16StorageT = uint16_t;
+}
+} // namespace ext::oneapi
+
+namespace detail {
+template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
+
+template <typename> struct is_vec : std::false_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
+
+template <typename> struct is_swizzle : std::false_type {};
+template <typename VecT, int... Indexes>
+struct is_swizzle<Swizzle<VecT, Indexes...>> : std::true_type {};
+
+template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
+
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
+
+template <typename T, typename = void>
+struct is_ext_vector : std::false_type {};
+
+template <typename T>
+struct is_ext_vector<
+    T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
+
+template <typename T, typename = void> struct get_elem_type {
+  using type = T;
+};
+template <typename T>
+struct get_elem_type<T, std::enable_if_t<is_vec_or_swizzle_v<T>>> {
+  using type = typename T::element_type;
+};
+template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
+
+template <typename T>
+using select_cl_scalar_integral_signed_t = std::conditional_t<
+    sizeof(T) == 1, int8_t,
+    std::conditional_t<sizeof(T) == 2, int16_t,
+                       std::conditional_t<sizeof(T) == 4, int32_t, int64_t>>>;
+
+template <typename T>
+using select_cl_scalar_integral_unsigned_t = std::conditional_t<
+    sizeof(T) == 1, uint8_t,
+    std::conditional_t<sizeof(T) == 2, uint16_t,
+                       std::conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
+
+// Example usage:
+//   using mapped = map_type<type_to_map, from0, /*->*/ to0,
+//                                        from1, /*->*/ to1,
+//                                        ...>
+template <typename...> struct map_type {
+  using type = void;
+};
+
+template <typename T, typename From, typename To, typename... Rest>
+struct map_type<T, From, To, Rest...> {
+  using type = std::conditional_t<std::is_same_v<From, T>, To,
+                                  typename map_type<T, Rest...>::type>;
+};
+
+template <typename T> auto convertToOpenCLType(T &&x) {
+  using no_ref = std::remove_reference_t<T>;
+  if constexpr (is_vec_v<no_ref>) {
+    using ElemTy = typename no_ref::element_type;
+    // sycl::half may convert to _Float16, and we would try to instantiate
+    // vec class with _Float16 DataType, which is not expected there. As
+    // such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
+                                               decltype(convertToOpenCLType(
+                                                   std::declval<ElemTy>()))>,
+                            no_ref::size()>;
+#ifdef __SYCL_DEVICE_ONLY__
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+#else
+    return x.template as<MatchingVec>();
+#endif
+  } else if constexpr (is_vec_v<no_ref>) {
+    using ElemTy = typename no_ref::element_type;
+    // sycl::half may convert to _Float16, and we would try to instantiate
+    // vec class with _Float16 DataType, which is not expected there. As
+    // such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
+                                               decltype(convertToOpenCLType(
+                                                   std::declval<ElemTy>()))>,
+                            no_ref::size()>;
+#ifdef __SYCL_DEVICE_ONLY__
+    return sycl::bit_cast<typename MatchingVec::vector_t>(x);
+#else
+    return x.template as<MatchingVec>();
+#endif
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+  } else if constexpr (std::is_same_v<no_ref, std::byte>) {
+    return static_cast<uint8_t>(x);
+#endif
+  } else if constexpr (std::is_integral_v<no_ref>) {
+    using OpenCLType =
+        std::conditional_t<std::is_signed_v<no_ref>,
+                           select_cl_scalar_integral_signed_t<no_ref>,
+                           select_cl_scalar_integral_unsigned_t<no_ref>>;
+    static_assert(sizeof(OpenCLType) == sizeof(T));
+    return static_cast<OpenCLType>(x);
+  } else if constexpr (std::is_same_v<no_ref, half>) {
+    // Make it a dependent type.
+    using OpenCLType =
+        std::conditional_t<false, T,
+                           sycl::detail::half_impl::BIsRepresentationT>;
+    static_assert(std::is_same_v<OpenCLType,
+                                 sycl::detail::half_impl::BIsRepresentationT>);
+    static_assert(sizeof(OpenCLType) == sizeof(T));
+    return static_cast<OpenCLType>(x);
+  } else if constexpr (std::is_same_v<ext::oneapi::bfloat16, no_ref>) {
+    // On host, don't interpret BF16 as uint16.
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    return sycl::bit_cast<OpenCLType>(x);
+#else
+    return std::forward<T>(x);
+#endif
+  } else if constexpr (std::is_floating_point_v<no_ref>) {
+    static_assert(std::is_same_v<no_ref, float> ||
+                      std::is_same_v<no_ref, double>,
+                  "Other FP types are not expected/supported (yet?)");
+    return std::forward<T>(x);
+  } else {
+    static_assert(std::is_same_v<T, void>, "Something is wrong");
+    return std::forward<T>(x);
+  }
+}
+
+template <typename T>
+using ConvertToOpenCLType_t = decltype(convertToOpenCLType(std::declval<T>()));
+
+template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
+  if constexpr (std::is_same_v<To, bool> &&
+                std::is_same_v<std::remove_reference_t<From>, bool>) {
+    // FIXME: Something seems to be wrong elsewhere...
+    return x;
+  } else {
+    using OpenCLType = decltype(convertToOpenCLType(std::declval<To>()));
+    static_assert(std::is_same_v<std::remove_reference_t<From>, OpenCLType>);
+    static_assert(sizeof(OpenCLType) == sizeof(To));
+    using To_noref = std::remove_reference_t<To>;
+    using From_noref = std::remove_reference_t<From>;
+    if constexpr (is_vec_v<To_noref> && is_vec_v<From_noref>)
+      return x.template as<To_noref>();
+    else if constexpr (is_vec_v<To_noref> && is_ext_vector_v<From_noref>)
+      return To_noref{bit_cast<typename To_noref::vector_t>(x)};
+    else
+      return static_cast<To>(x);
+  }
+}
+
+// Helper function for concatenating two std::array.
+template <typename T, std::size_t... Is1, std::size_t... Is2>
+constexpr std::array<T, sizeof...(Is1) + sizeof...(Is2)>
+ConcatArrays(const std::array<T, sizeof...(Is1)> &A1,
+             const std::array<T, sizeof...(Is2)> &A2,
+             std::index_sequence<Is1...>, std::index_sequence<Is2...>) {
+  return {A1[Is1]..., A2[Is2]...};
+}
+template <typename T, std::size_t N1, std::size_t N2>
+constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
+                                              const std::array<T, N2> &A2) {
+  return ConcatArrays(A1, A2, std::make_index_sequence<N1>(),
+                      std::make_index_sequence<N2>());
+}
+
+// Utility for creating an std::array from the results of flattening the
+// arguments using a flattening functor.
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename... ArgTN>
+struct ArrayCreator;
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename ArgT, typename... ArgTN>
+struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
+  static constexpr auto Create(const ArgT &Arg, const ArgTN &...Args) {
+    auto ImmArray = FlattenF<DataT, ArgT>()(Arg);
+    // Due to a bug in MSVC narrowing size_t to a bool in an if constexpr causes
+    // warnings. To avoid this we add the comparison to 0.
+    if constexpr (sizeof...(Args) > 0)
+      return ConcatArrays(
+          ImmArray, ArrayCreator<DataT, FlattenF, ArgTN...>::Create(Args...));
+    else
+      return ImmArray;
+  }
+};
+template <typename DataT, template <typename, typename> typename FlattenF>
+struct ArrayCreator<DataT, FlattenF> {
+  static constexpr auto Create() { return std::array<DataT, 0>{}; }
+};
+
+// Helper function for creating an arbitrary sized array with the same value
+// repeating.
+template <typename T, size_t... Is>
+static constexpr std::array<T, sizeof...(Is)>
+RepeatValueHelper(const T &Arg, std::index_sequence<Is...>) {
+  auto ReturnArg = [&](size_t) { return Arg; };
+  return {ReturnArg(Is)...};
+}
+template <size_t N, typename T>
+static constexpr std::array<T, N> RepeatValue(const T &Arg) {
+  return RepeatValueHelper(Arg, std::make_index_sequence<N>());
+}
+
+#define __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES                                      \
+  /* __swizzled_vec__ XYZW_ACCESS() const; */                                  \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N <= 4, x, 0)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2 || N == 3 || N == 4, y, 1)                \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3 || N == 4, z, 2)                          \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, w, 3)                                    \
+                                                                               \
+  /* __swizzled_vec__ RGBA_ACCESS() const; */                                  \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, r, 0)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, g, 1)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, b, 2)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, a, 3)                                    \
+                                                                               \
+  /* __swizzled_vec__ INDEX_ACCESS() const; */                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 0, s0, 0)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 1, s1, 1)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 2, s2, 2)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 2, s3, 3)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s4, 4)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s5, 5)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s6, 6)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s7, 7)                                    \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, s8, 8)                                  \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, s9, 9)                                  \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sA, 10)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sB, 11)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sC, 12)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sD, 13)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sE, 14)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sF, 15)                                 \
+                                                                               \
+  /* __swizzled_vec__ lo()/hi() const; */                                      \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2, lo, 0)                                   \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3, lo, 0, 1)                                \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, lo, 0, 1)                                \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 8, lo, 0, 1, 2, 3)                          \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, lo, 0, 1, 2, 3, 4, 5, 6, 7)             \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2, hi, 1)                                   \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3, hi, 2, 3)                                \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, hi, 2, 3)                                \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 8, hi, 4, 5, 6, 7)                          \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, hi, 8, 9, 10, 11, 12, 13, 14, 15)       \
+  /* __swizzled_vec__ odd()/even() const; */                                   \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2, odd, 1)                                  \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3, odd, 1, 3)                               \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, odd, 1, 3)                               \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 8, odd, 1, 3, 5, 7)                         \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, odd, 1, 3, 5, 7, 9, 11, 13, 15)         \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2, even, 0)                                 \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3, even, 0, 2)                              \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, even, 0, 2)                              \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 8, even, 0, 2, 4, 6)                        \
+  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, even, 0, 2, 4, 6, 8, 10, 12, 14)        \
+  /* Omitted SYCL_SIMPLE_SWIZZLES */
+
+#define __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST(COND, NAME, ...)                 \
+  template <int N = NumElements, typename Self_ = Self>                        \
+  std::enable_if_t<                                                            \
+      (COND), decltype(std::declval<Self_>().template swizzle<__VA_ARGS__>())> \
+  NAME() {                                                                     \
+    return static_cast<Self_ *>(this)->template swizzle<__VA_ARGS__>();        \
+  }
+
+#define __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, ...)                     \
+  template <int N = NumElements, typename Self_ = Self>                        \
+  std::enable_if_t<(COND), decltype(std::declval<const Self_>()                \
+                                        .template swizzle<__VA_ARGS__>())>     \
+  NAME() const {                                                               \
+    return static_cast<const Self_ *>(this)->template swizzle<__VA_ARGS__>();  \
+  }
+
+template <typename Self, int NumElements> struct NamedSwizzlesMixinConst {
+#define __SYCL_SWIZZLE_MIXIN_METHOD(COND, NAME, ...)                           \
+  __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)
+
+  __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES
+
+#undef __SYCL_SWIZZLE_MIXIN_METHOD
+};
+
+template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
+#define __SYCL_SWIZZLE_MIXIN_METHOD(COND, NAME, ...)                           \
+  __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST(COND, NAME, __VA_ARGS__)               \
+  __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)
+
+  __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES
+
+#undef __SYCL_SWIZZLE_MIXIN_METHOD
+};
+
+#undef __SYCL_SWIZZLE_MIXIN_METHOD_CONST
+#undef __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST
+
+
+} // namespace detail
+} // namespace _V1
+} // namespace sycl
+
+#else
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
+
 #include <sycl/detail/named_swizzles_mixin.hpp>
-#include <sycl/detail/type_list.hpp>      // for is_contained
-#include <sycl/detail/type_traits.hpp>    // for is_floating_point
-#include <sycl/half_type.hpp>             // for StorageT, half, Vec16...
+#endif
 
-#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
 
-#include <algorithm>   // for std::min
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t, NULL, byte
-#include <cstdint>     // for uint8_t, int16_t, int...
-#include <functional>  // for divides, multiplies
-#include <iterator>    // for pair
-#include <ostream>     // for operator<<, basic_ost...
-#include <type_traits> // for enable_if_t, is_same
-#include <utility>     // for index_sequence, make_...
 
 namespace sycl {
 inline namespace _V1 {
@@ -222,6 +590,16 @@ static constexpr bool not_fp =
     !std::is_same_v<T, float> && !std::is_same_v<T, double> &&
     !std::is_same_v<T, half> && !std::is_same_v<T, ext::oneapi::bfloat16>;
 
+// Not using `is_byte_v` to avoid unnecessary dependencies on `half`/`bfloat16`
+// headers.
+template <class T>
+static constexpr bool not_byte =
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    !std::is_same_v<T, std::byte>;
+#else
+    true;
+#endif
+
 // To provide information about operators availability depending on vec/swizzle
 // element type.
 template <typename Op, typename T>
@@ -231,11 +609,11 @@ inline constexpr bool is_op_available = false;
   template <typename T> inline constexpr bool is_op_available<OP, T> = COND;
 
 // clang-format off
-__SYCL_OP_AVAILABILITY(std::plus<void>          , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::minus<void>         , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::multiplies<void>    , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::divides<void>       , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::modulus<void>       , !detail::is_byte_v<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(std::plus<void>          , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::minus<void>         , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::multiplies<void>    , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::divides<void>       , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::modulus<void>       , not_byte<T> && not_fp<T>)
 
 __SYCL_OP_AVAILABILITY(std::bit_and<void>       , not_fp<T>)
 __SYCL_OP_AVAILABILITY(std::bit_or<void>        , not_fp<T>)
@@ -243,22 +621,22 @@ __SYCL_OP_AVAILABILITY(std::bit_xor<void>       , not_fp<T>)
 
 __SYCL_OP_AVAILABILITY(std::equal_to<void>      , true)
 __SYCL_OP_AVAILABILITY(std::not_equal_to<void>  , true)
-__SYCL_OP_AVAILABILITY(std::less<void>          , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::greater<void>       , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::less_equal<void>    , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::greater_equal<void> , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::less<void>          , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::greater<void>       , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::less_equal<void>    , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::greater_equal<void> , not_byte<T>)
 
-__SYCL_OP_AVAILABILITY(std::logical_and<void>   , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::logical_or<void>    , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::logical_and<void>   , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::logical_or<void>    , not_byte<T>)
 
-__SYCL_OP_AVAILABILITY(ShiftLeft                , !detail::is_byte_v<T> && not_fp<T>)
-__SYCL_OP_AVAILABILITY(ShiftRight               , !detail::is_byte_v<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftLeft                , not_byte<T> && not_fp<T>)
+__SYCL_OP_AVAILABILITY(ShiftRight               , not_byte<T> && not_fp<T>)
 
 // Unary
-__SYCL_OP_AVAILABILITY(std::negate<void>        , !detail::is_byte_v<T>)
-__SYCL_OP_AVAILABILITY(std::logical_not<void>   , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(std::negate<void>        , not_byte<T>)
+__SYCL_OP_AVAILABILITY(std::logical_not<void>   , not_byte<T>)
 __SYCL_OP_AVAILABILITY(std::bit_not<void>       , not_fp<T>)
-__SYCL_OP_AVAILABILITY(UnaryPlus                , !detail::is_byte_v<T>)
+__SYCL_OP_AVAILABILITY(UnaryPlus                , not_byte<T>)
 // clang-format on
 
 #undef __SYCL_OP_AVAILABILITY
