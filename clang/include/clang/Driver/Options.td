@@ -6870,6 +6870,11 @@ defm sycl_force_inline_kernel_lambda
           NegFlag<SetFalse, [], [ClangOption, CLOption], "Disallow">,
           BothFlags<[], [ClangOption, CLOption, CC1Option], " force inline "
                     "SYCL kernels lambda in entry point">>;
+defm sycl_allow_all_features_in_constexpr
+    : BoolFOption<
+          "sycl-allow-all-features-in-constexpr", LangOpts<"SYCLAllowAllFeaturesInConstexpr">,
+          DefaultFalse,
+          PosFlag<SetTrue, [], [CC1Option], "Allow all C++ features in SYCL device code in manifestly constant-evaluated expressions">, NegFlag<SetFalse>>;
 def fsycl_help_EQ : Joined<["-"], "fsycl-help=">, Flags<[NoXarchOption]>,
   HelpText<"Emit help information from the related offline compilation tool. "
            "Valid values: all, fpga, gen, x86_64.">,
