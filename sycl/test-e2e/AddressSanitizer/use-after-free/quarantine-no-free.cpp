@@ -1,6 +1,6 @@
 // REQUIRES: linux
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: env UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run} not %t 2>&1 | FileCheck %s
+// RUN: env UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:5;detect_kernel_arguments:0" UR_LOG_SANITIZER=level:info %{run} not %t 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
 /// Quarantine Cache Test
@@ -46,7 +46,7 @@ int main() {
   // CHECK:   #0 {{.*}} {{.*quarantine-no-free.cpp}}:[[@LINE-5]]
   // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
   // CHECK: allocated here:
-  // CHECK: released here:
+  // CHECK: freed here:
 
   return 0;
 }

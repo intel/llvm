@@ -116,13 +116,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit 76eaa15f7e788c8b60c10b2ec1d2704558f8107c 
+  # commit 9f46483252940db83a01b4e8f39d2ab455d749b1 
   # Author: Isaac Ault <isaac.ault@codeplay.com>
   # Date:   Wed Jul 24 08:57:49 2024 +0100
   #     [Bindless][Exp] Image Array Sub-Region Copies
   #     * Add support for sub-region copies.
-
-  set(UNIFIED_RUNTIME_TAG 76eaa15f7e788c8b60c10b2ec1d2704558f8107c)
+  set(UNIFIED_RUNTIME_TAG 9f46483252940db83a01b4e8f39d2ab455d749b1 )
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
