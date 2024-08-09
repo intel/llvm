@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: cuda
 
 // This test tests free function kernel code generation and execution.
 
@@ -212,7 +212,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
   ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
-// Explicit instantiation with “int*”.
+// Explicit instantiation with "int*".
 template void ff_3(int *ptr, int start);
 
 bool test_3(queue Queue) {
