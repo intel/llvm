@@ -201,6 +201,10 @@ float rintf(float x) { return __nv_rintf(x); }
 extern "C" SYCL_EXTERNAL float __nv_lrintf(float);
 DEVICE_EXTERN_C_INLINE
 long int lrintf(float x) { return __nv_lrintf(x); }
+
+extern "C" SYCL_EXTERNAL float __nv_llrintf(float);
+DEVICE_EXTERN_C_INLINE
+long long llrintf(float x) { return __nv_llrintf(x); }
 #endif // __NVPTX__
 
 #endif // __SPIR__ || __SPIRV__ || __NVPTX__
