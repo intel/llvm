@@ -2,9 +2,6 @@
 // REQUIRES: hip_amd
 // RUN: %{run} %t1.out
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14742
-// UNSUPPORTED: windows, linux
-
 //==---- memory_coherency_hip.cpp  -----------------------------------------==//
 // USM coarse/fine grain memory coherency test for the HIP-AMD backend.
 //
@@ -117,7 +114,7 @@ int main() {
 
   // Hint to use fine-grain memory.
   q.mem_advise(ptr, sizeof(int),
-               int{UR_USM_ADVICE_FLAG_UNSET_NON_COHERENT_MEMORY});
+               int{UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY});
 
   init_val = 1;
   expected = 4;
