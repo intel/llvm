@@ -128,7 +128,6 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
 
 std::vector<std::string> createWithBinaryLog;
 static ur_result_t redefinedProgramCreateWithBinary(void *pParams) {
-  std::cerr << "bin\n";
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
   createWithBinaryLog.push_back(
       reinterpret_cast<const char *>(*params.ppBinary));
