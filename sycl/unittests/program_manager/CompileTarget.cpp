@@ -137,7 +137,6 @@ static ur_result_t redefinedProgramCreateWithBinary(void *pParams) {
 
 std::vector<std::string> createWithILLog;
 static ur_result_t redefinedProgramCreateWithIL(void *pParams) {
-  std::cerr << "IL\n";
   auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
   createWithILLog.push_back(reinterpret_cast<const char *>(*params.ppIL));
   return UR_RESULT_SUCCESS;
