@@ -112,6 +112,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
@@ -130,6 +131,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     )
 
