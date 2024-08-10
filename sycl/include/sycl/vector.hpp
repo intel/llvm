@@ -1521,13 +1521,32 @@ public:
 
   template <typename asT> asT as() const { return sycl::bit_cast<asT>(*this); }
 
-  template <int... SwizzleIndexes> Swizzle<SwizzleIndexes...> swizzle() {
-    return Swizzle<SwizzleIndexes...>{*this};
+private:
+  static constexpr bool one_elem_swizzle_return_scalar = false;
+
+public:
+  template <int... SwizzleIndexes>
+  std::conditional_t<sizeof...(SwizzleIndexes) == 1 &&
+                         one_elem_swizzle_return_scalar,
+                     DataT &, Swizzle<SwizzleIndexes...>>
+  swizzle() {
+    if constexpr (sizeof...(SwizzleIndexes) == 1 &&
+                  one_elem_swizzle_return_scalar)
+      return this->operator[](SwizzleIndexes...);
+    else
+      return Swizzle<SwizzleIndexes...>{*this};
   }
 
   template <int... SwizzleIndexes>
-  ConstSwizzle<SwizzleIndexes...> swizzle() const {
-    return ConstSwizzle<SwizzleIndexes...>{*this};
+  std::conditional_t<sizeof...(SwizzleIndexes) == 1 &&
+                         one_elem_swizzle_return_scalar,
+                     const DataT &, ConstSwizzle<SwizzleIndexes...>>
+  swizzle() const {
+    if constexpr (sizeof...(SwizzleIndexes) == 1 &&
+                  one_elem_swizzle_return_scalar)
+      return this->operator[](SwizzleIndexes...);
+    else
+      return ConstSwizzle<SwizzleIndexes...>{*this};
   }
 
   const DataT &operator[](int i) const { return m_Data[i]; }
