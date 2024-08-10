@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %clang_cc1 -fsycl-is-device -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -triple -spir64-unknown-unknown -verify %s
 
 // expected-no-diagnostics
 
