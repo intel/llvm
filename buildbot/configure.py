@@ -21,7 +21,7 @@ def do_configure(args):
     if not os.path.isdir(abs_obj_dir):
         os.makedirs(abs_obj_dir)
 
-    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw"
+    llvm_external_projects = "sycl;llvm-spirv;opencl;xpti;xptifw;sycl-compress"
 
     # libdevice build requires a working SYCL toolchain, which is not the case
     # with macOS target right now.
@@ -44,6 +44,7 @@ def do_configure(args):
     spirv_dir = os.path.join(abs_src_dir, "llvm-spirv")
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
+    sycl_compress_dir = os.path.join(abs_src_dir, "sycl-compress")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
     fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
     llvm_targets_to_build = args.host_target
@@ -173,6 +174,7 @@ def do_configure(args):
         "-DLLVM_EXTERNAL_XPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
+        "-DLLVM_EXTERNAL_SYCL_COMPRESS_SOURCE_DIR={}".format(sycl_compress_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
         "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(fusion_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
