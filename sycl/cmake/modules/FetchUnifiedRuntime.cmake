@@ -30,6 +30,7 @@ option(SYCL_UMF_DISABLE_HWLOC
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -40,7 +41,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
@@ -116,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
-  # Merge: 99489ad4 c86beb60
+  # commit e50a4ddcdb450ab11f8b2f0a1b54f01a3d6de44f
+  # Merge: 3c12bbce 6b373e33
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 14:52:26 2024 +0100
-  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
-  #    [Bindless][Exp] Add interop memory mapping to USM.
-  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
+  # Date:   Fri Aug 9 14:34:49 2024 +0100
+  #     Merge pull request #1923 from sarnex/buildlog
+  #     [L0] Return the build log on compilation failure
+  set(UNIFIED_RUNTIME_TAG e50a4ddcdb450ab11f8b2f0a1b54f01a3d6de44f)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

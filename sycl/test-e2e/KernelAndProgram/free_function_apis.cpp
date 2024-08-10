@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda, hip
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

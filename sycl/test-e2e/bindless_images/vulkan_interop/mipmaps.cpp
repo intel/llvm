@@ -272,8 +272,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
       inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
-  auto inputMemory = vkutil::allocateDeviceMemory(memRequirements.size,
-                                                  inputImageMemoryTypeIndex);
+  auto inputMemory = vkutil::allocateDeviceMemory(
+      memRequirements.size, inputImageMemoryTypeIndex, inputImage);
   VK_CHECK_CALL(vkBindImageMemory(vk_device, inputImage, inputMemory,
                                   0 /*memoryOffset*/));
 
@@ -286,7 +286,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
       inputStagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   auto inputStagingMemory = vkutil::allocateDeviceMemory(
-      memRequirements.size, inputStagingMemoryTypeIndex, false /*exportable*/);
+      memRequirements.size, inputStagingMemoryTypeIndex, nullptr /*image*/,
+      false /*exportable*/);
   VK_CHECK_CALL(vkBindBufferMemory(vk_device, inputStagingBuffer,
                                    inputStagingMemory, 0 /*memoryOffset*/));
 

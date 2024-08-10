@@ -30,14 +30,14 @@ jobs:
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_gpu: true
+            reset_intel_gpu: true
 
           - name: Intel OCL GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
-            reset_gpu: true
+            reset_intel_gpu: true
 
           - name: OCL CPU
             runner: '["Linux", "x86-cpu"]'
@@ -57,7 +57,7 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      reset_gpu: ${{ matrix.reset_gpu }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       env: ${{ inputs.env }}
       ref: ${{ github.sha }}
       merge_ref: ''

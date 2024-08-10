@@ -12,7 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
+    * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -303,15 +303,17 @@ as well as the CUDA Runtime API to be installed, see
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
 CUDA 11, and using a GeForce 1060 device.
 
-### Build DPC++ toolchain with support for runtime kernel fusion
+### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
 
 Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default.
+runtime is enabled by default. The same mechanism is used to allow JIT
+compilation of AMD and Nvidia kernels.
 
-To disable support for this feature, follow the instructions for the Linux DPC++
-toolchain, but add the `--disable-fusion` flag.
+To disable support for these features, follow the instructions for the Linux
+DPC++ toolchain, but add the `--disable-jit` flag.
 
-Kernel fusion is currently not yet supported on the Windows platform.
+Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
+not yet supported on the Windows platform.
 
 ### Build Doxygen documentation
 

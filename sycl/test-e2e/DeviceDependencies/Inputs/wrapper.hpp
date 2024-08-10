@@ -5,4 +5,4 @@ __declspec(dllexport)
 __declspec(dllimport)
 #endif
 #endif
-int wrapper();
+    int wrapper();
