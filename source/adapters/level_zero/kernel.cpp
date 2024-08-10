@@ -13,6 +13,8 @@
 #include "ur_api.h"
 #include "ur_level_zero.hpp"
 
+#include "helpers/kernel_helpers.hpp"
+
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
@@ -27,7 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(Legacy(hQueue), hKernel, &ZeKernel));
+  UR_CALL(getZeKernel(Legacy(hQueue)->Device->ZeDevice, hKernel, &ZeKernel));
 
   UR_CALL(getSuggestedLocalWorkSize(Legacy(hQueue), ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
@@ -36,15 +38,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getZeKernel(ur_queue_handle_legacy_t hQueue,
-                        ur_kernel_handle_t hKernel,
+ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel) {
-  auto ZeDevice = hQueue->Device->ZeDevice;
-
   if (hKernel->ZeKernelMap.empty()) {
     *phZeKernel = hKernel->ZeKernel;
   } else {
-    auto It = hKernel->ZeKernelMap.find(ZeDevice);
+    auto It = hKernel->ZeKernelMap.find(hDevice);
     if (It == hKernel->ZeKernelMap.end()) {
       /* kernel and queue don't match */
       return UR_RESULT_ERROR_INVALID_QUEUE;
@@ -135,7 +134,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueKernelLaunch(
 
   auto Queue = this;
   ze_kernel_handle_t ZeKernel{};
-  UR_CALL(getZeKernel(Queue, Kernel, &ZeKernel));
+  UR_CALL(getZeKernel(Queue->Device->ZeDevice, Kernel, &ZeKernel));
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
@@ -168,68 +167,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueKernelLaunch(
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3]{};
 
-  // New variable needed because GlobalWorkSize parameter might not be of size 3
-  size_t GlobalWorkSize3D[3]{1, 1, 1};
-  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
-
-  if (LocalWorkSize) {
-    for (uint32_t I = 0; I < WorkDim; ++I) {
-      UR_ASSERT(LocalWorkSize[I] < (std::numeric_limits<uint32_t>::max)(),
-                UR_RESULT_ERROR_INVALID_VALUE);
-      WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
-    }
-  } else {
-    UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG));
-  }
-
-  // TODO: assert if sizes do not fit into 32-bit?
-
-  switch (WorkDim) {
-  case 3:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    ZeThreadGroupDimensions.groupCountZ =
-        static_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
-    break;
-  case 2:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        static_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    WG[2] = 1;
-    break;
-  case 1:
-    ZeThreadGroupDimensions.groupCountX =
-        static_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    WG[1] = WG[2] = 1;
-    break;
-
-  default:
-    logger::error("urEnqueueKernelLaunch: unsupported work_dim");
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Error handling for non-uniform group size case
-  if (GlobalWorkSize3D[0] !=
-      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    logger::error("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
-                  "multiple of the group size in the 1st dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[1] !=
-      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    logger::error("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
-                  "multiple of the group size in the 2nd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[2] !=
-      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    logger::debug("urEnqueueKernelLaunch: invalid work_dim. The range is not a "
-                  "multiple of the group size in the 3rd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
+  UR_CALL(calculateKernelWorkDimensions(Kernel->ZeKernel, Queue->Device,
+                                        ZeThreadGroupDimensions, WG, WorkDim,
+                                        GlobalWorkSize, LocalWorkSize));
 
   ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
