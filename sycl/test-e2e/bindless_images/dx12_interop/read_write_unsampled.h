@@ -83,8 +83,8 @@ private:
   HANDLE m_dx12FenceEvent;
 
   // Shared handles and values
-  uint64_t m_sharedFenceValue;
-  HANDLE m_sharedMemoryHandle;
+  uint64_t m_sharedFenceValue = 0;
+  HANDLE m_sharedMemoryHandle = INVALID_HANDLE_VALUE;
   HANDLE m_sharedSemaphoreHandle = INVALID_HANDLE_VALUE;
 
   // SYCL Objects
