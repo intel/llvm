@@ -196,9 +196,11 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
     }
   }
   if (validated) {
+#ifdef VERBOSE_PRINT
     std::cout << "\tTest passed: NDims " << NDims << " NChannels " << NChannels
               << " image_channel_type "
               << bindless_helpers::channelTypeToString(CType) << "\n";
+#endif
   }
 
   return validated;
