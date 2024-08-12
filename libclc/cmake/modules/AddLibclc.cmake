@@ -234,10 +234,10 @@ function(process_bc out_file)
   cmake_parse_arguments(ARG
     ""
     "LIB_TGT;IN_FILE;OUT_DIR"
-    "DEPENDENCIES"
+    "OPT_FLAGS;DEPENDENCIES"
     ${ARGN})
   add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
-    COMMAND ${opt_exe} -o ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
     ${ARG_IN_FILE}
     DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
@@ -354,6 +354,7 @@ macro(add_libclc_builtin_set arch_suffix)
     LIB_TGT ${builtins_opt_lib_tgt}
     IN_FILE ${builtins_link_lib}
     OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    OPT_FLAGS ${ARG_OPT_FLAGS}
     DEPENDS ${builtins_link_lib_tgt})
 
   # Add dependency to top-level pseudo target to ease making other

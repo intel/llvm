@@ -74,11 +74,13 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND devicelib_arch cuda)
   set(compile_opts_cuda "-fsycl-targets=nvptx64-nvidia-cuda"
   "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
+  set(opt_flags_cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   list(APPEND devicelib_arch amd)
   set(compile_opts_amd "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
   "-Xsycl-target-backend" "--offload-arch=gfx940")
+  set(opt_flags_amd "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
 
@@ -486,7 +488,8 @@ foreach(arch IN LISTS devicelib_arch)
   process_bc(devicelib--${arch}.bc
     LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
-    OUT_DIR ${bc_binary_dir})
+    OUT_DIR ${bc_binary_dir}
+    OPT_FLAGS ${opt_flags_${arch}})
   add_dependencies(libsycldevice-bc prepare-devicelib--${arch}.bc)
   set(complete_${arch}_libdev
     $<TARGET_PROPERTY:prepare-devicelib--${arch}.bc,TARGET_FILE>)
