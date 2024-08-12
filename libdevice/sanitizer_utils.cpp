@@ -196,7 +196,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
     auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
 
     if (shadow_offset == 0) {
       return 0;

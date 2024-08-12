@@ -30,6 +30,7 @@ option(SYCL_UMF_DISABLE_HWLOC
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -116,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2d3524e74ab6a09d1ad1a96d977973fac32ca55d
-  # Merge: 6b2e678d d6e93fa1
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Aug 7 14:23:09 2024 +0100
-  #     Merge pull request #1930 from oneapi-src/benie/no-import-in-pragma-region
-  #     Make pragma region names joined by _
-  set(UNIFIED_RUNTIME_TAG 2d3524e74ab6a09d1ad1a96d977973fac32ca55d)
+  # commit e02d78ba74efd21219b18f4083cf9afc14a16759
+  # Merge: e50a4ddc c12957bd
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Fri Aug 9 15:41:55 2024 +0100
+  #     Merge pull request #1933 from nrspruit/fix_driver_version_check
+  #     [L0] Fix Driver Version check to use extension and tuple check
+  set(UNIFIED_RUNTIME_TAG e02d78ba74efd21219b18f4083cf9afc14a16759)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

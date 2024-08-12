@@ -1722,12 +1722,19 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-  MemoryManager::copy(
-      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
-      MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+
+  try {
+    MemoryManager::copy(
+        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+        MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+        MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
+        MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
+        MEvent);
+  } catch (sycl::exception &e) {
+    return static_cast<ur_result_t>(get_ur_error(e));
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
