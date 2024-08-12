@@ -30,6 +30,7 @@ option(SYCL_UMF_DISABLE_HWLOC
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
 if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -116,12 +117,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit 9f46483252940db83a01b4e8f39d2ab455d749b1 
+  # commit 6ded47d44cf650b7fc5d022f27b3414f6c18312b 
   # Author: Isaac Ault <isaac.ault@codeplay.com>
   # Date:   Wed Jul 24 08:57:49 2024 +0100
   #     [Bindless][Exp] Image Array Sub-Region Copies
   #     * Add support for sub-region copies.
-  set(UNIFIED_RUNTIME_TAG 9f46483252940db83a01b4e8f39d2ab455d749b1 )
+  set(UNIFIED_RUNTIME_TAG 6ded47d44cf650b7fc5d022f27b3414f6c18312b )
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
