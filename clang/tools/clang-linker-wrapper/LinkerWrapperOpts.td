@@ -220,3 +220,7 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+
+def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Path to the folder where the tool dumps SPIR-V device code. Other formats aren't dumped.">;
