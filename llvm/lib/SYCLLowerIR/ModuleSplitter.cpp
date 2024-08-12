@@ -113,7 +113,8 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
