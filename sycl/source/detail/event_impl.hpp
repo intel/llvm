@@ -364,7 +364,7 @@ protected:
 
   std::vector<EventImplPtr> MPostCompleteEvents;
   // short term WA for stream:
-  // MPostCompleteEvents is splitted to two storages now. Original storage is
+  // MPostCompleteEvents is split into two storages now. Original storage is
   // used by graph extension and represents backward links.
   // MWeakPostCompleteEvents represents weak forward references (used in stream
   // only). Used only for host tasks now since they do not support post enqueue
