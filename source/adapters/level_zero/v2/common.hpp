@@ -14,6 +14,7 @@
 #include <ze_api.h>
 
 #include "../common.hpp"
+#include "logger/ur_logger.hpp"
 
 namespace v2 {
 
@@ -84,6 +85,70 @@ private:
   bool ownZeHandle;
 };
 
+template <typename URHandle, ur_result_t (*retain)(URHandle),
+          ur_result_t (*release)(URHandle)>
+struct ur_shared_handle {
+  using handle_t = URHandle;
+
+  ur_shared_handle() : handle(nullptr) {}
+  explicit ur_shared_handle(handle_t handle) : handle(handle) {}
+  ~ur_shared_handle() {
+    try {
+      reset();
+    } catch (...) {
+    }
+  }
+
+  ur_shared_handle(const ur_shared_handle &other) : handle(other.handle) {
+    retain(handle);
+  }
+  ur_shared_handle(ur_shared_handle &&other) : handle(other.handle) {
+    other.handle = nullptr;
+  }
+  ur_shared_handle(std::nullptr_t) : handle(nullptr) {}
+
+  void reset() {
+    if (!handle) {
+      return;
+    }
+
+    UR_CALL_THROWS(release(handle));
+    handle = nullptr;
+  }
+
+  ur_shared_handle &operator=(const ur_shared_handle &other) {
+    if (handle) {
+      release(handle);
+    }
+    handle = other.handle;
+    retain(handle);
+    return *this;
+  }
+  ur_shared_handle &operator=(ur_shared_handle &&other) {
+    if (handle) {
+      release(handle);
+    }
+    handle = other.handle;
+    other.handle = nullptr;
+    return *this;
+  }
+  ur_shared_handle &operator=(std::nullptr_t) {
+    if (handle) {
+      release(handle);
+    }
+    new (this) ur_shared_handle(nullptr);
+    return *this;
+  }
+
+  handle_t *ptr() { return &handle; }
+  handle_t get() const { return handle; }
+  handle_t operator->() { return handle; }
+  operator handle_t() { return handle; }
+
+private:
+  handle_t handle;
+};
+
 using ze_kernel_handle_t =
     ze_handle_wrapper<::ze_kernel_handle_t, zeKernelDestroy>;
 
@@ -92,6 +157,12 @@ using ze_event_handle_t =
 
 using ze_event_pool_handle_t =
     ze_handle_wrapper<::ze_event_pool_handle_t, zeEventPoolDestroy>;
+
+using ur_queue_shared_handle_t =
+    ur_shared_handle<ur_queue_handle_t, urQueueRetain, urQueueRelease>;
+
+using ur_kernel_shared_handle_t =
+    ur_shared_handle<ur_kernel_handle_t, urKernelRetain, urKernelRelease>;
 
 } // namespace raii
 } // namespace v2
