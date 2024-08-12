@@ -115,7 +115,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:sycl/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/DBDuncan/unified-runtime.git")
   # commit ab9baf57fbc6f17576a0c63fbbfbfe38d66c440c
   # Merge: 1fef4e29 c571ec40
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
