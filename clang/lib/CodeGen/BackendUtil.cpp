@@ -56,6 +56,7 @@
 #include "llvm/SYCLLowerIR/RecordSYCLAspectNames.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
+#include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -91,6 +92,7 @@
 #include "llvm/Transforms/Instrumentation/LowerAllowCheckPass.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/NumericalStabilitySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
@@ -510,6 +512,7 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.AsmVerbose = CodeGenOpts.AsmVerbose;
   Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
+  Options.MCOptions.Crel = CodeGenOpts.Crel;
   Options.MCOptions.X86RelaxRelocations = CodeGenOpts.RelaxELFRelocations;
   Options.MCOptions.CompressDebugSections =
       CodeGenOpts.getCompressDebugSections();
@@ -747,6 +750,9 @@ static void addSanitizers(const Triple &TargetTriple,
       MPM.addPass(ModuleThreadSanitizerPass());
       MPM.addPass(createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
     }
+
+    if (LangOpts.Sanitize.has(SanitizerKind::NumericalStability))
+      MPM.addPass(NumericalStabilitySanitizerPass());
 
     auto ASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
       if (LangOpts.Sanitize.has(Mask)) {
@@ -1151,6 +1157,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // and before cleaning up metadata)
       MPM.addPass(RecordSYCLAspectNamesPass());
 
+      if (TargetTriple.isNVPTX())
+        MPM.addPass(SYCLCreateNVVMAnnotationsPass());
+
       // Remove SYCL metadata added by the frontend, like sycl_aspects
       // Note, this pass should be at the end of the pipeline
       MPM.addPass(CleanupSYCLMetadataPass());
@@ -1159,7 +1168,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   // Link against bitcodes supplied via the -mlink-builtin-bitcode option
   if (CodeGenOpts.LinkBitcodePostopt)
-    MPM.addPass(LinkInModulesPass(BC, false));
+    MPM.addPass(LinkInModulesPass(BC));
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
