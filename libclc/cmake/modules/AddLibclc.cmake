@@ -237,9 +237,9 @@ function(process_bc out_file)
     "DEPENDENCIES"
     ${ARGN})
   add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
-    COMMAND libclc::opt -o ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} -o ${ARG_LIB_TGT}.bc
     ${ARG_IN_FILE}
-    DEPENDS libclc::opt ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
+    DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
   )
   add_custom_target( ${ARG_LIB_TGT}
     ALL DEPENDS ${ARG_LIB_TGT}.bc
@@ -252,9 +252,9 @@ function(process_bc out_file)
 
   # Add prepare target
   add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
-    COMMAND prepare_builtins -o ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
       ${builtins_opt_lib}
-      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} prepare_builtins )
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
   add_custom_target( prepare-${out_file} ALL
     DEPENDS ${ARG_OUT_DIR}/${out_file}
   )
