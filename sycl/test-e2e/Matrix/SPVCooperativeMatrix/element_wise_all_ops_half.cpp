@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// UNSUPPORTED: windows, linux
 // REQUIRES: gpu, aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES: matrix-fp16
