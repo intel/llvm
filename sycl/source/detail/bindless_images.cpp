@@ -556,6 +556,35 @@ image_mem_handle map_external_image_memory(external_mem extMem,
                                    syclQueue.get_context());
 }
 
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::device &syclDevice,
+                                 const sycl::context &syclContext) {
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(syclContext);
+  ur_context_handle_t C = CtxImpl->getHandleRef();
+  std::shared_ptr<sycl::detail::device_impl> DevImpl =
+      sycl::detail::getSyclObjImpl(syclDevice);
+  ur_device_handle_t Device = DevImpl->getHandleRef();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+
+  ur_exp_external_mem_handle_t urExternalMem{extMem.raw_handle};
+
+  void *retMemory;
+  Plugin->call<sycl::errc::invalid>(urBindlessImagesMapExternalLinearMemoryExp,
+                                    C, Device, offset, size, urExternalMem,
+                                    &retMemory);
+
+  return retMemory;
+}
+
+__SYCL_EXPORT
+void *map_external_linear_memory(external_mem extMem, uint64_t offset,
+                                 uint64_t size, const sycl::queue &syclQueue) {
+  return map_external_linear_memory(
+      extMem, offset, size, syclQueue.get_device(), syclQueue.get_context());
+}
+
 __SYCL_EXPORT void release_external_memory(external_mem extMem,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {

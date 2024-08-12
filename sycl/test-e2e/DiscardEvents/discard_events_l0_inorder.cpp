@@ -1,8 +1,5 @@
 // REQUIRES: level_zero
 //
-// https://github.com/intel/llvm/issues/14121
-// UNSUPPORTED: gpu-intel-dg2
-//
 // RUN: %{build} -o %t.out
 //
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_BATCH_SIZE=0 ONEAPI_DEVICE_SELECTOR="level_zero:*" %{run} %t.out
