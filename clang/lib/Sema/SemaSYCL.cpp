@@ -3486,15 +3486,16 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
             getSyclKernelHandlerArg(KernelCallerFunc))
       NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
                                       NewBody);
-
     // Use transformed body (with clones) as kernel body
     BodyStmts.push_back(NewBody);
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
+    SourceLocation LL = NewBody ? NewBody->getBeginLoc() : SourceLocation();
+    SourceLocation LR = NewBody ? NewBody->getEndLoc() : SourceLocation();
 
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
-                                FPOptionsOverride(), {}, {});
+                                FPOptionsOverride(), LL, LR);
   }
 
   void annotateHierarchicalParallelismAPICalls() {

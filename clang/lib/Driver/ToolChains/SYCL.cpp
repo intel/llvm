@@ -1358,6 +1358,18 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   return UnsupportedOpts;
 }
 
+static inline bool SupportedByNativeCPU(OptSpecifier Opt) {
+  switch (Opt.getID()) {
+    case options::OPT_fcoverage_mapping:
+    case options::OPT_fno_coverage_mapping:
+    case options::OPT_fprofile_instr_generate:
+    case options::OPT_fprofile_instr_generate_EQ:
+    case options::OPT_fno_profile_instr_generate:
+      return true;
+  }
+  return false;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1377,6 +1389,8 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
         if (SanitizeVal == "address")
           continue;
       }
+      if (this->IsSYCLNativeCPU && SupportedByNativeCPU(Opt))
+        continue;
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
           << A->getAsString(Args) << getTriple().str();
     }
@@ -1409,6 +1423,11 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
+
+        // NativeCPU should allow most normal cpu options like
+        // for coverage testing and we enable them as we have tests.
+        if (this->IsSYCLNativeCPU && SupportedByNativeCPU(Opt.getID()))
+          continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
