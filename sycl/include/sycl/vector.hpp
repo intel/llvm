@@ -1488,14 +1488,6 @@ public:
     return *this;
   }
 
-  // TODO: This is not part of the specification yet.
-  template <typename VecT, int SingleIndex>
-  std::enable_if_t<std::is_same_v<DataT, typename VecT::element_type>, vec &>
-  operator=(const detail::Swizzle<VecT, SingleIndex> &Rhs) {
-    *this = static_cast<DataT>(Rhs);
-    return *this;
-  }
-
 #ifdef __SYCL_DEVICE_ONLY__
   // Make it a template to avoid ambiguity with `vec(const DataT &)` when
   // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
