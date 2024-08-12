@@ -298,6 +298,8 @@ void SPIRVRegularizeLLVMBase::finishSROACooperativeMatrix(Module *M) {
       if (auto *CI = dyn_cast<CallInst>(*I++)) {
         Instruction *Ptr =
             dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+        if (!Ptr || !isa_and_nonnull<AllocaInst>(Ptr))
+          continue;
         StructType *WrapperMatrixTy =
             dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
         if (!WrapperMatrixTy)
