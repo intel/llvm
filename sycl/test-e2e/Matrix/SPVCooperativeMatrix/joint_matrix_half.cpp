@@ -8,10 +8,9 @@
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES: matrix-fp16
-// REQUIRES: gpu
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
-#include "../joint_matrix_half_impl.hpp"
+#include "common.hpp"
+#include "joint_matrix_half_impl.hpp"
