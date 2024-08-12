@@ -908,9 +908,6 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
     case 0x14:
       Suff = ".fsub";
       break;
-    case 0xff:
-      Suff = ".predec";
-      break;
     default:
       llvm_unreachable("unknown atomic OP");
     };
@@ -1271,6 +1268,20 @@ translateSpirvGlobalUses(LoadInst *LI, StringRef SpirvGlobalName,
   if (NewInst) {
     LI->replaceAllUsesWith(NewInst);
     InstsToErase.push_back(LI);
+  }
+}
+
+static void translateGlobalUse(Value *Use, StringRef SpirvGlobalName,
+                               SmallVectorImpl<Instruction *> &InstsToErase) {
+  LoadInst *LI = dyn_cast<LoadInst>(Use);
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(Use);
+  GetElementPtrConstantExpr *GEPCE = dyn_cast<GetElementPtrConstantExpr>(Use);
+  if (LI != nullptr) {
+    translateSpirvGlobalUses(LI, SpirvGlobalName, InstsToErase);
+  } else if (CE != nullptr || GEPCE != nullptr) {
+    for (User *U : (CE == nullptr ? GEPCE : CE)->users()) {
+      translateGlobalUse(U, SpirvGlobalName, InstsToErase);
+    }
   }
 }
 
@@ -2075,6 +2086,18 @@ PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
     MPM.run(M, MAM);
   }
 
+  SmallVector<Instruction *, 8> ToErase;
+  constexpr size_t PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
+  for (GlobalVariable &Global : M.globals()) {
+    if (!Global.getName().starts_with(SPIRV_INTRIN_PREF))
+      continue;
+
+    for (User *U : Global.users())
+      translateGlobalUse(U, Global.getName().drop_front(PrefLen), ToErase);
+  }
+  for (auto *CI : ToErase)
+    CI->eraseFromParent();
+
   generateKernelMetadata(M);
   // This function needs to run after generateKernelMetadata, as it
   // uses the generated metadata:
@@ -2228,37 +2251,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
-    }
-
-    // Translate loads from SPIRV builtin globals into GenX intrinsics
-    auto *LI = dyn_cast<LoadInst>(&I);
-    if (LI) {
-      Value *LoadPtrOp = LI->getPointerOperand();
-      Value *SpirvGlobal = nullptr;
-      // Look through constant expressions to find SPIRV builtin globals
-      // It may come with or without cast.
-      auto *CE = dyn_cast<ConstantExpr>(LoadPtrOp);
-      auto *GEPCE = dyn_cast<GetElementPtrConstantExpr>(LoadPtrOp);
-      if (GEPCE) {
-        SpirvGlobal = GEPCE->getOperand(0);
-      } else if (CE) {
-        assert(CE->isCast() && "ConstExpr should be a cast");
-        SpirvGlobal = CE->getOperand(0);
-      } else {
-        SpirvGlobal = LoadPtrOp;
-      }
-
-      if (!isa<GlobalVariable>(SpirvGlobal) ||
-          !SpirvGlobal->getName().starts_with(SPIRV_INTRIN_PREF))
-        continue;
-
-      auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();
-
-      // Translate all uses of the load instruction from SPIRV builtin global.
-      // Replaces the original global load and it is uses and stores the old
-      // instructions to ToErase.
-      translateSpirvGlobalUses(LI, SpirvGlobal->getName().drop_front(PrefLen),
-                               ToErase);
     }
   }
   // Now demangle and translate found ESIMD intrinsic calls

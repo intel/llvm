@@ -19,6 +19,7 @@
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/define_mux_builtins_pass.h"
 #include "compiler/utils/device_info.h"
 #include "compiler/utils/prepare_barriers_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
@@ -49,6 +50,10 @@ static cl::opt<unsigned> NativeCPUVeczWidth(
 static cl::opt<bool>
     SYCLNativeCPUNoVecz("sycl-native-cpu-no-vecz", cl::init(false),
                         cl::desc("Disable vectorizer for SYCL Native CPU"));
+
+static cl::opt<bool>
+    SYCLDumpIR("sycl-native-dump-device-ir", cl::init(false),
+               cl::desc("Dump device IR after Native passes."));
 
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
@@ -85,5 +90,19 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MPM.addPass(AlwaysInlinerPass());
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());
+#ifdef NATIVECPU_USE_OCK
+  MPM.addPass(compiler::utils::DefineMuxBuiltinsPass());
+#endif
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
+
+  if (SYCLDumpIR) {
+    // Fixme: Use PrintModulePass after PR to fix dependencies/--shared-libs
+    struct DumpIR : public PassInfoMixin<DumpIR> {
+      PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+        M.print(llvm::outs(), nullptr);
+        return PreservedAnalyses::all();
+      }
+    };
+    MPM.addPass(DumpIR());
+  }
 }

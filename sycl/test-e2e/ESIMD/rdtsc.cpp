@@ -43,11 +43,9 @@ int test_rdtsc() {
       auto Kernel = ([=](sycl::nd_item<1> ndi) [[intel::sycl_explicit_simd]] {
         using namespace sycl::ext::intel::esimd;
         auto Idx = ndi.get_global_id(0);
-        uint64_t StartCounter =
-            Idx % 2 == 0 ? __ESIMD_NS::rdtsc() : __ESIMD_ENS::rdtsc();
+        uint64_t StartCounter = __ESIMD_NS::rdtsc();
         simd<uint64_t, 1> VectorResultRDTSC(VectorOutputRDTSCPtr + Idx);
-        uint64_t EndCounter =
-            Idx % 2 == 0 ? __ESIMD_NS::rdtsc() : __ESIMD_ENS::rdtsc();
+        uint64_t EndCounter = __ESIMD_NS::rdtsc();
         VectorResultRDTSC += EndCounter > StartCounter;
 
         VectorResultRDTSC.copy_to(VectorOutputRDTSCPtr + Idx);

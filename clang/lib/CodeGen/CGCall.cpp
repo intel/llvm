@@ -2093,6 +2093,9 @@ static void getTrivialDefaultFunctionAttributes(
     std::tie(Var, Value) = Attr.split('=');
     FuncAttrs.addAttribute(Var, Value);
   }
+
+  TargetInfo::BranchProtectionInfo BPI(LangOpts);
+  TargetCodeGenInfo::setBranchProtectionFnAttributes(BPI, FuncAttrs);
 }
 
 /// Merges `target-features` from \TargetOpts and \F, and sets the result in
@@ -3941,7 +3944,8 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
       LValue ArgVal =
           LValue::MakeAddr(ArgAddr, RetTy, getContext(), BaseInfo, TBAAInfo);
       EmitStoreOfScalar(
-          Builder.CreateLoad(ReturnValue), ArgVal, /*isInit*/ true);
+          EmitLoadOfScalar(MakeAddrLValue(ReturnValue, RetTy), EndLoc), ArgVal,
+          /*isInit*/ true);
       break;
     }
     }
@@ -5714,6 +5718,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Apply some call-site-specific attributes.
   // TODO: work this into building the attribute set.
 
+  if (getContext().getLangOpts().SYCLIsDevice && Callee.isVirtual()) {
+    // Annotate virtual calls in SYCL device code to help passes that emit
+    // diagnostics on incorrect uses of virtual functions.
+    Attrs = Attrs.addFnAttribute(
+        getLLVMContext(),
+        llvm::Attribute::get(getLLVMContext(), "virtual-call"));
+  }
+
   // Apply always_inline to all calls within flatten functions.
   // FIXME: should this really take priority over __try, below?
   if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
@@ -5848,8 +5860,35 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   if (llvm::CallInst *Call = dyn_cast<llvm::CallInst>(CI)) {
     if (TargetDecl && TargetDecl->hasAttr<NotTailCalledAttr>())
       Call->setTailCallKind(llvm::CallInst::TCK_NoTail);
-    else if (IsMustTail)
+    else if (IsMustTail) {
+      if (getTarget().getTriple().isPPC()) {
+        if (getTarget().getTriple().isOSAIX())
+          CGM.getDiags().Report(Loc, diag::err_aix_musttail_unsupported);
+        else if (!getTarget().hasFeature("pcrelative-memops")) {
+          if (getTarget().hasFeature("longcall"))
+            CGM.getDiags().Report(Loc, diag::err_ppc_impossible_musttail) << 0;
+          else if (Call->isIndirectCall())
+            CGM.getDiags().Report(Loc, diag::err_ppc_impossible_musttail) << 1;
+          else if (isa_and_nonnull<FunctionDecl>(TargetDecl)) {
+            if (!cast<FunctionDecl>(TargetDecl)->isDefined())
+              // The undefined callee may be a forward declaration. Without
+              // knowning all symbols in the module, we won't know the symbol is
+              // defined or not. Collect all these symbols for later diagnosing.
+              CGM.addUndefinedGlobalForTailCall(
+                  {cast<FunctionDecl>(TargetDecl), Loc});
+            else {
+              llvm::GlobalValue::LinkageTypes Linkage = CGM.getFunctionLinkage(
+                  GlobalDecl(cast<FunctionDecl>(TargetDecl)));
+              if (llvm::GlobalValue::isWeakForLinker(Linkage) ||
+                  llvm::GlobalValue::isDiscardableIfUnused(Linkage))
+                CGM.getDiags().Report(Loc, diag::err_ppc_impossible_musttail)
+                    << 2;
+            }
+          }
+        }
+      }
       Call->setTailCallKind(llvm::CallInst::TCK_MustTail);
+    }
   }
 
   // Add metadata for calls to MSAllocator functions

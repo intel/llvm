@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -verify -DEXPECT_PROP -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -Wno-sycl-2017-compat -ast-dump -DEXPECT_PROP %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -DEXPECT_PROP -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump -DEXPECT_PROP %s | FileCheck %s
 
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify -DTRIGGER_ERROR %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -DTRIGGER_ERROR %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Test for AST of work_group_size_hint kernel attribute in SYCL 1.2.1. and SYCL 2020 modes. 
+// Test for AST of work_group_size_hint kernel attribute in SYCL. 
 #include "sycl.hpp"
 
 // Check the basics.
@@ -133,28 +133,6 @@ void invoke() {
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 
-    // Checking that attributes are propagated to the kernel from functions in SYCL 1.2.1 mode.
-#ifdef EXPECT_PROP
-    h.single_task<class kernel_2>([=]() {
-      f4x4x4();
-    });
-#else 
-    // Otherwise using a functor that has the required attributes 
-    h.single_task<class kernel_2>(f4x4x4);
-#endif
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_2
-    // CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-
-    // Check that conflicts are reported if the attribute is propagated in SYCL 1.2.1 mode.
 
     FunctorNoProp fNoProp;
     h.single_task<class kernel_3>(fNoProp);

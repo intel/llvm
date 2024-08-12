@@ -1,0 +1,536 @@
+= sycl_ext_intel_fpga_task_sequence
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+// spell-checker: disable
+Jessica Davies, Intel +
+Joe Garvey, Intel +
+Robert Ho, Intel +
+Tommy Hoffner, Intel +
+Ajaykumar Kannan, Intel +
+Michael Kinsner, Intel +
+Abhishek Tiwari, Intel +
+Bowen Xue, Intel
+// spell-checker: enable
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension depends on the link:./sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties] extension.
+
+This extension interacts with but does not depend upon the
+link:../proposed/sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
+  sycl_ext_intel_fpga_kernel_interface_properties]
+extension.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_intel_fpga_task_sequence`.  The application must check that the
+device has this aspect before submitting a kernel using any of the APIs in this
+extension.  If the application tries to use one of these APIs on a device
+without this aspect, the implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted to the
+queue.
+
+This extension is currently implemented in `icpx` only for FPGA devices and
+only when using either the Level Zero backend or the Intel FPGA OpenCL backend.
+
+== Overview
+
+Although SYCL supports task-level parallelism through device kernels, there is
+no specific mechanism to express parallelism at a sub-kernel level or to invoke
+additional kernels without involving the host program. In OpenCL 2.0 and beyond,
+kernel invocations can be initiated without host program interaction through
+the `enqueue_kernel` API. C++11 also introduced `std::async()` for task-level
+parallelism. However, neither of these approaches is a good fit for spatial
+compute platforms, which require a clear mapping of parallel constructs to
+spatial instances in the hardware.
+
+Rather than significantly changing the semantics of existing solutions, this
+extension introduces a sub-kernel task-level parallelism interface to SYCL for
+use in device code. It provides the class
+`sycl::ext::intel::experimental::task_sequence`, which is an
+abstraction of an asynchronous sequence of invocations of a callable that can be
+executed asynchronously from the caller. A single object of this class can map
+naturally to a single hardware instance on spatial targets.
+
+NOTE: In this document, we use `task_sequence` to indicate the proposed
+`sycl::ext::intel::experimental::task_sequence`
+
+=== Examples
+
+Here's an example that shows how to define and call two task sequences.
+
+```c++
+using namespace sycl::ext::intel::experimental;
+
+// Return the sum of elements in 'v', from index 's' to 's+sz'
+int vectorSum(float *v, size_t s, size_t sz) {
+  ...
+}
+
+...
+
+  sycl::queue q{...};
+
+  constexpr int kCount = ...;
+  float* in = sycl::malloc_host<float>(kCount, q);
+  float* out = sycl::malloc_host<float>(1, q);
+  ...
+
+  q.single_task([=] {
+    task_sequence<vectorSum> firstHalf;
+    task_sequence<vectorSum> secondHalf;
+    constexpr int halfCount = kCount/2;
+    firstHalf.async(in, 0, halfCount);
+    secondHalf.async(in, halfCount+1, kCount-1);
+    *out = firstHalf.get() + secondHalf.get();
+  }).wait();
+
+...
+
+```
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FPGA_TASK_SEQUENCE` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+== Definitions
+
+== `task_sequence` class
+
+[source,c++,linenums]
+----
+namespace sycl::ext::intel::experimental {
+
+template <auto &f, typename PropertyListT = empty_properties_t>
+class task_sequence {
+
+public:
+  task_sequence() = default;
+
+  task_sequence(const task_sequence &) = delete;
+  task_sequence &operator=(const task_sequence &) = delete;
+  task_sequence(task_sequence &&) = delete;
+  task_sequence &operator=(task_sequence &&) = delete;
+
+
+  void async(__unspecified__... args);
+
+  __unspecified__ get();
+
+  template<typename propertyT>
+  static constexpr bool has_property();
+
+  // The return type is an unspecified internal class used to represent
+  // instances of propertyT
+  template<typename propertyT>
+  static constexpr /*unspecified*/ get_property();
+
+  ~task_sequence();
+}
+
+} // namespace sycl::ext::intel::experimental
+
+----
+
+`task_sequence` is a class template, parameterized by an `auto` reference to a
+Callable `f`, and a list of properties _PropertyListT_. The Callable `f` defines
+the asynchronous task to be associated with the `task_sequence`, and requiring
+an auto reference ensures that each `f` is statically resolvable at compile
+time. Static resolvability by the compiler is desirable when compiling for
+spatial architectures as it can enable the generation of more efficient
+hardware. Templating a task_sequence on a non-Callable is malformed.
+_PropertyListT_ enables properties to be associated with a `task_sequence`
+
+[cols="1,1"]
+|===
+|Member functions of the `task_sequence` class|Description
+
+|void async(\\__unspecified__... args)
+|Available only in device functions. +
+ +
+ Asynchronously invoke the task_sequence's associated Callable `f` with `args`.
+ Calling `async` on a task_sequence to start a new invocation may block if the
+ number of outstanding invocations is greater than or equal to the invocation capacity.
+ Calling `async` on a task_sequence with mismatched argument types with respect
+ to the Callable `f` 's argument types is malformed.
+
+|\\__unspecified__ get()
+|Available only in device functions. +
+ +
+ Retrieves a return value from the task_sequence, which is the same return type
+ as the associated Callable `f` 's return type. Calling `get` on a task_sequence
+ to retrieve a return value from the task_sequence will block if there are no
+ return values to retrieve.
+|===
+
+By calling `async` on a `task_sequence` object more than once, the user implies
+that those invocations of `f` can be run in parallel. The implementation is,
+however, not obligated to run the invocations in parallel except in so far as is
+necessary to meet the forward progress guarantees outlined in the section on
+Progress Guarantees.
+
+The `async` function call is non-blocking in that it may return before the
+asynchronous `f` invocation completes executing, and potentially before `f` even
+begins executing (return from the `async` provides no implicit information on
+the execution status of `f`).
+
+An asynchronous invocation of `f`, upon the end of its execution of `f`, will
+produce a result. At that point, that particular asynchronous invocation is now
+considered to be complete, and the result of that invocation is now ready to be
+retrieved by a `get` call. The result of each completed invocation is stored in
+a results data structure until the appropriate `get` call retrieves it. This
+results data structure will keep the results in the same order in which their
+corresponding `async` invocations were invoked. The `get` call retrieves results
+from this results data structure. The `get` call blocks if the result for the
+oldest `async` is not in the results data structure.
+
+Both `async` and `get` functions may only be invoked on the device on which a
+`task_sequence` object has been instantiated. Calling `async` or `get` on a
+different device results in undefined behavior.
+
+=== `task_sequence` Scoping
+
+`task_sequence` objects should retire all outstanding `async` invocations before
+exiting scope. This is performed by the `task_sequence` destructor, by calling
+`get` on all outstanding invocations and blocking destruction of the object
+until all invocations are completed.
+
+To provide more information to the compiler and to relax the requirement for
+`get` to be invoked implicitly, the property `balanced` may be specified on a
+`task_sequence` object, which guarantees that a user will not allow a destructor
+on that `task_sequence` object to be called when there are outstanding `async`
+invocations that have not been balanced by a matching `get` call. On spatial
+architectures, in the presence of this property, potentially expensive hardware
+may be elided. It is undefined behavior to specify the `balanced` property on
+`task_sequence` and then to allow the `task_sequence` object to be destroyed
+while there are any `async` invocations for which `get` has not been called.
+
+== `task_sequence` Properties
+
+The following code and table describe the properties that can be provided when
+declaring a `task_sequence` object.
+
+[source,c++,linenums]
+----
+namespace sycl::ext::intel::experimental {
+struct balanced_key {
+  using value_t = property_value<balanced_key>;
+};
+
+struct invocation_capacity_key {
+  template <uint32_t Size>
+  using value_t = property_value<invocation_capacity_key,
+    std::integral_constant<uint32_t, Size>>;
+};
+
+struct response_capacity_key {
+  template <uint32_t Size>
+  using value_t = property_value<response_capacity_key,
+    std::integral_constant<uint32_t, Size>>;
+};
+
+inline constexpr balanced_key::value_t balanced;
+template <uint32_t Size>
+inline constexpr invocation_capacity_key::value_t<Size> invocation_capacity;
+template <uint32_t Size>
+inline constexpr response_capacity_key::value_t<Size> response_capacity;
+
+template <> struct is_property_key<balanced_key> : std::true_type {};
+template <> struct is_property_key<invocation_capacity_key> : std::true_type {};
+template <> struct is_property_key<response_capacity_key> : std::true_type {};
+
+template <auto &f, typename PropertyListT>
+struct is_property_key_of<balanced_key, task_sequence<f, PropertyListT>>
+  : std::true_type {};
+template <auto &f, typename PropertyListT>
+struct is_property_key_of<invocation_capacity_key, task_sequence<f, PropertyListT>>
+  : std::true_type {};
+template <auto &f, typename PropertyListT>
+struct is_property_key_of<response_capacity_key, task_sequence<f, propertiesT>>
+  : std::true_type {};
+
+} // namespace sycl::ext::intel::experimental
+----
+
+--
+[options="header"]
+|===
+| Property | Description
+| balanced | The `balanced` property is a guarantee to the SYCL device compiler
+that the `task_sequence` object will call exactly the same number of `async` s
+and `get` s over the object's lifetime (i.e. before the `task_sequence`
+destructor is invoked).
+
+| invocation_capacity | The `async` invocations are guaranteed to not block the
+caller as long as the number of outstanding invocations are less than or equal
+to `invocation_capacity`. An outstanding invocation is an inflight
+`task_sequence` invocation that has not yet completed.
+
+A default value is chosen by the implementation.
+
+| response_capacity | A `task_sequence` invocation is allowed to write its
+results and completion status to the results data structure of the
+`task_sequence` if there is sufficient capacity to accommodate it. A
+`response_capacity` of N indicates that the results
+data structure should be sized such that the oldest N invocations of the `task_sequence` can be
+successfully written to the results data structure. When an invocation is able
+to write its result to the results data structure, it can transition from an
+outstanding state to a completed state. At least one outstanding `async` call
+will make progress as long as the results data structure is not full.
+
+A default value is chosen by the implementation.
+|===
+--
+
+=== Compatibility with FPGA Kernel Interface Properties
+
+A `task_sequence` may also be declared with the following FPGA Kernel Interface
+properties:
+
+ - `pipelined`
+ - `fpga_cluster`
+
+These are described in the link:../proposed/sycl_ext_intel_fpga_kernel_interface_properties.asciidoc[
+sycl_ext_intel_fpga_kernel_interface_properties] document.
+
+Normally these properties are applicable only to kernels however this extension
+supports applying the properties to task sequences.
+
+== Forward Progress Guarantees and Execution Model
+
+The progress guarantees for task threads are defined as follows:
+
+ - When a `task_sequence` object _O_ is constructed, a `task_sequence` object
+ thread _P_, is also created.
+
+ - At any point in time, the progress guarantee of all `task_sequence` object
+ threads created by a work-item _WI_ matches that of _WI_. For example,
+ if _WI_ is strengthened to have a stronger progress guarantee than its
+ initial guarantee, all of the `task_sequence` object threads created by _WI_
+ are also strengthened.
+
+  - An `O.async(...)` call will result in creation of a task thread.
+ `O.async(...)` can be called multiple times to create multiple task threads for
+ _O_. A task thread has weakly parallel forward progress guarantee.
+
+ - Upon creation, _P_ immediately blocks on the set _S_ of task threads that
+ belong to _O_ with forward progress guarantee delegation.
+
+ - If a task thread with concurrent forward progress guarantee has finished
+ executing the task function and if it can write its results to the output data
+ structure _D_, then it does so and some other task thread in _S_ is
+ strengthened to have concurrent forward progress guarantee. If a task thread
+ cannot write its results to _D_, the task thread blocks until space is
+ available.
+
+The two examples below, respectively, show the following:
+
+1. How strengthening of a work item strengthens the task threads.
+
+2. How a task thread delegates its progress guarantee to other task threads in
+the same `task_sequence` object.
+
+Example 1 uses the following program:
+
+```
+// A kernel K
+{
+  ...
+  task_sequence<some_function, ...> task_obj1; // Object_1_Thread
+  task_obj1.async(...); // Object_1_Task_1_Thread
+  task_obj1.async(...); // Object_1_Task_2_Thread
+  ...
+  task_sequence<some_function, ...> task_obj2; // Object_2_Thread
+  task_obj2.async(...); // Object_2_Task_1_Thread
+  task_obj2.async(...); // Object_2_Task_2_Thread
+}
+```
+The calls to the `task_sequence constructor` create the task object threads
+_Object_1_Thread_ and _Object_2_Thread_. The first two `async` calls create task
+threads _Object_1_Task_1_Thread_ and _Object_1_Task_2_Thread_. Similarly the
+next two calls create _Object_2_Task_1_Thread_ and _Object_2_Task_2_Thread_.
+
+The table below provides a view of the hierarchy of task threads that will be
+generated.
+
+.Hierarchy of task threads.
+[cols="s,,,,"]
+|=====
+// row 1, cells 2 spans 4 cells hence the '4+' before '|'
+| Work Item 4+^| _WI_
+// row 2, cells after the first one span 2 cells each
+|Task Sequence Object Thread
+2+^| _Object_1_Thread_
+2+^| _Object_2_Thread_
+// row 3
+| Task Thread
+^| _Task_1_1_
+^| _Task_1_2_
+^| _Task_2_1_
+^| _Task_2_2_
+|=====
+
+At some initial stage, all task threads have weakly parallel forward progress
+guarantee. If _WI_ is strengthened to have concurrent forward progress
+guarantee, then all of the object threads are also strengthened. Next, in this
+example one task thread for each `task_sequence` is also strengthened. This is
+depicted in the table below (progress guarantee for each thread is in
+parenthesis):
+
+.Possible Progress Guarantees at some time after _WI_ is strengthened.
+[cols="s,,,,"]
+|=====
+// row 1, cells 2 spans 4 cells hence the '4+' before '|'
+| Work Item
+4+^| _WI_ (concurrent)
+// row 2, cells after the first one span 2 cells each
+|Task Sequence Object Thread
+2+^| _Object_1_Thread_ (concurrent)
+2+^| _Object_2_Thread_ (concurrent)
+// row 3
+| Task Thread
+^| _Task_1_1_ (weakly parallel)
+^| _Task_1_2_ (concurrent)
+^| _Task_2_1_ (concurrent)
+^| _Task_2_2_ (weakly parallel)
+|=====
+
+The next example shows how a task thread delegates its progress
+guarantee to another task thread:
+
+Assume that we have a task sequence object _TS_ templated on the function `f`
+with `response_capacity` of 1 and `invocation_capacity` of 5. Four `async` calls
+create the following task threads: _T1_, _T2_, _T3_ and _T4_, for _TS_. Say _T1_
+has concurrent forward progress guarantee after getting strengthened, while
+_T2_, _T3_ and _T4_ have weakly parallel forward progress guarantees. The task
+threads go through the following execution flow:
+
+ - _T1_ finishes executing the function `f` associated with _TS_.
+
+ - For _TS_, the output data structure _D_ can store the output of only one
+ task thread since `response_capacity` is one. _T1_ writes its output.
+
+ - Any task thread can now be picked to be strengthened to have concurrent
+ forward progress guarantee. Let's say _T2_ is picked.
+
+ - At some point _T2_ finishes executing `f`. _T1_'s results are still in the
+ output data structure.
+
+ - _T2_ cannot write its results until space is available in _D_. Hence
+, none of the other task threads can be picked to be strengthened to the
+ stronger progress guarantee.
+
+ - `get` is invoked. _T1_'s results get removed from _D_.
+
+ - _T2_ can write its results and some other task thread can be picked to be
+ strengthened.
+
+=== Memory Order Semantics
+
+These rules were chosen to provide the same guarantees as std::thread and match
+most programmers' intuition about how launching new threads should behave.
+
+- `async` is an implicit `atomic_fence` with `memory_order::release` operation
+scoped to include the kernel/task_sequence that called it and the creation of
+task thread _T_; No reads or writes in the caller can be reordered after
+the creation of _T_
+
+- The beginning of a task thread _T_ is an implicit `atomic_fence` with
+`memory_order::acquire` operation scoped to include the kernel/task_sequence
+that called `async` in order to create _T_ and _T_ itself; no reads or writes in
+_T_ can be reordered before the start of _T_.
+
+- The end of a task thread _T_ is an implicit `atomic_fence` with
+`memory_order::release` operation scoped to include _T_ itself and the
+kernel/task_sequence that called `async` in order to create _T_; no reads
+or writes in the task thread can be reordered after the end of _T_,
+which is when the output is written to the output data structure _D_.
+
+- `get` is an implicit `atomic_fence` with `memory_order::acquire` operation
+scoped to include the task thread _T_ that is being retrieved by `get` and the
+kernel/task_sequence that is calling `get`; no reads or writes in the caller can
+be reordered before the retrieval of the return data for _T_
+
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2023-09-26|Robert Ho|*Initial revision*
+|========================================
+
+//************************************************************************
+//Other formatting suggestions:
+//
+//* Use *bold* text for host APIs, or [source] syntax highlighting.
+//* Use +mono+ text for device APIs, or [source] syntax highlighting.
+//* Use +mono+ text for extension names, types, or enum values.
+//* Use _italics_ for parameters.
+//************************************************************************

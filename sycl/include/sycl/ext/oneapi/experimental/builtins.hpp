@@ -71,9 +71,9 @@ namespace ext::oneapi::experimental {
 //
 // - OpenCL spec defines several additional features, like, for example, 'v'
 // modifier which allows to print OpenCL vectors: note that these features are
-// not available on host device and therefore their usage should be either
-// guarded using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor
-// of more portable solutions if needed
+// not available on host and therefore their usage should be either guarded
+// using __SYCL_DEVICE_ONLY__ preprocessor macro or avoided in favor of more
+// portable solutions if needed
 //
 template <typename FormatT, typename... Args>
 int printf(const FormatT *__format, Args... args) {
@@ -126,7 +126,7 @@ inline __SYCL_ALWAYS_INLINE
 #else
     auto partial_res = sycl::tanh(sycl::detail::to_vec2(x, i * 2));
 #endif
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
@@ -167,7 +167,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 #else
     auto partial_res = sycl::exp2(sycl::detail::to_vec2(x, i * 2));
 #endif
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
   if (N % 2) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)

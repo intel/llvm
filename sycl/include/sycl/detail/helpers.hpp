@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/pi.hpp>         // for PiEvent
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -39,14 +38,12 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-
+class CGExecKernel;
 class buffer_impl;
 class context_impl;
-// The function returns list of events that can be passed to OpenCL API as
-// dependency list and waits for others.
-__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
-getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                std::shared_ptr<sycl::detail::context_impl> Context);
+class queue_impl;
+using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
+class RTDeviceBinaryImage;
 
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
 
@@ -55,7 +52,7 @@ markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
-// Function to get of store id, item, nd_item, group for the host implementation
+// Function to get or store id, item, nd_item, group for the host implementation
 // Pass nullptr to get stored object. Pass valid address to store object
 template <typename T> T get_or_store(const T *obj) {
   static thread_local auto stored = *obj;
@@ -254,6 +251,10 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
+
+std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
+retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
+                     CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 
 } // namespace _V1

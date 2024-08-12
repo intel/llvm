@@ -1,11 +1,11 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test cancel fusion
 
 // As fusion is cancelled, this test launches two kernels.
-// CHECK-COUNT-2: piEnqueueKernelLaunch
-// CHECK-NOT: piEnqueueKernelLaunch
+// CHECK-COUNT-2: urEnqueueKernelLaunch
+// CHECK-NOT: urEnqueueKernelLaunch
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>

@@ -1,4 +1,4 @@
-// REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg1 || gpu-intel-dg2 || arch-intel_gpu_pvc
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out

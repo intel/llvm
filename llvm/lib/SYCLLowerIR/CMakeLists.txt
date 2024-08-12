@@ -59,11 +59,14 @@ add_llvm_component_library(LLVMSYCLLowerIR
   MutatePrintfAddrspace.cpp
   SpecConstants.cpp
   SYCLAddOptLevelAttribute.cpp
+  SYCLConditionalCallOnDevice.cpp
+  SYCLCreateNVVMAnnotations.cpp
   SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
 
