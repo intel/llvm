@@ -514,7 +514,7 @@ static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
   BumpPtrAllocator Alloc;
   StringSaver Saver(Alloc);
 
-  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str());
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str() + "-unknown-unknown");
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back(Target);
@@ -555,7 +555,8 @@ static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
   SmallVector<StringRef, 8> CmdArgs;
   CmdArgs.push_back(*OffloadBundlerPath);
   CmdArgs.push_back("-type=o");
-  CmdArgs.push_back(Saver.save("-targets=sycl-" + Triple.str()));
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str() + "-unknown-unknown");
+  CmdArgs.push_back(Target);
   CmdArgs.push_back(Saver.save("-input=" + Filename));
   CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
   CmdArgs.push_back("-unbundle");
@@ -2546,9 +2547,9 @@ getDeviceInput(const ArgList &Args, const ArgList &bundleArgs) {
       return IRFile.takeError();
 
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
-        MemoryBuffer::getFile(*Filename);
+        MemoryBuffer::getFile(*IRFile);
     if (std::error_code EC = BufferOrErr.getError())
-      return createFileError(*Filename, EC);
+      return createFileError(*IRFile, EC);
 
     MemoryBufferRef Buffer = **BufferOrErr;
     file_magic Magic = identify_magic(Buffer.getBuffer());
