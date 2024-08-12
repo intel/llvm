@@ -289,6 +289,47 @@ void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
       nullptr, &Attrs, true);
 }
 
+// intel/llvm customization
+void SPIRVRegularizeLLVMBase::finishSROACooperativeMatrix(Module *M) {
+  for (auto &F : *M) {
+    if (!F.getName().starts_with("_Z19__spirv_AccessChain"))
+      continue;
+    for (auto I = F.user_begin(), E = F.user_end(); I != E;) {
+      if (auto *CI = dyn_cast<CallInst>(*I++)) {
+        Instruction *Ptr =
+            dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+        StructType *WrapperMatrixTy =
+            dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
+        if (!WrapperMatrixTy)
+          continue;
+        TargetExtType *MatrixTy =
+            dyn_cast<TargetExtType>(WrapperMatrixTy->getElementType(0));
+        if (!MatrixTy)
+          continue;
+        StringRef Name = MatrixTy->getName();
+        if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
+          auto OpCode = SPIRVOpaqueTypeOpCodeMap::map(Name.str());
+          if (OpCode != OpTypeCooperativeMatrixKHR)
+            continue;
+        } else
+          continue;
+
+        AllocaInst *Alloca = nullptr;
+        {
+          IRBuilder Builder(CI);
+          IRBuilderBase::InsertPointGuard IG(Builder);
+          Builder.SetInsertPointPastAllocas(CI->getParent()->getParent());
+          Alloca = Builder.CreateAlloca(MatrixTy);
+        }
+        Ptr->replaceAllUsesWith(Alloca);
+        Ptr->dropAllReferences();
+        Ptr->eraseFromParent();
+      }
+    }
+  }
+}
+// intel/llvm customization
+
 void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   std::vector<Function *> ToExpandVEDWithSYCLTypeSRetArg;
   std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
@@ -640,6 +681,9 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   expandSYCLTypeUsing(M);
+  // intel/llvm customization
+  finishSROACooperativeMatrix(M);
+  // intel/llvm customization
   cleanupConversionToNonStdIntegers(M);
 
   for (auto &GV : M->globals()) {
