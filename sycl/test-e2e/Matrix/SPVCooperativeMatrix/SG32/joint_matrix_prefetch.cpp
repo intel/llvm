@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // REQUIRES: gpu, aspect-ext_intel_matrix
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
@@ -15,8 +15,8 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
-#include "../joint_matrix_prefetch_impl.hpp"
+#include "../../joint_matrix_prefetch_impl.hpp"

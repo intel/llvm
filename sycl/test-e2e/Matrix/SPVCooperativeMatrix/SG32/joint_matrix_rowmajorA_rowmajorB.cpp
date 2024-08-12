@@ -11,17 +11,17 @@
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // Sub-group size 32 support for this test is not currently available in IGC
 // XFAIL: gpu
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 32
 
-#include "../joint_matrix_rowmajorA_rowmajorB_impl.hpp"
+#include "../../joint_matrix_rowmajorA_rowmajorB_impl.hpp"

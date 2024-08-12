@@ -10,12 +10,12 @@
 // REQUIRES: gpu, aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: cpu
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 #define SG_SZ 32
 
-#include "../get_coord_int8_matB_impl.hpp"
+#include "../../get_coord_int8_matB_impl.hpp"

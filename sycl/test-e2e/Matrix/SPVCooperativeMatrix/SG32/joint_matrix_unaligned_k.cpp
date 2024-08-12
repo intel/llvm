@@ -8,15 +8,15 @@
 // REQUIRES: gpu, matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL:*
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 #define SG_SZ 32
 constexpr size_t TN = 16;
 static constexpr size_t MATRIX_K = 1024 + 14;
 
-#include "../joint_matrix_out_bounds_impl.hpp"
+#include "../../joint_matrix_out_bounds_impl.hpp"

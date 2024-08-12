@@ -10,11 +10,11 @@
 // REQUIRES: gpu, aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 #define SG_SZ 32
 
-#include "../joint_matrix_bfloat16_impl.hpp"
+#include "../../joint_matrix_bfloat16_impl.hpp"
