@@ -5,12 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-fp16
+// REQUIRES: gpu, aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES: matrix-fp16
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-#include "common.hpp"
-#include "element_wise_all_ops_half_impl.hpp"
+#include "../common.hpp"
+#include "../element_wise_all_ops_half_impl.hpp"

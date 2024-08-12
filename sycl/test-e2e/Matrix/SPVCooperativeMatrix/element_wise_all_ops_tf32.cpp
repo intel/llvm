@@ -5,14 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-tf32
+// REQUIRES: gpu, matrix-tf32
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-#include "common.hpp"
+#include "../common.hpp"
 
 constexpr size_t TN = 16;
 
-#include "element_wise_all_ops_tf32_impl.hpp"
+#include "../element_wise_all_ops_tf32_impl.hpp"

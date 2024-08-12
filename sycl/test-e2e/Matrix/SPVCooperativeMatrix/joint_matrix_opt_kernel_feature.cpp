@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: gpu, aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // Test checks that exception will be thrown in case matrix parameters are
 // incompatible on the current device
 
-#include "common.hpp"
-#include "joint_matrix_opt_kernel_feature_impl.hpp"
+#include "../common.hpp"
+#include "../joint_matrix_opt_kernel_feature_impl.hpp"

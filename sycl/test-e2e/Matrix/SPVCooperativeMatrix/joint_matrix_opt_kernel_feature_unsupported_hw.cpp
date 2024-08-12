@@ -6,15 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-gen12, gpu
+// REQUIRES: gpu, gpu-intel-gen12, gpu
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // Test checks that exception will be thrown in case object of joint_matrix type
 // is used on unsupported HW, in this case, on Gen12.
 
-#include "common.hpp"
+#include "../common.hpp"
 
 int main() {
   sycl::queue q;

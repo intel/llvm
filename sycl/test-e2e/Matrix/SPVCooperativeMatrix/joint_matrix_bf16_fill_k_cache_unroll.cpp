@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: gpu, aspect-ext_intel_matrix
 
 // RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL
 // RUN: %{run} %t.out
@@ -14,5 +14,5 @@
 // since IGC doesn't support some variants of IR for Joint Matrix currently
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#include "common.hpp"
-#include "joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../common.hpp"
+#include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // Needs AMX.
-// REQUIRES: cpu
+// REQUIRES: gpu, cpu
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>

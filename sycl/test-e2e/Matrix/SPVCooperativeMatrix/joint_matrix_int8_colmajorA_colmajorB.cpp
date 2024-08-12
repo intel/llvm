@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: gpu, matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // This tests support of col major layout for matrix B which does transpose and
@@ -15,8 +15,8 @@
 
 // XFAIL: gpu
 
-#include "common.hpp"
+#include "../common.hpp"
 
 constexpr size_t TN = 16;
 
-#include "joint_matrix_int8_colmajorA_colmajorB_impl.hpp"
+#include "../joint_matrix_int8_colmajorA_colmajorB_impl.hpp"

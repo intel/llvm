@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix-tf32
+// REQUIRES: gpu, matrix-tf32
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out

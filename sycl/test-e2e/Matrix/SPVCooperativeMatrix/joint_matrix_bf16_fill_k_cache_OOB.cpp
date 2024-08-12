@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-ext_intel_matrix, gpu
+// REQUIRES: gpu, aspect-ext_intel_matrix, gpu
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB
@@ -15,5 +15,5 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#include "common.hpp"
-#include "joint_matrix_bf16_fill_k_cache_impl.hpp"
+#include "../common.hpp"
+#include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

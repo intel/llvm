@@ -5,16 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: gpu, matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL:*
 
-#include "common.hpp"
+#include "../common.hpp"
 
 constexpr size_t TN = 16;
 static constexpr size_t MATRIX_K = 1024 + 14;
 
-#include "joint_matrix_out_bounds_impl.hpp"
+#include "../joint_matrix_out_bounds_impl.hpp"

@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: aspect-ext_intel_matrix
+// REQUIRES: gpu, aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // Run these 2 tests on PVC only for now. Check can be updated to "gpu",
@@ -15,5 +15,5 @@
 // RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 // RUN: %if arch-intel_gpu_pvc %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
-#include "common.hpp"
-#include "joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"
+#include "../common.hpp"
+#include "../joint_matrix_int8_rowmajorA_rowmajorB_impl.hpp"

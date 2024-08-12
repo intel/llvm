@@ -8,13 +8,13 @@
 // This test is for element wise operations when matrix size does not multiply
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
-// REQUIRES: cpu
+// REQUIRES: gpu, cpu
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-#include "common.hpp"
+#include "../common.hpp"
 
 #define SG_SZ 16
 
