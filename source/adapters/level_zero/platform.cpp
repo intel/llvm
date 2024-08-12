@@ -239,6 +239,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
         ZeDriverEventPoolCountingEventsExtensionFound = true;
       }
     }
+
+    // Check if the ImmediateAppendCommandLists extension is available.
+    if (strncmp(extension.name, ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME,
+                strlen(ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME) + 1) == 0) {
+      if (extension.version ==
+          ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_VERSION_CURRENT) {
+        zeDriverImmediateCommandListAppendFound = true;
+      }
+    }
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
