@@ -1396,9 +1396,9 @@ As with allocation, the descriptor must be populated appropriately, i.e.
 
 === Copying image array data [[copying_image_array_data]]
 
-When copying to or from image arrays, the user should copy to/from the array of
-images by calling `ext_oneapi_copy` and passing the image arrays'
-`image_mem_handle`, as outlined in <<explicit_copies>>.
+When copying to or from image arrays, the user should utilize `ext_oneapi_copy`
+and pass the image arrays' `image_mem_handle`, and any applicable sub-region
+copy parameters, as outlined in <<explicit_copies>>.
 
 In order to copy to specific layers of an image array, the offset and extent
 parameters involved in sub-region copies must be populated such that the 3rd
