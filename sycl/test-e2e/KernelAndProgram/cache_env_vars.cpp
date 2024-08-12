@@ -22,8 +22,7 @@
 // CPU OCL JIT       0.12    0.12  0.16     1.1     16
 // CPU OCL Cache     0.01    0.01  0.01	   0.02   0.08
 
-
-// Some backends will call urProgramBuild and some will call 
+// Some backends will call urProgramBuild and some will call
 // urProgramBuildExp depending on urProgramBuildExp support.
 
 // CHECK-BUILD-NOT: urProgramCreateWithBinary(

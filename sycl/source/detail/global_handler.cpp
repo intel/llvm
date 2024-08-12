@@ -363,7 +363,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   }
 
   bool PrintUrTrace =
-    sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+      sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
 
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
