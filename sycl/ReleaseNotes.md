@@ -1,3 +1,2065 @@
+# Release notes Jul'24
+
+Release notes for commit range
+[d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
+...
+[ebb3b4a21b3b0e](https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83e436)
+
+## New Features
+
+### SYCL Compiler
+
+- Added `-fsycl-range-rounding` command line option which allows to
+  control range rounding feature. In comparison with previously available
+  `-fsycl-disable-range-rounding` command line option and
+  `__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__` macro the new flag also allows
+  to _force_ range rounding which will complete disable generation of
+  non-rounded kernels, thus improving binary size. intel/llvm#12715
+- Added `-fsycl-exp-range-rounding` command line option that enables
+  experimental range rounding mode in which range rounding is performed across
+  all dimensions. intel/llvm#12690
+- Added support for the so-called [new offloading model](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/OffloadDesign.md).
+  It can be enabled by `--offload-new-driver` command line option and should
+  allow us to improve link time by reducing amount of external processes and
+  temporary files used by the compiler. **Do we need to list PRs here?** There
+  were many of them and some of them were merged in scope of a previous release.
+- Added `-fsycl-fp64-conv-emu` command line option which allows to enable
+  partial (only conversion operations are supported) emulation of `double` data
+  type. This mode is only supported by Intel GPUs. intel/llvm#13912
+- Introduced `__PTX_VERSION__` macro that corresponds to the PTX version used
+  when compiling NVPTX. intel/llvm#14621
+
+commit 5b3e7c8f60f0c66ec92f2a19b43ec147d40bd5ed
+    [SYCL][New offload driver][LLVM-SPIRV] Send all translator options to linker wrapper (#13394)
+commit cd24d808382598565f9ec3d9e8faf3e83bfa9aa4
+    [Driver][SYCL] Pass full set of sycl-post-link options to linker wrapper (#13648)
+commit ece73ad61b49eaf9ecb6e2060e5f20e09e26def6
+    [NewOffloadModel][SYCL DeviceLib] Generate SYCL device library objects using new offload model (#13579)
+commit 90c659e4a04e0c74a0eb99d4c72d79c8bc0f783e
+    [Driver][SYCL][NewOffloadModel] Hook up -fsycl-device-only behaviors (#13672)
+commit 91b840c2c44cbc10149f2c77aa4094d6c73bd73f
+    [Driver][SYCL][NewOffloadModel] Hook up -fsycl-device-obj support (#13688)
+commit a8609a5925a3fcb2bd85636702556d15ae5574f4
+    [New offload][llc] Pass -relocation-model=pic option to llc when building shared libraries (#13687)
+commit 16007fa8be4292159f0b19e5fb911b90e3f84aa4
+    [SYCL][Device libs][New offload] Add missing fallback SYCL device library files (#13869)
+commit 5ddc6881a4f5c2ee5f0ccbbd873e57a62bceb30d
+    [Driver][SYCL][NewOffloadModel] Improve arch association for device (#13898)
+commit 7439fb46f1469cf401d89bf203f91ea22bc7ee57
+    [Driver][SYCL][NewOffloadModel] Hook up options for the offload-wrapper (#14001)
+commit 3aee3dbc23d2981c049fdfa6b12b7f759062326d
+    [Driver][SYCL][NewOffload] Update option passing for packager and AOT (#14066)
+commit c2cdfccf4aa90a6da35826c55815f680db3b3805
+    [New offload driver][sycl-post-link] Move sycl-post-link target specific options generation to linker wrapper (#14101)
+commit 934b46f2fff602bcbe7c99c13a1dd7ed6955ae4f
+    [Driver][SYCL][NewOffload] Fix duplication of device targets (#14143)
+commit 6ecce4fdab98b31a897af23444ca4d636af89862
+    [New offload driver][Device lib] Add SYCL device library files for all targets (#14102)
+commit f9fd95ec6c2aa4b77b0503ae1a7a82d6747df105
+    [Driver][SYCL][NewOffloadModel] Incorporate -device settings for GPU (#14151)
+commit 9691782beff5456c297063223ff831d54a8cd624
+    [SYCL][NFC][New offload model][llvm-spirv] Refactor llvm-spirv options generation for enabling correct use under new offload model (#14253)
+commit 3e474e050206e234759115a6442cdd5fb084d3f6
+    [New offload model] Cleanup the way sycl-post-link options are generated (#14177)
+commit fe2b47f08bee73be8bd978c71f3946852e94d790
+    [SYCL][AOT][New offload model] Add AOT support in clang-linker-wrapper for Intel CPUs/GPUs (#14252)
+commit 1c13e6f5e6bae9df42b483852c60631609422043
+    [SYCL][ClangLinkerWrapper] Unconditionally pass -properties to sycl-post-link (#14541)
+
+### SYCL Library
+
+- Added support for JIT-compilation for AMD and NVIDIA backends. intel/llvm#14280
+- Implemented [`sycl_ext_oneapi_prod`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_oneapi_prod.asciidoc) extension. intel/llvm#13555
+- Implemented [`sycl_ext_oneapi_profiling_tag`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_profiling_tag.asciidoc) extension. intel/llvm#12838
+- Implemented [`sycl_ext_oneapi_forward_progress`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_forward_progress.asciidoc) extension. intel/llvm#13389
+- Implemented [`sycl_ext_oneapi_private_alloca`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_private_alloca.asciidoc) extension. intel/llvm#12966 intel/llvm#13490 intel/llvm#13181
+- Implemented [`sycl_ext_oneapi_enqueue_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc) extension. intel/llvm#13512
+- Added support for `get_backend_info` API into various SYCL classes (`platform`, `context`, etc.). intel/llvm#12906
+- Implemented [`sycl_ext_oneapi_group_load_store`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_load_store.asciidoc).
+  Please note that the implementation is naive and does not expose any special
+  HW capabilities, it won't provide any performance benefit over how a group
+  load/store could be done without this extension using simple `for` loop and
+  group barriers. intel/llvm#13043
+- Implemented [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
+- Added initial support for [dynamic linking](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/SharedLibraries.md).
+  Current implementation lacks support for `kernel_bundle` API and AOT mode. intel/llvm#14587
+- Added initial support for [`sycl_ext_oneapi_free_function_kernels`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) extension. intel/llvm#13207 intel/llvm#13885
+  Known limitations:
+    - free function kernels are only supported if defined at file scope
+    - `SYCL_EXTERNAL` has to be used alongside `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`
+      to define free function kernel
+    - compiler won't emit any diagnostics if some restrictions from the
+      extension specification are violated
+    - arguments of a free function kernels cannot be composite data types like
+      structs or SYCL classes like `accessor`
+    - using `-fsycl-dead-args-optimization` (ON by default) can lead to failures
+    - `info::kernel::num_args` won't return the right result for free function
+      kernels
+
+
+### SYCLcompat library
+
+- Added support for 2-byte and 4-byte `memset` operations. intel/llvm#13409
+- Added `compare`, `compare_both`, `compare_mask` and their `unordered_*`
+  counterparts. intel/llvm#12998
+- Added APIs for performing arithmetic operations on 33-bit extended values. intel/llvm#13006
+- Added APIs for performing bitwise operations on 33-bit extended values. intel/llvm#13727
+- Added `device_count` and `get_device_id` utility APIs. intel/llvm#14013
+- Added experimental `launch` API overloads that accept sub-group size. intel/llvm#13767
+- Added `wait` and `wait_and_throw` free functions. intel/llvm#13029
+- Added vectorized comparison `extend_vcompare[2|4]` APIs. intel/llvm#14079
+- Added vectorized math `extend_v*2` APIs. intel/llvm#13953
+- Added vectorized math `extend_v*4` APIs. intel/llvm#14078
+- Added bitfield manipulation APIs `bfe_safe` and `bfi_safe`. intel/llvm#14006
+- Added dot-product accumulate APIs `dp4a`, `dp2a_lo` and `dp2a_hi`. intel/llvm#14032
+- Added `wait_and_free` API. intel/llvm#14015
+- Added `filter_device` and `list_devices` APIs. intel/llvm#14016
+- Added `funnelshift_*` APIs. intel/llvm#13825
+- Added `match_[any|all]_over_sub_group` APIs. intel/llvm#12973
+- Added API to manage kernel libraries loading/unloading. intel/llvm#13053
+- Added `cmul_add` API. intel/llvm#12969
+- Added experimental APIs for maksed operations over sub-groups (`select`, `shift`, etc.). intel/llvm#12972
+
+commit e0d020a74fee74a1fcda97b9a9854ad07bde4eae
+    [SYCL][COMPAT] Added utility helpers to simplify code translation (#12970)
+    ???
+
+commit 4ade7b71db910a694e1da4d73495fd1903da1622
+    [SYCL][COMPAT] Added support for multiple math ops (#13005)
+    ???
+
+### Documentation
+
+- Added specification for [`sycl_ext_oneapi_group_load_store`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_load_store.asciidoc) extension. intel/llvm#7593
+- Added specification for [`sycl_ext_oneapi_work_group_memory`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_memory.asciidoc) extension. intel/llvm#13725
+- Added [implementation design document](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/PrivateAlloca.md) for [`sycl_ext_oneapi_private_alloca`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_private_alloca.asciidoc) extension. intel/llvm#13514
+- Added specification for [`sycl_ext_intel_fpga_task_sequence`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_intel_fpga_task_sequence.asciidoc) extension. intel/llvm#6348
+- Added specification for [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
+- Added specification for [`SPV_INTEL_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/spirv-extensions/SPV_INTEL_bindless_images.asciidoc) extension. intel/llvm#12927
+
+
+
+commit 9876e19f4ff387b35b0c98c7d62e5f50e6de187d
+    [SYCL][XPTI] 'queue_id' metadata feature refactoring (#13070)
+    bugfix?
+
+commit 3800814750da51d6da852ce404bde91e1dbe02b8
+    [SYCL] Key/Value sorting with fixed-size private array input (#14399)
+
+commit 7b3f21527abb904cb5c63e9ea32c7f0d65636436
+    [SYCL] [ABI-Break] Partial implementation of sycl_ext_oneapi_cuda_cluster_group (#14113)
+
+commit 8e3b8ce77f41d85687ae3bceedf5d1dc6e0e3155
+    [SYCL] Add sorting APIs for fixed-size private array input (#14185)
+
+commit bd97f283c9f982b89a3347754edf184a38762a4a
+    [Bindless][Exp] Windows & DX12 interop. Semaphore ops can take values. (#13860)
+
+commit 3910d0c1393247313c8987b3f68a8d540d940673
+    [SYCL] Add support for key/value sorting APIs (#13942)
+
+commit 5e269c88bcfafd82719d1266a5b8a2bb7b90045d
+    [SYCL] Initial changes for the second version of sycl_ext_oneapi_group_sort extension (#13908)
+
+commit 55b547e59a28c4c446a797bb8c51a83156609327
+    [SYCL][ESIMD] Introduce load2d/store2d/prefetch2d API that accepts compile time properties (#13046)
+
+commit d06724a7c304d393500b7edbb84f5c7e59f6b319
+    [SYCL][Graph] Specify API for explicit update using indices (#12486)
+commit 2bc8b5bc8cbc44cf8ef1deb095c10450348904d8
+    [SYCL][Graph] Implementation of explicit update with indices (#12840)
+
+commit c8ae6c68943b9635cd9822f3c9ee7b5cc8d98acc
+    [ESIMD][NFC][DOC] Add load/store/prefetch_2d functions, L1/L2 hint combinations(#13218)
+
+## Improvements
+
+### SYCL Compiler
+
+- Improved compilation flow around intergation footer when no 3rd-party host
+  compiler is used. New compilation flow creates less temporary files and
+  therefore should result in a slightly faster compilation. intel/llvm#13607 intel/llvm#14402
+- Added support for `truncf`, `sinpif`, `rsqrtf` and `exp10f` functions in SYCL
+  kernels are part of [C-CXX-StandardLibrary](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/C-CXX-StandardLibrary.rst) extension. intel/llvm#14132
+- Added support for more IMF functions as part of [C-CXX-StandardLibrary](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/C-CXX-StandardLibrary.rst) extension. intel/llvm#13786
+- Added `-fsystem-debug` command line option to complement existing
+  `-fno-system-debug`. intel/llvm#13256
+- Improved wording of an error about implicit `this` capture in a kernel. intel/llvm#14100
+- Improved `--save-temps` to work with `-fsycl-host-compiler`. intel/llvm#114751
+
+### SYCL Library
+
+- Added support for `sqrt` and `rsqrt` ESIMD function for `double` data type. intel/llvm#13254
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support cubemap images. intel/llvm#12996
+- Added ESIMD API for dynamic allocation of named barriers. intel/llvm#13826
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support sampled image arrays. intel/llvm#14237
+- Added implementation for whole graph update (`executable_command_graph::update`). intel/llvm#13220
+- Added a warning about use of the deprecated `<CL/sycl.hpp>` header. intel/llvm#13569
+- Made `local_accessor::get_pointer` and `local_accessor::get_multi_ptr` throw
+  `invalid` exception if they are called on host. intel/llvm#13747
+- Extended detection of nested `queue` operations to support shortcut methods. intel/llvm#13659
+- Added overloads of various ESIMD APIs (`atomic_update`, `block_[load|store]`
+  and some other) which allow to omit some template arguments, thus simplifying
+  the interface. intel/llvm#14043 intel/llvm#14065 intel/llvm#14000
+  intel/llvm#14024 intel/llvm#13978 intel/llvm#13964 intel/llvm#13977
+  intel/llvm#13956 intel/llvm#13941 intel/llvm#13920
+- Updated [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc)
+  extension implementation to support vectors of `bfloat16` to be passed to math
+  functions. intel/llvm#14002 intel/llvm#14106
+- Improved performance of `sycl::vec::as` by optimizing implementation of
+  `sycl::detail::memcpy`. Resolved intel/llvm#7901. intel/llvm#13751
+- Updated implementation to throw SYCL 2020 exceptions instead of legacy
+  SYCL 1.2.1 exception sub-classes everywhere. intel/llvm#14484 intel/llvm#14545
+  intel/llvm#14520 intel/llvm#14485 intel/llvm#14510 intel/llvm#14483
+  intel/llvm#14487 intel/llvm#14488
+- Added support for `sycl::vec::convert` to/from `vec<bfloat16, N>`. intel/llvm#14105
+- Deprecated `marray<bool, n>::operator++/--`, `accessor::get_multi_ptr` for
+  non-device accessors. intel/llvm#13443
+- Moved ESIMD named barrier APIs out of `experimental` namespace. intel/llvm#13704
+- Implemented latest revision of [`sycl_ext_oneapi_free_function_queries`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
+  extension. intel/llvm#13257
+- Extended `sycl-ls --verbose` to print device's UUID, information about its
+  sub- and sub-sub- devices and its architecture. intel/llvm#13999 intel/llvm#13976
+- Added support for compile-time properties to `copy_to` and `copy_from` ESIMD
+  APIs. intel/llvm#13586
+- Switched `experimental::printf` implementation to use non-variadic interface
+  by default. This should improve usability when printing `float` values on
+  devices that doesn't support `fp64` aspect by disabling `float` -> `double`
+  promotion in `printf` arguments. intel/llvm#13055
+- Added a diagnostic if `slm_init` ESIMD API is called more than once in
+  a kernel. intel/llvm#12804
+- Updated implementation of
+  [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  extension to return `unknown` enumerator on an unsupported HW. intel/llvm#14190
+- Extended list of known Intel GPU architectures available through
+  [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  extension. intel/llvm#13520
+- Extended mechanism to clear in-memory cache in heavy tests to also work on
+  `opencl` backend. intel/llvm#14119
+- Moved bit shift and rotate ESIMD functions out of `experimental` namespace.
+  intel/llvm#13545
+- Added check for template argument `N` of `media_block_load` ESIMD API. intel/llvm#13668
+
+commit c5b174d8507cad1328b3121e650120e85f1da213
+    [SYCL] Implement latest version of sycl_ext_oneapi_free_function_queries (#13257)
+
+commit 398aa20350aa38d76d9e95a8b76e3858c38faae5
+    [SYCL] Support shuffle algorithms for non-uniform groups (#12705)
+
+commit ebb3b4a21b3b0e977f44434781729df7de83e436
+    [SYCL] Remove plugin interface (#14145)
+
+
+### Documentation
+
+- Added more detailed description of some of ESIMD methods and functions in a
+  new [`sycl_ext_intel_esimd_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md) document. intel/llvm#13071
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support cubemap images. intel/llvm#12996
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support sampled image arrays. intel/llvm#14237
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support support default-construction of `image_descriptor`. intel/llvm#13781
+- Updated [ESIMD functions documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md) to list restictions for `atomic_update` functions. intel/llvm#13202
+- Updated [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc)
+  extension to support vectors of `bfloat16` to be passed to math functions. intel/llvm#14002
+- Updated [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
+  extension to clarify behavior of `free_memory` query when there are multiple
+  processes using the same device. intel/llvm#14640
+- Promoted [`sycl_ext_oneapi_profiling_tag`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_profiling_tag.asciidoc)
+  extension from proposed into experimental status. intel/llvm#14165
+- Promoted [`sycl_ext_oneapi_group_sort`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
+  extension from proposed into experimental status. intel/llvm#14531
+- Moved [`sycl_ext_oneapi_enqueue_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc)
+  extension from proposed to experimental status. intel/llvm#14017
+- Updated [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  to return new `unknown` enumerator if device architecture cannot be properly
+  detected. intel/llvm#14077
+
+commit ffc0de03f900da2d0262ea8ec41ac3847a1edbcc
+    [SYCL][Graph][Doc] Remove outdated limitation from spec (#13163)
+
+commit 486b3dd1a2b2924e4445f1e36e5c341a09ba784f
+    [SYCL][Graph][Doc] Tidy of graph extension design doc (#13065)
+
+commit 09c93842ffe51602e118504e4e3229d41b2a4fb2
+    [SYCL][Graph] Clarify graph enable_profiling property in finalize() (#14067)
+
+commit ecd3b903f4ddb6b32892f03c326151faa9fa63e8
+    [SYCL][Joint Matrix Spec] Add new API for out of bounds fill/load/store (#11172)
+
+commit f1e66f5f0f59b958ff352a558dbad8b42df63175
+    [ESIMD][NFC][DOC] Add fence to the ESIMD SPEC functions (#13135)
+
+commit 1e2e6baaf86009f0f9067b1146a8ca7923436e60
+    [SYCL][Bindless] Add image_mem_handle to image_mem_handle devices copies. (#12449)
+
+### SYCLcompat
+
+- Added non-`const` `image2d_max` and `image3d_max` getters. intel/llvm#14138
+
+commit 17d2e2d8a483e7a4c33cd542a3c1381b767452bc
+    [SYCL][COMPAT] Add version & release process (#14457)
+
+commit d8c0a9342a7e71420883c8a750f89679897b9ca1
+    [SYCL][COMPAT] Memory Header cleanup (#13143)
+    is it really user-visible?
+
+commit 89eeb02519cfee2f1d88ffac9f07dd131099b7dd
+    [SYCL][COMPAT] defs.hpp update with Windows macros. SYCLCOMPAT_CHECK_ERROR added. (#13027)
+
+commit 0b05577790f2a81cb10a41262324ff9558614f09
+    [SYCL[COMPAT][CUDA] Impl masked compat shuffles on cuda (#13363)
+
+commit 13c9d0ef964b17dd3e2c297b1ceb2ecb8ea2ffe9
+    [SYCL][Bindless][Doc][ABI-Break] Rename external semaphore destroy to release (#14535)
+
+commit fb561b9f336f8f9c286a1125631dedf1b5fb1e4b
+    [SYCL][Bindless][Doc][ABI-Break] Add const qualifiers to copies (#14140)
+
+
+commit 0eeae2ac96ea179099dd5d57c241260ccfe65f73
+    [SYCL][Graph] Update design doc for copy optimization and add test  (#13051)
+
+commit 4acca904c0e07fd6b504f7938f539bc1a0e94ce0
+    [CLC][AMDGPU] Refactor fence helper to process order semantic explicitly (#12872)
+    ???
+
+commit 13a7b3ad2f229099fe964016f591f17a66b0ea15
+    [SYCL] [libdevice] Add vector overloads of ConvertBFloat16ToFINTEL and ConvertFToBFloat16INTEL (#14085)
+
+commit 0dcad16c36f27e6254e7b831faaad8c6e07f8cfb
+    [SYCL][Bindless] Update spirv fetch-sampled and fetch/write-array (#13946)
+    bugfix??
+
+commit af65855fa6b6df0eded078bd3dbe3bf4a6a2b2e3
+    [SYCL][ESIMD]Replace use of intrinsics  with spirv functions (#13553)
+    do we even need to mention this?
+commit 990b1d1ba053d60a803ae5e750803ae6583119f9
+    [ESIMD]Replace use of vc intrinsic with spirv extension for rdtsc API (#13536)
+commit 1f1be9c642889b7c0fd045b073d411e544dc6007
+    [SYCL][ESIMD] Move fmax to SPIR-V intrinsic (#14020)
+    this one is also problematic
+commit bcca7a80adf50b04c0991ef48745353ac7829016
+    [SYCL][ESIMD] Move a few math operations to SPIR-V intrinsics and support new functions (#13383)
+    that is a regression, not an improvement :) should be noted in known issues 
+
+commit 1d2007ba7c661322584a60d84a40777e0e0d9567
+    [SYCL][COMPAT] kernel_function and kernel_library constexpr constructors (#13932)
+    if those APIs were added in this release, we should squash two items into one
+
+commit 74602458d5583cf69ca575a9167def51dad15052
+    [SYCL][Bindless] Replace 'image_channel_order' field in 'image_descriptor' with number of channels (#13745)
+
+commit 83db85f1964338d9ce67bb536f8e6c5eebe8893b
+    [SYCL][Bindless] Update and add support for SPV_INTEL_bindless_image extension new revision (#13753)
+
+commit d2a5e8d095c0176957f5da2c5232d8966f8ff1bf
+    [SYCL][Matrix] Add generation of spirv.CooperativeMatrixKHR type (#13645)
+    internal improvement that can be ignored?
+
+commit 82aaf27f6f0cf97ba89b58f88a18b09e23097afc
+    [SYCL][Driver] Refactor device config parsing to better match HIP and CUDA targets (#13617)
+
+commit b11a19b1896cc2f7ab43735aacf265182e22832c
+    [Bindless][SYCL][Doc] Add HintT tparam to cubemap fetch and sample (#13742)
+
+commit 9d1cbc51854f19f89105d502db9156b11e4507f4
+    [SYCL][COMPAT] nd_range barriers seq_cst by default in supported devices (#12974)
+
+commit 3756fd1b778ae4ab36bd3988bfdf9ba910b779fd
+    [ESIMD] Enable FADD/FSUB for slm_atomic_update (#13535)
+    ???
+
+commit c65bed1073460fb8d6dbb319f5e7ff2c9c7c9422
+    [SYCL][Graph] Update begin_recording and end_recording (#13480)
+
+commit d6dfd0c77b2212f4e3e926d2e289bd3dc6e18b49
+    [SYCL][Graph][DOC] add an edge case for record&replay mode (#12916)
+
+commit 89132855d4312536f5f40792194b6251d4cde819
+    [SYCL][Joint Matrix] Add a new overload for joint_matrix_apply to be able to return result into a different matrix (#13151)
+
+commit 8847c110c78684a86ec7e62d7255f1bb9c6efd4f
+    [SYCL][NATIVECPU][libclc]Mark opencl_c_generic_address_space as unsupported on Native CPU (#13109)
+
+commit 07e3bcf9f3be46234deb471e25d94b5692353688
+    [SYCL][ESIMD] Use LSC for unsupported surface index block stores (#13150)
+
+commit ed0619b4caa24af8e78053ecef2e5e808e0e2b08
+    [SYCL][Joint Matrix] Support 1x64x16 bf16 combination (#13391)
+
+commit 03233e57e5585813ec2c0dbc7a10ceb4a6d15a71
+    [SYCL] Add missed intel math functions in sycl_ext_intel_math header (#13762)
+
+commit 6cb77fcfb37ffb445ab62ea1545422dc52128da1
+    [SYCL] Add -fPIC for Intel math function host code (#13800)
+
+commit 434d5edfae78307969ade6764e5bafeb17ce5073
+    [SYCL] Remove redundant detail::empty_properties_t (#13777)
+
+commit 84bae21d3f63f04ca50bfffc5203909ba3fd95a6
+    Implement missing overloads for generic AS in generic target (#13938)
+
+commit da379ecfa649a520f49f8adfb97e73c72ff3fb06
+    [SYCL] Add support for multiple missing math ops (#13714)
+
+commit 0f6f57b43afa7ee442744b89e7a034673d58c8d8
+    [SYCL][Doc] Fix typos and formating of SYCLCompat README (#13961)
+
+commit 0d1dd2d2b1e8655b96940edecef84447866e87bc
+    [SYCL] Add a module flag for device compilations (#13880)
+
+commit 29b4d855fa1a378e89182795e0d368304c40c3f6
+    [SYCL][CUDA] Enable support of msvc math functions for nvptx target. (#14007)
+
+commit 9f1cee573782772f8d062f6490128c3ee6fa6911
+    [SYCL][CUDA] Improve kernel launch error handling for out-of-registers (#12604)
+
+commit b49303c7e13ca0a69454eaaaeb8c3d094916218d
+    [SYCL][COMPAT] Add Image Max dims to device_info. Updated Max ND Range Size (#13973)
+
+commit db54535fb389331b167807a5d8f1ed16b5695474
+    [AMDGPU][SYCL] Make unsafe atomic fadd opt in (#13955)
+
+commit dce651bd69ea12c935c70990ed3290007a00c6c5
+    [SYCL][COMPAT] Migrate bug fixes & refactor of get_*version APIs (#14011)
+
+commit 4e36825beabb4b4a7435470ac633768dcbd7b376
+    [SYCL] Record aspect names when computing device requirements (#13974)
+
+commit a35f862445b5666c63469cda2656b0a9946df25c
+    [SYCL][Graph] fix the address pointer in graph print (#13595)
+
+commit f204869281570959af82fff638df6b34151718f4
+    [SYCL] Add sm90a Cuda target architecture support (#14075)
+
+commit c1b17e00f9b5c51db1f8385435d7a591224b01e0
+    [SYCL] Enable CET for wqlibsycl-devicelib-host.a (#14135)
+
+commit e7defabdcc3d5b460cfc593822156836b874f092
+    [SYCL] Use `std::array` as storage for `sycl::vec` on device (#14130)
+
+commit 0e24ac5677d8d91aed2fcc72d52d9d6b40f5985a
+commit ea2111c1a022a1bd7a818ef9796d70d22f3b92d0
+    [SYCL] Re-implement diagnostics about virtual calls (#14141)
+
+commit c2ebf84fd7ffcc8f40dd9eef2aed163437792cd5
+    [SYCL] Make `vec` conversion operator to scalar non-template (#14668)
+
+commit 4240ef0d9db3577b057d27233c5393cc7f6b774e
+    [SYCL] Add check for valid SYCL triple for NVidia GPUs. (#14673)
+
+commit 3fdfbfed1ed0062b9f3848a100093b340183c6a3
+    [SYCL][NATIVECPU] Support reqd_work_group_size on Native CPU (#13175)
+
+commit fe1859085b621ea901cd8da81659923122417688
+    [SYCL][NVPTX] Emit reqd_work_group_size attributes as NVVM annotations (#14502)
+    related to above?
+
+commit 9e4768ca9849e7188221c0e2894282730e3b1bde
+    [SYCL][libclc] Add generic addrspace overloads of math builtins (#13015)
+
+commit 183832b9cebd471586c0ed251876972939442327
+    [SYCL][PI] Add PI_ERROR_UNSUPPORTED_FEATURE error code (#13036)
+
+commit c1e2957be8db95425f1c17df258a0830c83dcf47
+    [CUDA][LIBCLC] Implement RC11 seq_cst for PTX6.0 (#12516)
+
+commit 73be194fc27cd20968c264afdb71befc181d51ec
+    [SYCL] Add support for optional kernel features in AOT x86_64 compilation (#14590)
+commit f51e43b2f0616934116626dc48c83282a84090ce
+    [SYCL] Add more aspect information for intel_gpu_* in device config file (#14188)
+
+commit 7a9d3b1e9483b69baa0b8c6f1097016efd52854c
+    [SYCL][NVPTX] Do not decompose SYCL functor unless necessary (#14434)
+
+commit d42d90e52d71c16739e26de353f69930cbe1f860
+    [SYCL] Change the ext_intel_device_info spec to throw a feature not supported error when a query is not supported (#14576)
+
+commit 3561c9bb854d35eeb9fc4da3550334faaf316a4f
+    [SYCL] Add support of more Intel GPU arch versions to sycl_ext_oneapi_device_architecture (#14582)
+
+commit e51002c81cdf32f383104907cca820e4ed3452ba
+    [SYCL] Enable intel joint matrix on GNR. (#14436)
+
+commit 21c2e1c2213171d12acb5e6c41a713db30a0d5d4
+    [SYCL] Make swizzle mutating operators const friends (#13012)
+
+commit da02e023e60d89824aad440c4f7bb558e70501a4
+    [SYCL] Workaround for seg fault in `vec::convert<>` for OpenCL CPU at O0 (#14498)
+
+commit 17ee3e24e2874690f7526dcda9d8bc4679fe7edc
+    [SYCL][NATIVECPU] Add device library and initial subgroup support (#13979)
+
+commit 0b9fc099f63feadb5e476c5862de3d8fa977a655
+    [SYCL][Graph] Test WGU kernel mismatch (#14379)
+
+commit 0ccb0b7d3dd614707f82ea8f99790e2d3b08496d
+    [SYCL][ABI-Break] Improve Queue fill (#13788)
+
+commit 005622d177c9a17dc9defefd507921daf7affc28
+    [SYCL][Doc] Update work-group-specific extension (#14271)
+
+commit 93fef86cd4fb8e18c126365c404eea1ed0f1a7fa
+    [SYCL][Graph] Permit empty & barrier nodes in WGU (#14236)
+
+commit 02ac8a414c1fd9b209d139c100cd1bbeae3729d2
+    [SYCL][LIBCLC][NATIVECPU] Add checks for fp16 and fp64 in Native CPU libclc (#14242)
+commit a25d27bc9fbb2925519e966b9e7043be04274b27
+    [SYCL][NATIVECPU][LIBCLC] Implement missing builtins for half type (#13829)
+
+commit 4151c799ef36f2912fab3f6b9e305240ef4ff327
+    [SYCL][Graph] Wait instead of flush dep events in update command (#14167)
+
+commit 47a03418ac74f3a5492213afc192569eae1393ec
+    [SYCL][LIBCLC][NATIVECPU] Add aarch64 target triple for Native CPU (#13911)
+
+commit f2cd2a80e7277fc62d8802673ce6ab2fac6fcbd0
+    [SYCL] Disable in-order queue barrier optimization while profiling (#14123)
+
+commit e34b7fffedbe9ff73d41b172eb48c189170f99f9
+    [Doc] Document Unified Runtime update process (#14097)
+
+commit 2e1f14adb3bf6d9e9c55e4b0ced9e1ece2172a4a
+    [SYCL] Fix UB and alignment issues in the SYCL default sorter (#13975)
+
+commit 4222b4ccd6dc499248c8bf026bcdd0f207000b35
+    [SYCL] Restrict `sycl::vec` and swizzle operations to types mentioned in the SPEC (#13947)
+
+commit 5b6cc5eb7bb2106ff426815702d89569e166c4f9
+    [SYCL][Matrix] Enable SPV_KHR_cooperative_matrix extension (#13923)
+
+commit 03b994ead80bb381d59b1390f255119b8d211a1f
+    [SYCL] Add code location information to enqueue free functions (#13924)
+
+commit 58382507f0c7bd8a5c21e3b7e1d3360f0835f26a
+    [ESIMD]Add support for double data type to inv API (#13838)
+
+commit 0ce40f46ef4e2f5e8eed75e28352a90c9b8ecbaf
+    [SYCL] [NATIVECPU] Implement generic atomic store for generic target (#13428)
+
+commit ccca3b73769bfd8a27eff9956630fe86a2e4832d
+    [SYCL] Optimize SG group_store via BlockWriteINTEL in simple cases (#13734)
+commit 48a0ff5b4b5bc21dedab37380c4ac93676277f91
+    [SYCL] Optimize SG group_load via BlockReadINTEL in simple cases (#13673)
+
+commit 0a1381d286f7c32a256a6dab49917870769f1238
+    [SYCL][Graph] Add wording about arbitrary C++ code in CGFs (#13699)
+commit ece19f298b1029121da17a423b801bc2a9267a8d
+    [SYCL][Graph] Clarify graph in-order and out-of-order properties (#13681)
+
+commit 67f3bf292ff58136adc6383a3c5a1b19779e4120
+    [SYCL][COMPAT] Removed sycl/sycl.hpp include (#13108)
+
+commit 7d55eb8a8419dac64f065bbf84125ed1d78dc992
+    [SYCL][Docs] Behavioral changes to in-order queue events extension (#13624)
+
+commit 771ffa4e967f3058c500c87297c2d1a7be156a9b
+    [SYCL] Remove get_child_group() (#13482)
+
+commit e1119d9d2753dc9165e10c2e8c11e222cc549ba9
+    [SYCL][ESIMD] Add more compile time checks to rdregion and wrregion API (#13158)
+
+commit c5cf452d663b96479341daa182c7e305baf542aa
+    [SYCL][libdevice] Add simple rand for ease of use in device (#13506)
+
+commit a36e9f8969a5ad4346f84c925aa89e1a00128b7f
+    [SYCL] APIs cleanup (#13443)
+
+commit ef6d2bb3caf36eaa1149369f8aee1578d6e31a6e
+    [SYCL][ESIMD] Add support for transposed prefetch for 1/2 byte elements (#13452)
+
+commit 5a07640e1ce68584a60b1a0450526e928340d1e0
+    [SYCL][ESIMD] Add native FMA function (#13366)
+
+commit a4fdfdad53c3f1b2e423cdf5f5f0f977ce055593
+    [ESIMD][NFC][DOC] Fix misprints and punctuation in esimd-functions doc (#13239)
+
+commit 0557c7bb247f6b90ce9e389b9bde341f98dca667
+    [NFC][SYCL] Use __SYCL2020_DEPRECATED macro for any/all builtins (#13237)
+
+commit 3f841ff1d21bac2601beaf087bc3d09170af6d35
+    [SYCL] Deprecate legacy information descriptors (#13279)
+
+commit 902dadc476617379a8d38206d6f2183b657acf62
+    [SYCL] Add alternative to deprecated barrier() function for sub-group (#13276)
+
+commit fc9d62f6c93a47b5b980e4c2840f349c4b2db93a
+    [SYCL][AMDGCN] Provide a more helpful --offload-arch error (#13078)
+
+commit 0c0b58686a79c8d9a8ef547a96b5c1642480e591
+    [XPTI][INFRA] Sample E2E data collection timing test for XPTI (#13045)
+
+commit 24699750a7f816b7ad4ebe19342210693e20a9f3
+    [ESIMD][NFC][DOC] Add 'restrictions' section to gather/scatter() doc (#13196)
+
+commit 8867d446c360048b62064828693f4d50c945a55c
+    [spir-v][clang] Allow spirv32/spirv64 as target triples for sycl offloading (#13083)
+commit b8f394203ec4436ddd31f72193c4c1a52e3747df
+    [SYCL] Fix device libraries and SYCL headers with spirv64 target (#13288)
+commit 8bc909e01ece4e177ae25168995be21f0d37abc6
+    [SYCL][libdevice] Build for spirv64 on Linux (#13302)
+commit 363fceff578dcfa5a488b89f71f259da80aad2d7
+    [SYCL][ESIMD] Don't override target triple to genx64 (#13445)
+commit 9bb2b343de3308994892961b0b48838ce7f2e91d
+    [SYCL][ClangLinkerWrapper] Fix SYCL binary creation with spirv64 triple (#14686)
+commit f8926a63ce5a1634cb0533f4ab8eab2b6898caac
+    [SYCL][Libdevice] Build for spirv64 on Windows (#13649)
+commit d0744751abe535c1470ca8833d5dd3b3d1a72c6b
+    [SPIR-V][Headers] Enable programs that include system headers on Windows for SPIRV32 and SPIRV64 targets (#13548)
+
+commit 38e663ecd37de513d8e31afdfdf245cf8c9d17f0
+    [SYCL] Declare __devicelib_assert_read only when fallback assert is enabled (#13241)
+
+commit 66865607bb90f7a7ca7602e5e18d8314659ffba5
+    [SYCL][NFC] Remove legacy SYCL_EXT_ONEAPI_MATRIX_VERSION usages (#13235)
+
+commit 9612159998a1c05525f08f0a6775d875d86da518
+    [Driver][SYCL] Cleanup redundant dependency steps (#13217)
+
+commit c821dc934dc7934b0209b5d3f88a280bbaa7145c
+    [SYCL] Add support for multiple filtered outputs in sycl-post-link (#12727)
+    merge with other optional kernel features AOT improvements
+
+commit 3ea29b2a9028b485b76339e16754e3e74c9cc7a6
+    [SYCL] Update root_group extension to use `this_work_item` namespace (#13304)
+
+commit fb66f1b83559366e541381251de4281bb554613d
+    [SYCL] Replace __builtin_bit_cast with sycl::bit_cast in imf headers (#13313)
+    is it a bugfix?
+
+commit 65bdffb1c9d4c474316d3e330fc3c59338e004f6
+    [SYCL][libclc][NATIVECPU] Implement generic atomic load for generic target (#13249)
+    new feature?
+
+commit d932fcae4aa83d12a3eb30a3003d1718429a9df1
+    [SYCL][COMPAT] Extended device_info properties. (#13050)
+
+commit 05644a470303c2af3385b9533b8d23ebdea99eb7
+    [OpenCL] Config dependent-load flag to exclude CWD from DLL search path (#13327)
+    do we report security issues?
+
+commit e9befa2d10f6c23a66ac780df7a1ddda55279230
+    [SYCL][DebugInfo] Switch to nonsemantic-shader-200 for non-FPGA HW on linux (#13107)
+    do we need to mention it?
+
+commit a0d8f01c82dda1ed5227945001a179f97774474f
+    [SYCL][ESIMD] Move rdtsc function out of experimental namespace (#13417)
+
+commit 2a1002b9fac9c4b878c6625c3cfafa61dea07ea2
+    [SYCL][JIT] Load SYCL JIT lazily (#13433)
+
+commit 4f5a5f0fba71593888f1737e0b4dbaf49c85e04b
+    [SYCL] Fix WA for ocl query of CL_DEVICE_PROFILE  (#13584)
+
+commit 893059138f61aabeb0e1063549d7f4dd533fdfd1
+    [SYCL][Matrix spec] Add 1x64x16 combination for Intel XMX (PVC only) (#13587)
+    or rather a new feature?
+
+commit e17632f32fcc160add43742ccdaa6cc80cc1b0c0
+    [Driver][SYCL] Use LLVM-IR based device libraries for device linking (#13604)
+commit 67d8ea1cdaef29afd75f7f085f0b6c6d73af81a3
+    [Driver][SYCL][FPGA] Use bundled device libraries for FPGA targets (#13693)
+
+commit 1665cc0dd57266d2677c625725d38973cce3e8d9
+    [SYCL][Graph] Enable in-order cmd-list (#13088)
+
+commit d13fdbe4ee02c39b1939bae7da61392e75ce2c78
+    [Bindless][Exp] Add texture fetch functionality (#12447)
+    or a new feature?
+
+commit fbd10436a5911b12b8d77ba50397a24e6905e7a3
+    [Driver][SYCL]Adding 'aoc -vpfp-relaxed' with -fintelfpga and -fp-model=fast (#13651)
+
+commit 8993f3fc55489023603ceafa631e8f19824979b3
+    [SYCL][ESIMD] Use old intrinsic for named_barrier_signal for now  (#13255)
+    does it revert the patch below?
+commit d4a9254d764a0ff0be8514a6854afda833a268ce
+    [SYCL][ESIMD] Use intrinsic for named_barrier_signal (#12982)
+    ???
+
+commit 51ffc04f0f317e0395c678e1fecd654df51db955
+    [SYCL][libclc] Add generic addrspace overloads of vload/vstore builtins (#13092)
+    ????
+
+commit 75300ab1ceee835e07086925d990f74107a84a1d
+    [SYCL][libclc] Add generic fp16 math builtins for generic SPIR-V target (#13361)
+    ???
+
+commit 7271d613156f2268d538f20d92ecd52b1fbc488f
+    [SYCL][Docs] Add deprecation notice to SPV_INTEL_global_variable_decorations (#13772)
+    do we really need to mention SPIR-V specs?
+
+commit 0678c5ce0fe3af6363bd4b374ffaedb800a5b1e1
+    [SYCL][Joint matrix] clarify the range of the prefetch templated arguments (#13796)
+
+commit bdaf1e27310dc2218a95f05731a422a32ea5a658
+    [libclc] Separate out generic AS support macros (#13792)
+    ????
+
+commit 24a6b3b2f2d2a160a737fb1162c78f4cce9a8f1d
+    [SYCL] Generate imported symbol files in sycl-post-link (#14189)
+commit 62ea97e34e9245fb50f5718861da06e5e4425c2e
+    [SYCL] Exclude SYCL_EXTERNAL functions from device image with the option -support-dynamic-linking (#14103)
+
+commit d4f2fe54047a1b415af2402a497f20e918094580
+    [SYCL][Bindless][Exp] Remove const from non-reference and non-pointer type parameters (#14238)
+
+commit 9800153d373eed9bb5d23acf965541ab0a99b316
+    [MATRIX][DOC][E2E] Add note on sm version nvidia device issue. (#14178)
+
+commit 2bac63f5ebd62b29c8fe916a89b8b42ae536d609
+    [ESIMD] Infer address space of pointer that are passed through invoke_simd to ESIMD API to generate better code on BE (#14628)
+
+commit 14aabdd3d081fea4ab7f66edc42b4b53eb9c50fe
+    [SYCL] Throw exception when device does not support queries in sycl_ext_intel_device_info (#14788)
+
+commit 2442ef047a4e9e9c135beed18a92029e1aad6cad
+    [DeviceSanitizer] Disable handling no return calls (#14652)
+    // bugfix?
+
+commit e38dcdc8bb547f4b63c7b860c1cd9948c090ffc8
+    [SYCL] Add compile target to device image properties (#14757)
+    Not user visible, need to merged with other optional kernel features AOT patches
+
+## Bug Fixes
+
+### SYCL Compiler
+
+- Fixed that using `-fsycl-link-targets` flag would inadvertently trigger some
+  additional device code linking steps. intel/llvm#13004
+- Fixed a bug that when AOT-compiling for Intel GPUs the compiler would pass
+  some PVC-specific flags even if target device is not a PVC. intel/llvm#13794
+- Fixed a bug with incorrect file extensions being emitted in AOT compilation
+  when `--save-temps` is used. intel/llvm#14214
+- Made `-fsycl-add-default-spec-consts-image` available with `clang-cl`. intel/llvm#13168
+
+### SYCL Library
+
+- Fixed a situation when querying
+  `sycl::ext::oneapi::experimental::info::device` could result in exception
+  being thrown instead of empty vector being returned. intel/llvm#13968
+- Fixed `esimd::atan` implementation under `-ffast-math` flag. intel/llvm#13186
+- Fixed an issue that component devices were not considered to be a descendent
+  from their composite devices when creating a queue. intel/llvm#13513
+- Fixed an issue that querying for
+  `ext::oneapi::experimental::info::device::composite_device` would *not*
+  throw an exception if device is not a component device. intel/llvm#13868
+- Fixed an issue that querying for composite devices may result in some devices
+  returned twice. intel/llvm#14442
+- Fixed a bug in copy-constructor of `config_2d_mem_access` ESIMD class which
+  would lead to compilation errors. intel/llvm#13632
+- Fixed an issue that use of `atomic_ref<T *>` would not be detected as a use
+  of `atomic64` aspect leading to errors due to speculative compilation. intel/llvm#14052
+- Fixed `ctanh` and `cexp` returning incorrect value in some edge cases. intel/llvm#14329
+- Fixed a bug where values passed to `-Xs` option through `build_options`
+  property were not passed down to device compiler when using
+  [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
+  extension. intel/llvm#14522
+- Fixed a bug in
+  [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
+  extension implementation
+  TODO: add description here. @cperkinsintel . intel/llvm#14490
+- Fixed a bug where defining kernel as a named functor whilst using
+  `-fno-sycl-unnamed-lambda` would lead to a compilation error about unnamed
+  lambdas being unsupported. intel/lvm#14614
+- Fixed an issue on CUDA & AMDGPU backends where `multi_ptr` relational
+  operators taking `std::nullptr_t` would produce different result comparing
+  to standard C++ helpers like `std::less`. intel/llvm#13201
+- Fixed a compilation issue with `-fpreview-breaking-changes` flag when
+  `windows.h` is included caued by conflict with `min`/`max` macro. intel/llvm#14260
+- Fixed strict alias violations in `sycl::vec<sycl::half, N>::operator[]`
+  implementation that could lead to spurious errors. intel/llvm#13596
+- Fixed a bug where a barrier submitted into a command queue with host tasks
+  could ignore them. intel/llvm#13094
+- Fixed a compilation issue occurring when `printf` is used on CUDA backend
+  on Windows. intel/llvm#13784
+  TODO: was it really a compilation issue?
+- Fixed an issue where compiler could emit SPIR-V instructions for reversing
+  bits in a variable which are not supported by device compilers. intel/llvm#13810
+- Fixed a bug where having a default-constructed `local_accessor` as an argument
+  could lead to runtime errors reported about being unable to set kernel
+  argument. The issue manifested itself on Windows and under `-O0` optimization
+  level on Linux as well. intel/llvm#13382
+- Fixed a hang when invalid values were passed into `ONEAPI_DEVICE_SELECTOR`. intel/llvm#13367
+- Fixed shuffles over non-uniform groups on CUDA backend. intel/llvm#13230
+- Fixed an issue with persistent cache where under certain circumstances (like
+  cache directory being located on a network drive on Windows) SYCL RT would
+  fail to create necessary directories for the cache to work. intel/llvm#13019
+- Fixed a bug where querying a kernel by name from a kernel bundle would crash
+  a program. intel/llvm#13155
+  TODO: ask @cperkinsintel for feedback about the wording here.
+- Fixed an error handling bug where non-blocking `pipe` operations would lead
+  to exceptions being mistakenly thrown. intel/llvm#13166
+- Fixed compilation issues happening when non-uniform group built-ins were used
+  with `marray` and `vec`. intel/llvm#14364
+- Fixed a bug where memory attributes applied to a struct that is used as a type
+  of a `device_global` variable would be silently dropped and ignored.
+  intel/llvm#14414
+- Added missing `value_type` and `vector_t` member type aliases to swizzles. intel/llvm#13040
+- Fixed shutdown sequence issues when SYCL RT is used from an application or
+  library that has its own shutdown sequence using global destructors. intel/llvm#14153
+
+commit c2a4054980fd4ce4c4d6cfa425cbc71b20d5f450
+    [SYCL] Fix barrier with wait list handling (#13863)
+    is it just a bugfix for intel/llvm#13094?
+commit 11046e7d8bf07afebd79f30a528c3cbe5493d8ed
+    [SYCL] Fix queue fields cleanup for barrier vs host task deps (#14268)
+    looks like bugfix for intel/llvm#13094
+
+commit 1d24713c299aa16113f390c87d4444af5b83a586
+    [SYCL] Fix ONEAPI_DEVICE_SELECTOR handling of discard filters. (#13927)
+    What was happening before this patch?
+
+commit 775dccb43494b1d38fb84de728446053b11bd05a
+    [SYCL] Allow empty and unsupported case for component_devices (#13931)
+    This is later modified in another commit, so those two should be squashed
+
+commit 33325d4af0b66c33f7a42f0bf584645972a738a8
+    [SYCL] Fix enqueue functions taking both kernel and properties (#14743)
+
+### Documentation
+
+- Actualized default value for `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` debugging
+  environment variable (it is now set to enabled by default). intel/llvm#12088
+- Fixed link to range rounding
+  [implementation design document](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/ParallelForRangeRounding.md)
+  from [environment variables](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/EnvironmentVariables.md)
+  documentation.
+- Corrected installation steps for CPU/FPGA low-level runtimes in
+  [Get Started Guide](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/GetStartedGuide.md). intel/llvm#14204
+
+
+### SYCLcompat
+
+commit 29230c80d117e29ba113ac8522b6fd2946ac56f9
+    [SYCL][COMPAT] Fix using address of a temporary queue_ptr in util.hpp (#14440)
+    Was it user-visible?
+
+commit 510965a0a098313cc19e8a68cc405098dc9e9501
+    [SYCL][COMPAT] fixed byte-dot products to properly call cuda intrinsics (#14463)
+
+commit 3caa78ecf53644ead4f1d5fa8bc7b4a81a1f4961
+    [SYCL][COMPAT] Fixes SYCLCOMPAT_PROFILING_ENABLED codepath (#14574)
+
+commit 7b538cdc4ecb33e88682eb1b36be33b73ac68caf
+    [SYCL][COMPAT] fixed atomic_compare_exchange_strong not using addressSpace template parameter (#13821)
+
+commit d66b0baed24483da96fa135082e7c544498ce2d9
+    [SYCL][COMPAT] Add inline in max and min functions (#13708)
+
+commit e40283b1234e0846d1a19be537948e865a31f360
+    Task sequence revert (#14359)
+    This reverts PR #12453 and #13080
+    not sure which section this should go into
+
+commit 93a0ec4c465ceff1bed641422e23f13ca6b8a7cd
+    [SYCL] all_props_are_keys_of fix (#14433)
+
+commit a14c0917ad741a3a27b50040e4589b56262462bc
+    [SYCL][Bindless] Update spirv read/fetch from sampled image and sampled image array (#14493)
+
+commit c1ee064428a2d4038021dc3284a4c2f3aa897cb8
+    [SYCL][Bindless] Fix OpaqueFD/Win32Handle's scope in piextImportExternalMemory/Semaphore (#14266)
+
+commit 493e78be6020ef436634b21d93069467fa6c69e7
+    [SYCL][Graph] Fix PI Kernel leak in graph update (#14029)
+
+commit 9ec73a21782de1d11d08e97d63a27fa8b208c1e5
+    [SYCL] Add work_group_num_dim metadata (#13600)
+    Fixes reqd_work_group_size for HIP
+
+commit 14ee7e1cca79cac97ecc41ddc15d5d724011c89a
+    [SYCL][Bindless][Exp] Remove unneeded function argument causing memory leak in image create functions (#13364)
+
+commit 4b993a7b32f7743980bce646765a1b427b0996b6
+    Revert "[SYCL][Driver] Link with sycl libs at link step of clang-cl -fsycl (#12793)" (#13326)
+    revert commit seems to be a part of a previous release
+
+commit ea7ba1b965302277fc23ef48dba83b10e6c734e9
+    [ESIMD] Restore the lowering of lsc_load_stateless in sycl-post-link (#13104)
+
+commit 2053be298d1bf2417ad0b2efaf0d9360650ed491
+    [SYCL][COMPAT] Reverted nd_barrier atomic_ref to acq_rel (NVPTX) (#13641)
+    do we ned to mention this?  do we need to drop some other item?
+
+commit 267a03cd1ba5eaa55db95800712f978b93842bc5
+    [SYCL] [NATIVECPU] Select right libclc file for native cpu (#13478)
+    ???
+commit 5794326b965071a69273a1f653405670b728e66b
+    [SYCL][NATIVECPU][DRIVER] Select remangled libclc variant for Native CPU (#13765)
+    ???
+
+commit 014004cf0f7cc21195a4a0ed4f16a003ecb7be72
+    [SYCL] event() fail fast (#13419)
+    What was the problem with this?
+
+commit bc9e30eff79a091bb3db3fc1a005009049734798
+    [SYCL] Use 32-bit integers where it's appropriate for matrix instructions (#12867)
+    do we even need to mention this?
+
+commit 0fde69dbfa18e0c9b477a916477297a832e194a3
+    [SYCL] Do not enable SPV_KHR_bit_instructions until downstream tools are ready (#13044)
+    Perhaps it can be fully omitted, because it may have been "reverted" later
+
+commit f170c63ed329c1fa5271d67e68144ec5d7808079
+    [SYCL] Fix kernel shortcut path for inorder queue (#13333)
+    could be related to a commit made post-March release, i.e. it can probably be squashed with some other line
+
+commit 5332773b17efbf10e1b72cd633c1d7e2b4f75125
+    [SYCL][ESIMD] atomic_update with data size less than 4 bytes should use LSC atomics (#13340)
+
+commit 4b14d706d93891cdb5b0e6a8d4b0b027c1d54ab8
+    [SYCL][DeviceSanitizer] Use -asan-constructor-kind=none to disable ctor/dtor (#13259)
+commit 13a80f87098f4e6db25b75b46736ebd967110953
+    [DeviceSanitizer] Strip off pointer casts and inbounds GEPs (#13262)
+    all device sanitizer PRs can probably be merged into a single line
+commit 4723efc481cc18160cfa2f76d89378a84c43df64
+    [SYCL][DeviceSanitizer] Checking "sycl::free" related errors (#12882)
+commit 247e5e0a68b25af8d0f76855d231b9e5045b9c9a
+    [SYCL][DeviceSanitizer] Checking out-of-bounds error on sycl::local_accessor (#13503)
+commit 7b4fbac8f29faa533b55c80bf4adbc51f5afe833
+    [DeviceSanitizer] Support multiple error reports (-fsanitize-recover=address) (#13948)
+commit 2a5f9137ca2a6c1004a059ed95d3bfd79cf3ad41
+    [DeviceSanitizer] Support detecting misaligned access error (#14148)
+commit a0cc14f9ff5aad889b31534a27e4a39d5b2c25c2
+    [DeviceSanitizer]Change ASan shadow scale from 3 to 4 (#13857)
+
+commit 0939f39818225ce3e469e08f6a45711b449a8ad4
+    [SYCL] Align assert ext name with libdevice implementation (#13312)
+    can likely be ommitted
+
+commit 5ab1f762821abf36412b2b8d0e529285553fa472
+    [SYCL][ESIMD] Fix simd_view template argument and add nested simd_view tests (#13231)
+
+commit 3c7f99d891cdd7c929b38b18bf6877c3c8dba163
+    [SYCL][Graph] Fix potential issue with command buffer commands (#13224)
+
+commit c4c456bd74945b0ea2faf9ca54b28bb02f36cd49
+    [SYCL] fix for kernel_compiler (#13214)
+commit bcf7d4df6acf33a75c195215afad78113d14ae2d
+    [SYCL] kernel_compiler opencl query fix (#13448)
+
+commit d6340b67391cd8e9e4c7775a3c1ada8f2755bb06
+    [SYCL][Graph] in-order queue barrier fix (#13193)
+
+commit fffe9a10d1d65d97302fd0ec88ce015ab625033d
+    [clang][FE][Cuda] Fix a sm90a cuda arch define check in TargetInfo (#12885)
+
+commit 0e892be1316ccf019688e420eaa770ec4a4a30fa
+    [SYCL][COMPAT] Specify proper namespace for abs with sycl::complex (#13518)
+
+commit 628ede6edf2448c531bea7f818dc6819d9e7393f
+    [libclc] Fix UB in double->int conversions (#13546)
+
+commit 13a06d8c6bb468165fbdd2a2fc24dc79d6110b4f
+    [ESIMD] Use 1-element mask for load_2d()/store_2d()/prefetch_2d() (#13613)
+
+commit 646db9cdb1899bbfefbbcb77d6ea256c4e9789c0
+    [SYCL][Matrix] Fix checked matrix instructions (#13287)
+    If I understand correctly, that is a non-functional change. @MrSidims?
+
+commit 6b2fb665e9aa0bb7f2e034a22a153b7006c19d8a
+    [SYCL] Fix Level-Zero's `sycl::make_device` interop (#13483)
+
+commit 64cb0cf96de28bfd495e577b4dd46c26dbb6b197
+    [SYCL][Graph] Fix minor issues in graph update code (#13660)
+
+commit b4e0450207b5a85d5b985de0c0ff6fecdfebf0da
+    [SYCL][Graph] Export missing graph node symbols (#13744)
+
+commit 6934bcfb13415dc5bda85876b5cfc361678523f4
+    [SYCL] Do not attach reqd_work_group_size info when multiple are detected (#13523)
+
+commit f90554f8ec4a9e58a9e96865afed98deb9615ef4
+    [SYCL][Docs] Fix variadic properties ctor (#13676)
+
+commit 601f12103f2cb3bed8c61a9b25122144bf9a663c
+    [clang][FE] Remove duplicate preprocessor defines of HIP memory scope (#12871)
+
+commit 563904b2aebb791adf0e1ad955a43e226c9a6caf
+    [SYCL] Add aspect names to sycl_used_aspects before cleaning up (#13486)
+    part of optional kernel features AOT?
+
+commit 8eff95ca51963dc6b4ec629da0dfaf134239cefc
+    [SYCL] Fix FloatVecToBF16Vec build (#14161)
+    Is it a user-visible fix?
+
+commit 82f77d10dd092ea419115f61a7715655f055b7bb
+    [SYCL][Graph] Fix queue recording barrier to different graphs (#14212)
+
+commit e22cb798f8363f8e2a95a7e6df9a294b34c52fc4
+    Fix Basic/image/srgba-read.cpp failure under SYCL_PREFER_UR with ONEAPI_DEVICE_SELECTOR=opencl:cpu  (#14233)
+
+commit 1b5c5a8e96502b196c91251fa6513a6ede1257f5
+    [SYCL] Fix SYCL_EXTERNAL device code when linking with a static lib (#14256)
+
+commit d77a348776672316f59c59dc3b11ebf5aa79f936
+    [SYCL][NVPTX] Emit 'grid_constant' annotations for by-val kernel params (#14332)
+
+commit 5ad97902643da043233ec21ac203cca329df07b2
+    [SYCL][Graph] Fix profiling info when bypassing scheduler (#14678)
+
+commit daaece06ce68544eaae078899c559f571297d8c0
+    [SYCL][Graph] Fix access modes not being respected (#13011)
+
+commit c63b49ddfacf2f17135663a320e15e93be2971aa
+    [Driver][SYCL] Address issue with improper bundler call with -fsycl-link (#13002)
+
+commit 6e9a3dd987ce6f1c7384623713cea14f084cab9d
+    [SYCL] Fix 'ignore-device-selectors' sycl-ls CLI option on windows (#13047)
+
+commit b13a3c4c39a356c47cda983350f06000330a42f1
+    [libclc][hip] Fix half shuffles and reenable reduction test (#13016)
+
+commit 0360e6af2a353210d508633a60ff02327094f7e7
+    [SYCL] Follow up fixes for group_sort extension (#14591)
+
+commit d39563ad1faa1d503c0396a137afd6664756b358
+    [SYCL][Clang] Fix address space for virtual table support (#13629)
+
+## API/ABI Breaking Changes
+
+This release is an *ABI* breaking release, meaning that any applications which
+were built using older versions of the toolchain have to be recompiled in order
+to be launched using newer versions of SYCL runtime library.
+
+- Bumped major version of SYCL runtime library to `8`. intel/llvm#13097
+- Cleaned up list of symbols exported from SYCL runtime library: dropped some
+  legacy symbols, hidden some symbols which shouldn't have been exported in the
+  first place, etc.
+  intel/llvm#14638 intel/llvm14626 intel/llvm#14624 intel/llvm#14615
+  intel/llvm#14585 intel/llvm#14616 intel/llvm#14494 intel/llvm#14460
+  intel/llvm#14368 intel/llvm#13493 intel/llvm#13191 intel/llvm#14549
+  intel/llvm#13597 intel/llvm#13271
+- Updated ABI of several functions/methods to avoid using `std::string` and
+  some other objects in library interface. This should allow to use SYCL RT
+  in applications which were built with pre-C++11 ABI.
+  intel/llvm#13183 intel/llvm#13549 intel/llvm#13560 intel/llvm#13212
+  intel/llvm#13213 intel/llvm#13447
+
+Several API breaking changes were made as well, mostly compltely dropping
+support for previosly deprecated APIs and in some cases switching implmentations
+of some classes to use so-called preview implementation.
+
+- Removed `sycl::abs` overload taking floating-point argument. intel/llvm#13286
+- Removed `sycl::host_ptr` and `sycl::device_ptr`. intel/llvm#13240
+- Removed `queue::discard_or_return`. intel/llvm#14550
+- Removed `sycl::make_unique_ptr`. intel/llvm#13232
+- Removed `use_primary_contaxt` property. intel/llvm#13496
+- Methods and functions related to previously removed host device like
+  `platform::is_host`. intel/llvm#14258
+- Removed SYCL 1.2.1 exception subclasses:
+  - `runtime_error`, `nd_range_error`, `invalid_parameter_error`. intel/llvm#14546
+  - `device_error`. intel/llvm#14486
+  - `feature_not_supported`. intel/llvm#14423
+- Removed `queue::mem_advice` overload accepting `pi_mem_advice`. intel/llvm#14618
+- Removed number of deprecated ESIMD APIs. intel/llvm#14415
+- Removed deprecated overloads of math built-ins accepting raw pointers. intel/llvm#13238
+  Is it negated by the following commit?
+  - commit efed3bb04f3c43baf3373bf35d8924bbcf91f385
+    [SYCL] Allow raw pointers in SYCL math builtins (#13893)
+- Removed non-standard `sycl::id` -> `sycl::range` conversion operator. intel/llvm#13293
+- Removed deprecated APIs from
+  [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
+  extension implementation. intel/llvm#14555
+- Renamed SYCLcompat function `async_free` to `enqueue_free`. intel/llvm#14015
+- Enforced restrictions on first argument of lambdas/functors passed to
+  `parallel_for(range)` and `parallel_for(nd_range)`. intel/llvm#13198
+- Switched `sycl::vec` implemetation to use its preview version. intel/llvm#14317 intel/llvm#13182
+- Switched `sycl::exception` implementation to us its preview version. intel/llvm#14548
+- Switched math built-ins implementation to use their preview version. intel/llvm#13152
+- Switched `bfloat16` implementation to use its preview version. intel/llvm#13233
+- Switched `sycl::nd_item` implementation to use its preview version. intel/llvm#13197
+- Enforced restriction that `buffer`'s elemennt type must be device copyable. intel/llvm#13200
+- Restructured SYCL headers so that `<cmath>` and `<complex>` are not included
+  in there anymore. intel/llvm#11528
+- Dropped support for `SYCL_DEVICE_FILTER` environment variable. intel/llvm#13192
+- Updated `accessor::get_pointer` interface to return `global_ptr<value_type>`
+  which can be `const`-qualified if an accessor data type is `const`-qualified,
+  or if an accessor is read-only. intel/llvm#13443
+- Removed deprecated APIs related to `sycl_ext_oneapi_free_function_queries`.
+  intel/llvm#13257
+- Moved `slm_allocator` ESIMD APIs into `experimental` namespace. intel/llvm#13901
+
+Breaking changes were also made to compiler flags:
+
+- Removed `-fsycl-link-huge-device-code` flag (it was deprecated in favor of
+  `-flink-huge-device-code`). intel/llvm#14731
+- Updated `-sycl-std` to disallow selection of SYCL 1.2.1. intel/llvm#14544
+- Removed deprecated `-fsycl-[add|link]-targets` flag. intel/llvm#13834
+- Removed deprecated `-foffload-static-lib` and `-foffload-whole-static-lib`.
+  Corresponding functionality is already available without the need to pass any
+  special options. intel/llvm#13835
+- Deprecated `-fsycl-disable-range-rounding` flag in favor of the new
+  `-fsycl-range-rounding`. intel/llvm#12715
+
+commit 00b9b6d5db3de7257229f5c8b6aba4163a8f8977
+    [SYCL][ESIMD][ABI Break] Remove predec atomic op (#14480)
+    Is it user visible? Is it an API break?
+
+commit 9457144dd784d786c8f7e994bcb804f123cfb587
+    [ABI-Break][SYCL] Remove ESIMD emulator code from pi.cpp (#13234)
+    // is it really user-visible?
+
+## Known Issues
+
+commit 33c0829f3e3389006662845784980b930faf3b38
+Author: Igor Chorążewicz <igor.chorazewicz@intel.com>
+Date:   Thu Jul 25 23:00:19 2024 -0700
+
+    [UR] Bump UR version and enable dynamic linking with UMF (#13343)
+    
+    Testing PR for: https://github.com/oneapi-src/unified-runtime/pull/1430
+    
+    ---------
+    
+    Co-authored-by: Krzysztof Swiecicki <krzysztof.swiecicki@intel.com>
+    Co-authored-by: Steffen Larsen <steffen.larsen@intel.com>
+
+commit 450683b6fa1d1be1b9391905f43073b7a9555aa1
+Author: Yang Zhao <yang2.zhao@intel.com>
+Date:   Thu Jul 25 00:02:46 2024 +0800
+
+    [SYCL][DeviceSanitizer] Support GPU DG2 Device (#13450)
+    
+    UR: https://github.com/oneapi-src/unified-runtime/pull/1521
+    
+    - Add MemToShadow_DG2
+    - Enable lit tests for GPU, decrease the global workgoup size in some
+    tests due to the limit of GPU memory
+    
+    Although, the "_DG2" suffix might be misleading: DG2 present all 48bits
+    virtual address devices, and PVC present all 58bits virtual address
+    devices.
+    
+    ---------
+    
+    Co-authored-by: Wenju He <wenju.he@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit bd97280007ee79bf118fdbade3d9cb14721b9014
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Wed Jul 24 07:20:14 2024 +0100
+
+    [UR] Bump main tag to 9b209642 (#14553)
+    
+    * https://github.com/oneapi-src/unified-runtime/pull/1791
+    * https://github.com/oneapi-src/unified-runtime/pull/1856
+    * https://github.com/oneapi-src/unified-runtime/pull/1861
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 5667218ed6be6dee8877efcc2fbcfc2ecd515cff
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Jul 16 18:05:26 2024 +0100
+
+    [UR] Bump main tag to 7e38af77 (#14552)
+    
+    * https://github.com/oneapi-src/unified-runtime/pull/1826
+    * https://github.com/oneapi-src/unified-runtime/pull/1852
+    * https://github.com/oneapi-src/unified-runtime/pull/1849
+    * https://github.com/oneapi-src/unified-runtime/pull/1828
+    * https://github.com/oneapi-src/unified-runtime/pull/1772
+    * https://github.com/oneapi-src/unified-runtime/pull/1862
+
+commit 44861fec406fff7a20bd4791c4288d71828912cc
+Author: Callum Fare <callum@codeplay.com>
+Date:   Thu Jul 11 15:15:12 2024 +0100
+
+    [UR] Bump UR and implement changes to bindless image handle types (#14516)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1829
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit c30769b122d99eb4d05bcb78f15e593491fe31ae
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Wed Jul 10 21:58:04 2024 -0700
+
+    [UR][L0] Use Intel Level Zero Driver Version String extension (#14426)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1816
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 8ddd7291219256f9bcb78328cc85322037736171
+Author: Ross Brunton <ross@codeplay.com>
+Date:   Wed Jul 10 15:12:23 2024 +0100
+
+    [UR] Update to new urProgramLink interface (#13085)
+    
+    Pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1458
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 13ae57f97cfb45cbcee8db6155ac8b0f7b7fbb82
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Jul 10 10:53:12 2024 +0100
+
+    [UR] Bump main tag to 9d3bce6a (#14499)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1822
+
+commit db4d83e3969a5f7b5313aa5fb8466dd2ebbf9283
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Tue Jul 9 06:56:01 2024 -0700
+
+    [UR][L0] Fix Queue get info and fix Queue release decrement (#14411)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1814
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 78ae397aab9b2040be945ee2f7f73d93404ffa06
+Author: Artur Gainullin <artur.gainullin@intel.com>
+Date:   Tue Jul 9 02:37:27 2024 -0700
+
+    [UR] Uplift UR tag to the fix in the L0 adapter regarding event timestamps (#14360)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1806
+
+commit ac556f9273e479c033e7dc76248fdb6861377ce7
+Author: Fábio <fabio.mestre@codeplay.com>
+Date:   Mon Jul 8 16:23:41 2024 +0100
+
+    [UR] Update main tag for L0 CommandBuffer refactor (#14240)
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit eb03091539daa68a582ceab950379ca482e118d9
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Mon Jul 8 05:50:54 2024 -0700
+
+    [UR][L0] Fix Device Info return code to report unsupported enumeration (#14407)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1809
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 577c349c5f3b1c893160de2470aff5ee3f87f0bc
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Fri Jul 5 04:30:49 2024 -0700
+
+    [UR][L0] Fix immediate command list use in Command Queues (#14341)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1802
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
+
+commit f2bd076eb55a2cc79de2e9d4748967ed3cb13c9b
+Author: Wu Yingcong <yingcong.wu@intel.com>
+Date:   Thu Jun 27 02:26:23 2024 -0700
+
+    [UR] fix use-after-free problems (#13855)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1637
+    
+    ---------
+    
+    Co-authored-by: Callum Fare <callum@codeplay.com>
+
+commit c6428bee93a01009291ee704dca9db6262045aed
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Tue Jun 25 07:03:05 2024 -0700
+
+    [UR][L0] Fix Handle used in calls to L0 Driver zex apis given multi d… (#14250)
+    
+    …rivers
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1778
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+
+commit 088a9475e7c5f39ecb2b74f79a479380c9dd64be
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Fri Jun 21 13:52:08 2024 +0100
+
+    [UR] Pull in changes from UR PR #805 (#12270)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/805
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 350b56fda217ffc4677c5a3443a7844e13ac209d
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Fri Jun 21 10:30:11 2024 +0100
+
+    [UR] Update main tag to 975313cb (#14225)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1774
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit ab77ba800e6b36d0217dea053d125435f0a0b2db
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Jun 18 17:51:02 2024 +0100
+
+    [UR] Bump L0 tag to 2a31795d (#14213)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1623
+
+commit 174f7510328f49d6f24c578b226acea085489082
+Author: Steffen Larsen <steffen.larsen@intel.com>
+Date:   Mon Jun 17 15:01:45 2024 +0200
+
+    [UR] Bump main tag to 33eb5ea8 (#13950)
+    
+    Pull in changes from
+    https://github.com/oneapi-src/unified-runtime/pull/1678.
+    
+    ---------
+    
+    Signed-off-by: Larsen, Steffen <steffen.larsen@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+
+commit 5e9e7a73ce11182af6ceafc1e91996b6c79f7180
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Mon Jun 17 10:30:32 2024 +0100
+
+    [UR] Pull in change to make urPlatformCreateWithNativeHandle take an adapter. (#14012)
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 579484f0ae9e5e30b9c9bd468799e1688d5de890
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Fri Jun 14 05:45:42 2024 -0700
+
+    [UR][L0] Maintain Lock of Queue while syncing the Last Command Event (#14150)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1749
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit ae79b95cc07ab68fcf706d47851b93e5b299dc87
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Wed Jun 12 16:46:31 2024 +0100
+
+    [UR] Bump main tag to b13c5e1f (#14042)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1711
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 1a885ecacc468ab324c812ab47b4af7f3b086e52
+Author: Artur Gainullin <artur.gainullin@intel.com>
+Date:   Wed Jun 12 07:30:29 2024 -0700
+
+    [UR] Update UR tag to include L0 loader related changes (#14109)
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 7c530e154021d103259c8437233e7ba13ce98146
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Wed Jun 12 13:15:51 2024 +0100
+
+    [UR] Bump main tag to 78d02039 (#12269)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1128
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit c168f213381645e695eaed3500a7ba7bcc655321
+Author: Andrey Alekseenko <al42and@gmail.com>
+Date:   Wed Jun 12 07:01:54 2024 +0200
+
+    [UR] Fix size confusion for several device property queries (#12488)
+    
+    For testing https://github.com/oneapi-src/unified-runtime/pull/1282
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit c41a0562e9a4a9ace16373b819d15a38ec467c4e
+Author: Omar Ahmed <omar.ahmed@codeplay.com>
+Date:   Mon Jun 10 15:37:57 2024 +0100
+
+    [UR] Remove redundant mem type (#13058)
+    
+    Testing PR for [UR
+    PR](https://github.com/oneapi-src/unified-runtime/pull/1409)
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 3935e06bc2e3794b7eac715c069e28c30aeaee9c
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Mon Jun 10 12:46:11 2024 +0100
+
+    [SYCL][Graph] Combined L0 Graph Update fixes (#14111)
+    
+    Bumps the L0 adapter UR commit to include several merged fixes to the L0
+    adapter for implementing the SYCL-Graph update feature:
+    
+    * [Use fence rather than event for sync in L0 command-buffer
+    update](https://github.com/oneapi-src/unified-runtime/pull/1629)
+    * [Fix lifetime of pointer used in L0
+    update](https://github.com/oneapi-src/unified-runtime/pull/1721)
+    * [Fix L0 Event leak without return sync
+    point](https://github.com/oneapi-src/unified-runtime/pull/1706)
+
+commit fcfe36b705fa715b4813de95565bbba9a5b88223
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Mon Jun 10 10:16:54 2024 +0100
+
+    [UR] Bump main tag to f06bc02a (#14047)
+    
+    Includes the following:
+    
+    * https://github.com/oneapi-src/unified-runtime/pull/1653
+    * https://github.com/oneapi-src/unified-runtime/pull/1568
+    * https://github.com/oneapi-src/unified-runtime/pull/1634
+    * https://github.com/oneapi-src/unified-runtime/pull/1669
+
+commit 0cec12826baea60a15483081b0feece49013049f
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Jun 5 11:20:25 2024 +0100
+
+    [UR] Bump HIP tag to 399430da (#14037)
+
+commit 2838f40382bedddbda0a5f20ebeeba86310044da
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Wed Jun 5 09:20:03 2024 +0100
+
+    [SYCL][Graph][L0] Correctly report when device supports update (#13987)
+    
+    Bump UR L0 commit to
+    https://github.com/oneapi-src/unified-runtime/pull/1694 so that the SYCL
+    device aspect for supporting update in graphs is correctly reported for
+    L0 devices. Currently, support can be incorrectly reported.
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
+
+commit 20991b1c2ee906148706aa1e7ae62c1084834799
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Jun 5 08:48:18 2024 +0100
+
+    [UR] Bump CUDA tag to 0e38fda0 (#14030)
+
+commit 18c4fb2c57f3b937451becda4ca25468397128f5
+Author: Pietro Ghiglio <pietro.ghiglio@codeplay.com>
+Date:   Tue Jun 4 18:37:40 2024 +0200
+
+    [SYCL] [NATIVECPU] Report correct memory order capabilities for Native CPU (#13469)
+    
+    Testing for https://github.com/oneapi-src/unified-runtime/pull/1527
+
+commit 781b75abfd1dac36a2c68fbc13bd6f1bb845d35b
+Author: Wu Yingcong <yingcong.wu@intel.com>
+Date:   Tue Jun 4 06:09:03 2024 -0700
+
+    [UR] Test for unified runtime PR (#12902)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1385
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit f2a2de3b6e735ee4a54ecc212b648f370e47abbc
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Thu May 30 14:28:35 2024 +0100
+
+    [SYCL][Graph] Add debug logging for L0 Graph kernel update (#13892)
+    
+    Bumps UR to Level Zero adapter change from
+    https://github.com/oneapi-src/unified-runtime/pull/1654
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
+
+commit 1fa2ac88a1fb3a5eba0315c03faa03c2d8e3c5f7
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Thu May 30 12:46:50 2024 +0100
+
+    [UR][HIP] Implement kernel set spec constant query (#13809)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1604
+
+commit e147f3673c77e566a63a1d4d57d6f5da0153cbdb
+Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
+Date:   Thu May 30 12:46:39 2024 +0100
+
+    [UR] Modify fill emulation to work for patterns which are not powers of 2 (#13779)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1603
+
+commit 8086df575d7f622017521fcd2f8b2b90fdd49d39
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Thu May 30 02:57:41 2024 -0700
+
+    [UR][L0] Fix Multi Device Event Cache for shared Root Device (#13917)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1667
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+
+commit 16e0670ab6e2425a20e13aec2c7f5896fd4eabfc
+Author: Ross Brunton <ross@codeplay.com>
+Date:   Fri May 24 14:25:29 2024 +0100
+
+    [UR][OpenCL] Bump UR OpenCL adapter for invalid kernel args (#13658)
+    
+    For UR merge request
+    https://github.com/oneapi-src/unified-runtime/pull/1501
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 7fa793bc7d17b9447ac0726bd01eb33680432d38
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Fri May 24 13:33:08 2024 +0100
+
+    [UR] Bump L0 tag to e4287455 (#13910)
+
+commit f05c1c82d07a81050db4931eef6b8d02d359a325
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Wed May 22 14:37:14 2024 +0100
+
+    [UR] CUDA multi device ctx (#13616)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1565
+    
+    For UR multi device context, buffer interop is now deprecated since a
+    buffer refers to multiple device pointers.
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
+
+commit 5a09c6a15279484434df299d9164d94b96d3507a
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed May 22 10:42:06 2024 +0100
+
+    [UR][L0] Return device version based on DeviceIpVersion (#13812)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1401
+
+commit ba19132218050c4791c5aa82316cc10e38986f75
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Thu May 16 15:40:30 2024 +0100
+
+    [UR][HIP] Get Device From Queue (#13575)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1553
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
+
+commit 99d7097c10ae92805c6a100ffb544bdf0630c063
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Thu May 16 07:06:42 2024 -0700
+
+    [UR][L0] ensure a valid kernel handle for the device when reading max wg (#13797)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1611
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 34292bbc89f71233ef687652c33c52b55a38839e
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Wed May 15 07:43:11 2024 -0700
+
+    [UR][L0] Fix timestamp event evict after delete (#13717)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1592
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 9bf81044bfbe229b6846c96819a470e62065469a
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Wed May 15 15:05:06 2024 +0100
+
+    [CUDA][SYCL] Bump UR CUDA Tag (#13746)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1596
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
+
+commit a5da94d1fb9a46f0a8334db500f26d30b62c1c02
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Fri May 10 02:20:00 2024 -0700
+
+    [UR][L0] Disable Usage of Driver In order Lists by default (#13715)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1591
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+
+commit 8736efe32c7280335607b3d50f85692e29038097
+Author: Fábio <fabio.mestre@codeplay.com>
+Date:   Wed May 8 13:25:04 2024 +0100
+
+    [UR][EXP][Command-Buffer] Remove duplicated code from headers (#13374)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1499
+
+
+commit c6be822ba3fbf1dc7c2f89805493400704ad89b5
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Tue May 7 02:47:56 2024 -0700
+
+    [UR][L0] Fix the repo tag for the L0 adapter to use the global variable (#13667)
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+
+commit dd183bf2a706571e29428a425d3a5f9bb6133a69
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Tue May 7 10:30:00 2024 +0100
+
+    [UR][L0] Pull in some minor fixes for L0 device queries. (#13424)
+    
+    UR PR https://github.com/oneapi-src/unified-runtime/pull/1513
+
+commit 85037b20a9131400ce7cddac9c215adf563b6577
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Fri May 3 19:22:38 2024 +0100
+
+    [UR] Bump L0 tag to fb342f06 (#13646)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1549
+
+commit d1dddccded89ee1b34a120575726022ef8c97634
+Author: Piotr Balcer <piotr.balcer@intel.com>
+Date:   Fri May 3 12:57:22 2024 +0200
+
+    [UR][L0] fix queue locking behavior when creating event lists (#13564)
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 1a5595f8e43a12fc361c8868b04f265182259657
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Thu May 2 11:31:48 2024 -0700
+
+    [UR][L0] Enable Batching out of order commands without signal events (#13462)
+    
+    - pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1526
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit f34a65012c21192d6f90c10a893cffb35a250dff
+Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
+Date:   Thu May 2 07:22:06 2024 +0100
+
+    [UR] CI for: Emulate Fill with copy when patternSize is not a power of 2 (#12912)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1412
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 4c7baa7aa553ce5a6f68eeb74851ece279efbd3d
+Author: jinge90 <ge.jin@intel.com>
+Date:   Tue Apr 30 21:20:23 2024 +0800
+
+    [UR] Intercept urProgramLinkExp in ur ASAN layer (#13048)
+    
+    UR part: https://github.com/oneapi-src/unified-runtime/pull/1452
+    
+    ---------
+    
+    Signed-off-by: jinge90 <ge.jin@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 15c9c62bc171c849588fa58029f4c40dc142e80f
+Author: Omar Ahmed <30423288+omarahmed1111@users.noreply.github.com>
+Date:   Tue Apr 30 11:04:50 2024 +0100
+
+    Testing add validation tests to getInfo tests (#12782)
+    
+    Testing PR for [UR
+    PR](https://github.com/oneapi-src/unified-runtime/pull/1346)
+    
+    After correcting hip program info returned for program device to return
+    context device rather than the binary associated device that have fixed
+    the kernel fusion cooperative kernels e2e test.
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 7cd48cbac6ddcb3e950748b76acd42812fab18bb
+Author: Ben Tracy <ben.tracy@codeplay.com>
+Date:   Mon Apr 29 08:37:48 2024 +0100
+
+    [SYCL][Graph] Bump UR commit for in-order L0 optimization (#13565)
+    
+    - Bumps commit only and includes minimal pi2ur changes for new
+    descriptor members
+    - In-order path not currently used, enable profiling by default (match
+    previous behaviour)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1442
+
+commit 95420f09ea81539d8c18fbb7d7406ec82947aeb5
+Author: Winston Zhang <winston.zhang@intel.com>
+Date:   Fri Apr 26 06:56:11 2024 -0700
+
+    [UR][L0] Testing for counter-based-events implementation in URT draft (#12848)
+    
+    commit tag: 4134bfce72d33e89eebcad11186bdf00310bba83
+    URT PR: https://github.com/oneapi-src/unified-runtime/pull/1370
+    
+    ---------
+    
+    Signed-off-by: Zhang, Winston <winston.zhang@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit fc94a16a8a97464f96ea07bf77600d6337c00f76
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Fri Apr 26 03:16:19 2024 -0700
+
+    [UR][L0] reset command lists on error unknown (#13522)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1539
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 719207dbac44ebb1bcae96eca992276171172120
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Wed Apr 24 09:10:44 2024 +0100
+
+    [SYCL][Graph] Bump UR commit to OpenCL kernel update (#12724)
+    
+    Test the UR commit that enables updating kernel commands in a
+    command-buffer in the OpenCL adapter
+    https://github.com/oneapi-src/unified-runtime/pull/1358
+
+commit 96b07cf9c3b8407194d0082b0b30170f4f232a39
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Apr 23 11:14:52 2024 +0100
+
+    [UR] Bump main tag to 31d0fe15 (#13511)
+    
+    * https://github.com/oneapi-src/unified-runtime/pull/1032
+    * https://github.com/oneapi-src/unified-runtime/pull/1183
+    * https://github.com/oneapi-src/unified-runtime/pull/1243
+
+commit 723b7b7b043783f04b6b0ec2195971a5e95f216b
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Fri Apr 19 22:15:55 2024 +0100
+
+    [UR][L0] Update main UR tag to 717791b (#13474)
+    
+    This pulls in fixes from:
+    https://github.com/oneapi-src/unified-runtime/pull/1298
+    https://github.com/oneapi-src/unified-runtime/pull/1495
+    https://github.com/oneapi-src/unified-runtime/pull/1517
+    
+    Also remove now unnecessary XFAIL from Basic/kernel_max_wg_size.cpp
+
+commit 8cd2eb0ac2efc65cd109e0bfce02aedd69ce4cf2
+Author: Igor Chorążewicz <igor.chorazewicz@intel.com>
+Date:   Tue Apr 16 11:17:23 2024 -0700
+
+    [UR][L0] fix ze commands matching in level_zero_eager_init.cpp (#13277)
+    
+    If the test is run with UR_L0_LEAKS_DEBUG var set, UR will print ze call
+    count summary. This summary can cause the test to fail as it will
+    contain zeCommandQueueCreate, etc.
+    
+    Fix this by making CHECK-NOT only match output generated by UR_L0_DEBUG.
+
+commit 9958a742ab498b89fb5c49ccbe94fe6f9a7a6bf6
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Apr 16 18:00:03 2024 +0100
+
+    [UR] Bump CUDA tag to 3f5f5688 (#13399)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1510
+
+commit c959b5313c6c74f206609b526272206a4b144315
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Tue Apr 16 07:56:06 2024 -0500
+
+    [UR] Bump HIP tag to 15233fd2 (#13020)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1437
+
+commit 684cd90e22fe67d4a524be92c69e026cca262f1c
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Tue Apr 16 13:17:43 2024 +0100
+
+    [UR][L0] Pull in a batch of L0 fixes (#13400)
+    
+    Pulls in fixes
+    https://github.com/oneapi-src/unified-runtime/pull/1492
+    https://github.com/oneapi-src/unified-runtime/pull/1494
+    https://github.com/oneapi-src/unified-runtime/pull/1507
+
+commit e6d9d4c6bfabae78c29aa3b376e568974860a219
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Apr 16 10:29:06 2024 +0100
+
+    [UR] Bump CUDA tag to 1333d4a0 (#13398)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1342
+
+commit a884a54914f9e9cf052591d70eb5cac20a25a210
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Mon Apr 15 01:58:14 2024 -0700
+
+    [UR][L0][Image] Set ZeImageDesc member of _ur_image in release build … (#13338)
+    
+    …for legacy image
+    
+    - reenable the image interop test with fix to image interop in release
+    builds
+    - precommit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1498
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
+
+commit 71358f095be30b1cccd8c39a5ac2224fab9491b5
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Mon Apr 15 09:49:02 2024 +0100
+
+    [UR] Bump CUDA tag to 68e525a4 (#13376)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1317
+
+commit d7c5a9c6b2c9edb52f14adca5c84c3c3e3419d7b
+Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
+Date:   Mon Apr 15 08:43:44 2024 +0100
+
+    [UR] [NATIVECPU] CI for: Extended usm fill to bigger patterns than 1 byte (#13263)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1489
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+
+commit 16da4ec202cc818b9e79b75ecd9b7e301e3bea53
+Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
+Date:   Fri Apr 12 15:33:18 2024 +0100
+
+    [UR] Bump HIP tag to 1473ed8a (#12898)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1395
+
+commit 6ba50805672c72654c8288d33960f36c09cc89bb
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Fri Apr 12 02:07:48 2024 -0700
+
+    [UR][L0] Fix regular in order command list reuse given inorder queue (#13195)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1483
+    
+    ---------
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
+
+commit 1c89e51aa23fbd01eab1a2bba98ffc3598470e93
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Fri Apr 12 10:05:29 2024 +0100
+
+    [UR] Bump HIP tag to 760eaa38 (#12758)
+    
+    Bump UR commit to include a bugfix for HIP UR adapter dereferencing a
+    nullptr https://github.com/oneapi-src/unified-runtime/pull/1357
+
+commit e404d9984d1587ca130d267c342d10747bc09a1f
+    [SYCL][NATIVECPU] Threadpool implementation for Native CPU (#13176)
+    Native CPU backend improvement to be able to run work-groups in parallel?
+
+commit 1d52f907d28edab7e23f69175a5b00d1bbe0acdc
+Author: Fábio <fabio.mestre@codeplay.com>
+Date:   Wed Apr 10 17:56:05 2024 +0100
+
+    [UR] Bump CUDA tag to 6e76c98a (#12285)
+
+commit 7cf70ddd403d3262b51d0729cdc8a19e1bec7fab
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Apr 10 17:43:57 2024 +0100
+
+    [UR] Bump HIP tag to 08b3e8fe (#13352)
+
+commit a14d0b548e96014c643b00927be128193781769c
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Apr 10 16:06:52 2024 +0100
+
+    [UR] Bump Native CPU tag to e2b5b7fa (#13349)
+
+commit 60a5c90b5dc4736ff818586072b7c7a270ac40c1
+Author: Georgi Mirazchiyski <georgi.mirazchiyski@codeplay.com>
+Date:   Wed Apr 10 16:06:37 2024 +0100
+
+    [HIP][UR] Fix memory type detection in allocation info queries and USM copy2D (#13059)
+    
+    Test CI for https://github.com/oneapi-src/unified-runtime/pull/1455
+    
+    ---------
+    
+    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
+
+commit e3b112bae042f3293d13dd64dc825809a4348dff
+Author: Fábio <fabio.mestre@codeplay.com>
+Date:   Wed Apr 10 16:06:20 2024 +0100
+
+    [UR] Bump CUDA tag to cda0cd94 (#12287)
+
+commit 090323ea1c1007c12e184f8c990d6a45238529a0
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Wed Apr 10 12:24:30 2024 +0100
+
+    [UR] Bump CUDA tag to 05b58992 (#13344)
+
+commit cb28e0941683b921583553d9c3c5f29add7e42c2
+Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+Date:   Tue Apr 9 17:47:00 2024 +0100
+
+    [UR][OpenCL] Revert urMemBufferCreate extension function lookup error (#13331)
+    
+    Revert https://github.com/oneapi-src/unified-runtime/pull/1448, pulls in
+    OpenCL adapter changes from
+    https://github.com/oneapi-src/unified-runtime/pull/1496.
+
+commit c74a14414b1ae8070421ee07b037bd8e9b1e704a
+Author: Neil R. Spruit <neil.r.spruit@intel.com>
+Date:   Mon Apr 8 01:54:49 2024 -0700
+
+    [UR][L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0 (#13209)
+    
+    pre-commit PR for
+    https://github.com/oneapi-src/unified-runtime/pull/1486
+    
+    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
+
+commit d86a50045bbbe488869991be49cbfe3213809d72
+    [UR][CL] Atomic order memory capability for Intel FPGA driver (#13041)
+    Potentially user-visible fix.
+
+commit 2e2010e2cc4acf1375cf88ce65d3a5cb8cbc9427
+    [UR] Add DEVICE_NOT_AVAILABLE UR error code and PI translation for same. (#13206)
+    Does it fix any actual issues in some negative cases where we previosly
+    reported a wrong error if device is not available?
+
+commit 3288a66d48d5aee7412ad12118794f28e6634550
+Author: aarongreig <aaron.greig@codeplay.com>
+Date:   Mon Apr 1 10:04:11 2024 +0100
+
+    [UR] Pull in UR changes to add exec error status to events. (#13127)
+    
+    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1467
+
+commit 93a1abb42f352eff587cd1a081e90089c232339b
+Author: Piotr Balcer <piotr.balcer@intel.com>
+Date:   Wed Mar 27 12:11:36 2024 +0100
+
+    [UR][L0] fix a deadlock on a recursive event rwlock (#13112)
+
+commit dd78c6e9c0dc6afc6fb5757fb88c4c5b0b0fe5b5
+Author: Raiyan Latif <raiyan.latif@intel.com>
+Date:   Fri Mar 22 09:35:09 2024 -0700
+
+    [UR][L0] Enable default support for L0 in-order lists (#13033)
+    
+    Signed-off-by: Raiyan Latif <raiyan.latif@intel.com>
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 7c70e59db3ec813021beb970ebd21034586da53e
+Author: Ewan Crawford <ewan@codeplay.com>
+Date:   Thu Mar 21 10:28:46 2024 +0000
+
+    [SYCL][Graph][HIP] Set minimum ROCm version for graphs (#13035)
+    
+    Tests UR PR https://github.com/oneapi-src/unified-runtime/pull/1447 that
+    only reports support for UR command-buffers on ROCm 5.5.1 and later to
+    work around HIP driver bugs related to HIP-Graph in earlier version.
+    
+    This requirement is also explicitly mentioned in the design doc.
+
+commit 43f096308b03fa4c5a7f6845461a133d6cfaceae
+Author: Hugh Delaney <hugh.delaney@codeplay.com>
+Date:   Wed Mar 20 07:04:37 2024 +0000
+
+    [UR] CI for UR PR refactor-guess-local-worksize (#12663)
+    
+    https://github.com/oneapi-src/unified-runtime/pull/1326
+    
+    ---------
+    
+    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+
+commit 1f9bf7a731b16d6d0d017c35245991ca95d0aef7
+Author: Artur Gainullin <artur.gainullin@intel.com>
+Date:   Tue Mar 19 14:47:58 2024 -0700
+
+    [SYCL][Graph][UR] Update UR to support updating kernel commands in command buffers for L0 (#12897)
+
+commit cf402b8473e9b3a4ee675a6154b80f0d54b198d1
+    [UR][L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access… (#12983)
+    Strictly speaking, this may have a visible effect for end users since some
+    of queries won't always return `false` anymore.
+
+
 # Mar'24 release notes
 Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
 
