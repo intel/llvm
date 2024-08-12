@@ -339,8 +339,8 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
 
-  llvm::StringRef CPU{TargetCPU};
-  llvm::StringRef Features{TargetFeatures};
+  llvm::StringRef CPU = ConfigHelper::get<option::JITTargetCPU>();
+  llvm::StringRef Features = ConfigHelper::get<option::JITTargetFeatures>();
 
   auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
   if (CPU.empty()) {
