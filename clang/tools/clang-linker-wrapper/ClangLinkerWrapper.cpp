@@ -1063,20 +1063,6 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     return OutputFileOrErr.takeError();
 
   StringRef OutputFilePath = *OutputFileOrErr;
-  if (Verbose || DryRun) {
-    std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
-      if (I + 1 < E)
-        InputFiles += ',';
-    }
-
-    errs() << formatv(" offload-wrapper: input: {0}, output: {1}\n", InputFiles,
-                      OutputFilePath);
-    if (DryRun)
-      return OutputFilePath;
-  }
-
   StringRef Target = Args.getLastArgValue(OPT_triple_EQ);
   if (Target.empty())
     return createStringError(
@@ -1120,10 +1106,24 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Verbose) {
-    errs() << formatv(" offload-wrapper: compile-opts: {0}, link-opts: {1}\n",
-                      CompileOptions, LinkOptions);
+  if (Verbose || DryRun) {
+    std::string InputFiles;
+    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+      InputFiles += SplitModules[I].ModuleFilePath;
+      if (I + 1 < E)
+        InputFiles += ',';
+    }
+
+    errs() << formatv(
+        " offload-wrapper: input: {0}, output: {1}, "
+        "options: {2}, embed_ir: {3}\n",
+        InputFiles, OutputFilePath,
+        llvm::offloading::convertWrappingOptionsToString(WrappingOptions),
+        IsEmbeddedIR);
+    if (DryRun)
+      return OutputFilePath;
   }
+
   if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
