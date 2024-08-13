@@ -16318,15 +16318,8 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
   // Handle free functions.
-  if (FD) {
-    // Free functions cannot be member functions so skip those.
-    const auto *MD = dyn_cast<CXXMethodDecl>(FD);
-    if (LangOpts.SYCLIsDevice && !MD && Body &&
-        (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate ||
-         FD->getTemplatedKind() ==
-             FunctionDecl::TK_FunctionTemplateSpecialization))
-      SYCL().ProcessFreeFunction(FD);
-  }
+  if (LangOpts.SYCLIsDevice && Body && !FD->isDependentContext())
+    SYCL().ProcessFreeFunction(FD);
 
   return dcl;
 }

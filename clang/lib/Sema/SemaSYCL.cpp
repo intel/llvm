@@ -1073,20 +1073,10 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-auto hasDependentExpr = [](auto Args) {
-  return llvm::any_of(Args, [](const Expr *E) {
-    return E->isValueDependent() || E->isTypeDependent();
-  });
-};
-
 // FIXME: Free functions must have void return type and be declared at file
 // scope, outside any namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    // Free function properties are all compiletime constants, so skip checking
-    // any attribute values that use dependent expressions.
-    if (hasDependentExpr(IRAttr->args()))
-      continue;
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
@@ -1108,10 +1098,6 @@ static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
 static int getFreeFunctionRangeDim(SemaSYCL &SemaSYCLRef,
                                    const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
-    // Free function properties are all compiletime constants, so skip checking
-    // any attribute values that use dependent expressions.
-    if (hasDependentExpr(IRAttr->args()))
-      continue;
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
         IRAttr->getAttributeNameValuePairs(SemaSYCLRef.getASTContext());
     for (const auto &NameValuePair : NameValuePairs) {
