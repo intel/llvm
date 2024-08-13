@@ -97,13 +97,13 @@ struct JITTargetInfo
 };
 
 struct JITTargetCPU
-    : public OptionBase<JITTargetCPU, OptionID::TargetCPU, std::string> {
+    : public OptionBase<JITTargetCPU, OptionID::TargetCPU, DynArray<char>> {
   using OptionBase::OptionBase;
 };
 
 struct JITTargetFeatures
     : public OptionBase<JITTargetFeatures, OptionID::TargetFeatures,
-                        std::string> {
+                        DynArray<char>> {
   using OptionBase::OptionBase;
 };
 

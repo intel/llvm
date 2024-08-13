@@ -260,8 +260,9 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
 
   // Give priority to user specified values (through environment variables:
   // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
-  llvm::StringRef CPU = ConfigHelper::get<option::JITTargetCPU>();
-  llvm::StringRef Features = ConfigHelper::get<option::JITTargetFeatures>();
+  llvm::StringRef CPU = ConfigHelper::get<option::JITTargetCPU>().begin();
+  llvm::StringRef Features =
+      ConfigHelper::get<option::JITTargetFeatures>().begin();
 
   auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
   // If they were not set, use default and consult the module for alternatives
@@ -339,8 +340,9 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
 
-  llvm::StringRef CPU = ConfigHelper::get<option::JITTargetCPU>();
-  llvm::StringRef Features = ConfigHelper::get<option::JITTargetFeatures>();
+  llvm::StringRef CPU = ConfigHelper::get<option::JITTargetCPU>().begin();
+  llvm::StringRef Features =
+      ConfigHelper::get<option::JITTargetFeatures>().begin();
 
   auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
   if (CPU.empty()) {
