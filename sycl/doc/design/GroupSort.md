@@ -1,6 +1,6 @@
 # Group sort algorithm
 
-Group sorting algorithms are needed to sort data without calling additional kernels
+Group sorting algorithms are needed to sort data without calling additional kernels.
 They are described by SYCL 2020 Extension specification:
 [direct link to the specification's extension][group_sort_spec].
 
@@ -45,7 +45,7 @@ Data types that should be supported by backends: arithmetic types
 (https://en.cppreference.com/w/c/language/arithmetic_types), `sycl::half`.
 
 Comparators that should be supported by backends: `std::less`, `std::greater`,
-custom comparators
+and custom comparators.
 
 ## Design
 
@@ -102,7 +102,7 @@ DPC++ Headers contain the following:
 
 To implement `memory_required` methods for sorters we need to calculate
 how much temporary memory is needed.
-However, we don't have an information how much memory is needed by backend compiler.
+However, we don't know how much memory is needed by backend compiler.
 That's why we need a Level Zero function that calls a function from the backend and
 provide actual value to the SYCL code.
 
@@ -231,7 +231,7 @@ double __devicelib_default_sub_group_private_sort_ascending_f64(double value, by
 
 ## Alternative Design
 
-If it's proved that no specific improvements can be done at backends' level (e.g. special
-instructions, hardware dispatch) comparing to high-level SYCL code then implementations
+If it's proven that no specific improvements can be done at backend level (e.g. special
+instructions, hardware dispatch) compared to high-level SYCL code then implementations
 of sorting functions can be placed in DPC++ Headers
 (no hardware backends, no Level Zero support will be needed in such cases).
