@@ -24,6 +24,7 @@ class __urdlllocal context_t : public proxy_layer_context_t,
                                public AtomicSingleton<context_t> {
   public:
     bool enableParameterValidation = false;
+    bool enableBoundsChecking = false;
     bool enableLeakChecking = false;
     bool enableLifetimeValidation = false;
     logger::Logger logger;
@@ -35,7 +36,7 @@ class __urdlllocal context_t : public proxy_layer_context_t,
 
     static std::vector<std::string> getNames() {
         return {nameFullValidation, nameParameterValidation, nameLeakChecking,
-                nameLifetimeValidation};
+                nameBoundsChecking, nameLifetimeValidation};
     }
     ur_result_t init(ur_dditable_t *dditable,
                      const std::set<std::string> &enabledLayerNames,
@@ -49,6 +50,8 @@ class __urdlllocal context_t : public proxy_layer_context_t,
         "UR_LAYER_FULL_VALIDATION";
     inline static const std::string nameParameterValidation =
         "UR_LAYER_PARAMETER_VALIDATION";
+    inline static const std::string nameBoundsChecking =
+        "UR_LAYER_BOUNDS_CHECKING";
     inline static const std::string nameLeakChecking = "UR_LAYER_LEAK_CHECKING";
     inline static const std::string nameLifetimeValidation =
         "UR_LAYER_LIFETIME_VALIDATION";

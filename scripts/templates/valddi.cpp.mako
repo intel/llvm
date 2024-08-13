@@ -57,8 +57,16 @@ namespace ur_validation_layer
         {
             %for key, values in sorted_param_checks:
             %for val in values:
-            if( ${val} )
+            %if 'boundsError' in val:
+            if ( getContext()->enableBoundsChecking ) {
+                if ( ${val} ) {
+                    return ${key};
+                }
+            }
+            %else:
+            if ( ${val} )
                 return ${key};
+            %endif
 
             %endfor
             %endfor
@@ -178,9 +186,13 @@ namespace ur_validation_layer
 
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
+            enableBoundsChecking = true;
             enableLeakChecking = true;
             enableLifetimeValidation = true;
         } else {
+            if (enabledLayerNames.count(nameBoundsChecking)) {
+                enableBoundsChecking = true;
+            }
             if (enabledLayerNames.count(nameParameterValidation)) {
                 enableParameterValidation = true;
             }
