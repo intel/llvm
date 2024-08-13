@@ -1,5 +1,3 @@
 # These two take too much time
 kernel_bundle
 marray
-# No issue created yet
-optional_kernel_features

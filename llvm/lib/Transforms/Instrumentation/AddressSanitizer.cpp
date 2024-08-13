@@ -776,7 +776,7 @@ struct AddressSanitizer {
   }
 
   TypeSize getAllocaSizeInBytes(const AllocaInst &AI) const {
-    return *AI.getAllocationSize(AI.getModule()->getDataLayout());
+    return *AI.getAllocationSize(AI.getDataLayout());
   }
 
   /// Check if we want (and can) handle this alloca.
@@ -1042,6 +1042,7 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   FunctionCallee AsanStackMallocFunc[kMaxAsanStackMallocSizeClass + 1],
       AsanStackFreeFunc[kMaxAsanStackMallocSizeClass + 1];
   FunctionCallee AsanSetShadowFunc[0x100] = {};
+  FunctionCallee AsanSetShadowPrivateFunc;
   FunctionCallee AsanPoisonStackMemoryFunc, AsanUnpoisonStackMemoryFunc;
   FunctionCallee AsanAllocaPoisonFunc, AsanAllocasUnpoisonFunc;
 
@@ -1257,10 +1258,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
   // ShadowMask is not zero. If ShadowMask[i] is zero, we assume that
   // ShadowBytes[i] is constantly zero and doesn't need to be overwritten.
   void copyToShadow(ArrayRef<uint8_t> ShadowMask, ArrayRef<uint8_t> ShadowBytes,
-                    IRBuilder<> &IRB, Value *ShadowBase);
+                    IRBuilder<> &IRB, Value *ShadowBase,
+                    bool ForceOutline = false);
   void copyToShadow(ArrayRef<uint8_t> ShadowMask, ArrayRef<uint8_t> ShadowBytes,
                     size_t Begin, size_t End, IRBuilder<> &IRB,
-                    Value *ShadowBase);
+                    Value *ShadowBase, bool ForceOutline = false);
   void copyToShadowInline(ArrayRef<uint8_t> ShadowMask,
                           ArrayRef<uint8_t> ShadowBytes, size_t Begin,
                           size_t End, IRBuilder<> &IRB, Value *ShadowBase);
@@ -3493,7 +3495,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   bool UseCalls = (InstrumentationWithCallsThreshold >= 0 &&
                    OperandsToInstrument.size() + IntrinToInstrument.size() >
                        (unsigned)InstrumentationWithCallsThreshold);
-  const DataLayout &DL = F.getParent()->getDataLayout();
+  const DataLayout &DL = F.getDataLayout();
   ObjectSizeOpts ObjSizeOpts;
   ObjSizeOpts.RoundToAlign = true;
   ObjectSizeOffsetVisitor ObjSizeVis(DL, TLI, F.getContext(), ObjSizeOpts);
@@ -3503,7 +3505,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   for (auto &Operand : OperandsToInstrument) {
     if (!suppressInstrumentationSiteForDebug(NumInstrumented))
       instrumentMop(ObjSizeVis, Operand, UseCalls,
-                    F.getParent()->getDataLayout(), RTCI);
+                    F.getDataLayout(), RTCI);
     FunctionModified = true;
   }
   if (TargetTriple.isSPIROrSPIRV()) {
@@ -3593,6 +3595,9 @@ void FunctionStackPoisoner::initializeCallbacks(Module &M) {
     AsanSetShadowFunc[Val] =
         M.getOrInsertFunction(Name.str(), IRB.getVoidTy(), IntptrTy, IntptrTy);
   }
+  AsanSetShadowPrivateFunc =
+      M.getOrInsertFunction("__asan_set_shadow_private", IRB.getVoidTy(),
+                            IntptrTy, IntptrTy, IRB.getInt8Ty());
 
   AsanAllocaPoisonFunc = M.getOrInsertFunction(
       kAsanAllocaPoison, IRB.getVoidTy(), IntptrTy, IntptrTy);
@@ -3611,7 +3616,7 @@ void FunctionStackPoisoner::copyToShadowInline(ArrayRef<uint8_t> ShadowMask,
   const size_t LargestStoreSizeInBytes =
       std::min<size_t>(sizeof(uint64_t), ASan.LongSize / 8);
 
-  const bool IsLittleEndian = F.getParent()->getDataLayout().isLittleEndian();
+  const bool IsLittleEndian = F.getDataLayout().isLittleEndian();
 
   // Poison given range in shadow using larges store size with out leading and
   // trailing zeros in ShadowMask. Zeros never change, so they need neither
@@ -3655,14 +3660,17 @@ void FunctionStackPoisoner::copyToShadowInline(ArrayRef<uint8_t> ShadowMask,
 
 void FunctionStackPoisoner::copyToShadow(ArrayRef<uint8_t> ShadowMask,
                                          ArrayRef<uint8_t> ShadowBytes,
-                                         IRBuilder<> &IRB, Value *ShadowBase) {
-  copyToShadow(ShadowMask, ShadowBytes, 0, ShadowMask.size(), IRB, ShadowBase);
+                                         IRBuilder<> &IRB, Value *ShadowBase,
+                                         bool ForceOutline) {
+  copyToShadow(ShadowMask, ShadowBytes, 0, ShadowMask.size(), IRB, ShadowBase,
+               ForceOutline);
 }
 
 void FunctionStackPoisoner::copyToShadow(ArrayRef<uint8_t> ShadowMask,
                                          ArrayRef<uint8_t> ShadowBytes,
                                          size_t Begin, size_t End,
-                                         IRBuilder<> &IRB, Value *ShadowBase) {
+                                         IRBuilder<> &IRB, Value *ShadowBase,
+                                         bool ForceOutline) {
   assert(ShadowMask.size() == ShadowBytes.size());
   size_t Done = Begin;
   for (size_t i = Begin, j = Begin + 1; i < End; i = j++) {
@@ -3671,14 +3679,20 @@ void FunctionStackPoisoner::copyToShadow(ArrayRef<uint8_t> ShadowMask,
       continue;
     }
     uint8_t Val = ShadowBytes[i];
-    if (!AsanSetShadowFunc[Val])
+    if (!AsanSetShadowFunc[Val] && !ForceOutline)
       continue;
 
     // Skip same values.
     for (; j < End && ShadowMask[j] && Val == ShadowBytes[j]; ++j) {
     }
 
-    if (j - i >= ASan.MaxInlinePoisoningSize) {
+    if (ForceOutline) {
+      RTCI.createRuntimeCall(
+          IRB, AsanSetShadowPrivateFunc,
+          {IRB.CreateAdd(ShadowBase, ConstantInt::get(IntptrTy, i)),
+           ConstantInt::get(IntptrTy, j - i),
+           ConstantInt::get(IRB.getInt8Ty(), Val)});
+    } else if (j - i >= ASan.MaxInlinePoisoningSize) {
       copyToShadowInline(ShadowMask, ShadowBytes, Done, i, IRB, ShadowBase);
       RTCI.createRuntimeCall(
           IRB, AsanSetShadowFunc[Val],
@@ -3688,7 +3702,8 @@ void FunctionStackPoisoner::copyToShadow(ArrayRef<uint8_t> ShadowMask,
     }
   }
 
-  copyToShadowInline(ShadowMask, ShadowBytes, Done, End, IRB, ShadowBase);
+  if (!ForceOutline)
+    copyToShadowInline(ShadowMask, ShadowBytes, Done, End, IRB, ShadowBase);
 }
 
 // Fake stack allocator (asan_fake_stack.h) has 11 size classes
@@ -3709,15 +3724,19 @@ void FunctionStackPoisoner::copyArgsPassedByValToAllocas() {
     assert(CopyInsertPoint);
   }
   IRBuilder<> IRB(CopyInsertPoint);
-  const DataLayout &DL = F.getParent()->getDataLayout();
+  const DataLayout &DL = F.getDataLayout();
   for (Argument &Arg : F.args()) {
     if (Arg.hasByValAttr()) {
       Type *Ty = Arg.getParamByValType();
       const Align Alignment =
           DL.getValueOrABITypeAlignment(Arg.getParamAlign(), Ty);
 
+      unsigned int AS = Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
+                            ? Arg.getType()->getPointerAddressSpace()
+                            : DL.getAllocaAddrSpace();
+
       AllocaInst *AI = IRB.CreateAlloca(
-          Ty, nullptr,
+          Ty, AS, nullptr,
           (Arg.hasName() ? Arg.getName() : "Arg" + Twine(Arg.getArgNo())) +
               ".byval");
       AI->setAlignment(Alignment);
@@ -4062,7 +4081,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
       ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
-  copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase);
+  copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,
+               TargetTriple.isSPIROrSPIRV());
 
   if (!StaticAllocaPoisonCallVec.empty()) {
     const auto &ShadowInScope = GetShadowBytes(SVD, L);
@@ -4132,7 +4152,8 @@ void FunctionStackPoisoner::processStaticAllocas() {
       IRBuilder<> IRBElse(ElseTerm);
       copyToShadow(ShadowAfterScope, ShadowClean, IRBElse, ShadowBase);
     } else {
-      copyToShadow(ShadowAfterScope, ShadowClean, IRBRet, ShadowBase);
+      copyToShadow(ShadowAfterScope, ShadowClean, IRBRet, ShadowBase,
+                   TargetTriple.isSPIROrSPIRV());
     }
   }
 
@@ -4174,7 +4195,7 @@ void FunctionStackPoisoner::handleDynamicAllocaCall(AllocaInst *AI) {
   // ElementSize size, get allocated memory size in bytes by
   // OldSize * ElementSize.
   const unsigned ElementSize =
-      F.getParent()->getDataLayout().getTypeAllocSize(AI->getAllocatedType());
+      F.getDataLayout().getTypeAllocSize(AI->getAllocatedType());
   Value *OldSize =
       IRB.CreateMul(IRB.CreateIntCast(AI->getArraySize(), IntptrTy, false),
                     ConstantInt::get(IntptrTy, ElementSize));

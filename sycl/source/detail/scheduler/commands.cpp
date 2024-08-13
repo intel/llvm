@@ -1722,12 +1722,19 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-  MemoryManager::copy(
-      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
-      MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+
+  try {
+    MemoryManager::copy(
+        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+        MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+        MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
+        MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
+        MEvent);
+  } catch (sycl::exception &e) {
+    return static_cast<ur_result_t>(get_ur_error(e));
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -3170,8 +3177,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
             Req->MSYCLMemObj->MRecord->MAllocaCommands;
 
         for (AllocaCommandBase *AllocaCmd : AllocaCmds)
-          if (HostTask->MQueue->getContextImplPtr() ==
-              AllocaCmd->getQueue()->getContextImplPtr()) {
+          if (getContext(HostTask->MQueue) ==
+              getContext(AllocaCmd->getQueue())) {
             auto MemArg = reinterpret_cast<ur_mem_handle_t>(
                 AllocaCmd->getMemAllocation());
             ReqToMem.emplace_back(std::make_pair(Req, MemArg));
@@ -3185,7 +3192,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
         throw sycl::exception(
             sycl::make_error_code(sycl::errc::runtime),
-            "Can't get memory object due to no allocation available ");
+            "Can't get memory object due to no allocation available " +
+                codeToString(UR_RESULT_ERROR_INVALID_MEM_OBJECT));
       };
       std::for_each(std::begin(HandlerReq), std::end(HandlerReq), ReqToMemConv);
       std::sort(std::begin(ReqToMem), std::end(ReqToMem));
@@ -3240,14 +3248,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
+    assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Plugin = MQueue->getPlugin();
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder())
+    if (!MQueue->isInOrder()) {
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PreTimestampBarrierEvent{};
       Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                    /*num_events_in_wait_list=*/0,
-                   /*event_wait_list=*/nullptr, /*event=*/nullptr);
+                   /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
+      Plugin->call(urEventRelease, PreTimestampBarrierEvent);
+    }
 
     Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getHandleRef(),
                  /*blocking=*/false,
@@ -3320,7 +3335,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     auto OptWaitValue = SemWait->getWaitValue();
     uint64_t WaitValue = OptWaitValue.has_value() ? OptWaitValue.value() : 0;
     Plugin->call(urBindlessImagesWaitExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemWait->getExternalSemaphore(),
                  OptWaitValue.has_value(), WaitValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
@@ -3334,7 +3349,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     uint64_t SignalValue =
         OptSignalValue.has_value() ? OptSignalValue.value() : 0;
     Plugin->call(urBindlessImagesSignalExternalSemaphoreExp,
-                 MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(),
+                 MQueue->getHandleRef(), SemSignal->getExternalSemaphore(),
                  OptSignalValue.has_value(), SignalValue, 0, nullptr, nullptr);
 
     return UR_RESULT_SUCCESS;
