@@ -1,5 +1,7 @@
 # Fetch third party headers
 set(EMHASH_REPO https://github.com/ktprime/emhash)
+set(CMAKE_CXX_FLAGS_BAK ${CMAKE_CXX_FLAGS})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
 message(STATUS "Will fetch emhash from ${EMHASH_REPO}")
 FetchContent_Declare(emhash-headers
   GIT_REPOSITORY    ${EMHASH_REPO}
@@ -8,6 +10,7 @@ FetchContent_Declare(emhash-headers
 
 FetchContent_GetProperties(emhash-headers)
 FetchContent_MakeAvailable(emhash-headers)
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS_BAK})
 
 set(XPTIFW_EMHASH_HEADERS "${emhash-headers_SOURCE_DIR}")
 
