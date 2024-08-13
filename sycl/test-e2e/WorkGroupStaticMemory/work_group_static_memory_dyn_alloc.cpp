@@ -41,21 +41,22 @@ int main() {
       sycl::ext::oneapi::experimental::work_group_static_size static_size(
           WgSize * sizeof(int));
       sycl::ext::oneapi::experimental::properties properties{static_size};
-      Cgh.parallel_for(
-          nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
-          [=](nd_item<1> Item) {
-            multi_ptr<int, access::address_space::local_space,
-                      sycl::access::decorated::legacy>
-                Ptr = sycl::ext::oneapi::experimental::
-                    get_dynamic_work_group_memory<int>();
-            Ptr[Item.get_local_linear_id()] = Item.get_local_linear_id();
+      Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)),
+                       properties, [=](nd_item<1> Item) {
+                         multi_ptr<int, access::address_space::local_space,
+                                   sycl::access::decorated::no>
+                             Ptr = sycl::ext::oneapi::experimental::
+                                 get_dynamic_work_group_memory<int>();
+                         Ptr[Item.get_local_linear_id()] =
+                             Item.get_local_linear_id();
 
-            Item.barrier();
-            // Check that the memory is accessible from other work-items
-            size_t LocalIdx = Item.get_local_linear_id() ^ 1;
-            size_t GlobalIdx = Item.get_global_linear_id() ^ 1;
-            Acc[GlobalIdx] = Ptr[LocalIdx];
-          });
+                         Item.barrier();
+                         // Check that the memory is accessible from other
+                         // work-items
+                         size_t LocalIdx = Item.get_local_linear_id() ^ 1;
+                         size_t GlobalIdx = Item.get_global_linear_id() ^ 1;
+                         Acc[GlobalIdx] = Ptr[LocalIdx];
+                       });
     });
 
     host_accessor Acc(Buf, read_only);
@@ -75,15 +76,15 @@ int main() {
           nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
           [=](nd_item<1> Item) {
             multi_ptr<int, access::address_space::local_space,
-                      sycl::access::decorated::legacy>
+                      sycl::access::decorated::no>
                 Ptr = sycl::ext::oneapi::experimental::
                     get_dynamic_work_group_memory<int>();
             Ptr[Item.get_local_linear_id()] = Item.get_local_linear_id();
 
             Item.barrier();
             // Check multiple calls returns the same pointer
-                        multi_ptr<unsigned int, access::address_space::local_space,
-                      sycl::access::decorated::legacy>
+            multi_ptr<unsigned int, access::address_space::local_space,
+                      sycl::access::decorated::no>
                 PtrAlias = sycl::ext::oneapi::experimental::
                     get_dynamic_work_group_memory<unsigned int>();
             // Check that the memory is accessible from other work-items
@@ -111,7 +112,7 @@ int main() {
           nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
           [=](nd_item<1> Item) {
             multi_ptr<int, access::address_space::local_space,
-                      sycl::access::decorated::legacy>
+                      sycl::access::decorated::no>
                 Ptr = sycl::ext::oneapi::experimental::
                     get_dynamic_work_group_memory<int>();
             Ptr[Item.get_local_linear_id()] = Item.get_local_linear_id();

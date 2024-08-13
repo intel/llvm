@@ -31,25 +31,20 @@ namespace detail {
 
 template <typename T> class __SYCL_WG_SCOPE work_group_static {
 public:
-  // static_assert(std::is_unbounded_array<T>,
-  //               "Use get_dynamic_work_group_memory for dynamic work group "
-  //               "memory allocation");
-
   __SYCL_ALWAYS_INLINE work_group_static() = default;
   work_group_static(const work_group_static &) = delete;
   work_group_static &operator=(const work_group_static &) = delete;
 
-  operator T &() const noexcept { return *getDecorated(); }
+  operator T &() noexcept { return *getDecorated(); }
 
   template <class TArg = T>
-  typename std::enable_if<!std::is_array_v<TArg>,
-                          const work_group_static &>::type
-  operator=(const T &value) const noexcept {
+  typename std::enable_if<!std::is_array_v<TArg>, work_group_static &>::type
+  operator=(const T &value) noexcept {
     *getDecorated() = value;
     return *this;
   }
 
-  T *operator&() const noexcept { return *getDecorated(); }
+  T *operator&() noexcept { return *getDecorated(); }
 
 private:
   using decorated_pointer =
@@ -62,7 +57,7 @@ private:
   // Small trick, memcpy of the class is UB so assume this is in the local
   // space. As the address space may get lost, explicitly cast it to this
   // address space to help the optimizer.
-  decorated_pointer getDecorated() const { return (decorated_pointer)&data; }
+  decorated_pointer getDecorated() { return (decorated_pointer)&data; }
 
   T data;
 };
@@ -75,11 +70,13 @@ template <typename T>
 std::enable_if_t<std::is_trivially_destructible_v<T> &&
                      std::is_trivially_constructible_v<T>,
                  multi_ptr<T, access::address_space::local_space,
-                           access::decorated::legacy>> __SYCL_ALWAYS_INLINE
+                           access::decorated::no>> __SYCL_ALWAYS_INLINE
 get_dynamic_work_group_memory() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return reinterpret_cast<__attribute__((opencl_local)) T *>(
-      __sycl_dynamicLocalMemoryPlaceholder(alignof(T)));
+  return multi_ptr<T, access::address_space::local_space,
+                   access::decorated::no>{
+      reinterpret_cast<__attribute__((opencl_local)) T *>(
+          __sycl_dynamicLocalMemoryPlaceholder(alignof(T)))};
 #else
   throw sycl::exception(
       sycl::errc::feature_not_supported,
