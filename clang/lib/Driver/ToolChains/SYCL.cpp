@@ -1358,6 +1358,7 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   return UnsupportedOpts;
 }
 
+// Currently supported options by SYCL NativeCPU device compilation
 static inline bool SupportedByNativeCPU(OptSpecifier Opt) {
   switch (Opt.getID()) {
     case options::OPT_fcoverage_mapping:
@@ -1425,7 +1426,6 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
-
         // NativeCPU should allow most normal cpu options like
         // for coverage testing and we enable them as we have tests.
         if (this->IsSYCLNativeCPU && SupportedByNativeCPU(Opt.getID()))
