@@ -606,7 +606,7 @@ template <typename Op, typename T>
 inline constexpr bool is_op_available = false;
 
 template <typename Lhs, typename Rhs, typename Op, int N>
-inline constexpr bool is_non_assign_binop_available = true;
+inline constexpr bool is_non_assign_binop_available = (N > 1);
 
 #define __SYCL_OP_AVAILABILITY(OP, COND)                                       \
   template <typename T> inline constexpr bool is_op_available<OP, T> = COND;
@@ -1177,7 +1177,7 @@ class __SYCL_EBO Swizzle
           Swizzle<VecT, Indexes...>,
           typename vec<typename VecT::element_type,
                        sizeof...(Indexes)>::vector_t,
-          /* Explicit = */ false,
+          /* Explicit = */ true,
           // if `vector_t` and `DataT` are the same, then the `operator DataT`
           // from the above is enough.
           !std::is_same_v<typename VecT::element_type,
@@ -1325,7 +1325,7 @@ class __SYCL_EBO vec :
 #ifdef __SYCL_DEVICE_ONLY__
     public detail::ConversionOperatorMixin<
         vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
-        /* Explicit = */ false,
+        /* Explicit = */ true,
         // if `vector_t` and `DataT` are the same, then the `operator DataT`
         // from the above is enough.
         !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,

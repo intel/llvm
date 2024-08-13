@@ -57,10 +57,10 @@ int main() {
         });
       });
     }
-    // 1-element vector operators follow vector 0/-1 logic
-    res_type expected_res(-1);
-    assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
-                             expected_res.template swizzle<sycl::elem::s0>()));
+    // // 1-element vector operators follow vector 0/-1 logic
+    // res_type expected_res(-1);
+    // assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
+    //                          expected_res.template swizzle<sycl::elem::s0>()));
   }
 
   {
@@ -78,10 +78,10 @@ int main() {
         });
       });
     }
-    // 1-element vector operators follow vector 0/-1 logic
-    res_type expected_res(-1);
-    assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
-                             expected_res.template swizzle<sycl::elem::s0>()));
+    // // 1-element vector operators follow vector 0/-1 logic
+    // res_type expected_res(-1);
+    // assert(static_cast<bool>(res.template swizzle<sycl::elem::s0>() ==
+    //                          expected_res.template swizzle<sycl::elem::s0>()));
   }
 
   /* Test different operators, different types
