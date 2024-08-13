@@ -295,6 +295,8 @@ Layers currently included with the runtime are as follows:
      - Description
    * - UR_LAYER_PARAMETER_VALIDATION
      - Enables non-adapter-specific parameter validation (e.g. checking for null values).
+   * - UR_LAYER_BOUNDS_CHECKING
+     - Enables non-adapter-specific bounds checking of USM allocations for enqueued commands. Automatically enables UR_LAYER_PARAMETER_VALIDATION.
    * - UR_LAYER_LEAK_CHECKING
      - Performs some leak checking for API calls involving object creation/destruction.
    * - UR_LAYER_LIFETIME_VALIDATION
