@@ -1034,7 +1034,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
         EndTimeRecording.EventHasDied = true;
       } else {
         // Otherwise we evict the entry.
-        Legacy(Event->UrQueue)->EndTimeRecordings.erase(Entry);
+        Queue->EndTimeRecordings.erase(Entry);
       }
     }
   }
