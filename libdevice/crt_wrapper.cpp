@@ -17,7 +17,8 @@
 DeviceGlobal<uint64_t[RAND_NEXT_LEN]> RandNext;
 #endif
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 DEVICE_EXTERN_C_INLINE
 void *memcpy(void *dest, const void *src, size_t n) {
   return __devicelib_memcpy(dest, src, n);
@@ -126,4 +127,4 @@ void __assert_fail(const char *expr, const char *file, unsigned int line,
       __spirv_LocalInvocationId_z());
 }
 #endif
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

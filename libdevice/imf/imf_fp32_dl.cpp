@@ -11,8 +11,11 @@
 /// overhead in these deep learning frameworks.
 //===----------------------------------------------------------------------===//
 
-#include "../device_imf.hpp"
+#include "../device.h"
+
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE int32_t __devicelib_imf_abs(int32_t x) {
   return (x >= 0) ? x : -x;

@@ -6,10 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "../device.h"
+
+#ifdef __LIBDEVICE_IMF_ENABLED__
+
 #include "../device_imf.hpp"
 #include "../imf_rounding_op.hpp"
 
-#ifdef __LIBDEVICE_IMF_ENABLED__
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fadd_rd(float x, float y) {
   return __fp_add_sub_entry(x, y, __IML_RTN);
