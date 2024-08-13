@@ -24,8 +24,6 @@
 #include "ur_util.hpp"
 #include "ze_api.h"
 
-#include "v2/queue_factory.hpp"
-
 // Hard limit for the event completion batches.
 static const uint64_t CompletionBatchesMax = [] {
   // Default value chosen empirically to maximize the number of asynchronous
@@ -501,12 +499,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
-  // optimized path for immediate, in-order command lists
-  if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Props);
-    return UR_RESULT_SUCCESS;
-  }
-
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
   std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
@@ -704,15 +696,6 @@ ur_result_t ur_queue_handle_legacy_t_::queueGetNativeHandle(
         *NativeQueue ///< [out] a pointer to the native handle of the queue.
 ) {
   auto Queue = this;
-
-  // Needed for EnqueueNativeCommandExp, so that the native queue 'got' in the
-  // interop func is the as the native queue used to manage dependencies
-  // before the interop func invocation
-  if (Queue->getThreadLocalCommandList() != ze_command_list_handle_t{0}) {
-    auto ZeCmdList = ur_cast<ze_command_list_handle_t *>(NativeQueue);
-    *ZeCmdList = Queue->getThreadLocalCommandList();
-    return UR_RESULT_SUCCESS;
-  }
 
   // Lock automatically releases when this goes out of scope.
   std::shared_lock<ur_shared_mutex> lock(Queue->Mutex);

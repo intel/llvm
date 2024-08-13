@@ -189,6 +189,9 @@ struct ur_device_handle_t_ : _ur_object {
            (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
   }
 
+  // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
+  bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }

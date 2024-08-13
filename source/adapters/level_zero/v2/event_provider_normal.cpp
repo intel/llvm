@@ -11,6 +11,7 @@
 #include "../common.hpp"
 #include "../context.hpp"
 #include "event_provider.hpp"
+#include "latency_tracker.hpp"
 #include "ur_api.h"
 #include "ze_api.h"
 #include <memory>
@@ -38,7 +39,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
                     (context->ZeContext, &desc, 1,
                      const_cast<ze_device_handle_t *>(&device->ZeDevice),
-                     &pool));
+                     pool.ptr()));
 
   freelist.resize(EVENTS_BURST);
   for (int i = 0; i < EVENTS_BURST; ++i) {
@@ -46,25 +47,19 @@ provider_pool::provider_pool(ur_context_handle_t context,
     desc.index = i;
     desc.signal = 0;
     desc.wait = 0;
-    ZE2UR_CALL_THROWS(zeEventCreate, (pool, &desc, &freelist[i]));
+    ZE2UR_CALL_THROWS(zeEventCreate, (pool.get(), &desc, freelist[i].ptr()));
   }
-}
-
-provider_pool::~provider_pool() {
-  for (auto e : freelist) {
-    ZE_CALL_NOCHECK(zeEventDestroy, (e));
-  }
-  ZE_CALL_NOCHECK(zeEventPoolDestroy, (pool));
 }
 
 event_borrowed provider_pool::allocate() {
   if (freelist.empty()) {
     return nullptr;
   }
-  ze_event_handle_t e = freelist.back();
+  auto e = std::move(freelist.back());
   freelist.pop_back();
-  return event_borrowed(
-      e, [this](ze_event_handle_t handle) { freelist.push_back(handle); });
+  return event_borrowed(e.release(), [this](ze_event_handle_t handle) {
+    freelist.push_back(handle);
+  });
 }
 
 size_t provider_pool::nfree() const { return freelist.size(); }
@@ -85,7 +80,10 @@ std::unique_ptr<provider_pool> provider_normal::createProviderPool() {
 }
 
 event_allocation provider_normal::allocate() {
+  TRACK_SCOPE_LATENCY("provider_normal::allocate");
+
   if (pools.empty()) {
+    TRACK_SCOPE_LATENCY("provider_normal::allocate#createProviderPool");
     pools.emplace_back(createProviderPool());
   }
 
@@ -97,6 +95,7 @@ event_allocation provider_normal::allocate() {
     }
   }
 
+  TRACK_SCOPE_LATENCY("provider_normal::allocate#slowPath");
   std::sort(pools.begin(), pools.end(), [](auto &a, auto &b) {
     return a->nfree() < b->nfree(); // asceding
   });
