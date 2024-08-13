@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/callumfare/unified-runtime.git")
-  # commit 9deaabcbef168015df251c4ac0d47c2cba7bfbfb
-  # Merge: 84f5e705 ca2916e9
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit d8f1c98e48e98ea2f6a227af82366734fcde977e
+  # Merge: 6e8efa3d 9e824480
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 5 21:02:44 2024 +0100
-  #     Merge pull request #1929 from oneapi-src/revert-1880-l0-native-enqueue
-  #     Revert "[L0] L0 impl for enqueue native command"
-  set(UNIFIED_RUNTIME_TAG 1904e23f98f02c6fc1966ad1399836922266220d)
+  # Date:   Wed Aug 14 11:46:59 2024 +0100
+  #     Merge pull request #1946 from callumfare/callum/update_ur_trace_env_var
+  #     Update expected values of SYCL_UR_TRACE environment variable
+  set(UNIFIED_RUNTIME_TAG d8f1c98e48e98ea2f6a227af82366734fcde977e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

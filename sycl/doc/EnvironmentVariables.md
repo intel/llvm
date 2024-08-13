@@ -234,7 +234,10 @@ variables in production code.</span>
 
 ### `SYCL_UR_TRACE` Options
 
-`SYCL_UR_TRACE` accepts a bit-mask. Supported tracing levels are in the table below
+`SYCL_UR_TRACE` accepts a bit-mask, so individual tracing types can be enabled.
+Setting a value of `-1` will enable all tracing types.
+
+Supported tracing levels are in the table below
 
 | Option | Description |
 | ------ | ----------- |
