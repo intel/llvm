@@ -1300,13 +1300,14 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
  * @param[in] CommandBuffer The command buffer.
  * @param[in] Queue The UR queue used to submit the command buffer.
  * @param[in] SignalCommandList The command-list to append the barrier to.
- * @param[out] Event The host visible event which will be returned to the user.
+ * @param[out][optional] Event The host visible event which will be returned
+ * to the user, if user passed an output parameter to the UR API.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
                             ur_queue_handle_legacy_t Queue,
                             ur_command_list_ptr_t SignalCommandList,
-                            ur_event_handle_t &Event) {
+                            ur_event_handle_t *Event) {
   // Execution event for this enqueue of the UR command-buffer
   ur_event_handle_t RetEvent{};
 
@@ -1342,7 +1343,9 @@ ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
                 &(CommandBuffer->SignalEvent->ZeEvent)));
   }
 
-  Event = RetEvent;
+  if (Event) {
+    *Event = RetEvent;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -1405,9 +1408,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
 
-  if (Event) {
-    UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, *Event));
-  }
+  // Appends a wait on the main command-list signal and registers output Event
+  // parameter with signal command-list completing.
+  UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, Event));
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
