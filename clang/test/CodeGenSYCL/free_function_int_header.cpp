@@ -83,3 +83,125 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
+
+// CHECK: Definition of _Z18__sycl_kernel_ff_2Piii as a free function kernel
+// CHECK-NEXT: void ff_2(int *ptr, int start, int end);
+// CHECK-NEXT: static constexpr auto __sycl_shim1() {
+// CHECK-NEXT:   return (void (*)(int *, int, int))ff_2;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_kernel<__sycl_shim1()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim1()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT: }
+
+// CHECK: Definition of _Z18__sycl_kernel_ff_2Piiii as a free function kernel
+// CHECK-NEXT: void ff_2(int *ptr, int start, int end, int value);
+// CHECK-NEXT: static constexpr auto __sycl_shim2() {
+// CHECK-NEXT:   return (void (*)(int *, int, int, int))ff_2;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_kernel<__sycl_shim2()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim2()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT: }
+
+// CHECK: Definition of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_ as a free function kernel
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK-NEXT: static constexpr auto __sycl_shim3() {
+// CHECK-NEXT:   return (void (*)(int *, int, int))ff_3<int>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_kernel<__sycl_shim3()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim3(), 2> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT: }
+ 
+// CHECK: Definition of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_ as a free function kernel
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK-NEXT: static constexpr auto __sycl_shim4() {
+// CHECK-NEXT:   return (void (*)(float *, float, float))ff_3<float>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_kernel<__sycl_shim4()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim4(), 2> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT: }
+
+// CHECK: Definition of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_ as a free function kernel
+// CHECK-NEXT: template <typename T> void ff_3(T *ptr, T start, T end);
+// CHECK-NEXT: static constexpr auto __sycl_shim5() {
+// CHECK-NEXT:   return (void (*)(double *, double, double))ff_3<double>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_kernel<__sycl_shim5()> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   struct ext::oneapi::experimental::is_nd_range_kernel<__sycl_shim5(), 2> {
+// CHECK-NEXT:     static constexpr bool value = true;
+// CHECK-NEXT:   };
+// CHECK-NEXT: }
+
+// CHECK: #include <sycl/kernel_bundle.hpp>
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piii
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim1()>() {
+// CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_2Piii"});
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_2Piiii
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim2()>() {
+// CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_2Piiii"});
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IiEvPT_S0_S0_
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim3()>() {
+// CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IiEvPT_S0_S0_"});
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IfEvPT_S0_S0_
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim4()>() {
+// CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IfEvPT_S0_S0_"});
+// CHECK-NEXT:   }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_3IdEvPT_S0_S0_
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT:   template <>
+// CHECK-NEXT:   kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim5()>() {
+// CHECK-NEXT:     return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_3IdEvPT_S0_S0_"});
+// CHECK-NEXT:   }
+// CHECK-NEXT: }

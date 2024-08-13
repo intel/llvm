@@ -17,10 +17,8 @@ inline namespace _V1 {
 template <>
 inline backend_return_t<backend::ext_oneapi_hip, device>
 get_native<backend::ext_oneapi_hip, device>(const device &Obj) {
-  // TODO swap with SYCL 2020 exception when in ABI-break window
   if (Obj.get_backend() != backend::ext_oneapi_hip) {
-    throw sycl::runtime_error(errc::backend_mismatch, "Backends mismatch",
-                              PI_ERROR_INVALID_OPERATION);
+    throw exception(errc::backend_mismatch, "Backends mismatch");
   }
   // HIP uses a 32-bit int instead of an opaque pointer like other backends,
   // so we need a specialization with static_cast instead of reinterpret_cast.

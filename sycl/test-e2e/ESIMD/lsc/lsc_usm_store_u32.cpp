@@ -13,7 +13,7 @@
 // optimizations to produce correct result.
 // DEFINE: %{fpflags} = %if cl_options %{/clang:-ffp-exception-behavior=maytrap%} %else %{-ffp-exception-behavior=maytrap%}
 
-// RUN: %{build} %{fpflags} -o %t.out
+// RUN: %{build} -Wno-error=unsupported-floating-point-opt %{fpflags} -o %t.out
 // RUN: %{run} %t.out
 
 #include "Inputs/lsc_usm_store.hpp"
