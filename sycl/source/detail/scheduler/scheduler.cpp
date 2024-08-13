@@ -218,27 +218,40 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   }
 
   std::vector<Command *> ToCleanUp;
+  // EnqueueCommand will try to enqueue dependencies (previous operations on the
+  // buffer). If any dep kernel failed it would be reported as sync exception or
+  // async exception on host task completion and enqueue attempt.
+  // No need to report those failures again in copy back submission. So report
+  // only copy back auxiliary and main command failures.
+  bool CopyBackCmdsFailed = false;
   try {
     ReadLockT Lock = acquireReadLock();
     EnqueueResultT Res;
-    bool Enqueued;
+    bool Enqueued = false;
 
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+        CopyBackCmdsFailed |= Res.MCmd == Cmd;
         throw exception(make_error_code(errc::runtime),
                         "Enqueue process failed.");
+      }
     }
 
     Enqueued =
         GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+      CopyBackCmdsFailed |= Res.MCmd == NewCmd;
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
+    }
   } catch (...) {
-    auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
-    assert(WorkerQueue && "WorkerQueue for CopyBack command must be not null");
-    WorkerQueue->reportAsyncException(std::current_exception());
+    if (CopyBackCmdsFailed) {
+      auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
+      assert(WorkerQueue &&
+             "WorkerQueue for CopyBack command must be not null");
+      WorkerQueue->reportAsyncException(std::current_exception());
+    }
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
