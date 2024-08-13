@@ -14,7 +14,7 @@
 /// metrics and events.
 
 #include "xpti/xpti_trace_framework.hpp"
-#include "emhash/hash_table7.hpp"
+#include "hash_table7.hpp"
 #include "parallel_hashmap/phmap.h"
 #include "xpti/xpti_trace_framework.h"
 #include "xpti_int64_hash_table.hpp"
