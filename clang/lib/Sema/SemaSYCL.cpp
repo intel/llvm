@@ -3474,6 +3474,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
             getSyclKernelHandlerArg(KernelCallerFunc))
       NewBody = replaceWithLocalClone(KernelHandlerParam, KernelHandlerClone,
                                       NewBody);
+
     // Use transformed body (with clones) as kernel body
     BodyStmts.push_back(NewBody);
 

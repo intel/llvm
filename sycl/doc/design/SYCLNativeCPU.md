@@ -28,12 +28,12 @@ clang++ <device-ir> -o <device-o>
 clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
 
-Note that SYCL Native CPU co-exists alongside the other sycl targets. For example, the following command-line builds SYCL code simultaneously for SYCL Native CPU and for OpenCL.
+Note that SYCL Native CPU co-exists alongside the other SYCL targets. For example, the following command line builds SYCL code simultaneously for SYCL Native CPU and for OpenCL.
 
 ```
 clang++ -fsycl -fsycl-targets=native_cpu,spir64 <input> -o <output>
 ```
-The application can then run on either target by setting the DPC++ `ONEAPI_DEVICE_SELECTOR` environment variable accordingly.
+The application can then run on either SYCL target by setting the DPC++ `ONEAPI_DEVICE_SELECTOR` environment variable accordingly.
 
 ## Configuring DPC++ with SYCL Native CPU
 
@@ -100,7 +100,7 @@ For more details on how the Whole Function Vectorizer is integrated for SYCL Nat
 SYCL Native CPU has experimental support for LLVM's source-based [code coverage](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html). This enables coverage testing across device and host code.
 Example usage:
 
-```
+```bash
 clang.exe -fsycl -fsycl-targets=native_cpu  -fprofile-instr-generate -fcoverage-mapping %fname% -o vector-add.exe
 .\vector-add.exe
 llvm-profdata merge -sparse default.profraw -o foo.profdata
@@ -114,7 +114,7 @@ llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
 * Subgroup support
 * Performance optimizations
 
-### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.
+### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be reinstantiated soon.
 
 # Technical details
 
