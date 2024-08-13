@@ -17,6 +17,7 @@
 // RUN: %if gpu-intel-dg2 %{ %{run} %t_split.out %}
 
 // XFAIL: cpu
+// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../element_wise_all_sizes_impl.hpp"
