@@ -65,10 +65,21 @@ struct ur_program_handle_t_ : _ur_object {
     ze_module_constants_t ZeSpecConstants;
   };
 
-  // Construct a program in IL or Native state.
+  // Construct a program in IL.
   ur_program_handle_t_(state St, ur_context_handle_t Context, const void *Input,
                        size_t Length)
       : Context{Context},
+        OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
+        CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
+    std::memcpy(Code.get(), Input, Length);
+  }
+
+  // Construct a program in NATIVE.
+  ur_program_handle_t_(state St, ur_context_handle_t Context,
+                       ur_device_handle_t Device,
+                       const ur_program_properties_t *Properties,
+                       const void *Input, size_t Length)
+      : Context{Context}, NativeDevice(Device), NativeProperties(Properties),
         OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
         CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
@@ -107,6 +118,12 @@ struct ur_program_handle_t_ : _ur_object {
   bool resourcesReleased = false;
 
   const ur_context_handle_t Context; // Context of the program.
+
+  // Device Handle used for the Native Build
+  ur_device_handle_t NativeDevice;
+
+  // Properties used for the Native Build
+  const ur_program_properties_t *NativeProperties;
 
   // Indicates if we own the ZeModule or it came from interop that
   // asked to not transfer the ownership to SYCL RT.

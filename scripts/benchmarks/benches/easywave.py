@@ -14,6 +14,8 @@ import os
 class Easywave(VelocityBase):
     def __init__(self, vb: VelocityBench):
         super().__init__("easywave", "easyWave_sycl", vb)
+
+    def download_deps(self):
         self.download_untar("easywave", "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz", "examples.tar.gz")
 
     def name(self):

@@ -33,12 +33,6 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
       (ZEL_HANDLE_DEVICE, device->ZeDevice, (void **)&translatedDevice));
 }
 
-provider_counter::~provider_counter() {
-  for (auto &e : freelist) {
-    ZE_CALL_NOCHECK(zeEventDestroy, (e));
-  }
-}
-
 event_allocation provider_counter::allocate() {
   if (freelist.empty()) {
     ZeStruct<ze_event_desc_t> desc;
@@ -54,11 +48,11 @@ event_allocation provider_counter::allocate() {
     freelist.emplace_back(handle);
   }
 
-  auto event = freelist.back();
+  auto event = std::move(freelist.back());
   freelist.pop_back();
 
   return {event_type::EVENT_COUNTER,
-          event_borrowed(event, [this](ze_event_handle_t handle) {
+          event_borrowed(event.release(), [this](ze_event_handle_t handle) {
             freelist.push_back(handle);
           })};
 }

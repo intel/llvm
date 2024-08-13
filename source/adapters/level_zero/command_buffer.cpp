@@ -610,8 +610,8 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
   // In-order command-lists are not available in old driver version.
-  bool CompatibleDriver = isDriverVersionNewerOrSimilar(
-      Context->getPlatform()->ZeDriver, 1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+  bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
+      1, 3, L0_DRIVER_INORDER_MIN_VERSION);
   return CompatibleDriver
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;
@@ -921,6 +921,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
                           !IsDevicePointer(CommandBuffer->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (CommandBuffer->Device->isDG2() &&
+      (IsSharedPointer(CommandBuffer->Context, Src) ||
+       IsSharedPointer(CommandBuffer->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueCommandBufferMemCopyHelper(

@@ -613,6 +613,11 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableWrite(
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Src)) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
@@ -663,6 +668,11 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueDeviceGlobalVariableRead(
   // Copy engine is preferred only for host to device transfer.
   // Device to device transfers run faster on compute engines.
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && IsSharedPointer(Queue->Context, Dst)) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
@@ -700,7 +710,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     ZeKernelDesc.pKernelName = KernelName;
 
     ze_kernel_handle_t ZeKernel;
-    ZE2UR_CALL(zeKernelCreate, (ZeModule, &ZeKernelDesc, &ZeKernel));
+    auto ZeResult =
+        ZE_CALL_NOCHECK(zeKernelCreate, (ZeModule, &ZeKernelDesc, &ZeKernel));
+    // Gracefully handle the case that kernel create fails.
+    if (ZeResult != ZE_RESULT_SUCCESS) {
+      delete *RetKernel;
+      *RetKernel = nullptr;
+      return ze2urResult(ZeResult);
+    }
 
     auto ZeDevice = It.first;
 
@@ -754,20 +771,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     PArgValue = nullptr;
   }
 
+  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  ze_result_t ZeResult = ZE_RESULT_SUCCESS;
   if (Kernel->ZeKernelMap.empty()) {
     auto ZeKernel = Kernel->ZeKernel;
-    ZE2UR_CALL(zeKernelSetArgumentValue,
-               (ZeKernel, ArgIndex, ArgSize, PArgValue));
+    ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                               (ZeKernel, ArgIndex, ArgSize, PArgValue));
   } else {
     for (auto It : Kernel->ZeKernelMap) {
       auto ZeKernel = It.second;
-      ZE2UR_CALL(zeKernelSetArgumentValue,
-                 (ZeKernel, ArgIndex, ArgSize, PArgValue));
+      ZeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                 (ZeKernel, ArgIndex, ArgSize, PArgValue));
     }
   }
 
-  return UR_RESULT_SUCCESS;
+  if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
+  }
+
+  return ze2urResult(ZeResult);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
@@ -816,6 +842,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
+  case UR_KERNEL_INFO_NUM_REGS:
   case UR_KERNEL_INFO_NUM_ARGS:
     return ReturnValue(uint32_t{Kernel->ZeKernelProperties->numKernelArgs});
   case UR_KERNEL_INFO_REFERENCE_COUNT:
@@ -1066,6 +1093,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
 ) {
   std::ignore = Properties;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
+  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
   ZE2UR_CALL(zeKernelSetArgumentValue, (Kernel->ZeKernel, ArgIndex,
                                         sizeof(void *), &ArgValue->ZeSampler));
 
@@ -1084,6 +1114,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
   // The ArgValue may be a NULL pointer in which case a NULL value is used for
   // the kernel argument declared as a pointer to global or constant memory.
+
+  if (ArgIndex > Kernel->ZeKernelProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
 
   ur_mem_handle_t_ *UrMem = ur_cast<ur_mem_handle_t_ *>(ArgValue);
 
