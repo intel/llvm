@@ -73,12 +73,12 @@ The following should be implemented:
 - [x] The `radix_order` enum class.
 - [x] `group_with_scratchpad` predefined group helper.
 - [x] `SYCL_EXT_ONEAPI_GROUP_SORT` feature macro.
-- [ ] `sort_over_group` with `span`-based parameters.
+- [x] `sort_over_group` with `span`-based parameters.
 - [ ] Level Zero extension for `memory_required` functions
   - [ ] Specification.
   - [ ] Implementation.
-- [ ] Backend support for sorting algorithms.
-  - [ ] Default sorter
+- [x] Backend support for sorting algorithms.
+  - [x] Default sorter
 - [ ] Fallback library if device doesn't implement functions.
 
 **Note**: The "tick" means that corresponding feature is implemented.
@@ -169,9 +169,17 @@ void __devicelib_default_work_group_private_sort_spread_ascending_<encoded_param
 void __devicelib_default_work_group_private_sort_spread_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
 
 // for sub-groups
-T __devicelib_default_sub_group_private_sort_ascending_<encoded_scalar_param_type>(T value, byte* scratch);
+T __devicelib_default_sub_group_private_sort_ascending_<encoded_param_types>(T value, byte* scratch);
 
-T __devicelib_default_sub_group_private_sort_descending_<encoded_scalar_param_type>(T value, byte* scratch);
+T __devicelib_default_sub_group_private_sort_descending_<encoded_param_types>(T value, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_close_ascending_<encoded_param_types>(T* first, uint n, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_close_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_spread_ascending_<encoded_param_types>(T* first, uint n, byte * scratch);
+
+void __devicelib_default_sub_group_private_sort_spread_descending_<encoded_param_types>(T* first, uint n, byte * scratch);
 
 // for key value sorting using the default algorithm
 void __devicelib_default_work_group_joint_sort_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
@@ -186,6 +194,15 @@ void __devicelib_default_work_group_private_sort_close_descending_<encoded_param
 void __devicelib_default_work_group_private_sort_spread_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
 
 void __devicelib_default_work_group_private_sort_spread_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+// for key value sorting for sub-groups
+void __devicelib_default_sub_group_private_sort_close_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_close_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_spread_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
+
+void __devicelib_default_sub_group_private_sort_spread_descending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
 
 ```
 
