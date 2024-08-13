@@ -489,7 +489,8 @@ foreach(arch IN LISTS devicelib_arch)
     LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}
-    OPT_FLAGS ${opt_flags_${arch}})
+    OPT_FLAGS ${opt_flags_${arch}}
+    DEPENDENCIES device_lib_device_${arch})
   add_dependencies(libsycldevice-bc prepare-devicelib--${arch}.bc)
   set(complete_${arch}_libdev
     $<TARGET_PROPERTY:prepare-devicelib--${arch}.bc,TARGET_FILE>)
