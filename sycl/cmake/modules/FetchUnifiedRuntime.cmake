@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Thu Aug 8 11:09:15 2024 +0100
   #     Merge pull request #1911 from ProGTX/peter/xpti-static
   #    [CUDA] Don't import XPTI symbols in the plugin library
-  set(UNIFIED_RUNTIME_TAG 3df9711545e78ef027bdcc211367f1de342a4bc8)
+  set(UNIFIED_RUNTIME_TAG 0db57da9daec5b7c15ea91189643e402bf2899ee)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
