@@ -1282,8 +1282,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
     // FIXME: We don't have a way to check if the kernel has been extended
-    // on Unified Runtime, so we always append a new argument (_AsanLaunchInfo).
-    // At the same time, we always extend spir_kernels at here as well.
+    // on Unified Runtime, so we always extend spir_kernels here, even it will
+    // not be instrumented by any asan function.
     if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       SpirFixupFuncs.emplace_back(&F);
   }
@@ -1347,7 +1347,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         return;
       SmallVector<Metadata *, 8> NewMD(Node->operands());
       NewMD.emplace_back(NewV);
-      // NewMD.emplace_back(ConstantAsMetadata::get(NewV));
       NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
     };
 

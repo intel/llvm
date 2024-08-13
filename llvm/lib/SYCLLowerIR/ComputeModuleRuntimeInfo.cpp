@@ -28,8 +28,16 @@ constexpr int DebugModuleProps = 0;
 #endif
 
 namespace llvm::sycl {
+
 bool isModuleUsingAsan(const Module &M) {
-  return M.getGlobalVariable("__AsanLaunchInfo") != nullptr;
+  for (const auto &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+    const auto *LastArg = F.getArg(F.arg_size() - 1);
+    if (LastArg->getName() == "__asan_launch")
+      return true;
+  }
+  return false;
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
