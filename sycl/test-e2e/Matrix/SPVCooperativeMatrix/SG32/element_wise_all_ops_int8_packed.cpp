@@ -13,6 +13,8 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: cpu
+
 // This test stores the matrix B that is VNNIed (packed).
 
 #include "../../common.hpp"

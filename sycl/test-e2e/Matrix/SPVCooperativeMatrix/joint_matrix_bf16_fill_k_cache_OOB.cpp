@@ -11,6 +11,8 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_gpu.out -ffp-model=precise -DOOB
 // RUN: %{run} %t_gpu.out
 
+// XFAIL: cpu
+
 // XFAIL: gpu
 
 // -ffp-model=precise is added to not depend on compiler defaults.

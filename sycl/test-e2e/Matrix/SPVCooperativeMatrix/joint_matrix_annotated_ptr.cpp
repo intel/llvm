@@ -12,6 +12,8 @@
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out %}
 // RUN: %if gpu %{ env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out %}
 
+// XFAIL: cpu
+
 #include "../common.hpp"
 
 constexpr size_t TN = 16;

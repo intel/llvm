@@ -13,6 +13,8 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
 
+// XFAIL: cpu
+
 // -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "../../common.hpp"

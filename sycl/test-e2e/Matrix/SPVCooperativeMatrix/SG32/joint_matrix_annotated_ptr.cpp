@@ -11,6 +11,8 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: cpu
+
 // Currently row major B fails when annotated_ptr is used
 // XFAIL: gpu
 

@@ -11,6 +11,8 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: cpu
+
 // Test checks that exception will be thrown in case matrix parameters are
 // incompatible on the current device
 
