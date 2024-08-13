@@ -212,6 +212,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
+  // For NVPTX we only use one single bitcode library and ignore
+  // manually specified SYCL device libraries.
+  bool IgnoreSingleLibs = TargetTriple.isNVPTX();
+
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
@@ -233,10 +237,13 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
         NoDeviceLibs = true;
 
+      bool PrintUnusedLibWarning = false;
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = true && (!NoDeviceLibs || K == "internal");
+            DeviceLibLinkInfo[K] = (!IgnoreSingleLibs && !NoDeviceLibs) ||
+                                   (K == "internal" && NoDeviceLibs);
+          PrintUnusedLibWarning = false;
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
@@ -247,10 +254,21 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
         }
-        DeviceLibLinkInfo[Val] = true && !NoDeviceLibs;
+        DeviceLibLinkInfo[Val] = !NoDeviceLibs && !IgnoreSingleLibs;
+        PrintUnusedLibWarning = IgnoreSingleLibs && !NoDeviceLibs;
       }
+      if (PrintUnusedLibWarning)
+        C.getDriver().Diag(diag::warn_ignored_clang_option)
+            << A->getSpelling() << A->getAsString(Args);
     }
   }
+
+  if (TargetTriple.isNVPTX() && !NoDeviceLibs)
+    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+
+  if (IgnoreSingleLibs && !NoDeviceLibs)
+    return LibraryList;
+
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -304,10 +322,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX() ||
-      (TargetTriple.isSPIR() &&
-       TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
-    // For NVidia or FPGA, we are unbundling objects.
+  if (TargetTriple.isSPIR() &&
+      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    // For FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
@@ -323,7 +340,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT || TargetTriple.isNVPTX())
+  if (IsSpirvAOT)
     addLibraries(SYCLDeviceFallbackLibs);
 
   bool NativeBfloatLibs;
@@ -551,7 +568,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX || IsFPGA) {
+      if (IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())
