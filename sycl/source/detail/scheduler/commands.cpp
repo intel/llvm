@@ -1722,12 +1722,19 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   }
 
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
-  MemoryManager::copy(
-      MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
-      MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
-      MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+
+  try {
+    MemoryManager::copy(
+        MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(),
+        MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
+        MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
+        MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
+        MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
+        MEvent);
+  } catch (sycl::exception &e) {
+    return static_cast<ur_result_t>(get_ur_error(e));
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -3233,14 +3240,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
+    assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Plugin = MQueue->getPlugin();
     // If the queue is not in-order, we need to insert a barrier. This barrier
     // does not need output events as it will implicitly enforce the following
     // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder())
+    if (!MQueue->isInOrder()) {
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PreTimestampBarrierEvent{};
       Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                    /*num_events_in_wait_list=*/0,
-                   /*event_wait_list=*/nullptr, /*event=*/nullptr);
+                   /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
+      Plugin->call(urEventRelease, PreTimestampBarrierEvent);
+    }
 
     Plugin->call(urEnqueueTimestampRecordingExp, MQueue->getHandleRef(),
                  /*blocking=*/false,
