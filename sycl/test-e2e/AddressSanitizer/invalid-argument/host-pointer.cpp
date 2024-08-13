@@ -1,7 +1,6 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || level_zero
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} not %t 2>&1 | FileCheck --check-prefixes CHECK-GPU %s
-// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t 2>&1 | FileCheck --check-prefixes CHECK-CPU %s
+// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS="detect_kernel_arguments:1" %{run} %if gpu %{ not %} %t 2>&1 | FileCheck --check-prefixes %if cpu %{ CHECK-CPU %} %if gpu %{ CHECK-GPU %} %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>

@@ -14302,6 +14302,241 @@ named_barrier_signal(uint8_t barrier_id, uint8_t producer_consumer_mode,
 
 /// @} sycl_esimd_memory_nbarrier
 
+/// @defgroup sycl_esimd_mask_compressed Mask compressed APIs.
+/// @ingroup sycl_esimd_memory
+
+/// @addtogroup sycl_esimd_mask_compressed
+/// @{
+
+/// template <typename T, int N,
+///       typename PropertyListT = oneapi::experimental::empty_properties_t>
+/// simd<T, N>
+/// mask_expand_load(const T *p, simd_mask<N> mask, PropertyListT props = {});
+/// Mask expand load from USM memory location.
+/// The function reads data from a memory location using following algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i]) {
+///           Result[i] = *(p + Index);
+///           ++Index;
+///       }
+/// }
+/// \endcode
+///
+///
+/// @tparam T is the element type.
+/// @tparam N is the data size.
+/// @param p is the base address for this operation.
+/// @param mask is the mask determining which elements will be read.
+/// @param props The compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int N,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+mask_expand_load(const T *p, simd_mask<N> mask, PropertyListT props = {}) {
+  // offsets::value contains binary masks that for every location at index i it
+  // contains i 1's i.e. 0,1,3,7,...
+  using offsets = typename detail::GenerateCompressedBitmask<N>::value;
+  // Performing '&' operation with packed mask will leave at index i a bitmask
+  // with number of 1's corresponding to a number of elements to be loaded so
+  // far (number of 1's in the mask preceding the index i). Number of 1's
+  // becomes an index for compressed store/expanded load operation.
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+  return gather(p, offset * sizeof(T), mask, props);
+}
+
+/// template <typename T, int N, typename AccessorTy,
+///       typename PropertyListT = oneapi::experimental::empty_properties_t>
+/// simd<T, N>
+/// mask_expand_load(AccessorTy acc, simd_mask<N> mask, PropertyListT props =
+/// {});
+/// Mask expand load from accessor memory (could be local or device
+/// accessor). The function reads data from a memory location using following
+/// algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i])
+///           Result[i] = acc[global_offset + Index++];
+/// }
+/// \endcode
+///
+///
+/// @tparam T is the element type.
+/// @tparam N is the data size.
+/// @param acc is the accessor to read from.
+/// @param global_offset is the global offset in bytes.
+/// @param mask is the mask determining which elements will be read.
+/// @param props The compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int N, typename AccessorTy,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+        detail::is_accessor_with_v<AccessorTy,
+                                   detail::accessor_mode_cap::can_read>,
+    simd<T, N>>
+mask_expand_load(AccessorTy acc, uint32_t global_offset, simd_mask<N> mask,
+                 PropertyListT props = {}) {
+  // offsets::value contains binary masks that for every location at index i it
+  // contains i 1's i.e. 0,1,3,7,...
+  using offsets = typename detail::GenerateCompressedBitmask<N>::value;
+  // Performing '&' operation with packed mask will leave at index i a bitmask
+  // with number of 1's corresponding to a number of elements to be loaded so
+  // far (number of 1's in the mask preceding the index i). Number of 1's
+  // becomes an index for compressed store/expanded load operation.
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+  return gather<T>(acc, offset * sizeof(T) + global_offset, mask, props);
+}
+
+/// template <typename T, int N,
+///       typename PropertyListT = oneapi::experimental::empty_properties_t>
+/// simd<T, N>
+/// mask_compress_store(T *p, simd<T, N> vals, simd_mask<N> mask,
+/// PropertyListT props = {});
+/// Mask compressed store to USM memory location.
+/// The function stores data to a memory location using following algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i]) {
+///           *(p + Index) = val[i];
+///           ++Index;
+///       }
+/// }
+/// \endcode
+///
+///
+/// @tparam T is the element type.
+/// @tparam N is the data size.
+/// @param p is the base address for this operation.
+/// @param vals is the data to store.
+/// @param mask is the mask determining which elements will be stored.
+/// @param props The compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int N,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+mask_compress_store(T *p, simd<T, N> vals, simd_mask<N> mask,
+                    PropertyListT props = {}) {
+  // offsets::value contains binary masks that for every location at index i it
+  // contains i 1's i.e. 0,1,3,7,...
+  using offsets = typename detail::GenerateCompressedBitmask<N>::value;
+  // Performing '&' operation with packed mask will leave at index i a bitmask
+  // with number of 1's corresponding to a number of elements to be loaded so
+  // far (number of 1's in the mask preceding the index i). Number of 1's
+  // becomes an index for compressed store/expanded load operation.
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+  scatter(p, offset * sizeof(T), vals, mask, props);
+}
+
+/// template <typename T, int N, typename AccessorTy,
+///       typename PropertyListT = oneapi::experimental::empty_properties_t>
+/// simd<T, N>
+/// mask_compress_store(AccessorTy acc, simd<T, N> vals, simd_mask<N> mask,
+/// PropertyListT props = {});
+/// Mask compressed store to accessor memory (could be local or device
+/// accessor).
+/// The function stores data to a memory location using following algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i])
+///           acc[global_offset + Index++] = val[i];
+/// }
+/// \endcode
+///
+///
+/// @tparam T is the element type.
+/// @tparam N is the data size.
+/// @param acc is the accessor to write to.
+/// @param global_offset is the global offset in bytes.
+/// @param vals is the data to store.
+/// @param mask is the mask determining which elements will be stored.
+/// @param props The compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int N, typename AccessorTy,
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT> &&
+    detail::is_accessor_with_v<AccessorTy,
+                               detail::accessor_mode_cap::can_write>>
+mask_compress_store(AccessorTy acc, uint32_t global_offset, simd<T, N> vals,
+                    simd_mask<N> mask, PropertyListT props = {}) {
+  // offsets::value contains binary masks that for every location at index i it
+  // contains i 1's i.e. 0,1,3,7,...
+  using offsets = typename detail::GenerateCompressedBitmask<N>::value;
+  // Performing '&' operation with packed mask will leave at index i a bitmask
+  // with number of 1's corresponding to a number of elements to be loaded so
+  // far (number of 1's in the mask preceding the index i). Number of 1's
+  // becomes an index for compressed store/expanded load operation.
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+  scatter<T, N>(acc, offset * sizeof(T) + global_offset, vals, mask, props);
+}
+
+/// template <typename T, int N, int M>
+/// simd<T, N>
+/// mask_compress_store(simd<T, M> &dst, uint32_t global_offset, simd<T, N>
+/// vals, simd_mask<N> mask);
+/// Mask compressed store to another vector. The function reads data to a
+/// vector using following algorithm:
+///
+/// \code{.cpp}
+///
+/// int Index = 0;
+/// for (int i = 0; i < N; ++i) {
+///       if (Mask[i])
+///           dst[global_offset + Index++] = vals[i];
+/// }
+/// \endcode
+///
+///
+/// @tparam T is the element type.
+/// @tparam N is the data size.
+/// @tparam M is the source data size.
+/// @param dst is the vector to write to.
+/// @param global_offset is an offset to use for all writes.
+/// @param vals is the data to store.
+/// @param mask is the mask determining which elements will be stored.
+///
+template <typename T, int N, int M>
+__ESIMD_API std::enable_if_t<M >= N>
+mask_compress_store(simd<T, M> &dst, uint32_t global_offset, simd<T, N> vals,
+                    simd_mask<N> mask) {
+  // offsets::value contains binary masks that for every location at index i it
+  // contains i 1's i.e. 0,1,3,7,...
+  using offsets = typename detail::GenerateCompressedBitmask<N>::value;
+  // Performing '&' operation with packed mask will leave at index i a bitmask
+  // with number of 1's corresponding to a number of elements to be loaded so
+  // far (number of 1's in the mask preceding the index i). Number of 1's
+  // becomes an index for compressed store/expanded load operation.
+  simd<uint32_t, N> offset =
+      cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
+
+  simd<uint16_t, N> Indices = global_offset + offset;
+  dst.iupdate(Indices, vals, mask);
+}
+
+/// @} sycl_esimd_mask_compressed
 /// @} sycl_esimd_memory
 
 /// @cond EXCLUDE
