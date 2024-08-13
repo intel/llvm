@@ -8,9 +8,6 @@
 // REQUIRES: gpu, aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
-
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 

@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, aspect-ext_intel_matrix, gpu
+// REQUIRES: gpu, aspect-ext_intel_matrix
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -o %t_gpu.out -ffp-model=precise -DOOB
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_gpu.out -ffp-model=precise -DOOB
 // RUN: %{run} %t_gpu.out
 
 // XFAIL: gpu

@@ -5,13 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, aspect-ext_intel_matrix, gpu
+// REQUIRES: gpu, aspect-ext_intel_matrix
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out
-
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_impl.hpp"

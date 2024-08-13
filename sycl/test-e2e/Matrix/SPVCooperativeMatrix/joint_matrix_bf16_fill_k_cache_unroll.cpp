@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu, aspect-ext_intel_matrix
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,

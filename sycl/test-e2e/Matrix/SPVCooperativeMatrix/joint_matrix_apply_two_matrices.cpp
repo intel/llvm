@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu, aspect-ext_intel_matrix
 
-// RUN: %{build} -ffp-model=precise -o %t.out
+// RUN: %{build} -ffp-model=precise -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 #include "../common.hpp"
