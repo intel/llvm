@@ -5,12 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, matrix
+// REQUIRES: matrix
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
-
-// XFAIL: cpu
 
 // XFAIL:*
 

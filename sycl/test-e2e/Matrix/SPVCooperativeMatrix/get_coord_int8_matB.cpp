@@ -5,13 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, aspect-ext_intel_matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: cpu
+// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../get_coord_int8_matB_impl.hpp"

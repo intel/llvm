@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: windows, linux
-// REQUIRES: gpu, aspect-fp16
+// REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES: matrix-fp16
 
@@ -14,6 +13,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
+// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_half_impl.hpp"

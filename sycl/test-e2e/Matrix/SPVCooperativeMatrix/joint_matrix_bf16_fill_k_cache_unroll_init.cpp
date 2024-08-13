@@ -5,12 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, aspect-ext_intel_matrix, gpu
+// REQUIRES: aspect-ext_intel_matrix, gpu
 
 // RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL
 // RUN: %{run} %t_gpu.out
-
-// XFAIL: cpu
 
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently

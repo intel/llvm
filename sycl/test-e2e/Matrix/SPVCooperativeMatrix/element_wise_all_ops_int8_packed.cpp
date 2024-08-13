@@ -5,13 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: windows, linux
-// REQUIRES: gpu, aspect-ext_intel_matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
+// XFAIL: gpu
 
 // This test stores the matrix B that is VNNIed (packed).
 
