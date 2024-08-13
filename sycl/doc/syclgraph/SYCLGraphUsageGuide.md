@@ -551,10 +551,10 @@ sycl_ext::node nodeA = graph.add((handler& CGH){
 sycl_ext::node nodeB = graph.add((handler& CGH){
     CGH.depends_on(externalDep);
     CGH.parallel_for(...);
-}, , {sycl_ext::property::node::depends_on{nodeA}});
+}, {sycl_ext::property::node::depends_on{nodeA}});
 
 sycl_ext::command_graph<sycl_ext::graph_state::executable> execGraph = 
-  graph.finalize();
+  graph.finalize({sycl_ext::property::graph::updatable{}});
 
 // Submit a SYCL operation which the graph will be updated to depend on
 event eagerEvent = myQueue.submit(...);
@@ -646,4 +646,66 @@ myQueue.submit((handler& CGH){
 
 myQueue.ext_oneapi_graph(execGraph);
 myQueue.wait_and_throw();
+```
+
+### Defining Dependencies Between Graphs
+
+This example shows how to define node-level dependencies between graphs. This
+can be useful in applications where having multiple graphs is required, but
+where only some parts of a graph depend on the results of another graph. This
+can allow more flexibility with scheduling and execution of commands inside the
+graphs compared to just using events returned from submitting a graph for
+execution.
+
+```c++
+...
+
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+queue myQueue;
+auto myContext = myQueue.get_context();
+auto myDevice = myQueue.get_device();
+
+// Create two graphs
+sycl_ext::command_graph graphA(myContext, myDevice);
+sycl_ext::command_graph graphB(myContext, myDevice);
+
+// Add some nodes to graphA
+sycl_ext::node nodeA = graphA.add((handler& CGH){
+    CGH.parallel_for(...);
+});
+
+sycl_ext::node nodeB = graphA.add((handler& CGH){
+    CGH.parallel_for(...);
+}, {sycl_ext::property::node::depends_on{nodeA}});
+
+sycl_ext::node nodeC = graphA.add((handler& CGH){
+    CGH.parallel_for(...);
+}, {sycl_ext::property::node::depends_on{nodeB}});
+
+// Add some nodes to graphB
+sycl_ext::node nodeA2 = graphB.add((handler& CGH){
+    CGH.parallel_for(...);
+});
+
+sycl_ext::node nodeB2 = graphB.add((handler& CGH){
+    CGH.parallel_for(...);
+}, {sycl_ext::property::node::depends_on{nodeA2}});
+
+// Only nodeC2 depends on the results of graphA, so we add nodeC from graphA
+// as a dependency here, creating a dependency between graphA and graphB
+// only for this node.
+sycl_ext::node nodeC2 = graphB.add((handler& CGH){
+    CGH.parallel_for(...);
+}, {sycl_ext::property::node::depends_on{nodeB2, nodeC}});
+
+auto execGraphA = graphA.finalize();
+auto execGraphB = graphB.finalize();
+
+// Submit both graphs for execution, now that we have set up the correct
+// dependencies between them
+Queue.ext_oneapi_graph(execGraphA);
+Queue.ext_oneapi_graph(execGraphB);
+
 ```
