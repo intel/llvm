@@ -270,6 +270,11 @@ public:
     MPostCompleteEvents.push_back(Event);
   }
 
+  void attachEventToCompleteWeak(const std::weak_ptr<event_impl> &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MWeakPostCompleteEvents.push_back(Event);
+  }
+
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
 
   ContextImplPtr getContextImplPtr() {
@@ -358,6 +363,16 @@ protected:
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
+  // short term WA for stream:
+  // MPostCompleteEvents is split into two storages now. Original storage is
+  // used by graph extension and represents backward links.
+  // MWeakPostCompleteEvents represents weak forward references (used in stream
+  // only). Used only for host tasks now since they do not support post enqueue
+  // cleanup and event == nullptr could happen only when host task is completed
+  // (and Command that holding reference to its event is deleted). TO DO: to
+  // eliminate forward references from stream implementation and remove this
+  // storage.
+  std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.

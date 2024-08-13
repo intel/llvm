@@ -81,6 +81,11 @@ void event_impl::waitInternal(bool *Success) {
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
+  for (const std::weak_ptr<event_impl> &WeakEventPtr :
+       MWeakPostCompleteEvents) {
+    if (EventImplPtr Event = WeakEventPtr.lock())
+      Event->wait(Event);
+  }
 }
 
 void event_impl::setComplete() {
