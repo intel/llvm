@@ -151,8 +151,9 @@ function(append_to_property list)
   set_property(GLOBAL PROPERTY ${ARG_PROPERTY_NAME} ${new_property})
 endfunction()
 
-# Creates device libaries for each file type.
-# Adds bitcode library files additionally for each devicelib_arch target.
+# Creates device libaries for all filetypes.
+# Adds bitcode library files additionally for each devicelib_arch target and
+# adds the created file to an arch specific global property.
 #
 # Arguments:
 # * SRC <string> ...
