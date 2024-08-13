@@ -228,7 +228,9 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
 
   // For in-order queue and wait-list which is empty or has events from
   // the same queue just use the last command event as the barrier event.
-  if (Queue->isInOrderQueue() &&
+  // This optimization is disabled when profiling is enabled to ensure
+  // accurate profiling values & the overhead that profiling incurs.
+  if (Queue->isInOrderQueue() && !Queue->isProfilingEnabled() &&
       WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
                                             EventWaitList) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
