@@ -118,7 +118,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
 
   set(UNIFIED_RUNTIME_REPO "git@github.com:Naghasan/unified-runtime.git")
   # set(UNIFIED_RUNTIME_TAG 26f1dfc0b187763bc739537bdd0d8c76f32bd48e)
-  set(UNIFIED_RUNTIME_TAG 01f428f647d9e2a8e64fa71eb857371423d137a8)
+  set(UNIFIED_RUNTIME_TAG eb71ae08ad092d61f0d5886b5b172476f6167774)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
