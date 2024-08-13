@@ -33,6 +33,8 @@ bool isModuleUsingAsan(const Module &M) {
   for (const auto &F : M) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
+    if (F.arg_size() == 0)
+      continue;
     const auto *LastArg = F.getArg(F.arg_size() - 1);
     if (LastArg->getName() == "__asan_launch")
       return true;
