@@ -2316,13 +2316,10 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         }
       }
 
-    // Link the remaining device files using the device linker.
-    auto OutputOrErr =
-        !Args.hasArg(OPT_embed_bitcode) || linkerSupportsLTO(LinkerArgs)
-            ? linkDevice(InputFiles, LinkerArgs)
-            : InputFiles.front();
-    if (!OutputOrErr)
-      return OutputOrErr.takeError();
+      // TODO(NOM7): Remove this call and use community flow for bundle/wrap
+      auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
+      if (!OutputFile)
+        return OutputFile.takeError();
 
       // SYCL offload kind images are all ready to be sent to host linker.
       // TODO: Currently, device code wrapping for SYCL offload happens in a
@@ -2330,7 +2327,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
       std::scoped_lock Guard(ImageMtx);
-      WrappedOutput.push_back(*OutputOrErr);
+      WrappedOutput.push_back(*OutputFile);
     }
     if (HasNonSYCLOffloadKinds) {
       // First link and remove all the input files containing bitcode.
