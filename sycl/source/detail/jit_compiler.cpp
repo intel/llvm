@@ -664,13 +664,19 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   AddToConfigHandle(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
 
-  std::string TargetCPU =
-      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get();
-  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPU));
-  std::string TargetFeatures =
-      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get();
+  auto SetUpOption = [](std::string Value) {
+    ::jit_compiler::JITEnvVar Option(Value.size());
+    memcpy(static_cast<void *>(Option.begin()),
+           static_cast<const void *>(Value.data()), Value.size());
+    return Option;
+  };
+  ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+  ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
   AddToConfigHandle(
-      ::jit_compiler::option::JITTargetFeatures::set(TargetFeatures));
+      ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
   auto MaterializerResult =
       MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
