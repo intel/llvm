@@ -1065,10 +1065,8 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type, be declared at file scope,
-// outside any namespaces, and with the SYCL_DEVICE attribute. If the
-// SYCL_DEVICE attribute is not specified this function is not entered since the
-// possibility of the function being a free function is ruled out already.
+// FIXME: Free functions must have void return type and be declared at file
+// scope, outside any namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
