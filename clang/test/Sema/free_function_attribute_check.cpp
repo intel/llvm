@@ -1,4 +1,4 @@
-//==---- free_function_attribute_check.cpp ---------------------------------==//
+//==---- free_function_implicit_sycl_extern.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,10 +10,9 @@
 
 // expected-no-diagnostics
 
-// This test checks that non-constexpr values appearing in
-// add_ir_attributes_function can be handled when checking whether a function is
-// a free function. When all values in the attribute can be handled, then we can
-// safely test any candidate function for being a free function.
+// This test confirms that functions or methods with add_ir_attributes_function
+// attribute values in dependent contexts can be handled without assertions when
+// checking for the presence of free function properties.
 
 template <typename T> constexpr int value() { return 5; }
 
