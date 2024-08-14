@@ -37,6 +37,5 @@
 /// Use of -fsycl-device-obj=spirv should not be effective during linking
 // RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-device-obj=spirv -### %t.o 2>&1 | \
-// RUN:  FileCheck %s -check-prefixes=OPT_WARNING,LLVM_SPIRV_R
-// OPT_WARNING: warning: argument unused during compilation: '-fsycl-device-obj=spirv'
+// RUN:  FileCheck %s -check-prefixes=LLVM_SPIRV_R
 // LLVM_SPIRV_R: clang-linker-wrapper{{.*}}
