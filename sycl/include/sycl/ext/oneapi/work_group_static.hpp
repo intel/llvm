@@ -7,12 +7,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/access/access.hpp>             // for address_space, decorated
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/type_traits.hpp>        // for is_group
-#include <sycl/exception.hpp>                 // for exception
-#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
-#include <sycl/group.hpp>                     // for workGroupBarrier
+#include <sycl/access/access.hpp>                    // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
+#include <sycl/ext/oneapi/properties/properties.hpp> // for properties
+#include <sycl/exception.hpp>                        // for exception
+#include <sycl/ext/intel/usm_pointers.hpp>           // for multi_ptr
 
 #include <type_traits> // for enable_if_t
 
@@ -21,14 +20,16 @@ inline namespace _V1 {
 namespace ext::oneapi {
 namespace experimental {
 
-namespace detail {
-
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_WG_SCOPE [[__sycl_detail__::wg_scope]]
 #else
 #define __SYCL_WG_SCOPE
 #endif
 
+/// @brief Allocate data in device local memory.
+/// Any work_group_static object will be place in device local memory and hold an object of type T.
+/// work_group_static object are implicitly treated as static.
+/// @tparam T must be a trivially constructible and destructible type
 template <typename T> class __SYCL_WG_SCOPE work_group_static {
 public:
   __SYCL_ALWAYS_INLINE work_group_static() = default;
@@ -62,10 +63,6 @@ private:
   T data;
 };
 
-} // namespace detail
-
-template <typename T> using work_group_static = detail::work_group_static<T>;
-
 template <typename T>
 std::enable_if_t<
     std::is_trivially_destructible_v<T> && std::is_trivially_constructible_v<T>,
@@ -82,6 +79,8 @@ std::enable_if_t<
       "sycl_ext_oneapi_work_group_static extension is not supported on host");
 #endif
 }
+
+// Property
 
 struct work_group_static_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
@@ -126,6 +125,8 @@ inline bool operator!=(const work_group_static_size_key &lhs,
                        const work_group_static_size_key &rhs) {
   return !(lhs == rhs);
 }
+
+#undef __SYCL_WG_SCOPE
 
 } // namespace experimental
 } // namespace ext::oneapi
