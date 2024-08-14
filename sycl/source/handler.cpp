@@ -1824,7 +1824,7 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
   impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
 }
 
-void handler::setKernelWorkGroupMem(uint32_t Size) {
+void handler::setKernelWorkGroupMem(size_t Size) {
   impl->MKernelWorkGroupMemorySize = Size;
 }
 

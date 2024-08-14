@@ -3683,7 +3683,7 @@ private:
   void setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims);
 
   // Set the request work group memory size (work_group_static ext).
-  void setKernelWorkGroupMem(uint32_t Size);
+  void setKernelWorkGroupMem(size_t Size);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
