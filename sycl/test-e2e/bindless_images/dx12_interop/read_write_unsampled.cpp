@@ -7,8 +7,176 @@
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
 
 #include "read_write_unsampled.h"
+#include "../helpers/common.hpp"
 
-void DX12InteropTest::initDX12Device() {
+static DXGI_FORMAT toDXGIFormat(int NChannels,
+                                sycl::image_channel_type channelType) {
+  switch (channelType) {
+  case sycl::image_channel_type::snorm_int8:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R8_SNORM;
+    case 2:
+      return DXGI_FORMAT_R8G8_SNORM;
+    case 4:
+      return DXGI_FORMAT_R8G8B8A8_SNORM;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::snorm_int16:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R16_SNORM;
+    case 2:
+      return DXGI_FORMAT_R16G16_SNORM;
+    case 4:
+      return DXGI_FORMAT_R16G16B16A16_SNORM;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unorm_int8:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R8_UNORM;
+    case 2:
+      return DXGI_FORMAT_R8G8_UNORM;
+    case 4:
+      return DXGI_FORMAT_R8G8B8A8_UNORM;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unorm_int16:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R16_UNORM;
+    case 2:
+      return DXGI_FORMAT_R16G16_UNORM;
+    case 4:
+      return DXGI_FORMAT_R16G16B16A16_UNORM;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unorm_short_565:
+    return DXGI_FORMAT_B5G6R5_UNORM;
+  case sycl::image_channel_type::unorm_short_555:
+    return DXGI_FORMAT_B5G5R5A1_UNORM;
+  case sycl::image_channel_type::unorm_int_101010:
+    return DXGI_FORMAT_R10G10B10A2_UNORM;
+  case sycl::image_channel_type::signed_int8:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R8_SINT;
+    case 2:
+      return DXGI_FORMAT_R8G8_SINT;
+    case 4:
+      return DXGI_FORMAT_R8G8B8A8_SINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::signed_int16:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R16_SINT;
+    case 2:
+      return DXGI_FORMAT_R16G16_SINT;
+    case 4:
+      return DXGI_FORMAT_R16G16B16A16_SINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::signed_int32:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R32_SINT;
+    case 2:
+      return DXGI_FORMAT_R32G32_SINT;
+    case 4:
+      return DXGI_FORMAT_R32G32B32A32_SINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unsigned_int8:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R8_UINT;
+    case 2:
+      return DXGI_FORMAT_R8G8_UINT;
+    case 4:
+      return DXGI_FORMAT_R8G8B8A8_UINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unsigned_int16:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R16_UINT;
+    case 2:
+      return DXGI_FORMAT_R16G16_UINT;
+    case 4:
+      return DXGI_FORMAT_R16G16B16A16_UINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::unsigned_int32:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R32_UINT;
+    case 2:
+      return DXGI_FORMAT_R32G32_UINT;
+    case 4:
+      return DXGI_FORMAT_R32G32B32A32_UINT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::fp16:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R16_FLOAT;
+    case 2:
+      return DXGI_FORMAT_R16G16_FLOAT;
+    case 4:
+      return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    default:
+      break;
+    }
+  case sycl::image_channel_type::fp32:
+    switch (NChannels) {
+    case 1:
+      return DXGI_FORMAT_R32_FLOAT;
+    case 2:
+      return DXGI_FORMAT_R32G32_FLOAT;
+    case 4:
+      return DXGI_FORMAT_R32G32B32A32_FLOAT;
+    default:
+      break;
+    }
+  default:
+    break;
+  }
+  std::cerr << "Unsupported image_channel_type in toDXGIFormat\n";
+  exit(-1);
+}
+
+template <int NDims, typename DType, int NChannels>
+DX12InteropTest<NDims, DType, NChannels>::DX12InteropTest(
+    sycl::image_channel_type channelType, sycl::range<NDims> globalSize,
+    sycl::range<NDims> localSize)
+    : m_channelType(channelType), m_globalSize(globalSize),
+      m_localSize(localSize) {
+  m_width = m_globalSize[0];
+  m_height = 1;
+  m_depth = 1;
+  if constexpr (NDims > 1) {
+    m_height = m_globalSize[1];
+    if constexpr (NDims > 2)
+      m_depth = m_globalSize[2];
+  }
+  m_numElems = m_width * m_height * m_depth * NChannels;
+  m_syclQueue = sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
+}
+
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::initDX12Device() {
   // Create DXGI factory.
   ThrowIfFailed(CreateDXGIFactory2(0 /* dxgiFactoryFlags */,
                                    IID_PPV_ARGS(&m_dx12Factory)));
@@ -22,7 +190,8 @@ void DX12InteropTest::initDX12Device() {
                                   IID_PPV_ARGS(&m_dx12Device)));
 }
 
-void DX12InteropTest::initDX12CommandList() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::initDX12CommandList() {
   // Describe and create the command queue.
   D3D12_COMMAND_QUEUE_DESC queueDesc = {D3D12_COMMAND_LIST_TYPE_DIRECT, 0,
                                         D3D12_COMMAND_QUEUE_FLAG_NONE, 0};
@@ -39,7 +208,8 @@ void DX12InteropTest::initDX12CommandList() {
       IID_PPV_ARGS(&m_dx12CommandList)));
 }
 
-void DX12InteropTest::initDX12Resources() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::initDX12Resources() {
 
   // Define default heap properties.
   D3D12_HEAP_PROPERTIES defaultHeapProperties = {};
@@ -49,15 +219,20 @@ void DX12InteropTest::initDX12Resources() {
   defaultHeapProperties.CreationNodeMask = 1;
   defaultHeapProperties.VisibleNodeMask = 1;
 
-  // Define texture resource descriptor (1D, 32-bit integer).
+  // Define texture resource descriptor.
   D3D12_RESOURCE_DESC textureResourceDesc = {};
-  textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+  if constexpr (NDims == 1)
+    textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+  else if constexpr (NDims == 2)
+    textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+  else
+    textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
   textureResourceDesc.Alignment = 0;
   textureResourceDesc.Width = m_width;
-  textureResourceDesc.Height = 1;
-  textureResourceDesc.DepthOrArraySize = 1;
+  textureResourceDesc.Height = m_height;
+  textureResourceDesc.DepthOrArraySize = m_depth;
   textureResourceDesc.MipLevels = 0;
-  textureResourceDesc.Format = DXGI_FORMAT_R32_UINT;
+  textureResourceDesc.Format = toDXGIFormat(NChannels, m_channelType);
   textureResourceDesc.SampleDesc = DXGI_SAMPLE_DESC{1, 0};
   textureResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
   textureResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
@@ -83,6 +258,7 @@ void DX12InteropTest::initDX12Resources() {
   // Create the DX12 fence and map to a SYCL semaphore.
   ThrowIfFailed(m_dx12Device->CreateFence(
       m_sharedFenceValue, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&m_dx12Fence)));
+  m_sharedFenceValue++;
 
 #ifdef TEST_SEMAPHORE_IMPORT
   ThrowIfFailed(m_dx12Device->CreateSharedHandle(m_dx12Fence.Get(), nullptr,
@@ -102,7 +278,9 @@ void DX12InteropTest::initDX12Resources() {
   populateDX12Texture();
 }
 
-void DX12InteropTest::importDX12SharedMemoryHandle(size_t allocationSize) {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::importDX12SharedMemoryHandle(
+    size_t allocationSize) {
   syclexp::external_mem_descriptor<syclexp::resource_win32_handle> extMemDesc{
       m_sharedMemoryHandle,
       syclexp::external_mem_handle_type::win32_nt_dx12_resource,
@@ -111,14 +289,18 @@ void DX12InteropTest::importDX12SharedMemoryHandle(size_t allocationSize) {
   m_syclExternalMemHandle =
       syclexp::import_external_memory(extMemDesc, m_syclQueue);
 
+  syclexp::image_descriptor syclImageDesc{m_globalSize, NChannels,
+                                          m_channelType};
   m_syclImageMemHandle = syclexp::map_external_image_memory(
-      m_syclExternalMemHandle, m_syclImageDesc, m_syclQueue);
+      m_syclExternalMemHandle, syclImageDesc, m_syclQueue);
 
   m_syclImageHandle =
-      syclexp::create_image(m_syclImageMemHandle, m_syclImageDesc, m_syclQueue);
+      syclexp::create_image(m_syclImageMemHandle, syclImageDesc, m_syclQueue);
 }
 
-void DX12InteropTest::importDX12SharedSemaphoreHandle() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType,
+                     NChannels>::importDX12SharedSemaphoreHandle() {
   syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
       extSemDesc{m_sharedSemaphoreHandle,
                  syclexp::external_semaphore_handle_type::win32_nt_dx12_fence};
@@ -127,7 +309,8 @@ void DX12InteropTest::importDX12SharedSemaphoreHandle() {
       syclexp::import_external_semaphore(extSemDesc, m_syclQueue);
 }
 
-void DX12InteropTest::callSYCLKernel() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::callSYCLKernel() {
 #ifdef TEST_SEMAPHORE_IMPORT
   // Wait for imported semaphore. This semaphore was signalled at the
   // end of `populateDX12Texture`.
@@ -139,19 +322,40 @@ void DX12InteropTest::callSYCLKernel() {
   // If we do the kernel will crash.
   auto imgHandle = m_syclImageHandle;
 
+  using VecType = sycl::vec<DType, NChannels>;
+
   // Submit our SYCL kernel. All we do is double the value of each pixel in the
   // texture.
   try {
     m_syclQueue.submit([&](sycl::handler &cgh) {
-      cgh.parallel_for<class TestKernel>(
-          sycl::nd_range<1>{{m_width}, {1}}, [=](sycl::nd_item<1> it) {
-            size_t dim0 = it.get_global_id(0);
-
-            uint32_t px = syclexp::fetch_image<uint32_t>(imgHandle, int(dim0));
-
-            px *= 2;
-
-            syclexp::write_image(imgHandle, int(dim0), px);
+      cgh.parallel_for(
+          sycl::nd_range<NDims>{m_globalSize, m_localSize},
+          [=](sycl::nd_item<NDims> it) {
+            if constexpr (NDims == 3) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              size_t dim2 = it.get_global_id(2);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int3(dim0, dim1, dim2));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int3(dim0, dim1, dim2), px);
+            } else if constexpr (NDims == 2) {
+              size_t dim0 = it.get_global_id(0);
+              size_t dim1 = it.get_global_id(1);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, sycl::int2(dim0, dim1));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, sycl::int2(dim0, dim1), px);
+            } else {
+              size_t dim0 = it.get_global_id(0);
+              auto px = syclexp::fetch_image<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  imgHandle, int(dim0));
+              px *= static_cast<DType>(2);
+              syclexp::write_image(imgHandle, int(dim0), px);
+            }
           });
     });
   } catch (sycl::exception e) {
@@ -179,12 +383,13 @@ void DX12InteropTest::callSYCLKernel() {
 #endif
 }
 
-void DX12InteropTest::populateDX12Texture() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
 
   // Set our texture data to upload.
-  std::vector<uint32_t> uploadData(m_width);
-  for (int i = 0; i < m_width; ++i) {
-    uploadData[i] = i;
+  std::vector<DType> uploadData(m_numElems);
+  for (int i = 0; i < m_numElems; ++i) {
+    uploadData[i] = static_cast<DType>(i);
   }
 
   // Get required staging buffer size.
@@ -223,12 +428,12 @@ void DX12InteropTest::populateDX12Texture() {
 
   // Map the upload staging buffer to host visible memory.
   D3D12_RANGE stagingBufferRange{0, stagingBufferSize};
-  uint32_t *pStagingBufferData{};
+  DType *pStagingBufferData{};
   ThrowIfFailed(stagingBuffer->Map(
       0, &stagingBufferRange, reinterpret_cast<void **>(&pStagingBufferData)));
 
   // Populate the staging buffer with our upload data.
-  for (int i = 0; i < m_width; ++i) {
+  for (int i = 0; i < m_numElems; ++i) {
     pStagingBufferData[i] = uploadData[i];
   }
 
@@ -242,10 +447,10 @@ void DX12InteropTest::populateDX12Texture() {
   // Set the copy source and destination footprint/locations.
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT bufferFootprint = {};
   bufferFootprint.Footprint.Width = m_width;
-  bufferFootprint.Footprint.Height = 1;
-  bufferFootprint.Footprint.Depth = 1;
-  bufferFootprint.Footprint.RowPitch = static_cast<uint32_t>(stagingBufferSize);
-  bufferFootprint.Footprint.Format = DXGI_FORMAT_R32_UINT;
+  bufferFootprint.Footprint.Height = m_height;
+  bufferFootprint.Footprint.Depth = m_depth;
+  bufferFootprint.Footprint.RowPitch = m_width * sizeof(DType) * NChannels;
+  bufferFootprint.Footprint.Format = toDXGIFormat(NChannels, m_channelType);
 
   D3D12_TEXTURE_COPY_LOCATION copyDest = {};
   copyDest.pResource = m_dx12Texture.Get();
@@ -281,11 +486,17 @@ void DX12InteropTest::populateDX12Texture() {
   ThrowIfFailed(
       m_dx12CommandQueue->Signal(m_dx12Fence.Get(), m_sharedFenceValue));
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Don't wait for the fence here. We will use the SYCL API to wait for this
   // fence in `callSYCLKernel`.
+#else
+  waitDX12Fence();
+  m_sharedFenceValue++;
+#endif
 }
 
-bool DX12InteropTest::validateOutput() {
+template <int NDims, typename DType, int NChannels>
+bool DX12InteropTest<NDims, DType, NChannels>::validateOutput() {
 
   // Reset the command list.
   ThrowIfFailed(
@@ -328,11 +539,10 @@ bool DX12InteropTest::validateOutput() {
   // Set the copy source and destination footprint/locations.
   D3D12_PLACED_SUBRESOURCE_FOOTPRINT bufferFootprint = {};
   bufferFootprint.Footprint.Width = m_width;
-  bufferFootprint.Footprint.Height = 1;
-  bufferFootprint.Footprint.Depth = 1;
-  bufferFootprint.Footprint.RowPitch =
-      static_cast<uint32_t>(readbackBufferSize);
-  bufferFootprint.Footprint.Format = DXGI_FORMAT_R32_UINT;
+  bufferFootprint.Footprint.Height = m_height;
+  bufferFootprint.Footprint.Depth = m_depth;
+  bufferFootprint.Footprint.RowPitch = m_width * sizeof(DType) * NChannels;
+  bufferFootprint.Footprint.Format = toDXGIFormat(NChannels, m_channelType);
 
   D3D12_TEXTURE_COPY_LOCATION copyDest = {};
   copyDest.pResource = readbackBuffer.Get();
@@ -361,8 +571,8 @@ bool DX12InteropTest::validateOutput() {
   m_sharedFenceValue++;
 
   // Map the readback buffer to host visible memory.
-  D3D12_RANGE readbackBufferRange{0, m_width};
-  uint32_t *pReadbackBufferData{};
+  D3D12_RANGE readbackBufferRange{0, m_numElems};
+  DType *pReadbackBufferData{};
   ThrowIfFailed(
       readbackBuffer->Map(0, &readbackBufferRange,
                           reinterpret_cast<void **>(&pReadbackBufferData)));
@@ -376,9 +586,9 @@ bool DX12InteropTest::validateOutput() {
 
   // Read back the updated texture data and validate it.
   bool validated = true;
-  for (int i = 0; i < m_width; ++i) {
+  for (int i = 0; i < m_numElems; ++i) {
     bool mismatch = false;
-    auto expected = i * 2;
+    auto expected = static_cast<DType>(i * 2);
     auto actual = pReadbackBufferData[i];
 
     if (actual != expected) {
@@ -407,7 +617,9 @@ bool DX12InteropTest::validateOutput() {
   return validated;
 }
 
-void DX12InteropTest::waitDX12Fence(DWORD timeoutMilliseconds) {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::waitDX12Fence(
+    DWORD timeoutMilliseconds) {
   // Check the current value of the fence to check if
   // GPU has finished executing the command list.
   if (m_dx12Fence->GetCompletedValue() < m_sharedFenceValue) {
@@ -419,7 +631,8 @@ void DX12InteropTest::waitDX12Fence(DWORD timeoutMilliseconds) {
   }
 }
 
-void DX12InteropTest::cleanupDX12() {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::cleanupDX12() {
   // Wait for the command list to finish execution.
   waitDX12Fence();
 
@@ -432,8 +645,9 @@ void DX12InteropTest::cleanupDX12() {
   // ComPtr handles will be destroyed automatically.
 }
 
-void DX12InteropTest::getDX12Adapter(IDXGIFactory2 *pFactory,
-                                     IDXGIAdapter1 **ppAdapter) {
+template <int NDims, typename DType, int NChannels>
+void DX12InteropTest<NDims, DType, NChannels>::getDX12Adapter(
+    IDXGIFactory2 *pFactory, IDXGIAdapter1 **ppAdapter) {
   ComPtr<IDXGIAdapter1> adapter;
   *ppAdapter = nullptr;
 
@@ -464,17 +678,78 @@ void DX12InteropTest::getDX12Adapter(IDXGIFactory2 *pFactory,
   *ppAdapter = adapter.Detach();
 }
 
-int main() {
-
-  bool validated = false;
-
-  DX12InteropTest interopTestInstance(1024);
+template <int NDims, typename DType, int NChannels>
+static bool runTest(sycl::image_channel_type channelType,
+                    sycl::range<NDims> globalSize,
+                    sycl::range<NDims> localSize) {
+  DX12InteropTest<NDims, DType, NChannels> interopTestInstance(
+      channelType, globalSize, localSize);
   interopTestInstance.initDX12Device();
   interopTestInstance.initDX12CommandList();
   interopTestInstance.initDX12Resources();
   interopTestInstance.callSYCLKernel();
-  validated = interopTestInstance.validateOutput();
+  bool validated = interopTestInstance.validateOutput();
   interopTestInstance.cleanupDX12();
+
+#ifdef VERBOSE_PRINT
+  if (!validated) {
+    std::cerr << "\tTest failed: NDims " << NDims << " NChannels " << NChannels
+              << " image_channel_type "
+              << bindless_helpers::channelTypeToString(channelType)
+              << ", exiting\n";
+    exit(-1);
+  } else {
+    std::cout << "\tTest passed: NDims " << NDims << " NChannels " << NChannels
+              << " image_channel_type "
+              << bindless_helpers::channelTypeToString(channelType) << "\n";
+  }
+#endif
+
+  return validated;
+}
+
+int main() {
+
+  bool validated = true;
+
+  sycl::range<1> globalSize1{1024};
+  sycl::range<1> localSize1{1024};
+  validated &= runTest<1, uint32_t, 1>(sycl::image_channel_type::unsigned_int32,
+                                       globalSize1, localSize1);
+  validated &= runTest<1, uint8_t, 4>(sycl::image_channel_type::unorm_int8,
+                                      globalSize1, localSize1);
+  validated &= runTest<1, float, 1>(sycl::image_channel_type::fp32, globalSize1,
+                                    localSize1);
+  validated &= runTest<1, sycl::half, 2>(sycl::image_channel_type::fp16,
+                                         globalSize1, localSize1);
+  validated &= runTest<1, sycl::half, 4>(sycl::image_channel_type::fp16,
+                                         globalSize1, localSize1);
+
+  sycl::range<2> globalSize2{64, 64};
+  sycl::range<2> localSize2{16, 16};
+  validated &= runTest<2, uint32_t, 1>(sycl::image_channel_type::unsigned_int32,
+                                       globalSize2, localSize2);
+  validated &= runTest<2, uint8_t, 4>(sycl::image_channel_type::unorm_int8,
+                                      globalSize2, localSize2);
+  validated &= runTest<2, float, 1>(sycl::image_channel_type::fp32, globalSize2,
+                                    localSize2);
+  validated &= runTest<2, sycl::half, 2>(sycl::image_channel_type::fp16,
+                                         globalSize2, localSize2);
+  validated &= runTest<2, sycl::half, 4>(sycl::image_channel_type::fp16,
+                                         globalSize2, localSize2);
+
+  sycl::range<3> globalSize3{64, 16, 4};
+  sycl::range<3> localSize3{16, 16, 1};
+  validated &= runTest<3, uint32_t, 1>(sycl::image_channel_type::unsigned_int32,
+                                       globalSize3, localSize3);
+  validated &= runTest<3, uint8_t, 4>(sycl::image_channel_type::unorm_int8,
+                                      globalSize3, localSize3);
+  validated &= runTest<3, float, 1>(sycl::image_channel_type::fp32, globalSize3,
+                                    localSize3);
+  validated &= runTest<3, sycl::half, 2>(sycl::image_channel_type::fp16,
+                                         globalSize3, localSize3);
+  validated &= runTest<3, sycl::half, 4>(sycl::image_channel_type::fp16,
+                                         globalSize3, localSize3);
 
   if (validated) {
     std::cout << "Test passed!" << std::endl;
@@ -482,5 +757,6 @@ int main() {
   }
 
   std::cerr << "Test failed!" << std::endl;
+
   return 1;
 }
