@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f31160dea6d142014f441bc4ca5e58e48827490e
-  # Merge: 2bbe9526 64068799
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Sep 12 14:19:48 2024 +0200
-  #     Merge pull request #2083 from kswiecicki/xpti-init-fix
-  #     Fix XPTI initialization bug
-  set(UNIFIED_RUNTIME_TAG f31160dea6d142014f441bc4ca5e58e48827490e)
+  # commit fa9ebe7bd3d9bd11dd5ea8a59eff12f5746411d3
+  # Merge: 92638b2a 9eb1c74f
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Fri Sep 13 14:44:27 2024 +0100
+  #     Merge pull request #1821 from PietroGhg/pietro/native_cpu_specconstants
+  #     [NATIVECPU] Initial support for spec constants on Native CPU
+  set(UNIFIED_RUNTIME_TAG fa9ebe7bd3d9bd11dd5ea8a59eff12f5746411d3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -156,8 +156,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    "https://github.com/PietroGhg/unified-runtime.git"
-    pietro/native_cpu_specconstants
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO)

@@ -329,7 +329,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
       return BE == sycl::backend::ext_oneapi_cuda;
     } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
       return BE == sycl::backend::ext_oneapi_hip;
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
       return BE == sycl::backend::ext_oneapi_native_cpu;
     }
 
