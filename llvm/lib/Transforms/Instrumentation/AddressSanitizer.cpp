@@ -4079,6 +4079,15 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // Poison the stack red zones at the entry.
   Value *ShadowBase =
       ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
+
+  // FIXME: For device sanitizer, we always cleanup shadow memory before using
+  // it. So, unpoison stack before ret instructions is unnecessary.
+  if (TargetTriple.isSPIROrSPIRV()) {
+    SmallVector<uint8_t, 64> ShadowMask(ShadowAfterScope.size(), 1);
+    SmallVector<uint8_t, 64> ShadowBytes(ShadowAfterScope.size(), 0);
+    copyToShadow(ShadowMask, ShadowBytes, IRB, ShadowBase, true);
+  }
+
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,
