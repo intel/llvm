@@ -1361,12 +1361,12 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
 // Currently supported options by SYCL NativeCPU device compilation
 static inline bool SupportedByNativeCPU(OptSpecifier Opt) {
   switch (Opt.getID()) {
-    case options::OPT_fcoverage_mapping:
-    case options::OPT_fno_coverage_mapping:
-    case options::OPT_fprofile_instr_generate:
-    case options::OPT_fprofile_instr_generate_EQ:
-    case options::OPT_fno_profile_instr_generate:
-      return true;
+  case options::OPT_fcoverage_mapping:
+  case options::OPT_fno_coverage_mapping:
+  case options::OPT_fprofile_instr_generate:
+  case options::OPT_fprofile_instr_generate_EQ:
+  case options::OPT_fno_profile_instr_generate:
+    return true;
   }
   return false;
 }
