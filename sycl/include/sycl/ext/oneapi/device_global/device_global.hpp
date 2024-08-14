@@ -71,6 +71,13 @@ public:
   device_global_base() = default;
 #endif // __cpp_consteval
 
+#ifndef __SYCL_DEVICE_ONLY__
+  constexpr device_global_base(const device_global_base &DGB)
+      : init_val{DGB.init_val} {}
+#else
+  constexpr device_global_base(const device_global_base &) {}
+#endif // __SYCL_DEVICE_ONLY__
+
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
   get_multi_ptr() noexcept {
@@ -107,6 +114,8 @@ public:
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
+
+  constexpr device_global_base(const device_global_base &) = delete;
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
@@ -151,6 +160,7 @@ class
     : public detail::device_global_base<T, detail::properties_t<Props...>> {
 
   using property_list_t = detail::properties_t<Props...>;
+  using base_t = detail::device_global_base<T, property_list_t>;
 
 public:
   using element_type = std::remove_extent_t<T>;
@@ -167,10 +177,11 @@ public:
                 "Property list is invalid.");
 
   // Inherit the base class' constructors
-  using detail::device_global_base<
-      T, detail::properties_t<Props...>>::device_global_base;
+  using detail::device_global_base<T, property_list_t>::device_global_base;
 
-  device_global(const device_global &) = delete;
+  constexpr device_global(const device_global &DG)
+      : base_t(static_cast<const base_t &>(DG)) {}
+
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;

@@ -244,7 +244,9 @@ public:
   device_global() = default;
 #endif // __cpp_consteval
 
-  device_global(const device_global &) = delete;
+  // Available if has_property<device_image_scope> is false
+  constexpr device_global(const device_global &other);
+
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
@@ -323,6 +325,21 @@ Constructs a `device_global` object, and implicit storage for `T` in the global 
 The object of type `T` is initialized from the `args` parameter pack using list initialization as defined in the {cpp} specification.
 
 `T` must be trivially destructible.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+constexpr device_global(const device_global &other);
+----
+|
+Available if `has_property<device_image_scope> == false`.
+
+Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
+
+The storage on each device for `T` is initialized with a copy of the storage in `other`.
+
+`T` must be copy constructible and trivially destructible.
 
 // --- ROW BREAK ---
 a|
