@@ -109,11 +109,11 @@ bool SemaSYCL::allWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
 }
 
 // Helper to get CudaArch.
-CudaArch SemaSYCL::getCudaArch(const TargetInfo &TI) {
+OffloadArch SemaSYCL::getOffloadArch(const TargetInfo &TI) {
   if (!TI.getTriple().isNVPTX())
-    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
+    llvm_unreachable("getOffloadArch is only valid for NVPTX triple");
   auto &TO = TI.getTargetOpts();
-  return StringToCudaArch(TO.CPU);
+  return StringToOffloadArch(TO.CPU);
 }
 
 bool SemaSYCL::hasDependentExpr(Expr **Exprs, const size_t ExprsSize) {
@@ -1127,10 +1127,10 @@ void SemaSYCL::addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     }
 
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
-    auto SM = getCudaArch(TI);
-    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+    auto SM = getOffloadArch(TI);
+    if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
-          << CudaArchToString(SM) << CI << E->getSourceRange();
+          << OffloadArchToString(SM) << CI << E->getSourceRange();
       return;
     }
 

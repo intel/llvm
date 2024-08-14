@@ -72,10 +72,10 @@ struct DevDescT {
   std::string platVer;
 };
 
-static void addEscapeSymbolToSpecialCharacters(std::string &str) {
+static void addEscapeSymbolToSpecialCharacters(std::string &str, size_t start_pos=0) {
   std::vector<std::string> specialCharacters{"(", ")", "[", "]", ".", "+", "-"};
   for (const auto &character : specialCharacters) {
-    size_t pos = 0;
+    size_t pos = start_pos;
     while ((pos = str.find(character, pos)) != std::string::npos) {
       std::string modifiedCharacter("\\" + character);
       str.replace(pos, character.size(), modifiedCharacter);
@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = dev->get_info<info::device::driver_version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -257,6 +258,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -292,6 +294,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver("98.76.54321");
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -333,6 +336,7 @@ int main(int argc, char *argv[]) {
           assert(false);
         }
       }();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver << "}}"
          << std::endl;
       return 0;
@@ -388,6 +392,7 @@ int main(int argc, char *argv[]) {
               pos++;
               ver.replace(pos, ver.length(), "*");
             }
+            addEscapeSymbolToSpecialCharacters(ver, pos+1);
 
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                       << "}}" << std::endl;
@@ -476,6 +481,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             if (count > 0) {
               std::cout << "|";
@@ -572,6 +578,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                       << ver << "}}" << std::endl;
@@ -605,6 +612,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                 << ver << "}}" << std::endl;
       return 0;

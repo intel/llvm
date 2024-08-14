@@ -331,7 +331,6 @@ public:
     KernelCallFunctionPointer,
     KernelAllocateStorage,
     KernelUseAssembly,
-    KernelCallDllimportFunction,
     KernelCallVariadicFunction,
     KernelCallUndefinedFunction,
     KernelConstStaticVariable
@@ -421,7 +420,7 @@ public:
 
   void handleKernelAttr(Decl *D, const ParsedAttr &AL);
 
-  static CudaArch getCudaArch(const TargetInfo &TI);
+  static OffloadArch getOffloadArch(const TargetInfo &TI);
   static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize);
 
   /// Emit a diagnostic about the given attribute having a deprecated name, and
