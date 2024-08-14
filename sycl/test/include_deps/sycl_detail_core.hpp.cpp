@@ -152,6 +152,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/raw_kernel_arg.hpp
 // CHECK-NEXT: ext/oneapi/experimental/use_root_sync_prop.hpp
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
+// CHECK-NEXT: ext/oneapi/work_group_static.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
