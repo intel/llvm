@@ -49,9 +49,8 @@ struct DeviceInfo {
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
 
-    // TODO: re-enable retaining and releasing device handles in DeviceInfo
-    // constructor/destructor. See PR
-    // https://github.com/oneapi-src/unified-runtime/pull/1883
+    // Device handles are special and alive in the whole process lifetime,
+    // so we needn't retain&release here.
     explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context);
