@@ -28,7 +28,6 @@ struct Bar {
   int Value = 42;
 };
 
-
 using namespace sycl;
 
 int main() {
@@ -64,7 +63,7 @@ int main() {
     for (size_t I = 0; I < Size; ++I)
       assert(Acc[I] == I % WgSize);
   }
-    {
+  {
     std::vector<int> Vec(Size, 0);
     buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
 

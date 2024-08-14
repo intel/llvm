@@ -2441,8 +2441,8 @@ static ur_result_t SetKernelParamsAndLaunch(
   if (!property_list.empty()) {
     return Plugin->call_nocheck(
         urEnqueueKernelLaunchCustomExp, Queue->getHandleRef(), Kernel,
-        NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
-        property_list.data(), RawEvents.size(),
+        NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
+        LocalSize, property_list.size(), property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   }
