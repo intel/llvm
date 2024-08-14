@@ -31,9 +31,10 @@ provider_pool::provider_pool(ur_context_handle_t context,
   desc.count = EVENTS_BURST;
   desc.flags = 0;
 
+  ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
+      ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr};
+
   if (events == event_type::EVENT_COUNTER) {
-    ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
-        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr};
     counterBasedExt.flags =
         queue == queue_type::QUEUE_IMMEDIATE
             ? ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_IMMEDIATE
