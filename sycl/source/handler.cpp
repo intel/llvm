@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
 #include "sycl/detail/helpers.hpp"
+#include "ur_api.h"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -789,6 +789,11 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
     }
     break;
   }
+  case kernel_param_kind_t::kind_work_group_memory: {
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr, Size,
+           Index + IndexShift);
+    break;
+  }
   case kernel_param_kind_t::kind_sampler: {
     addArg(kernel_param_kind_t::kind_sampler, Ptr, sizeof(sampler),
            Index + IndexShift);
@@ -1127,7 +1132,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   Desc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
@@ -1180,8 +1185,8 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   ImageDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
-  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
   UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -1235,7 +1240,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   SrcImgDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};

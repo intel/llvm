@@ -35,6 +35,7 @@
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -687,7 +688,10 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
-
+  template <typename DataT>
+  void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, nullptr, Arg->size, ArgIndex);
+}
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
             access::target AccessTarget, access::placeholder IsPlaceholder>
@@ -2021,6 +2025,10 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
+  template<typename DataT>
+  void set_arg(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> Arg) {
+    setArgHelper(ArgIndex, std::move(Arg));
+}
   // set_arg for graph dynamic_parameters
   template <typename T>
   void set_arg(int argIndex,
