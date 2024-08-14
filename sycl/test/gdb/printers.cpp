@@ -22,17 +22,17 @@
 #include <sycl/range.hpp>
 
 #include "detail/accessor_impl.hpp"
-#include "detail/sycl_mem_obj_t.hpp"
 #include "detail/buffer_impl.hpp"
 #include "detail/device_impl.hpp"
 #include "detail/queue_impl.hpp"
+#include "detail/sycl_mem_obj_t.hpp"
 
 sycl::accessor<int> a;
-sycl::buffer<int> b (1);
+sycl::buffer<int> b(1);
 sycl::device d;
 sycl::local_accessor<int> l;
 sycl::queue q;
-sycl::range<1> r (3);
+sycl::range<1> r(3);
 
 // CHECK:         0 | class sycl::range<>
 // CHECK:         0 |     size_t[1] common_array
@@ -79,7 +79,7 @@ sycl::range<1> r (3);
 // CHECK:        40 |       element_type * _M_ptr
 
 // CHECK:         0 | class sycl::accessor<int>
-// HOST:          0 |     class std::shared_ptr<class sycl::detail::AccessorImplHost> impl
+// HOST:          0 |     {{.*}} sycl::detail::AccessorImplHost{{.*}} impl
 // HOST:         16 |   detail::AccHostDataT * MAccData
 // DEVICE:        0 |   class sycl::detail::AccessorImplDevice<1> impl
 // DEVICE:       24 |   union sycl::accessor<int>::(anonymous {{.*}})
@@ -98,4 +98,3 @@ sycl::range<1> r (3);
 // DEVICE:        8 |       class sycl::range<> MemRange
 // DEVICE:        8 |           size_t[1] common_array
 // DEVICE:       24 |     ConcreteASPtrType MData
-
