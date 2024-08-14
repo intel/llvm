@@ -187,6 +187,8 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnPVC();
     DestroyShadowMemoryOnDG2();
 
+    // We must release these objects before releasing adapters, since
+    // they may use the adapter in their destruction process
     m_Quarantine = nullptr;
     m_MemBufferMap.clear();
     m_AllocationMap.clear();
