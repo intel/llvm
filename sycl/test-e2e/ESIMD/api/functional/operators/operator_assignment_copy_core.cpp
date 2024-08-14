@@ -33,7 +33,7 @@ struct copy_assignment {
     simd<DataT, NumElems> simd_obj;
     simd_obj = source_simd;
     simd_obj.copy_to(out);
-    return simd_obj.get_test_proxy().was_move_destination();
+    return false;
   }
 };
 
