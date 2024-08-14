@@ -11,8 +11,6 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: cpu
-
 // This tests support of col major layout for matrix B which does transpose and
 // then VNNI transform. This is currently only available on AMX
 

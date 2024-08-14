@@ -12,6 +12,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL: cpu
 
 #include "../../common.hpp"
 
