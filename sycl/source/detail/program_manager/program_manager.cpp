@@ -1271,9 +1271,11 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (ItBegin == ItEnd)
     return nullptr;
 
-  // Here, we aim to filter out all the device images from
-  // [ItBegin, ItEnd) range that are not AOT compiled for the
-  // Device (checked using info::device::architecture).
+  // Here, we aim to select all the device images from the
+  // [ItBegin, ItEnd) range that are AOT compiled for Device
+  // (checked using info::device::architecture) or  JIT compiled.
+  // This selection will then be passed to urDeviceSelectBinary
+  // for final selection.
   std::string_view ArchName = getArchName(Device);
   std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
   DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
@@ -1285,15 +1287,14 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
         });
     auto AddImg = [&]() { DeviceFilteredImgs.push_back(It->second); };
 
-    // Device image has no compile_target property, so it is not even AOT
-    // compiled.
+    // Device image has no compile_target property, so it is JIT compiled.
     if (PropIt == PropRange.end()) {
       AddImg();
       continue;
     }
 
-    // Device image has the compile_target property, so make sure it is equal
-    // to the Device's architecture.
+    // Device image has the compile_target property, so it is AOT compiled for
+    // some device, check if that architecture is Device's architecture.
     auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
     CompileTargetByteArray.dropBytes(8);
     std::string_view CompileTarget(
