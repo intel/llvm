@@ -1,12 +1,16 @@
-// UNSUPPORTED: cuda, hip, acc
-// REQUIRES: aspect-usm_shared_allocations
 // FIXME: replace unsupported with an aspect check once we have it
+// UNSUPPORTED: cuda, hip, acc
+//
+// REQUIRES: aspect-usm_shared_allocations
+//
+// This test checks that SYCL math built-in functions work correctly
+// inside virtual functions.
 //
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
-#include <sycl/detail/core.hpp>
 #include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 #include "helpers.hpp"
@@ -39,10 +43,8 @@ public:
   virtual float apply(float V) { return sycl::round(V); }
 };
 
-
 int main() try {
-  using storage_t =
-      obj_storage_t<FloorOp, CeilOp, RoundOp>;
+  using storage_t = obj_storage_t<FloorOp, CeilOp, RoundOp>;
 
   storage_t HostStorage;
 
@@ -62,10 +64,10 @@ int main() try {
     sycl::buffer<float> DataStorage(&Data, sycl::range{1});
 
     q.submit([&](sycl::handler &CGH) {
-      CGH.single_task([=]() {
-        DeviceStorage->construct</* ret type = */ BaseOp>(TestCase);
-      });
-    }).wait_and_throw();
+       CGH.single_task([=]() {
+         DeviceStorage->construct</* ret type = */ BaseOp>(TestCase);
+       });
+     }).wait_and_throw();
 
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
@@ -75,8 +77,7 @@ int main() try {
       });
     });
 
-    auto *Ptr =
-        HostStorage.construct</* ret type = */ BaseOp>(TestCase);
+    auto *Ptr = HostStorage.construct</* ret type = */ BaseOp>(TestCase);
     HostData = Ptr->apply(HostData);
 
     sycl::host_accessor HostAcc(DataStorage);
@@ -90,4 +91,3 @@ int main() try {
   std::cout << "Unexpected exception was thrown: " << e.what() << std::endl;
   return 1;
 }
-

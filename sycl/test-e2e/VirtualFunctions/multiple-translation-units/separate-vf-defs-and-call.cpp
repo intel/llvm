@@ -1,12 +1,18 @@
+// FIXME: replace unsupported with an aspect check once we have it
 // UNSUPPORTED: cuda, hip, acc
+//
+// REQUIRES: aspect-usm_shared_allocations
+//
 // We attach calls-indirectly attribute (and therefore device image property)
 // to construct kernels at compile step. At that stage we may not see virtual
 // function definitions and therefore we won't mark construct kernel as using
 // virtual functions and link operation at runtime will fail due to undefined
 // references to virtual functions from vtable.
+// https://github.com/intel/llvm/issues/15071
 // XFAIL: *
-// REQUIRES: aspect-usm_shared_allocations
-// FIXME: replace unsupported with an aspect check once we have it
+//
+// This test covers a scenario where virtual functions defintion and their uses
+// are all split into different translation units.
 //
 // RUN: %{build} %S/Inputs/call.cpp %S/Inputs/vf.cpp -o %t.out %helper-includes
 // RUN: %{run} %t.out
@@ -47,5 +53,3 @@ int main() try {
   std::cout << "Unexpected exception was thrown: " << e.what() << std::endl;
   return 1;
 }
-
-

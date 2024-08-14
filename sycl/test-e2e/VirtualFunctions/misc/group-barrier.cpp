@@ -1,16 +1,24 @@
+// FIXME: replace unsupported with an aspect check once we have it
 // UNSUPPORTED: cuda, hip, acc
+//
 // REQUIRES: aspect-usm_shared_allocations
+//
 // Fails with UR_RESULT_ERROR_PROGRAM_LINK_FAILURE. SPIR-V files produced by
 // SYCL_DUMP_IMAGES can be linked just fine (using llvm-spirv -r + llvm-link),
-// so it seems to be a problem on IGC side
-// XFAIL: gpu
-// FIXME: replace unsupported with an aspect check once we have it
+// so it seems to be a problem on IGC side.
+// Reported in https://github.com/intel/llvm/issues/15068
+// On CPU it segfaults within the kernel that performs virtual function call.
+// https://github.com/intel/llvm/issues/15080
+// XFAIL: gpu, cpu
+//
+// This test checks that group operations (barrier in this case) work correctly
+// inside virtual functions.
 //
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
-#include <sycl/group_barrier.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 #include "helpers.hpp"
@@ -23,7 +31,7 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 class BaseOp {
 public:
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
-  virtual int apply(int *LocalData, sycl::nd_item<1> it) = 0;
+  virtual int apply(int *, sycl::nd_item<1>) = 0;
 };
 
 class SumOp : public BaseOp {

@@ -1,12 +1,20 @@
+// FIXME: replace unsupported with an aspect check once we have it
 // UNSUPPORTED: cuda, hip, acc
+//
+// REQUIRES: aspect-usm_shared_allocations
+//
 // We attach calls-indirectly attribute (and therefore device image property)
 // to construct kernels at compile step. At that stage we may not see virtual
 // function definitions and therefore we won't mark construct kernel as using
 // virtual functions and link operation at runtime will fail due to undefined
 // references to virtual functions from vtable.
+// https://github.com/intel/llvm/issues/15071
 // XFAIL: *
-// REQUIRES: aspect-usm_shared_allocations
-// FIXME: replace unsupported with an aspect check once we have it
+//
+// This test covers a scenario where virtual functions defintion and their uses
+// are split into different translation units. In particular:
+// - use and construct kernesl are in the same translation unit
+// - but virtual functions are defined in a separate translation unit
 //
 // RUN: %{build} %S/Inputs/vf.cpp -o %t.out %helper-includes
 // RUN: %{run} %t.out
@@ -29,7 +37,6 @@ int main() try {
   sycl::queue q(asyncHandler);
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
 
-  // TODO: cover uses case when objects are passed through USM
   constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
     int HostData = 42;
@@ -50,4 +57,3 @@ int main() try {
   std::cout << "Unexpected exception was thrown: " << e.what() << std::endl;
   return 1;
 }
-

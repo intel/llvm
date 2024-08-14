@@ -1,6 +1,11 @@
-// UNSUPPORTED: cuda, hip, acc
-// REQUIRES: aspect-usm_shared_allocations
 // FIXME: replace unsupported with an aspect check once we have it
+// UNSUPPORTED: cuda, hip, acc
+//
+// REQUIRES: aspect-usm_shared_allocations
+//
+// This test checks that virtual functions work correctly in simple range
+// kernels when different work-items perform calls to different virtual
+// functions using the same object.
 //
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
