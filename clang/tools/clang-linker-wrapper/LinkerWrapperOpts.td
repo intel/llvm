@@ -94,9 +94,13 @@ def linker_arg_EQ : Joined<["--"], "linker-arg=">,
 
 // Arguments for the LLVM backend.
 def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
-  MetaVarName<"<arg>">, HelpText<"Arguments passed to the LLVM invocation">;
+  MetaVarName<"<arg>">,
+  HelpText<"Arguments passed to LLVM, including Clang invocations, for which "
+           "the '-mllvm' prefix is preserved. Use '-mllvm --help' for a list "
+           "of options.">;
 def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=-">, Flags<[HelpHidden, WrapperOnlyOption]>,
-  HelpText<"Options passed to LLVM">;
+  HelpText<"Options passed to LLVM, not including the Clang invocation. Use "
+           "'--offload-opt=--help' for a list of options.">;
 
 // Standard linker flags also used by the linker wrapper.
 def sysroot_EQ : Joined<["--"], "sysroot=">, HelpText<"Set the system root">;
@@ -220,3 +224,7 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Link SYCL device code using thinLTO">;
 
 def sycl_embed_ir : Flag<["--", "-"], "sycl-embed-ir">,
 Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+
+def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Path to the folder where the tool dumps SPIR-V device code. Other formats aren't dumped.">;
