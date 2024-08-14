@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL: cpu
 
 #include "../common.hpp"
 #include "../joint_matrix_apply_bf16_impl.hpp"

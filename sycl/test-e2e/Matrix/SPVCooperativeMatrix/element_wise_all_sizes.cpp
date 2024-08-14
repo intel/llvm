@@ -13,7 +13,7 @@
 
 // This is a version of the test with disabled device code
 // split to test against fixed bug in IGC
-// RUN: %{build} -fsycl-device-code-split=off -o %t_split.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -fsycl-device-code-split=off -o %t_split.out
 // RUN: %if gpu-intel-dg2 %{ %{run} %t_split.out %}
 
 // XFAIL: cpu

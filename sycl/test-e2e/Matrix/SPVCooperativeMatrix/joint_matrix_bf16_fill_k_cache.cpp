@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_vnni.out -DVNNI -ffp-model=precise
+// RUN: %{run} %t_vnni.out
+
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
-
-// XFAIL: cpu
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 

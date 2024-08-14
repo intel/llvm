@@ -7,11 +7,14 @@
 //===----------------------------------------------------------------------===//
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
-// REQUIRES: gpu, aspect-ext_intel_matrix
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out -ffp-model=precise
-// RUN: %{run} %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_vnni.out -DVNNI -ffp-model=precise
+// RUN: %{run} %t_vnni.out
+
+// TODO: add row major compilation and run once Sub-group size 32
+// support becomes available in IGC for row major
 
 // XFAIL: cpu
 

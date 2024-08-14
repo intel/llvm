@@ -11,7 +11,6 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-
 // XFAIL: gpu
 
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2

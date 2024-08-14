@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
+// XFAIL: cpu
 
 #include "../common.hpp"
 #include "../get_coord_float_matC_impl.hpp"
