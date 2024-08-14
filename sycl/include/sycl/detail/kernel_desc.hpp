@@ -10,6 +10,7 @@
 
 // FIXME: include export.hpp because integration header emitted by the compiler
 // uses the macro defined in this header, but it doesn't explicitly include it.
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <vector>
 // This header file must not include any standard C++ header files.
