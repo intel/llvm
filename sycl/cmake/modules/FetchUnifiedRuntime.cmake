@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
   # commit f8336050f43a6529636fd6b2075dfe09961564f5
   # Merge: 6c98e0e8 b75f2bc2
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Tue Aug 13 13:07:23 2024 +0100
   #     Merge pull request #1955 from nrspruit/fix_l0_coverity
   #     [L0] fix Coverity issues for L0 Adapter
-  set(UNIFIED_RUNTIME_TAG f8336050f43a6529636fd6b2075dfe09961564f5)
+  set(UNIFIED_RUNTIME_TAG aaron/fixSubGroupMaxSizeAssert)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
