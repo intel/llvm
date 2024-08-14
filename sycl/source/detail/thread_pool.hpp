@@ -74,7 +74,13 @@ public:
     start();
   }
 
-  ~ThreadPool() { finishAndWait(); }
+  ~ThreadPool() {
+    try {
+      finishAndWait();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ThreadPool", e);
+    }
+  }
 
   void finishAndWait() {
     MStop.store(true);

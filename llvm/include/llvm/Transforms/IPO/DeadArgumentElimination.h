@@ -24,6 +24,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Module.h"
 #include <map>
 #include <set>
 #include <string>
@@ -31,7 +32,7 @@
 
 namespace llvm {
 
-class Module;
+// class Module;
 class Use;
 class Value;
 
@@ -145,7 +146,8 @@ private:
   bool removeDeadArgumentsFromCallers(Function &F);
   void propagateVirtMustcallLiveness(const Module &M);
 
-  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF);
+  void UpdateNVPTXMetadata(Module &M, Function *F, Function *NF,
+                           const SmallVectorImpl<bool> &ArgAlive);
   llvm::DenseSet<Function *> NVPTXKernelSet;
 
   bool IsNVPTXKernel(const Function *F) { return NVPTXKernelSet.contains(F); };

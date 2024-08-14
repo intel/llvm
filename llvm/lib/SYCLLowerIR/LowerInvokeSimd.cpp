@@ -27,6 +27,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/GenXIntrinsics/GenXMetadata.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Verifier.h"
@@ -259,6 +260,45 @@ void markFunctionAsESIMD(Function *F) {
   }
 }
 
+void adjustAddressSpace(Function *F, uint32_t ArgNo, uint32_t ArgAddrSpace) {
+  Argument *Arg = F->getArg(ArgNo);
+  for (User *ArgUse : Arg->users()) {
+    Instruction *Instr = dyn_cast<Instruction>(ArgUse);
+    if (!Instr)
+      continue;
+    const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(ArgUse);
+    if (ASC) {
+      if (ASC->getDestAddressSpace() == ArgAddrSpace)
+        continue;
+    }
+
+    const CallInst *CI = dyn_cast<CallInst>(ArgUse);
+    if (CI) {
+      Function *Callee = CI->getCalledFunction();
+      if (!Callee || Callee->isDeclaration())
+        continue;
+
+      for (uint32_t i = 0; i < CI->getNumOperands(); ++i) {
+        if (CI->getOperand(i) == Arg) {
+          adjustAddressSpace(Callee, i, ArgAddrSpace);
+        }
+      }
+    } else {
+      for (unsigned int i = 0; i < ArgUse->getNumOperands(); ++i) {
+        if (ArgUse->getOperand(i) == Arg) {
+          PointerType *NPT = PointerType::get(Arg->getContext(), ArgAddrSpace);
+
+          auto *NewInstr = new AddrSpaceCastInst(ArgUse->getOperand(i), NPT);
+          NewInstr->insertBefore(Instr);
+          NewInstr->setDebugLoc(Instr->getDebugLoc());
+
+          ArgUse->setOperand(i, NewInstr);
+        }
+      }
+    }
+  }
+}
+
 // Process 'invoke_simd(sub_group_obj, f, spmd_args...);' call.
 //
 // If f is a function name or a function pointer, this call is lowered into
@@ -319,6 +359,25 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     SimdF->addFnAttr(INVOKE_SIMD_DIRECT_TARGET_ATTR);
   }
 
+  if (!SimdF->isDeclaration()) {
+    // The real arguments for invoke_simd callee start at index 2.
+    for (uint32_t i = 2; i < InvokeSimd->arg_size(); ++i) {
+      const Value *Arg = InvokeSimd->getArgOperand(i);
+      if (Arg->getType()->isPointerTy()) {
+        uint32_t AddressSpace = Arg->getType()->getPointerAddressSpace();
+        if (AddressSpace == 4) {
+          const AddrSpaceCastInst *ASC = dyn_cast<AddrSpaceCastInst>(Arg);
+          if (!ASC)
+            continue;
+
+          AddressSpace =
+              ASC->getOperand(0)->getType()->getPointerAddressSpace();
+        }
+        adjustAddressSpace(SimdF, i - 2, AddressSpace);
+      }
+    }
+  }
+
   // The invoke_simd target is known at compile-time - optimize.
   // 1. find the call to f within the cloned helper - it is its first parameter
   constexpr unsigned SimdCallTargetArgNo = 0;
@@ -356,6 +415,11 @@ bool processInvokeSimdCall(CallInst *InvokeSimd,
     CallInst *TheTformedCall = cast<CallInst>(VMap[TheCall]);
     TheTformedCall->setCalledFunction(SimdF);
     fixFunctionName(NewHelper);
+    // When we will do ESIMD split, that helper will be moved into ESIMD module
+    // where it has no uses. To prevent it being internalized and killed by DCE
+    // during post-split cleanup, we need to add this attribtue and set proper
+    // linkage.
+    NewHelper->addFnAttr("referenced-indirectly");
   }
 
   // 3. Clone and transform __builtin_invoke_simd call:

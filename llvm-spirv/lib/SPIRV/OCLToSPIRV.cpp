@@ -36,7 +36,6 @@
 // friendly IR form for further translation into SPIR-V
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "ocl-to-spv"
 
 #include "OCLToSPIRV.h"
 #include "OCLTypeToSPIRV.h"
@@ -54,6 +53,8 @@
 #include <algorithm>
 #include <regex>
 #include <set>
+
+#define DEBUG_TYPE "ocl-to-spv"
 
 using namespace llvm;
 using namespace PatternMatch;
@@ -338,6 +339,10 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
       }
     }
     visitCallDot(&CI, MangledName, DemangledName);
+    return;
+  }
+  if (DemangledName.starts_with(kOCLBuiltinName::ClockReadPrefix)) {
+    visitCallClockRead(&CI, MangledName, DemangledName);
     return;
   }
   if (DemangledName == kOCLBuiltinName::FMin ||
@@ -939,7 +944,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Mutator.changeReturnType(
         Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
           if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
-            return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
+            return Builder.CreateIntCast(NewCI, OldRetTy, false);
           }
           return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });
@@ -1322,6 +1327,23 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
     Mutator.appendArg(
         getInt32(M, PackedVectorFormatPackedVectorFormat4x8BitKHR));
   }
+}
+
+void OCLToSPIRVBase::visitCallClockRead(CallInst *CI, StringRef MangledName,
+                                        StringRef DemangledName) {
+  // The builtin returns i64 or <2 x i32>, but both variants are mapped to the
+  // same instruction; hence include the return type.
+  std::string OpName = getSPIRVFuncName(OpReadClockKHR, CI->getType());
+
+  // Scope is part of the OpenCL builtin name.
+  Scope ScopeArg = StringSwitch<Scope>(DemangledName)
+                       .EndsWith("device", ScopeDevice)
+                       .EndsWith("work_group", ScopeWorkgroup)
+                       .EndsWith("sub_group", ScopeSubgroup)
+                       .Default(ScopeMax);
+
+  auto Mutator = mutateCallInst(CI, OpName);
+  Mutator.appendArg(getInt32(M, ScopeArg));
 }
 
 void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,

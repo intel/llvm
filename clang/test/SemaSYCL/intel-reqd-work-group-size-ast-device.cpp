@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2017 -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
-// Test for AST of reqd_work_group_size kernel attribute in SYCL 1.2.1.
+// Test for AST of reqd_work_group_size kernel attribute in SYCL.
 
 #include "sycl.hpp"
 
@@ -65,8 +65,6 @@ int check() {
 // CHECK-NEXT: NonTypeTemplateParmDecl {{.*}}
 // CHECK-NEXT: IntegerLiteral{{.*}}8{{$}}
 
-[[sycl::reqd_work_group_size(4)]] void f4() {}
-
 class Functor16 {
 public:
   [[sycl::reqd_work_group_size(16)]] void operator()() const {}
@@ -77,24 +75,10 @@ public:
   [[sycl::reqd_work_group_size(16, 16, 16)]] void operator()() const {}
 };
 
-class Functor {
-public:
-  void operator()() const {
-    f4();
-  }
-};
-
 class FunctorAttr {
 public:
   [[sycl::reqd_work_group_size(128, 128, 128)]] void operator()() const {}
 };
-
-// Test of redeclaration of [[intel::max_work_group_size()]] and [[sycl::reqd_work_group_size()]].
-[[intel::no_global_work_offset]] void func1();
-[[intel::max_work_group_size(4, 4, 4)]] void func1();
-[[sycl::reqd_work_group_size(2, 2, 2)]] void func1() {}
-
-[[sycl::reqd_work_group_size(32, 32, 32)]] void f32x32x32() {}
 
 int main() {
   q.submit([&](handler &h) {
@@ -105,14 +89,6 @@ int main() {
     // CHECK-NEXT:  IntegerLiteral{{.*}}16{{$}}
     Functor16 f16;
     h.single_task<class kernel_name1>(f16);
-
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name2
-    // CHECK: SYCLReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr{{.*}}'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    Functor f;
-    h.single_task<class kernel_name2>(f);
 
     // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name3
     // CHECK: SYCLReqdWorkGroupSizeAttr
@@ -142,7 +118,7 @@ int main() {
     FunctorAttr fattr;
     h.single_task<class kernel_name4>(fattr);
 
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
+// CHECK: FunctionDecl {{.*}} {{.*}}kernel_name5
     // CHECK: SYCLReqdWorkGroupSizeAttr
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
@@ -153,37 +129,7 @@ int main() {
     // CHECK-NEXT:  ConstantExpr{{.*}}'int'
     // CHECK-NEXT:  value: Int 32
     // CHECK-NEXT:  IntegerLiteral{{.*}}32{{$}}
-    h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {
-      f32x32x32();
-    });
-
-    // CHECK:  FunctionDecl {{.*}} {{.*}}kernel_name6
-    // CHECK:  SYCLIntelNoGlobalWorkOffsetAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 1
-    // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
-    // CHECK: SYCLIntelMaxWorkGroupSizeAttr {{.*}} Inherited
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 4
-    // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
-    // CHECK: SYCLReqdWorkGroupSizeAttr
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    // CHECK-NEXT:  ConstantExpr {{.*}} 'int'
-    // CHECK-NEXT:  value: Int 2
-    // CHECK-NEXT:  IntegerLiteral{{.*}}2{{$}}
-    h.single_task<class kernel_name6>(
-        []() { func1(); });
+    h.single_task<class kernel_name5>([]() [[sycl::reqd_work_group_size(32, 32, 32)]] {});
   });
   return 0;
 }

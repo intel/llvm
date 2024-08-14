@@ -134,7 +134,7 @@
 // CHECK-IR: [[OMP_BIN:@.+]] = internal unnamed_addr constant [[OMP_BINTY:\[[0-9]+ x i8\]]] c"Content of device file3{{.+}}"
 // CHECK-IR: [[OMP_INFO:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr [[OMP_BIN]] to i64), i64 24], section ".tgtimg", align 16
 
-// CHECK-IR: [[OMP_IMAGES:@.+]] = internal unnamed_addr constant [1 x [[IMAGETY]]] [{{.+}} { ptr [[OMP_BIN]], ptr getelementptr inbounds ([[OMP_BINTY]], ptr [[OMP_BIN]], i64 1, i64 0), ptr [[ENTBEGIN]], ptr [[ENTEND]] }]
+// CHECK-IR: [[OMP_IMAGES:@.+]] = internal unnamed_addr constant [1 x [[IMAGETY]]] [{{.+}} { ptr [[OMP_BIN]], ptr getelementptr ([[OMP_BINTY]], ptr [[OMP_BIN]], i64 0, i64 24), ptr [[ENTBEGIN]], ptr [[ENTEND]] }]
 
 // CHECK-IR: [[OMP_DESC:@.+]] = internal constant [[DESCTY]] { i32 1, ptr [[OMP_IMAGES]], ptr [[ENTBEGIN]], ptr [[ENTEND]] }
 
@@ -150,7 +150,7 @@
 // CHECK-IR: [[SYCL_BIN1:@.+]] = internal unnamed_addr constant [[SYCL_BIN1TY:\[[0-9]+ x i8\]]] c"Content of device file2{{.+}}"
 // CHECK-IR: [[SYCL_INFO1:@.+]] = internal local_unnamed_addr constant [2 x i64] [i64 ptrtoint (ptr [[SYCL_BIN1]] to i64), i64 24], section ".tgtimg", align 16
 
-// CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.*}} { i16 2, i8 4, i8 2, ptr [[SYCL_TGT0]], ptr [[SYCL_COMPILE_OPTS0]], ptr [[SYCL_LINK_OPTS0]], ptr null, ptr null, ptr [[SYCL_BIN0]], ptr getelementptr inbounds ([[SYCL_BIN0TY]], ptr [[SYCL_BIN0]], i64 1, i64 0), ptr null, ptr null, ptr null, ptr null }, [[SYCL_IMAGETY]] { i16 2, i8 4, i8 1, ptr [[SYCL_TGT1]], ptr [[SYCL_COMPILE_OPTS1]], ptr [[SYCL_LINK_OPTS1]], ptr null, ptr null, ptr [[SYCL_BIN1]], ptr getelementptr inbounds ([[SYCL_BIN1TY]], ptr [[SYCL_BIN1]], i64 1, i64 0), ptr null, ptr null, ptr null, ptr null }]
+// CHECK-IR: [[SYCL_IMAGES:@.+]] = internal unnamed_addr constant [2 x [[SYCL_IMAGETY]]] [{{.*}} { i16 2, i8 4, i8 2, ptr [[SYCL_TGT0]], ptr [[SYCL_COMPILE_OPTS0]], ptr [[SYCL_LINK_OPTS0]], ptr null, ptr null, ptr [[SYCL_BIN0]], ptr getelementptr ([[SYCL_BIN0TY]], ptr [[SYCL_BIN0]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }, [[SYCL_IMAGETY]] { i16 2, i8 4, i8 1, ptr [[SYCL_TGT1]], ptr [[SYCL_COMPILE_OPTS1]], ptr [[SYCL_LINK_OPTS1]], ptr null, ptr null, ptr [[SYCL_BIN1]], ptr getelementptr ([[SYCL_BIN1TY]], ptr [[SYCL_BIN1]], i64 0, i64 24), ptr null, ptr null, ptr null, ptr null }]
 
 // CHECK-IR: [[SYCL_DESC:@.+]] = internal constant [[SYCL_DESCTY]] { i16 1, i16 2, ptr [[SYCL_IMAGES]], ptr null, ptr null }
 
@@ -206,7 +206,7 @@
 // CHECK-IR3: @__sycl_offload_entry_name = internal unnamed_addr constant [7 x i8] c"entryA\00"
 // CHECK-IR3: @__sycl_offload_entry_name.1 = internal unnamed_addr constant [7 x i8] c"entryB\00"
 // CHECK-IR3: @__sycl_offload_entries_arr = internal constant [2 x %__tgt_offload_entry] [%__tgt_offload_entry { ptr null, ptr @__sycl_offload_entry_name, i64 0, i32 0, i32 0 }, %__tgt_offload_entry { ptr null, ptr @__sycl_offload_entry_name.1, i64 0, i32 0, i32 0 }]
-// CHECK-IR3: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__tgt_device_image] [%__tgt_device_image { {{.*}}, ptr @__sycl_offload_entries_arr, ptr getelementptr inbounds ([2 x %__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 1, i64 0), ptr null, ptr null }]
+// CHECK-IR3: @.sycl_offloading.device_images = internal unnamed_addr constant [1 x %__tgt_device_image] [%__tgt_device_image { {{.*}}, ptr @__sycl_offload_entries_arr, ptr getelementptr ([2 x %__tgt_offload_entry], ptr @__sycl_offload_entries_arr, i64 0, i64 2), ptr null, ptr null }]
 
 // -------
 // Check that device image can be extracted from the wrapper object by the clang-offload-bundler tool.

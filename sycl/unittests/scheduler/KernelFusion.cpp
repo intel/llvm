@@ -9,9 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <vector>
 
@@ -22,7 +22,8 @@ template <typename T, int Dim>
 detail::Command *CreateTaskCommand(MockScheduler &MS,
                                    detail::QueueImplPtr DevQueue,
                                    buffer<T, Dim> &buf) {
-  MockHandlerCustomFinalize MockCGH(DevQueue, false);
+  MockHandlerCustomFinalize MockCGH(DevQueue,
+                                    /*CallerNeedsEvent=*/true);
 
   auto acc = buf.get_access(static_cast<sycl::handler &>(MockCGH));
 
@@ -36,16 +37,13 @@ detail::Command *CreateTaskCommand(MockScheduler &MS,
   auto CmdGrp = MockCGH.finalize();
 
   std::vector<detail::Command *> ToEnqueue;
-  detail::Command *NewCmd = MS.addCG(std::move(CmdGrp), DevQueue, ToEnqueue);
+  detail::Command *NewCmd =
+      MS.addCG(std::move(CmdGrp), DevQueue, ToEnqueue, /*EventNeeded=*/true);
   EXPECT_EQ(ToEnqueue.size(), 0u);
   return NewCmd;
 }
 
 bool CheckTestExecRequirements(const platform &plt) {
-  if (plt.is_host()) {
-    std::cout << "Not run due to host-only environment\n";
-    return false;
-  }
   // This test only contains device image for SPIR-V capable devices.
   if (plt.get_backend() != sycl::backend::opencl &&
       plt.get_backend() != sycl::backend::ext_oneapi_level_zero) {
@@ -76,8 +74,8 @@ bool dependsOnViaEvent(detail::Command *Dependent, detail::Command *Dependee) {
 }
 
 TEST_F(SchedulerTest, CancelKernelFusion) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   if (!CheckTestExecRequirements(Plt))
     return;
 

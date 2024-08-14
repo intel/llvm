@@ -5,15 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
 // PVC variant of the test - adds tfloat32.
-
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
 
 #define USE_TF32
 

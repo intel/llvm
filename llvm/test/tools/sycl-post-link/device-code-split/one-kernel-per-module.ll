@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -split=kernel -symbols -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_0.sym --check-prefixes CHECK-MODULE0-TXT
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
@@ -39,9 +39,9 @@ entry:
   ret void
 }
 
-; CHECK-MODULE2: define dso_local spir_func void @{{.*}}foo{{.*}}()
-; CHECK-MODULE1-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
-; CHECK-MODULE0-NOT: define dso_local spir_func void @{{.*}}foo{{.*}}()
+; CHECK-MODULE2: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
+; CHECK-MODULE1-NOT: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
+; CHECK-MODULE0-NOT: define {{.*}} spir_func void @{{.*}}foo{{.*}}()
 
 ; CHECK-MODULE2: call spir_func i32 @{{.*}}bar{{.*}}(i32 1)
 
@@ -82,9 +82,9 @@ entry:
   ret void
 }
 
-; CHECK-MODULE2-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
-; CHECK-MODULE1: define dso_local spir_func void @{{.*}}foo1{{.*}}()
-; CHECK-MODULE0-NOT: define dso_local spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-MODULE2-NOT: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-MODULE1: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
+; CHECK-MODULE0-NOT: define {{.*}} spir_func void @{{.*}}foo1{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo1v() {
@@ -109,9 +109,9 @@ entry:
   ret void
 }
 
-; CHECK-MODULE2-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
-; CHECK-MODULE1-NOT: define dso_local spir_func void @{{.*}}foo2{{.*}}()
-; CHECK-MODULE0: define dso_local spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-MODULE2-NOT: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-MODULE1-NOT: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
+; CHECK-MODULE0: define {{.*}} spir_func void @{{.*}}foo2{{.*}}()
 
 ; Function Attrs: nounwind
 define dso_local spir_func void @_Z4foo2v() {

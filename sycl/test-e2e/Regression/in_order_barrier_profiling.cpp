@@ -11,7 +11,7 @@
 // Level Zero adapter has a similar in-order queue barrier optimization that
 // leads to incorrect profiling values.
 // https://github.com/intel/llvm/issues/14186
-// UNSUPPORTED: level_zero || (linux && opencl && gpu-intel-gen12)
+// UNSUPPORTED: level_zero || opencl
 #include <sycl/detail/core.hpp>
 
 #include <sycl/properties/all_properties.hpp>

@@ -610,6 +610,19 @@ static bool FixupInvocation(CompilerInvocation &Invocation,
     LangOpts.NewAlignOverride = 0;
   }
 
+  // The -f[no-]raw-string-literals option is only valid in C and in C++
+  // standards before C++11.
+  if (LangOpts.CPlusPlus11) {
+    if (Args.hasArg(OPT_fraw_string_literals, OPT_fno_raw_string_literals)) {
+      Args.claimAllArgs(OPT_fraw_string_literals, OPT_fno_raw_string_literals);
+      Diags.Report(diag::warn_drv_fraw_string_literals_in_cxx11)
+          << bool(LangOpts.RawStringLiterals);
+    }
+
+    // Do not allow disabling raw string literals in C++11 or later.
+    LangOpts.RawStringLiterals = true;
+  }
+
   // Prevent the user from specifying both -fsycl-is-device and -fsycl-is-host.
   if (LangOpts.SYCLIsDevice && LangOpts.SYCLIsHost)
     Diags.Report(diag::err_drv_argument_not_allowed_with) << "-fsycl-is-device"
@@ -1465,6 +1478,42 @@ static void setPGOUseInstrumentor(CodeGenOptions &Opts,
     Opts.setProfileUse(CodeGenOptions::ProfileClangInstr);
 }
 
+void CompilerInvocation::setDefaultPointerAuthOptions(
+    PointerAuthOptions &Opts, const LangOptions &LangOpts,
+    const llvm::Triple &Triple) {
+  assert(Triple.getArch() == llvm::Triple::aarch64);
+  if (LangOpts.PointerAuthCalls) {
+    using Key = PointerAuthSchema::ARM8_3Key;
+    using Discrimination = PointerAuthSchema::Discrimination;
+    // If you change anything here, be sure to update <ptrauth.h>.
+    Opts.FunctionPointers = PointerAuthSchema(
+        Key::ASIA, false,
+        LangOpts.PointerAuthFunctionTypeDiscrimination ? Discrimination::Type
+                                                       : Discrimination::None);
+
+    Opts.CXXVTablePointers = PointerAuthSchema(
+        Key::ASDA, LangOpts.PointerAuthVTPtrAddressDiscrimination,
+        LangOpts.PointerAuthVTPtrTypeDiscrimination ? Discrimination::Type
+                                                    : Discrimination::None);
+    Opts.CXXTypeInfoVTablePointer =
+        PointerAuthSchema(Key::ASDA, false, Discrimination::None);
+    Opts.CXXVTTVTablePointers =
+        PointerAuthSchema(Key::ASDA, false, Discrimination::None);
+    Opts.CXXVirtualFunctionPointers = Opts.CXXVirtualVariadicFunctionPointers =
+        PointerAuthSchema(Key::ASIA, true, Discrimination::Decl);
+  }
+}
+
+static void parsePointerAuthOptions(PointerAuthOptions &Opts,
+                                    const LangOptions &LangOpts,
+                                    const llvm::Triple &Triple,
+                                    DiagnosticsEngine &Diags) {
+  if (!LangOpts.PointerAuthCalls)
+    return;
+
+  CompilerInvocation::setDefaultPointerAuthOptions(Opts, LangOpts, Triple);
+}
+
 void CompilerInvocationBase::GenerateCodeGenArgs(const CodeGenOptions &Opts,
                                                  ArgumentConsumer Consumer,
                                                  const llvm::Triple &T,
@@ -2169,6 +2218,9 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
 
   Opts.EmitVersionIdentMetadata = Args.hasFlag(OPT_Qy, OPT_Qn, true);
 
+  if (!LangOpts->CUDAIsDevice)
+    parsePointerAuthOptions(Opts.PointerAuth, *LangOpts, T, Diags);
+
   if (Args.hasArg(options::OPT_ffinite_loops))
     Opts.FiniteLoops = CodeGenOptions::FiniteLoopsKind::Always;
   else if (Args.hasArg(options::OPT_fno_finite_loops))
@@ -2422,6 +2474,9 @@ void CompilerInvocationBase::GenerateDiagnosticArgs(
   for (const auto &Warning : Opts.Warnings) {
     // This option is automatically generated from UndefPrefixes.
     if (Warning == "undef-prefix")
+      continue;
+    // This option is automatically generated from CheckConstexprFunctionBodies.
+    if (Warning == "invalid-constexpr" || Warning == "no-invalid-constexpr")
       continue;
     Consumer(StringRef("-W") + Warning);
   }
@@ -3374,6 +3429,8 @@ static void GeneratePointerAuthArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fptrauth_vtable_pointer_type_discrimination);
   if (Opts.PointerAuthInitFini)
     GenerateArg(Consumer, OPT_fptrauth_init_fini);
+  if (Opts.PointerAuthFunctionTypeDiscrimination)
+    GenerateArg(Consumer, OPT_fptrauth_function_pointer_type_discrimination);
 }
 
 static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
@@ -3387,6 +3444,8 @@ static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
   Opts.PointerAuthVTPtrTypeDiscrimination =
       Args.hasArg(OPT_fptrauth_vtable_pointer_type_discrimination);
   Opts.PointerAuthInitFini = Args.hasArg(OPT_fptrauth_init_fini);
+  Opts.PointerAuthFunctionTypeDiscrimination =
+      Args.hasArg(OPT_fptrauth_function_pointer_type_discrimination);
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -3776,9 +3835,6 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
 
   if (Opts.isSYCL()) {
     switch (Opts.SYCLVersion) {
-    case LangOptions::SYCL_2017:
-      GenerateArg(Consumer, OPT_sycl_std_EQ, "2017");
-      break;
     case LangOptions::SYCL_2020:
       GenerateArg(Consumer, OPT_sycl_std_EQ, "2020");
       break;
@@ -3984,8 +4040,6 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Opts.setSYCLVersion(
           llvm::StringSwitch<LangOptions::SYCLMajorVersion>(A->getValue())
               .Case("2020", LangOptions::SYCL_2020)
-              .Cases("2017", "121", "1.2.1", "sycl-1.2.1",
-                     LangOptions::SYCL_2017)
               .Default(LangOptions::SYCL_None));
 
       if (Opts.SYCLVersion == LangOptions::SYCL_None)
@@ -4671,6 +4725,9 @@ static void GeneratePreprocessorArgs(const PreprocessorOptions &Opts,
   if (Opts.DefineTargetOSMacros)
     GenerateArg(Consumer, OPT_fdefine_target_os_macros);
 
+  for (const auto &EmbedEntry : Opts.EmbedEntries)
+    GenerateArg(Consumer, OPT_embed_dir_EQ, EmbedEntry);
+
   // Don't handle LexEditorPlaceholders. It is implied by the action that is
   // generated elsewhere.
 }
@@ -4761,6 +4818,11 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     } else {
       Opts.SourceDateEpoch = V;
     }
+  }
+
+  for (const auto *A : Args.filtered(OPT_embed_dir_EQ)) {
+    StringRef Val = A->getValue();
+    Opts.EmbedEntries.push_back(std::string(Val));
   }
 
   // Always avoid lexing editor placeholders when we're just running the

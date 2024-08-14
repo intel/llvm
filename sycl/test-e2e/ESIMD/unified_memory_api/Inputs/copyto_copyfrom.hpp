@@ -205,7 +205,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
              Vals = gather<T, N>(LocalAcc, ByteOffsets, PropertiesT{});
          } else {
            if (GlobalID % GroupSize)
-             Vals.template copy_from(LocalAcc, LocalElemOffset);
+             Vals.copy_from(LocalAcc, LocalElemOffset);
            else
              Vals = gather<T, N>(LocalAcc, ByteOffsets);
          }

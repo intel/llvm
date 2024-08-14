@@ -45,14 +45,6 @@
 #include <sycl/sycl_span.hpp>                       // for dynamic_e...
 #include <sycl/usm.hpp>                             // for malloc_de...
 
-// reduction::withAuxHandler calls handler::~handler() and that, in turn, needs
-// all the dtors from std::unique_pointer handler's data members, including the
-// host_task-related stuff. That's not the case for <sycl/detail/core.hpp>
-// because handler object is only ctor/dtor'ed inside SYCL shared library but
-// not in the current translation unit. It would be nice to find a better way
-// than this include in future.
-#include <sycl/detail/host_task_impl.hpp>
-
 #include <algorithm>   // for min
 #include <array>       // for array
 #include <assert.h>    // for assert
@@ -1178,8 +1170,9 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
-  AuxHandler.depends_on(E);
+  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
+  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
+    AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
@@ -1277,7 +1270,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           for (size_t E = 0; E < NElements; ++E) {
             *getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
-          Reducer.template atomic_combine(&Out[0]);
+          Reducer.atomic_combine(&Out[0]);
         }
       });
     });

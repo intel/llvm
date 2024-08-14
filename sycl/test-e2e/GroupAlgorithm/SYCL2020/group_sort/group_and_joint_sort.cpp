@@ -1,8 +1,6 @@
 // REQUIRES: sg-8
-// RUN: %{build} -fsycl-device-code-split=per_kernel -DVERSION=1 -o %t1.out
-// RUN: %{run} %t1.out
-// RUN: %{build} -fsycl-device-code-split=per_kernel -DVERSION=2 -o %t2.out
-// RUN: %{run} %t2.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 // UNSUPPORTED: accelerator
 
 // The test verifies sort API extension.
@@ -40,31 +38,6 @@
 #include <random>
 #include <vector>
 
-#if VERSION == 1
-template <class CompT, class T> struct RadixSorterType;
-
-template <class T> struct RadixSorterType<std::greater<T>, T> {
-  using Type =
-      oneapi_exp::radix_sorter<T, oneapi_exp::sorting_order::descending>;
-};
-
-template <class T> struct RadixSorterType<std::less<T>, T> {
-  using Type =
-      oneapi_exp::radix_sorter<T, oneapi_exp::sorting_order::ascending>;
-};
-
-// Dummy overloads for CustomType which is not supported by radix sorter
-template <> struct RadixSorterType<std::less<CustomType>, CustomType> {
-  using Type =
-      oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::ascending>;
-};
-
-template <> struct RadixSorterType<std::greater<CustomType>, CustomType> {
-  using Type =
-      oneapi_exp::radix_sorter<int, oneapi_exp::sorting_order::descending>;
-};
-#endif
-
 template <UseGroupT UseGroup, int Dims, class T, class Compare>
 void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
                   const Compare &Comp) {
@@ -76,40 +49,24 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 
   constexpr size_t NumSubGroups = WGSize / ReqSubGroupSize;
 
-#if VERSION == 1
-  using RadixSorterT = typename RadixSorterType<Compare, T>::Type;
-#else
   using RadixSorterT = oneapi_exp::radix_sorters::joint_sorter<
       typename ConvertToSimpleType<T>::Type,
       ConvertToSortingOrder<Compare>::Type>;
-#endif
 
   std::size_t LocalMemorySizeDefault = 0;
   std::size_t LocalMemorySizeRadix = 0;
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
-#if VERSION == 1
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::sub_group, ReqSubGroupSize * ElemsPerWI);
-#else
     LocalMemorySizeDefault = oneapi_exp::default_sorters::joint_sorter<
         Compare>::template memory_required<T>(sycl::memory_scope::sub_group,
                                               ReqSubGroupSize * ElemsPerWI);
-#endif
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, ReqSubGroupSize * ElemsPerWI);
   } else {
     // A single chunk of memory for each work-group
-#if VERSION == 1
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::work_group, WGSize * ElemsPerWI);
-#else
     LocalMemorySizeDefault = oneapi_exp::default_sorters::joint_sorter<
         Compare>::template memory_required<T>(sycl::memory_scope::work_group,
                                               WGSize * ElemsPerWI);
-#endif
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, WGSize * ElemsPerWI);
   }
@@ -203,13 +160,8 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 
              oneapi_exp::joint_sort(
                  Group, &AccToSort2[StartIdx], &AccToSort2[EndIdx],
-#if VERSION == 1
-                 oneapi_exp::default_sorter<Compare>(sycl::span{
-                     &ScratchDefault[LocalPartID], LocalMemorySizeDefault}));
-#else
                  oneapi_exp::default_sorters::joint_sorter<Compare>(sycl::span{
                      &ScratchDefault[LocalPartID], LocalMemorySizeDefault}));
-#endif
 
              const size_t LocalPartIDRadix =
                  UseGroup == UseGroupT::SubGroup
@@ -280,42 +232,20 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
   std::size_t LocalMemorySizeRadix = 0;
   if (UseGroup == UseGroupT::SubGroup) {
     // Each sub-group needs a piece of memory for sorting
-#if VERSION == 1
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::sub_group, sycl::range<1>{ReqSubGroupSize});
-#else
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
         T, Compare, 1>::memory_required(sycl::memory_scope::sub_group,
                                         ReqSubGroupSize);
-#endif
 
-#if VERSION == 1
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
-        sycl::memory_scope::sub_group, sycl::range<1>{ReqSubGroupSize});
-#else
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::sub_group, ReqSubGroupSize);
-#endif
   } else {
     // A single chunk of memory for each work-group
-#if VERSION == 1
-    LocalMemorySizeDefault =
-        oneapi_exp::default_sorter<Compare>::template memory_required<T>(
-            sycl::memory_scope::work_group, sycl::range<1>{NumOfElements});
-#else
     LocalMemorySizeDefault = oneapi_exp::default_sorters::group_sorter<
         T, Compare, 1>::memory_required(sycl::memory_scope::work_group,
                                         NumOfElements);
-#endif
 
-#if VERSION == 1
-    LocalMemorySizeRadix = RadixSorterT::template memory_required(
-        sycl::memory_scope::work_group, sycl::range<1>{NumOfElements});
-#else
     LocalMemorySizeRadix = RadixSorterT::memory_required(
         sycl::memory_scope::work_group, NumOfElements);
-#endif
   }
 
   std::vector<T> DataToSortCase0 = DataToSort;
@@ -388,13 +318,8 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
              AccToSort2[GlobalLinearID] = oneapi_exp::sort_over_group(
                  Group, AccToSort2[GlobalLinearID],
-#if VERSION == 1
-                 oneapi_exp::default_sorter<Compare>(
-                     sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}));
-#else
                  oneapi_exp::default_sorters::group_sorter<T, Compare, 1>(
                      sycl::span{ScratchPtrDefault, LocalMemorySizeDefault}));
-#endif
 
              // Each sub-group should use it's own part of the scratch pad
              const size_t ScratchShiftRadix =

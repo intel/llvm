@@ -27,10 +27,12 @@
 #include "clang/Sema/Initialization.h"
 #include "clang/Sema/Lookup.h"
 #include "clang/Sema/ScopeInfo.h"
+#include "clang/Sema/SemaAMDGPU.h"
 #include "clang/Sema/SemaCUDA.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
+#include "clang/Sema/SemaSwift.h"
 #include "clang/Sema/Template.h"
 #include "clang/Sema/TemplateInstCallback.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -564,7 +566,7 @@ static void instantiateDependentAMDGPUFlatWorkGroupSizeAttr(
     return;
   Expr *MaxExpr = Result.getAs<Expr>();
 
-  S.addAMDGPUFlatWorkGroupSizeAttr(New, Attr, MinExpr, MaxExpr);
+  S.AMDGPU().addAMDGPUFlatWorkGroupSizeAttr(New, Attr, MinExpr, MaxExpr);
 }
 
 ExplicitSpecifier Sema::instantiateExplicitSpecifier(
@@ -608,7 +610,7 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
     MaxExpr = Result.getAs<Expr>();
   }
 
-  S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
+  S.AMDGPU().addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
 static void instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
@@ -631,7 +633,7 @@ static void instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
   Expr *YExpr = ResultY.getAs<Expr>();
   Expr *ZExpr = ResultZ.getAs<Expr>();
 
-  S.addAMDGPUMaxNumWorkGroupsAttr(New, Attr, XExpr, YExpr, ZExpr);
+  S.AMDGPU().addAMDGPUMaxNumWorkGroupsAttr(New, Attr, XExpr, YExpr, ZExpr);
 }
 
 static void instantiateSYCLIntelForcePow2DepthAttr(
@@ -1309,14 +1311,15 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
     }
 
     if (const auto *ABIAttr = dyn_cast<ParameterABIAttr>(TmplAttr)) {
-      AddParameterABIAttr(New, *ABIAttr, ABIAttr->getABI());
+      Swift().AddParameterABIAttr(New, *ABIAttr, ABIAttr->getABI());
       continue;
     }
 
     if (isa<NSConsumedAttr>(TmplAttr) || isa<OSConsumedAttr>(TmplAttr) ||
         isa<CFConsumedAttr>(TmplAttr)) {
-      AddXConsumedAttr(New, *TmplAttr, attrToRetainOwnershipKind(TmplAttr),
-                       /*template instantiation=*/true);
+      ObjC().AddXConsumedAttr(New, *TmplAttr,
+                              attrToRetainOwnershipKind(TmplAttr),
+                              /*template instantiation=*/true);
       continue;
     }
 
@@ -1360,12 +1363,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
   }
 }
 
-/// Update instantiation attributes after template was late parsed.
-///
-/// Some attributes are evaluated based on the body of template. If it is
-/// late parsed, such attributes cannot be evaluated when declaration is
-/// instantiated. This function is used to update instantiation attributes when
-/// template definition is ready.
 void Sema::updateAttrsForLateParsedTemplate(const Decl *Pattern, Decl *Inst) {
   for (const auto *Attr : Pattern->attrs()) {
     if (auto *A = dyn_cast<StrictFPAttr>(Attr)) {
@@ -1376,10 +1373,6 @@ void Sema::updateAttrsForLateParsedTemplate(const Decl *Pattern, Decl *Inst) {
   }
 }
 
-/// In the MS ABI, we need to instantiate default arguments of dllexported
-/// default constructors along with the constructor definition. This allows IR
-/// gen to emit a constructor closure which calls the default constructor with
-/// its default arguments.
 void Sema::InstantiateDefaultCtorDefaultArgs(CXXConstructorDecl *Ctor) {
   assert(Context.getTargetInfo().getCXXABI().isMicrosoft() &&
          Ctor->isDefaultConstructor());
@@ -1573,8 +1566,8 @@ Decl *TemplateDeclInstantiator::VisitTypeAliasDecl(TypeAliasDecl *D) {
   return Typedef;
 }
 
-Decl *
-TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
+Decl *TemplateDeclInstantiator::InstantiateTypeAliasTemplateDecl(
+    TypeAliasTemplateDecl *D) {
   // Create a local instantiation scope for this type alias template, which
   // will contain the instantiations of the template parameters.
   LocalInstantiationScope Scope(SemaRef);
@@ -1620,7 +1613,14 @@ TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   if (!PrevAliasTemplate)
     Inst->setInstantiatedFromMemberTemplate(D);
 
-  Owner->addDecl(Inst);
+  return Inst;
+}
+
+Decl *
+TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
+  Decl *Inst = InstantiateTypeAliasTemplateDecl(D);
+  if (Inst)
+    Owner->addDecl(Inst);
 
   return Inst;
 }
@@ -3938,6 +3938,10 @@ Decl *TemplateDeclInstantiator::VisitUsingEnumDecl(UsingEnumDecl *D) {
 
   TypeSourceInfo *TSI = SemaRef.SubstType(D->getEnumType(), TemplateArgs,
                                           D->getLocation(), D->getDeclName());
+
+  if (!TSI)
+    return nullptr;
+
   UsingEnumDecl *NewUD =
       UsingEnumDecl::Create(SemaRef.Context, Owner, D->getUsingLoc(),
                             D->getEnumLoc(), D->getLocation(), TSI);
@@ -5063,8 +5067,6 @@ TemplateDeclInstantiator::SubstFunctionType(FunctionDecl *D,
   return NewTInfo;
 }
 
-/// Introduce the instantiated local variables into the local
-/// instantiation scope.
 void Sema::addInstantiatedLocalVarsToScope(FunctionDecl *Function,
                                            const FunctionDecl *PatternDecl,
                                            LocalInstantiationScope &Scope) {
@@ -5093,9 +5095,6 @@ void Sema::addInstantiatedLocalVarsToScope(FunctionDecl *Function,
   }
 }
 
-/// Introduce the instantiated function parameters into the local
-/// instantiation scope, and set the parameter names to those used
-/// in the template.
 bool Sema::addInstantiatedParametersToScope(
     FunctionDecl *Function, const FunctionDecl *PatternDecl,
     LocalInstantiationScope &Scope,
@@ -5233,6 +5232,12 @@ void Sema::InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
     UpdateExceptionSpec(Decl, EST_None);
     return;
   }
+
+  // The noexcept specification could reference any lambda captures. Ensure
+  // those are added to the LocalInstantiationScope.
+  LambdaScopeForCallOperatorInstantiationRAII PushLambdaCaptures(
+      *this, Decl, TemplateArgs, Scope,
+      /*ShouldAddDeclsFromParentScope=*/false);
 
   SubstExceptionSpec(Decl, Template->getType()->castAs<FunctionProtoType>(),
                      TemplateArgs);
@@ -5373,11 +5378,6 @@ bool TemplateDeclInstantiator::SubstDefaultedFunction(FunctionDecl *New,
   return false;
 }
 
-/// Instantiate (or find existing instantiation of) a function template with a
-/// given set of template arguments.
-///
-/// Usually this should not be used, and template argument deduction should be
-/// used in its place.
 FunctionDecl *Sema::InstantiateFunctionDeclaration(
     FunctionTemplateDecl *FTD, const TemplateArgumentList *Args,
     SourceLocation Loc, CodeSynthesisContext::SynthesisKind CSC) {
@@ -5395,23 +5395,6 @@ FunctionDecl *Sema::InstantiateFunctionDeclaration(
   return cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
 }
 
-/// Instantiate the definition of the given function from its
-/// template.
-///
-/// \param PointOfInstantiation the point at which the instantiation was
-/// required. Note that this is not precisely a "point of instantiation"
-/// for the function, but it's close.
-///
-/// \param Function the already-instantiated declaration of a
-/// function template specialization or member function of a class template
-/// specialization.
-///
-/// \param Recursive if true, recursively instantiates any functions that
-/// are required by this instantiation.
-///
-/// \param DefinitionRequired if true, then we are performing an explicit
-/// instantiation where the body of the function is required. Complain if
-/// there is no such body.
 void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
                                          FunctionDecl *Function,
                                          bool Recursive,
@@ -5794,8 +5777,6 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   return VD;
 }
 
-/// Instantiates a variable template specialization by completing it
-/// with appropriate type information and initializer.
 VarTemplateSpecializationDecl *Sema::CompleteVarTemplateSpecializationDecl(
     VarTemplateSpecializationDecl *VarSpec, VarDecl *PatternDecl,
     const MultiLevelTemplateArgumentList &TemplateArgs) {
@@ -5824,9 +5805,6 @@ VarTemplateSpecializationDecl *Sema::CompleteVarTemplateSpecializationDecl(
   return VarSpec;
 }
 
-/// BuildVariableInstantiation - Used after a new variable has been created.
-/// Sets basic variable data and decides whether to postpone the
-/// variable instantiation.
 void Sema::BuildVariableInstantiation(
     VarDecl *NewVar, VarDecl *OldVar,
     const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -5957,7 +5935,6 @@ void Sema::BuildVariableInstantiation(
     DiagnoseUnusedDecl(NewVar);
 }
 
-/// Instantiate the initializer of a variable.
 void Sema::InstantiateVariableInitializer(
     VarDecl *Var, VarDecl *OldVar,
     const MultiLevelTemplateArgumentList &TemplateArgs) {
@@ -6027,21 +6004,6 @@ void Sema::InstantiateVariableInitializer(
     CUDA().checkAllowedInitializer(Var);
 }
 
-/// Instantiate the definition of the given variable from its
-/// template.
-///
-/// \param PointOfInstantiation the point at which the instantiation was
-/// required. Note that this is not precisely a "point of instantiation"
-/// for the variable, but it's close.
-///
-/// \param Var the already-instantiated declaration of a templated variable.
-///
-/// \param Recursive if true, recursively instantiates any functions that
-/// are required by this instantiation.
-///
-/// \param DefinitionRequired if true, then we are performing an explicit
-/// instantiation where a definition of the variable is required. Complain
-/// if there is no such definition.
 void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
                                          VarDecl *Var, bool Recursive,
                                       bool DefinitionRequired, bool AtEndOfTU) {
@@ -6616,10 +6578,6 @@ static NamedDecl *findInstantiationOf(ASTContext &Ctx,
   return nullptr;
 }
 
-/// Finds the instantiation of the given declaration context
-/// within the current instantiation.
-///
-/// \returns NULL if there was an error
 DeclContext *Sema::FindInstantiatedContext(SourceLocation Loc, DeclContext* DC,
                           const MultiLevelTemplateArgumentList &TemplateArgs) {
   if (NamedDecl *D = dyn_cast<NamedDecl>(DC)) {
@@ -6642,32 +6600,6 @@ static bool isDependentContextAtLevel(DeclContext *DC, unsigned Level) {
   return cast<Decl>(DC)->getTemplateDepth() > Level;
 }
 
-/// Find the instantiation of the given declaration within the
-/// current instantiation.
-///
-/// This routine is intended to be used when \p D is a declaration
-/// referenced from within a template, that needs to mapped into the
-/// corresponding declaration within an instantiation. For example,
-/// given:
-///
-/// \code
-/// template<typename T>
-/// struct X {
-///   enum Kind {
-///     KnownValue = sizeof(T)
-///   };
-///
-///   bool getKind() const { return KnownValue; }
-/// };
-///
-/// template struct X<int>;
-/// \endcode
-///
-/// In the instantiation of X<int>::getKind(), we need to map the \p
-/// EnumConstantDecl for \p KnownValue (which refers to
-/// X<T>::<Kind>::KnownValue) to its instantiation (X<int>::<Kind>::KnownValue).
-/// \p FindInstantiatedDecl performs this mapping from within the instantiation
-/// of X<int>.
 NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
                           const MultiLevelTemplateArgumentList &TemplateArgs,
                           bool FindingInstantiatedContext) {
@@ -6981,8 +6913,6 @@ static void processFunctionInstantiation(Sema &S,
   FD->setInstantiationIsPending(false);
 }
 
-/// Performs template instantiation for all implicit template
-/// instantiations we have seen until this point.
 void Sema::PerformPendingInstantiations(bool LocalOnly) {
   std::unique_ptr<MangleContext> MangleCtx(
       getASTContext().createMangleContext());

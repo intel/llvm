@@ -10,10 +10,6 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   check<class KernelName_oMg, sycl::half>(Queue);
   std::cout << "Test passed." << std::endl;
   return 0;

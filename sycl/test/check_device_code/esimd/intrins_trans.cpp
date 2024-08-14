@@ -1,9 +1,9 @@
 // RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
 // RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -S %t -o %t.table
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation with opaque pointers.
@@ -335,20 +335,18 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   }
   __esimd_fence(fence_mask::global_coherent_fence);
   // CHECK: call void @llvm.genx.fence(i8 1)
-  __esimd_fence(fence_mask::l3_flush_instructions);
+  __esimd_fence(fence_mask::l2_flush_instructions);
   // CHECK: call void @llvm.genx.fence(i8 2)
-  __esimd_fence(fence_mask::l3_flush_texture_data);
+  __esimd_fence(fence_mask::l2_flush_texture_data);
   // CHECK: call void @llvm.genx.fence(i8 4)
-  __esimd_fence(fence_mask::l3_flush_constant_data);
+  __esimd_fence(fence_mask::l2_flush_constant_data);
   // CHECK: call void @llvm.genx.fence(i8 8)
-  __esimd_fence(fence_mask::l3_flush_rw_data);
+  __esimd_fence(fence_mask::l2_flush_rw_data);
   // CHECK: call void @llvm.genx.fence(i8 16)
   __esimd_fence(fence_mask::local_barrier);
   // CHECK: call void @llvm.genx.fence(i8 32)
   __esimd_fence(fence_mask::l1_flush_ro_data);
   // CHECK: call void @llvm.genx.fence(i8 64)
-  __esimd_fence(fence_mask::sw_barrier);
-  // CHECK: call void @llvm.genx.fence(i8 -128)
 
   return d;
 }

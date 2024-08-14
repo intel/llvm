@@ -128,6 +128,7 @@
 #include "llvm/Transforms/Utils/AssumeBundleBuilder.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/CountVisits.h"
+#include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
@@ -1092,6 +1093,7 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
     MPM.addPass(CoroEarlyPass());
 
     FunctionPassManager EarlyFPM;
+    EarlyFPM.addPass(EntryExitInstrumenterPass(/*PostInlining=*/false));
     // Lower llvm.expect to metadata before attempting transforms.
     // Compare/branch metadata may alter the behavior of passes like
     // SimplifyCFG.
@@ -1551,16 +1553,17 @@ PassBuilder::buildModuleOptimizationPipeline(OptimizationLevel Level,
   if (EnableIROutliner)
     MPM.addPass(IROutlinerPass());
 
-  // Merge functions if requested.
-  if (PTO.MergeFunctions)
-    MPM.addPass(MergeFunctionsPass());
-
   // Now we need to do some global optimization transforms.
   // FIXME: It would seem like these should come first in the optimization
   // pipeline and maybe be the bottom of the canonicalization pipeline? Weird
   // ordering here.
   MPM.addPass(GlobalDCEPass());
   MPM.addPass(ConstantMergePass());
+
+  // Merge functions if requested. It has a better chance to merge functions
+  // after ConstantMerge folded jump tables.
+  if (PTO.MergeFunctions)
+    MPM.addPass(MergeFunctionsPass());
 
   if (PTO.CallGraphProfile && !LTOPreLink)
     MPM.addPass(CGProfilePass(LTOPhase == ThinOrFullLTOPhase::FullLTOPostLink ||
@@ -2093,6 +2096,10 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
         /*RunProfileGen=*/(PGOOpt->Action == PGOOptions::IRInstr),
         /*IsCS=*/false, PGOOpt->AtomicCounterUpdate, PGOOpt->ProfileFile,
         PGOOpt->ProfileRemappingFile, PGOOpt->FS);
+
+  // Instrument function entry and exit before all inlining.
+  MPM.addPass(createModuleToFunctionPassAdaptor(
+      EntryExitInstrumenterPass(/*PostInlining=*/false)));
 
   invokePipelineStartEPCallbacks(MPM, Level);
 

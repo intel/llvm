@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
@@ -66,7 +66,7 @@ ESIMD_NOINLINE bool test(queue Q, int PrivateArrayLen) {
            for (int I = 0; I < ArrayLen; I++) {
              simd<int, 1> IV(static_cast<int>(Id) * PrivateArrayLen + I);
              simd<T, 1> TV = IV;
-             TV.template copy_to(PrivateArray + I);
+             TV.copy_to(PrivateArray + I);
            }
 
            simd<T, PrivateArrayLenConst> BigVec(PrivateArray);

@@ -3,6 +3,7 @@
 
 // UNSUPPORTED: cuda || hip
 
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <cstdlib>
