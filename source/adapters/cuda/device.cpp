@@ -540,19 +540,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(size_t(1000));
   }
   case UR_DEVICE_INFO_ENDIAN_LITTLE: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_LINKER_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
     auto Capability = ur_device_exec_capability_flags_t{
@@ -642,7 +642,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(size_t(1024));
   }
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_PARENT_DEVICE: {
     return ReturnValue(nullptr);
@@ -834,20 +834,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     // On CUDA bindless images are supported.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On CUDA bindless images can be backed by shared (managed) USM.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
     // On CUDA 1D bindless image USM is supported, but sampling is not.
     // More specifically, linear filtering is not supported.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
     // On CUDA 2D bindless image USM is supported.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
     int32_t tex_pitch_align = 0;
@@ -879,11 +879,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
     // CUDA supports mipmaps.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
     // CUDA supports anisotropic filtering.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
     // CUDA has no query for this, but documentation states max value is 16.
@@ -891,68 +891,68 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
     // CUDA supports creation of images from individual mipmap levels.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
 
   case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external memory.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external semaphores.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
     // CUDA supports cubemaps.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
     // CUDA supports cubemap seamless filtering.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
     // CUDA does support fetching 1D USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
     // CUDA does not support fetching 1D non-USM sampled image data.
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
     // CUDA does support fetching 2D USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
     // CUDA does support fetching 2D non-USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
     // CUDA does support fetching 3D non-USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
     // CUDA does support image arrays
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
     // CUDA does support unique addressing per dimension
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
     // CUDA does not support sampling 1D USM sampled image data.
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   }
   case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
     // CUDA does support sampling 1D USM sampled image data.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     // CUDA supports recording timestamp events.
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // CUDA supports enqueueing native work through the urNativeEnqueueExp
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
@@ -1052,9 +1052,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(static_cast<uint32_t>(MaxRegisters));
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
@@ -1066,16 +1066,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
     // TODO: Investigate if this information is available on CUDA.
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(static_cast<ur_bool_t>(false));
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
@@ -1089,7 +1089,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
-    return ReturnValue(true);
+    return ReturnValue(static_cast<ur_bool_t>(true));
   case UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP: {
     int Value = getAttribute(hDevice,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
