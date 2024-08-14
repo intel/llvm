@@ -12,6 +12,7 @@
 
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/Debug.h"
 
 using namespace llvm;

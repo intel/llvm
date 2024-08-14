@@ -2,9 +2,6 @@
 // RUN: %{run} %t.out
 // REQUIRES: cuda, cuda_dev_kit
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
-
 #include <cuda.h>
 
 #include <iostream>

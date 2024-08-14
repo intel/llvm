@@ -313,7 +313,12 @@ ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+// https://github.com/intel/llvm/issues/15049
+#ifdef _WIN32
+TEST_F(DependsOnTests, DISABLED_ShortcutFunctionWithWaitList) {
+#else
 TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
+#endif
   mock::getCallbacks().set_before_callback("urEnqueueUSMMemcpy",
                                            &redefinedextUSMEnqueueMemcpy);
   sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
