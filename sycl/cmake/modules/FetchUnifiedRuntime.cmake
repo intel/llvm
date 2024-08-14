@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b0c64c8154a4b6ddf2442d944239e3d5e5ebda82
-  # Merge: 8a620c09 5b22193d
+  # commit d61cf6680c7f620bd5092e2bb22524106fbdef63
+  # Merge: b0c64c81 b0e451d9
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Aug 16 14:27:24 2024 +0100
-  #     Merge pull request #1983 from nrspruit/fix_coverity_l0_2
-  #     [L0] Fixed program info binary size query and fix program handle init
-  set(UNIFIED_RUNTIME_TAG b0c64c8154a4b6ddf2442d944239e3d5e5ebda82)
+  # Date:   Fri Aug 16 15:25:35 2024 +0100
+  #     Merge pull request #1985 from igchor/bump_umf_soversion
+  #     [Common] bump umf version to include SOVERSION fix
+  set(UNIFIED_RUNTIME_TAG d61cf6680c7f620bd5092e2bb22524106fbdef63)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
