@@ -85,8 +85,7 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   if (!IsOpenCL) {
     try {
       Q.submit([&](handler &CGH) {
-        CGH.parallel_for<
-            ReqdWGSizeNoLocalPositive<KernelVariant, false, I>>(
+        CGH.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, false, I>>(
             repeatRange<Dims>(16), Props, KernelFunc);
       });
       Q.wait_and_throw();
@@ -185,5 +184,5 @@ int main() {
 
   queue Q(AsyncHandler);
 
-  return  test_max<4>(Q);
+  return test_max<4>(Q);
 }

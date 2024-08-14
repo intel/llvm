@@ -376,8 +376,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     Attr.getValueAsString().split(AttrValStrs, ',');
 
     size_t NumDims = AttrValStrs.size();
-    assert(NumDims <= 3 &&
-           "Incorrect number of values for kernel property");
+    assert(NumDims <= 3 && "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
     std::reverse(AttrValStrs.begin(), AttrValStrs.end());
