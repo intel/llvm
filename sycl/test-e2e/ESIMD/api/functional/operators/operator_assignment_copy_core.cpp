@@ -43,7 +43,7 @@ int main(int, char **) {
 
   bool passed = true;
 
-  const auto types = get_tested_types<tested_types::all>();
+  const auto types = get_tested_types<tested_types::core>();
   const auto all_sizes = get_all_sizes();
 
   const auto context = unnamed_type_pack<copy_assignment>::generate();
