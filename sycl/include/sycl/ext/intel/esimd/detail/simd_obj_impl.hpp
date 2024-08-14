@@ -1154,7 +1154,7 @@ private:
                  PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
 protected:
-    void set(const raw_vector_type &Val) {
+  void set(const raw_vector_type &Val) {
 #ifndef __SYCL_DEVICE_ONLY__
     M_data = Val;
 #else
