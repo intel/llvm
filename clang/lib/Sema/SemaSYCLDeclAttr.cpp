@@ -1,4 +1,4 @@
-//===- SemaSYCLAttrDecl.cpp - Semantic Analysis for SYCL attributes -------===//
+//===- SemaSYCLDeclAttr.cpp - Semantic Analysis for SYCL attributes -------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
