@@ -116,7 +116,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "git@github.com:Naghasan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
   # commit f8336050f43a6529636fd6b2075dfe09961564f5
   # Merge: 6c98e0e8 b75f2bc2
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
