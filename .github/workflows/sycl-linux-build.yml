@@ -106,7 +106,7 @@ on:
 jobs:
   build:
     name: Build + LIT
-    runs-on: [Linux, build]
+    runs-on: ubuntu-latest
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
