@@ -1125,22 +1125,25 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::warn_drv_opt_requires_opt)
         << SYCLHostCompilerOptions->getSpelling().split('=').first
         << "-fsycl-host-compiler";
-  bool HasSYCLUseIntegrationHeaders = C.getInputArgs().hasArg(
-      options::OPT_fsycl_use_integration_headers);
-  bool HasNoSYCLUseIntegrationHeaders = C.getInputArgs().hasArg(
-      options::OPT_fno_sycl_use_integration_headers);
-  // -f[no-]sycl-use-integration-headers cannot be used without
-  // -fsycl or -fsycl-device-only
-  if ((HasSYCLUseIntegrationHeaders || HasNoSYCLUseIntegrationHeaders) &&
-      !HasValidSYCLRuntime)
-    Diag(clang::diag::err_drv_sycl_opt_requires_opt)
-        << "-f[no-]sycl-use-integration-headers";
-  // -fno-sycl-use-integration-headers cannot be used with
-  // -fsycl-host-compiler
-  if (SYCLHostCompiler && HasNoSYCLUseIntegrationHeaders)
-    Diag(clang::diag::err_drv_option_conflict)
-        << SYCLHostCompiler->getSpelling()
-        << "-fno-sycl-use-integration-headers";
+
+  Arg *SYCLUIHArg =
+     C.getInputArgs().getLastArg(options::OPT_fsycl_use_integration_headers,
+                                 options::OPT_fno_sycl_use_integration_headers);
+  if (SYCLUIHArg) {
+    // -f[no-]sycl-use-integration-headers cannot be used without
+    // -fsycl or -fsycl-device-only
+    if (!HasValidSYCLRuntime)
+      Diag(clang::diag::err_drv_sycl_opt_requires_opt)
+          << "-f[no-]sycl-use-integration-headers";
+    // -fno-sycl-use-integration-headers cannot be used with
+    // -fsycl-host-compiler
+    if (SYCLHostCompiler &&
+      SYCLUIHArg->getOption().matches(
+          options::OPT_fno_sycl_use_integration_headers))
+      Diag(clang::diag::err_drv_option_conflict)
+          << SYCLHostCompiler->getSpelling()
+          << "-fno-sycl-use-integration-headers";
+  }
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)

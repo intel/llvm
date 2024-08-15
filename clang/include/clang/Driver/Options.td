@@ -7034,13 +7034,13 @@ def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
   MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
-def fsycl_use_integration_headers : 
+def fsycl_use_integration_headers :
   Flag<["-"], "fsycl-use-integration-headers">, Flags<[HelpHidden]>,
   Group<sycl_Group>, Visibility<[ClangOption, CLOption, CC1Option]>,
   HelpText<"SYCL only. Specify that integration headers be used for "
            "communication between the host and the device compilations.">,
   MarshallingInfoFlag<LangOpts<"SYCLUseIntegrationHeaders">>;
-def fno_sycl_use_integration_headers : 
+def fno_sycl_use_integration_headers :
   Flag<["-"], "fno-sycl-use-integration-headers">, Flags<[HelpHidden]>,
   Group<sycl_Group>, Visibility<[ClangOption, CLOption, CC1Option]>,
   HelpText<"SYCL only. Specify that integration headers not be used for "
