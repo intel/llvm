@@ -6344,7 +6344,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ArrayRef<TemplateArgument> A = TAL->asArray();
       bool FirstParam = true;
       O << "<";
-      for (auto X : A) {
+      for (const auto &X : A) {
         if (FirstParam)
           FirstParam = false;
         else
