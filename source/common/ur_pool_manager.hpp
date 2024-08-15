@@ -223,11 +223,11 @@ template <typename D> struct pool_manager {
 
   public:
     static std::pair<ur_result_t, pool_manager>
-    create(desc_to_pool_map_t descToHandleMap = {}) {
+    create(desc_to_pool_map_t &&descToHandleMap = {}) {
         auto manager = pool_manager();
 
         for (auto &[desc, hPool] : descToHandleMap) {
-            auto ret = manager.addPool(desc, hPool);
+            auto ret = manager.addPool(desc, std::move(hPool));
             if (ret != UR_RESULT_SUCCESS) {
                 return {ret, pool_manager()};
             }
@@ -237,7 +237,7 @@ template <typename D> struct pool_manager {
     }
 
     ur_result_t addPool(const D &desc,
-                        umf::pool_unique_handle_t &hPool) noexcept {
+                        umf::pool_unique_handle_t &&hPool) noexcept {
         if (!descToPoolMap.try_emplace(desc, std::move(hPool)).second) {
             logger::error("Pool for pool descriptor: {}, already exists", desc);
             return UR_RESULT_ERROR_INVALID_ARGUMENT;
