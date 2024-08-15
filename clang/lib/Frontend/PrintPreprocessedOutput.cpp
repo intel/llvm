@@ -1028,7 +1028,6 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
         *Callbacks->OS << static_cast<unsigned>(*Iter);
         PrintComma = true;
       }
-      IsStartOfLine = true;
     } else if (Tok.isAnnotation()) {
       // Ignore annotation tokens created by pragmas - the pragmas themselves
       // will be reproduced in the preprocessed output.
