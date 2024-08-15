@@ -1323,6 +1323,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     return result;
 }
 
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelSetArgPointer
 __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
