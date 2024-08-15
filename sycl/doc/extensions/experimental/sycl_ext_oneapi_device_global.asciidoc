@@ -247,6 +247,11 @@ public:
   // Available if has_property<device_image_scope> is false
   constexpr device_global(const device_global &other);
 
+  // Available if has_property<device_image_scope> is false and OtherT is
+  //convertible to T
+  template <typename OtherT, typename OtherProps>
+  constexpr device_global(const device_global<OtherT, OtherProps> &other) {}
+
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
@@ -340,6 +345,22 @@ Constructs a `device_global` object, and implicit storage for `T` in the global 
 The storage on each device for `T` is initialized with a copy of the storage in `other`.
 
 `T` must be copy constructible and trivially destructible.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template <typename OtherT, typename OtherProps>
+constexpr device_global(const device_global<OtherT, OtherProps> &other) {}
+----
+|
+Available if `has_property<device_image_scope> == false`.
+
+Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
+
+The storage on each device for `T` is initialized with a storage in `other`.
+
+`OtherT` must be convertible to `T` and `T` must be trivially destructible.
 
 // --- ROW BREAK ---
 a|

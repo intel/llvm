@@ -49,6 +49,12 @@ struct HasArrowOperator<T,
                         std::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
+// Checks that T is a reference to either device_global or
+// device_global_base. This is used by the variadic ctor to allow copy ctors to
+// take preference.
+template <typename T>
+struct IsDeviceGlobalOrBaseRef : std::false_type {};
+
 // Base class for device_global.
 template <typename T, typename PropertyListT, typename = void>
 class device_global_base {
@@ -65,16 +71,31 @@ protected:
 
 public:
 #if __cpp_consteval
-  template <typename... Args>
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
   consteval explicit device_global_base(Args &&...args) : init_val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
 
 #ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(
+      const device_global_base<OtherT, OtherProps> &DGB)
+      : init_val{DGB.init_val} {}
   constexpr device_global_base(const device_global_base &DGB)
       : init_val{DGB.init_val} {}
 #else
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) {
+  }
   constexpr device_global_base(const device_global_base &) {}
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -109,12 +130,22 @@ protected:
 
 public:
 #if __cpp_consteval
-  template <typename... Args>
+  // The SFINAE is to allow the copy constructors to take priority.
+  template <
+      typename... Args,
+      std::enable_if_t<
+          sizeof...(Args) != 1 ||
+              (!IsDeviceGlobalOrBaseRef<std::remove_cv_t<Args>>::value && ...),
+          int> = 0>
   consteval explicit device_global_base(Args &&...args) : val{args...} {}
 #else
   device_global_base() = default;
 #endif // __cpp_consteval
 
+  template <typename OtherT, typename OtherProps,
+            typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
+  constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) =
+      delete;
   constexpr device_global_base(const device_global_base &) = delete;
 
   template <access::decorated IsDecorated>
@@ -133,6 +164,11 @@ public:
                               const T>(this->get_ptr());
   }
 };
+
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<const device_global_base<T, PropertyListT> &>
+    : std::true_type {};
+
 } // namespace detail
 
 template <typename T, typename PropertyListT = empty_properties_t>
@@ -254,6 +290,12 @@ public:
     return property_list_t::template get_property<propertyT>();
   }
 };
+
+namespace detail {
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
+    : std::true_type {};
+} // namespace detail
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
