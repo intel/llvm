@@ -34,8 +34,6 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ur_event_handle_t WaitEvent, ur_event_handle_t AllResetEvent,
       const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
-  ~ur_exp_command_buffer_handle_t_();
-
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          ur_event_handle_t Event);
 
@@ -64,6 +62,10 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
    * @return The chosen command list.
    */
   ze_command_list_handle_t chooseCommandList(bool PreferCopyEngine);
+
+  // Releases the resources associated with the command-buffer before the
+  // command-buffer object is destroyed.
+  void cleanupCommandBufferResources();
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;

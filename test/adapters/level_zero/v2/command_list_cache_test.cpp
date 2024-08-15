@@ -4,24 +4,26 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "command_list_cache.hpp"
-#include "common.hpp"
-
 #include "context.hpp"
-#include "device.hpp"
+
+#include "level_zero/common.hpp"
+#include "level_zero/device.hpp"
 
 #include "uur/fixtures.h"
+#include "uur/raii.h"
 
 #include <gtest/gtest.h>
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 struct CommandListCacheTest : public uur::urContextTest {};
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-    v2::command_list_cache_t cache(context->ZeContext);
+    v2::command_list_cache_t cache(context->hContext);
 
     bool IsInOrder = false;
     uint32_t Ordinal = 0;
@@ -30,35 +32,28 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
     ze_command_queue_priority_t Priority = ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
 
     static constexpr int numListsPerType = 3;
+    std::vector<v2::raii::cache_borrowed_command_list_t> regCmdListOwners;
+    std::vector<v2::raii::cache_borrowed_command_list_t> immCmdListOwners;
+
     std::unordered_set<ze_command_list_handle_t> regCmdLists;
     std::unordered_set<ze_command_list_handle_t> immCmdLists;
 
     // get command lists from the cache
     for (int i = 0; i < numListsPerType; ++i) {
-        auto [it, _] = regCmdLists.emplace(
-            cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal)
-                .release());
+        regCmdListOwners.emplace_back(
+            cache.getRegularCommandList(device->ZeDevice, IsInOrder, Ordinal));
+        auto [it, _] = regCmdLists.emplace(regCmdListOwners.back().get());
         ASSERT_TRUE(*it != nullptr);
 
-        std::tie(it, _) = immCmdLists.emplace(
-            cache
-                .getImmediateCommandList(device->ZeDevice, IsInOrder, Ordinal,
-                                         Mode, Priority)
-                .release());
+        immCmdListOwners.emplace_back(cache.getImmediateCommandList(
+            device->ZeDevice, IsInOrder, Ordinal, Mode, Priority));
+        std::tie(it, _) = immCmdLists.emplace(immCmdListOwners.back().get());
         ASSERT_TRUE(*it != nullptr);
     }
 
     // store them back into the cache
-    for (auto cmdList : regCmdLists) {
-        cache.addRegularCommandList(
-            v2::raii::ze_command_list_t(cmdList, &zeCommandListDestroy),
-            device->ZeDevice, IsInOrder, Ordinal);
-    }
-    for (auto cmdList : immCmdLists) {
-        cache.addImmediateCommandList(
-            v2::raii::ze_command_list_t(cmdList, &zeCommandListDestroy),
-            device->ZeDevice, IsInOrder, Ordinal, Mode, Priority);
-    }
+    regCmdListOwners.clear();
+    immCmdListOwners.clear();
 
     // verify we get back the same command lists
     for (int i = 0; i < numListsPerType; ++i) {
@@ -72,11 +67,15 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 
         ASSERT_EQ(regCmdLists.erase(regCmdList.get()), 1);
         ASSERT_EQ(immCmdLists.erase(immCmdList.get()), 1);
+
+        // release the command list manually so they are not added back to the cache
+        zeCommandListDestroy(regCmdList.release());
+        zeCommandListDestroy(immCmdList.release());
     }
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-    v2::command_list_cache_t cache(context->ZeContext);
+    v2::command_list_cache_t cache(context->hContext);
 
     uint32_t numQueueGroups = 0;
     ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,
@@ -131,11 +130,6 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
             } else {
                 ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
             }
-
-            // store the list back to the cache
-            cache.addImmediateCommandList(std::move(CommandList),
-                                          device->ZeDevice, IsInOrder, Ordinal,
-                                          Mode, Priority, Index);
         }
 
         // verify list creation without an index
@@ -166,4 +160,91 @@ TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
             ASSERT_EQ(Ret, ZE_RESULT_ERROR_UNSUPPORTED_FEATURE);
         }
     }
+}
+
+TEST_P(CommandListCacheTest, CommandListsAreReusedByQueues) {
+    static constexpr int NumQueuesPerType = 5;
+    size_t NumUniqueQueueTypes = 0;
+
+    for (int I = 0; I < NumQueuesPerType; I++) {
+        NumUniqueQueueTypes = 0;
+
+        { // Queues scope
+            std::vector<uur::raii::Queue> Queues;
+            for (auto Priority :
+                 std::vector<uint32_t>{UR_QUEUE_FLAG_PRIORITY_LOW,
+                                       UR_QUEUE_FLAG_PRIORITY_HIGH, 0}) {
+                for (auto Index :
+                     std::vector<std::optional<int32_t>>{std::nullopt, 0}) {
+                    NumUniqueQueueTypes++;
+
+                    ur_queue_properties_t QueueProps{
+                        UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+                    QueueProps.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+                    if (Priority) {
+                        QueueProps.flags |= Priority;
+                    }
+
+                    ur_queue_index_properties_t IndexProps{
+                        UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES, nullptr, 0};
+                    if (Index) {
+                        IndexProps.computeIndex = *Index;
+                        QueueProps.pNext = &IndexProps;
+                    }
+
+                    uur::raii::Queue Queue;
+                    ASSERT_EQ(urQueueCreate(context, device, &QueueProps,
+                                            Queue.ptr()),
+                              UR_RESULT_SUCCESS);
+
+                    Queues.emplace_back(Queue);
+                }
+            }
+
+            ASSERT_EQ(context->commandListCache.getNumImmediateCommandLists(),
+                      0);
+            ASSERT_EQ(context->commandListCache.getNumRegularCommandLists(), 0);
+        } // Queues scope
+
+        ASSERT_EQ(context->commandListCache.getNumImmediateCommandLists(),
+                  NumUniqueQueueTypes * 2); // * 2 for compute and copy
+        ASSERT_EQ(context->commandListCache.getNumRegularCommandLists(), 0);
+    }
+}
+
+TEST_P(CommandListCacheTest, CommandListsCacheIsThreadSafe) {
+    static constexpr int NumThreads = 10;
+    static constexpr int NumIters = 10;
+
+    std::vector<std::thread> Threads;
+    for (int I = 0; I < NumThreads; I++) {
+        Threads.emplace_back([I, this]() {
+            for (int J = 0; J < NumIters; J++) {
+                ur_queue_properties_t QueueProps{
+                    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+                QueueProps.flags |= UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+                if (I < NumThreads / 2) {
+                    QueueProps.flags |= UR_QUEUE_FLAG_PRIORITY_LOW;
+                } else {
+                    QueueProps.flags |= UR_QUEUE_FLAG_PRIORITY_HIGH;
+                }
+
+                uur::raii::Queue Queue;
+                ASSERT_EQ(
+                    urQueueCreate(context, device, &QueueProps, Queue.ptr()),
+                    UR_RESULT_SUCCESS);
+
+                ASSERT_LE(
+                    context->commandListCache.getNumImmediateCommandLists(),
+                    NumThreads * 2); // * 2 for compute and copy
+            }
+        });
+    }
+
+    for (auto &Thread : Threads) {
+        Thread.join();
+    }
+
+    ASSERT_LE(context->commandListCache.getNumImmediateCommandLists(),
+              NumThreads * 2);
 }

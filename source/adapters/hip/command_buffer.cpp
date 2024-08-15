@@ -76,12 +76,11 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-        std::shared_ptr<hipGraphNode_t> &&Node, hipKernelNodeParams Params,
-        uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
-        const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr)
-    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(std::move(Node)),
-      Params(Params), WorkDim(WorkDim), RefCountInternal(1),
-      RefCountExternal(1) {
+        hipGraphNode_t Node, hipKernelNodeParams Params, uint32_t WorkDim,
+        const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
+        const size_t *LocalWorkSizePtr)
+    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
+      WorkDim(WorkDim), RefCountInternal(1), RefCountExternal(1) {
   CommandBuffer->incrementInternalReferenceCount();
 
   const size_t CopySize = sizeof(size_t) * WorkDim;
@@ -125,7 +124,7 @@ static ur_result_t getNodesFromSyncPoints(
   for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
     if (auto NodeHandle = SyncPoints.find(SyncPointWaitList[i]);
         NodeHandle != SyncPoints.end()) {
-      HIPNodesList.push_back(*NodeHandle->second.get());
+      HIPNodesList.push_back(NodeHandle->second);
     } else {
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -139,29 +138,23 @@ static ur_result_t enqueueCommandBufferFillHelper(
     const hipMemoryType DstType, const void *Pattern, size_t PatternSize,
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
   std::vector<hipGraphNode_t> DepsList;
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
-                                   SyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                        SyncPointWaitList, DepsList));
 
   try {
+    // Graph node added to graph, if multiple nodes are created this will
+    // be set to the leaf node
+    hipGraphNode_t GraphNode;
+
     const size_t N = Size / PatternSize;
     auto DstPtr = DstType == hipMemoryTypeDevice
                       ? *static_cast<hipDeviceptr_t *>(DstDevice)
                       : DstDevice;
 
     if ((PatternSize == 1) || (PatternSize == 2) || (PatternSize == 4)) {
-      // Create a new node
-      hipGraphNode_t GraphNode;
       hipMemsetParams NodeParams = {};
       NodeParams.dst = DstPtr;
       NodeParams.elementSize = PatternSize;
@@ -192,10 +185,6 @@ static ur_result_t enqueueCommandBufferFillHelper(
                                            DepsList.data(), DepsList.size(),
                                            &NodeParams));
 
-      // Get sync point and register the node with it.
-      *SyncPoint = CommandBuffer->addSyncPoint(
-          std::make_shared<hipGraphNode_t>(GraphNode));
-
     } else {
       // HIP has no memset functions that allow setting values more than 4
       // bytes. UR API lets you pass an arbitrary "pattern" to the buffer
@@ -206,11 +195,6 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
       size_t NumberOfSteps = PatternSize / sizeof(uint8_t);
 
-      // Shared pointer that will point to the last node created
-      std::shared_ptr<hipGraphNode_t> GraphNodePtr;
-
-      // Create a new node
-      hipGraphNode_t GraphNodeFirst;
       // Update NodeParam
       hipMemsetParams NodeParamsStepFirst = {};
       NodeParamsStepFirst.dst = DstPtr;
@@ -220,16 +204,12 @@ static ur_result_t enqueueCommandBufferFillHelper(
       NodeParamsStepFirst.value = *(static_cast<const uint32_t *>(Pattern));
       NodeParamsStepFirst.width = 1;
 
-      UR_CHECK_ERROR(hipGraphAddMemsetNode(
-          &GraphNodeFirst, CommandBuffer->HIPGraph, DepsList.data(),
-          DepsList.size(), &NodeParamsStepFirst));
-
-      // Get sync point and register the node with it.
-      *SyncPoint = CommandBuffer->addSyncPoint(
-          std::make_shared<hipGraphNode_t>(GraphNodeFirst));
+      UR_CHECK_ERROR(hipGraphAddMemsetNode(&GraphNode, CommandBuffer->HIPGraph,
+                                           DepsList.data(), DepsList.size(),
+                                           &NodeParamsStepFirst));
 
       DepsList.clear();
-      DepsList.push_back(GraphNodeFirst);
+      DepsList.push_back(GraphNode);
 
       // we walk up the pattern in 1-byte steps, and add Memset node for each
       // 1-byte chunk of the pattern.
@@ -241,8 +221,6 @@ static ur_result_t enqueueCommandBufferFillHelper(
         auto OffsetPtr = reinterpret_cast<void *>(
             reinterpret_cast<uint8_t *>(DstPtr) + (Step * sizeof(uint8_t)));
 
-        // Create a new node
-        hipGraphNode_t GraphNode;
         // Update NodeParam
         hipMemsetParams NodeParamsStep = {};
         NodeParamsStep.dst = reinterpret_cast<void *>(OffsetPtr);
@@ -256,14 +234,17 @@ static ur_result_t enqueueCommandBufferFillHelper(
             &GraphNode, CommandBuffer->HIPGraph, DepsList.data(),
             DepsList.size(), &NodeParamsStep));
 
-        GraphNodePtr = std::make_shared<hipGraphNode_t>(GraphNode);
-        // Get sync point and register the node with it.
-        *SyncPoint = CommandBuffer->addSyncPoint(GraphNodePtr);
-
         DepsList.clear();
-        DepsList.push_back(*GraphNodePtr.get());
+        DepsList.push_back(GraphNode);
       }
     }
+
+    // Get sync point and register the node with it.
+    auto SyncPoint = CommandBuffer->addSyncPoint(GraphNode);
+    if (RetSyncPoint) {
+      *RetSyncPoint = SyncPoint;
+    }
+
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -346,14 +327,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   hipGraphNode_t GraphNode;
   std::vector<hipGraphNode_t> DepsList;
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                 pSyncPointWaitList, DepsList),
-          Result);
-
-  if (Result != UR_RESULT_SUCCESS) {
-    return Result;
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   if (*pGlobalWorkSize == 0) {
     try {
@@ -362,8 +337,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                           DepsList.data(), DepsList.size()));
 
       // Get sync point and register the node with it.
-      *pSyncPoint = hCommandBuffer->addSyncPoint(
-          std::make_shared<hipGraphNode_t>(GraphNode));
+      auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+      if (pSyncPoint) {
+        *pSyncPoint = SyncPoint;
+      }
     } catch (ur_result_t Err) {
       return Err;
     }
@@ -377,13 +354,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   uint32_t LocalSize = hKernel->getLocalSize();
   hipFunction_t HIPFunc = hKernel->get();
-  UR_CALL(setKernelParams(hCommandBuffer->Device, workDim, pGlobalWorkOffset,
-                          pGlobalWorkSize, pLocalWorkSize, hKernel, HIPFunc,
-                          ThreadsPerBlock, BlocksPerGrid),
-          Result);
-  if (Result != UR_RESULT_SUCCESS) {
-    return Result;
-  }
+  UR_CHECK_ERROR(setKernelParams(
+      hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+      pLocalWorkSize, hKernel, HIPFunc, ThreadsPerBlock, BlocksPerGrid));
 
   try {
     // Set node param structure with the kernel related data
@@ -409,14 +382,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       hKernel->clearLocalSize();
 
     // Get sync point and register the node with it.
-    auto NodeSP = std::make_shared<hipGraphNode_t>(GraphNode);
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
     if (pSyncPoint) {
-      *pSyncPoint = hCommandBuffer->addSyncPoint(NodeSP);
+      *pSyncPoint = SyncPoint;
     }
 
     auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
-        hCommandBuffer, hKernel,           std::move(NodeSP), NodeParams,
-        workDim,        pGlobalWorkOffset, pGlobalWorkSize,   pLocalWorkSize};
+        hCommandBuffer, hKernel,           GraphNode,       NodeParams,
+        workDim,        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize};
 
     NewCommand->incrementInternalReferenceCount();
     hCommandBuffer->CommandHandles.push_back(NewCommand);
@@ -442,25 +415,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
-    UR_CHECK_ERROR(hipGraphAddMemcpyNode1D(
-        &GraphNode, hCommandBuffer->HIPGraph, DepsList.data(), DepsList.size(),
-        pDst, pSrc, size, hipMemcpyHostToHost));
+    UR_CHECK_ERROR(hipGraphAddMemcpyNode1D(&GraphNode, hCommandBuffer->HIPGraph,
+                                           DepsList.data(), DepsList.size(),
+                                           pDst, pSrc, size, hipMemcpyDefault));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -483,16 +450,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
   UR_ASSERT(size + srcOffset <= std::get<BufferMem>(hSrcMem->Mem).getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto Src = std::get<BufferMem>(hSrcMem->Mem)
@@ -505,8 +464,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         Dst, Src, size, hipMemcpyDeviceToDevice));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -527,16 +488,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto SrcPtr =
@@ -554,8 +507,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
                                          &NodeParams));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -575,16 +530,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto Dst = std::get<BufferMem>(hBuffer->Mem)
@@ -595,8 +542,10 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         Dst, pSrc, size, hipMemcpyHostToDevice));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -615,16 +564,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto Src = std::get<BufferMem>(hBuffer->Mem)
@@ -635,8 +576,10 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         pDst, Src, size, hipMemcpyDeviceToHost));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -658,16 +601,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto DstPtr =
@@ -683,8 +618,10 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
                                          &NodeParams));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -706,16 +643,8 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     auto SrcPtr =
@@ -731,8 +660,10 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
                                          &NodeParams));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -753,16 +684,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     // Create an empty node if the kernel workload size is zero
@@ -770,13 +693,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
                                         DepsList.data(), DepsList.size()));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
-
-    setErrorMessage("Prefetch hint ignored and replaced with empty node as "
-                    "prefetch is not supported by HIP Graph backend",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -797,16 +717,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   UR_ASSERT(!(pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0),
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
-  {
-    ur_result_t Result = UR_RESULT_SUCCESS;
-    UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                   pSyncPointWaitList, DepsList),
-            Result);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-  }
+  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                        pSyncPointWaitList, DepsList));
 
   try {
     // Create an empty node if the kernel workload size is zero
@@ -814,13 +726,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
                                         DepsList.data(), DepsList.size()));
 
     // Get sync point and register the node with it.
-    *pSyncPoint = hCommandBuffer->addSyncPoint(
-        std::make_shared<hipGraphNode_t>(GraphNode));
-
-    setErrorMessage("Memory advice ignored and replaced with empty node as "
-                    "memory advice is not supported by HIP Graph backend",
-                    UR_RESULT_SUCCESS);
-    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = SyncPoint;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -878,8 +787,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     ScopedContext Active(hQueue->getDevice());
@@ -888,10 +795,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
 
-    if ((Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                                    phEventWaitList)) != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
       RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
@@ -908,10 +813,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
@@ -978,12 +883,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     uint32_t ArgIndex = PointerArgDesc.argIndex;
     const void *ArgValue = PointerArgDesc.pNewPointerArg;
 
-    ur_result_t Result = UR_RESULT_SUCCESS;
     try {
       Kernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
     } catch (ur_result_t Err) {
-      Result = Err;
-      return Result;
+      return Err;
     }
   }
 
@@ -996,7 +899,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     uint32_t ArgIndex = MemobjArgDesc.argIndex;
     ur_mem_handle_t ArgValue = MemobjArgDesc.hNewMemObjArg;
 
-    ur_result_t Result = UR_RESULT_SUCCESS;
     try {
       if (ArgValue == nullptr) {
         Kernel->setKernelArg(ArgIndex, 0, nullptr);
@@ -1005,8 +907,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         Kernel->setKernelArg(ArgIndex, sizeof(void *), (void *)&HIPPtr);
       }
     } catch (ur_result_t Err) {
-      Result = Err;
-      return Result;
+      return Err;
     }
   }
 
@@ -1020,13 +921,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     size_t ArgSize = ValueArgDesc.argSize;
     const void *ArgValue = ValueArgDesc.pNewValueArg;
 
-    ur_result_t Result = UR_RESULT_SUCCESS;
-
     try {
       Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
     } catch (ur_result_t Err) {
-      Result = Err;
-      return Result;
+      return Err;
     }
   }
 
@@ -1064,12 +962,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
   size_t BlocksPerGrid[3] = {1u, 1u, 1u};
   hipFunction_t HIPFunc = Kernel->get();
-  auto Result = setKernelParams(Device, WorkDim, GlobalWorkOffset,
-                                GlobalWorkSize, LocalWorkSize, Kernel, HIPFunc,
-                                ThreadsPerBlock, BlocksPerGrid);
-  if (Result != UR_RESULT_SUCCESS) {
-    return Result;
-  }
+  UR_CHECK_ERROR(setKernelParams(Device, WorkDim, GlobalWorkOffset,
+                                 GlobalWorkSize, LocalWorkSize, Kernel, HIPFunc,
+                                 ThreadsPerBlock, BlocksPerGrid));
 
   hipKernelNodeParams &Params = hCommand->Params;
 
@@ -1083,7 +978,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   Params.sharedMemBytes = Kernel->getLocalSize();
   Params.kernelParams = const_cast<void **>(Kernel->getArgIndices().data());
 
-  hipGraphNode_t Node = *(hCommand->Node);
+  hipGraphNode_t Node = hCommand->Node;
   hipGraphExec_t HipGraphExec = CommandBuffer->HIPGraphExec;
   UR_CHECK_ERROR(hipGraphExecKernelNodeSetParams(HipGraphExec, Node, &Params));
   return UR_RESULT_SUCCESS;

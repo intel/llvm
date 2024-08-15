@@ -17,13 +17,14 @@ namespace driver {
 context_t d_context;
 
 ur_result_t mock_urPlatformGetApiVersion(void *pParams) {
-    auto params = *static_cast<ur_platform_get_api_version_params_t *>(pParams);
+    const auto &params =
+        *static_cast<ur_platform_get_api_version_params_t *>(pParams);
     **params.ppVersion = d_context.version;
     return UR_RESULT_SUCCESS;
 }
 
 ur_result_t mock_urPlatformGetInfo(void *pParams) {
-    auto params = *static_cast<ur_platform_get_info_params_t *>(pParams);
+    const auto &params = *static_cast<ur_platform_get_info_params_t *>(pParams);
     if (!*params.phPlatform) {
         return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
     }
@@ -49,7 +50,7 @@ ur_result_t mock_urPlatformGetInfo(void *pParams) {
 
 //////////////////////////////////////////////////////////////////////////
 ur_result_t mock_urDeviceGetInfo(void *pParams) {
-    auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+    const auto &params = *static_cast<ur_device_get_info_params_t *>(pParams);
     switch (*params.ppropName) {
     case UR_DEVICE_INFO_TYPE:
         if (*params.ppPropValue != nullptr) {

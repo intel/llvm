@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
+#include "helpers/kernel_helpers.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
@@ -25,31 +26,6 @@ namespace {
 // of the vector class which might not return nullptr when the vector is empty.
 template <typename T> T *getPointerFromVector(std::vector<T> &V) {
   return V.size() == 0 ? nullptr : V.data();
-}
-
-/**
- * Checks the version of the level-zero driver.
- * @param[in] Context Execution context
- * @param[in] VersionMajor Major version number to compare to.
- * @param[in] VersionMinor Minor version number to compare to.
- * @param[in] VersionBuild Build version number to compare to.
- * @return true if the version of the driver is higher than or equal to the
- * compared version.
- */
-bool isDriverVersionNewerOrSimilar(ur_context_handle_t Context,
-                                   uint32_t VersionMajor, uint32_t VersionMinor,
-                                   uint32_t VersionBuild) {
-  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
-  ZE2UR_CALL(zeDriverGetProperties,
-             (Context->getPlatform()->ZeDriver, &ZeDriverProperties));
-  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
-  auto DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
-  auto DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
-  auto DriverVersionBuild = DriverVersion & 0x0000FFFF;
-
-  return ((DriverVersionMajor >= VersionMajor) &&
-          (DriverVersionMinor >= VersionMinor) &&
-          (DriverVersionBuild >= VersionBuild));
 }
 
 /**
@@ -99,130 +75,6 @@ preferCopyEngineForFill(ur_exp_command_buffer_handle_t CommandBuffer,
   PreferCopyEngine =
       PreferCopyEngine &&
       (UrRet ? std::stoi(UrRet) : (PiRet ? std::stoi(PiRet) : 0));
-
-  return UR_RESULT_SUCCESS;
-}
-
-/**
- * Calculates a work group size for the kernel based on the GlobalWorkSize or
- * the LocalWorkSize if provided.
- * @param[in][optional] Kernel The Kernel. Used when LocalWorkSize is not
- * provided.
- * @param[in][optional] Device The device associated with the kernel. Used when
- * LocalWorkSize is not provided.
- * @param[out] ZeThreadGroupDimensions Number of work groups in each dimension.
- * @param[out] WG The work group size for each dimension.
- * @param[in] WorkDim The number of dimensions in the kernel.
- * @param[in] GlobalWorkSize The global work size.
- * @param[in][optional] LocalWorkSize The local work size.
- * @return UR_RESULT_SUCCESS or an error code on failure.
- */
-ur_result_t calculateKernelWorkDimensions(
-    ur_kernel_handle_t Kernel, ur_device_handle_t Device,
-    ze_group_count_t &ZeThreadGroupDimensions, uint32_t (&WG)[3],
-    uint32_t WorkDim, const size_t *GlobalWorkSize,
-    const size_t *LocalWorkSize) {
-
-  UR_ASSERT(GlobalWorkSize, UR_RESULT_ERROR_INVALID_VALUE);
-  // If LocalWorkSize is not provided then Kernel must be provided to query
-  // suggested group size.
-  UR_ASSERT(LocalWorkSize || Kernel, UR_RESULT_ERROR_INVALID_VALUE);
-
-  // New variable needed because GlobalWorkSize parameter might not be of size
-  // 3
-  size_t GlobalWorkSize3D[3]{1, 1, 1};
-  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
-
-  if (LocalWorkSize) {
-    WG[0] = ur_cast<uint32_t>(LocalWorkSize[0]);
-    WG[1] = WorkDim >= 2 ? ur_cast<uint32_t>(LocalWorkSize[1]) : 1;
-    WG[2] = WorkDim == 3 ? ur_cast<uint32_t>(LocalWorkSize[2]) : 1;
-  } else {
-    // We can't call to zeKernelSuggestGroupSize if 64-bit GlobalWorkSize3D
-    // values do not fit to 32-bit that the API only supports currently.
-    bool SuggestGroupSize = true;
-    for (int I : {0, 1, 2}) {
-      if (GlobalWorkSize3D[I] > UINT32_MAX) {
-        SuggestGroupSize = false;
-      }
-    }
-    if (SuggestGroupSize) {
-      ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (Kernel->ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
-                  GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
-    } else {
-      for (int I : {0, 1, 2}) {
-        // Try to find a I-dimension WG size that the GlobalWorkSize3D[I] is
-        // fully divisable with. Start with the max possible size in
-        // each dimension.
-        uint32_t GroupSize[] = {
-            Device->ZeDeviceComputeProperties->maxGroupSizeX,
-            Device->ZeDeviceComputeProperties->maxGroupSizeY,
-            Device->ZeDeviceComputeProperties->maxGroupSizeZ};
-        GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
-        while (GlobalWorkSize3D[I] % GroupSize[I]) {
-          --GroupSize[I];
-        }
-        if (GlobalWorkSize[I] / GroupSize[I] > UINT32_MAX) {
-          logger::debug("calculateKernelWorkDimensions: can't find a WG size "
-                        "suitable for global work size > UINT32_MAX");
-          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-        }
-        WG[I] = GroupSize[I];
-      }
-      logger::debug("calculateKernelWorkDimensions: using computed WG "
-                    "size = {{{}, {}, {}}}",
-                    WG[0], WG[1], WG[2]);
-    }
-  }
-
-  // TODO: assert if sizes do not fit into 32-bit?
-  switch (WorkDim) {
-  case 3:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    ZeThreadGroupDimensions.groupCountZ =
-        ur_cast<uint32_t>(GlobalWorkSize3D[2] / WG[2]);
-    break;
-  case 2:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    ZeThreadGroupDimensions.groupCountY =
-        ur_cast<uint32_t>(GlobalWorkSize3D[1] / WG[1]);
-    WG[2] = 1;
-    break;
-  case 1:
-    ZeThreadGroupDimensions.groupCountX =
-        ur_cast<uint32_t>(GlobalWorkSize3D[0] / WG[0]);
-    WG[1] = WG[2] = 1;
-    break;
-
-  default:
-    logger::error("calculateKernelWorkDimensions: unsupported work_dim");
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Error handling for non-uniform group size case
-  if (GlobalWorkSize3D[0] !=
-      size_t(ZeThreadGroupDimensions.groupCountX) * WG[0]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 1st dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[1] !=
-      size_t(ZeThreadGroupDimensions.groupCountY) * WG[1]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 2nd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
-  if (GlobalWorkSize3D[2] !=
-      size_t(ZeThreadGroupDimensions.groupCountZ) * WG[2]) {
-    logger::error("calculateKernelWorkDimensions: invalid work_dim. The range "
-                  "is not a multiple of the group size in the 3rd dimension");
-    return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -449,9 +301,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
   urDeviceRetain(Device);
 }
 
-// The ur_exp_command_buffer_handle_t_ destructor releases all the memory
-// objects allocated for command_buffer management.
-ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
   // Release the memory allocated to the Context stored in the command_buffer
   urContextRelease(Context);
 
@@ -637,7 +487,8 @@ ur_result_t createMainCommandList(ur_context_handle_t Context,
 bool canBeInOrder(ur_context_handle_t Context,
                   const ur_exp_command_buffer_desc_t *CommandBufferDesc) {
   // In-order command-lists are not available in old driver version.
-  bool CompatibleDriver = isDriverVersionNewerOrSimilar(Context, 1, 3, 28454);
+  bool CompatibleDriver = Context->getPlatform()->isDriverVersionNewerOrSimilar(
+      1, 3, L0_DRIVER_INORDER_MIN_VERSION);
   return CompatibleDriver
              ? (CommandBufferDesc ? CommandBufferDesc->isInOrder : false)
              : false;
@@ -727,6 +578,7 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t CommandBuffer) {
   if (!CommandBuffer->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  CommandBuffer->cleanupCommandBufferResources();
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
 }
@@ -905,7 +757,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
   uint32_t WG[3];
-  UR_CALL(calculateKernelWorkDimensions(Kernel, CommandBuffer->Device,
+  UR_CALL(calculateKernelWorkDimensions(Kernel->ZeKernel, CommandBuffer->Device,
                                         ZeThreadGroupDimensions, WG, WorkDim,
                                         GlobalWorkSize, LocalWorkSize));
 
@@ -946,6 +798,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
   bool PreferCopyEngine = !IsDevicePointer(CommandBuffer->Context, Src) ||
                           !IsDevicePointer(CommandBuffer->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (CommandBuffer->Device->isDG2() &&
+      (IsSharedPointer(CommandBuffer->Context, Src) ||
+       IsSharedPointer(CommandBuffer->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
 
   return enqueueCommandBufferMemCopyHelper(
@@ -1318,13 +1177,14 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
  * @param[in] CommandBuffer The command buffer.
  * @param[in] Queue The UR queue used to submit the command buffer.
  * @param[in] SignalCommandList The command-list to append the barrier to.
- * @param[out] Event The host visible event which will be returned to the user.
+ * @param[out][optional] Event The host visible event which will be returned
+ * to the user, if user passed an output parameter to the UR API.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
                             ur_queue_handle_legacy_t Queue,
                             ur_command_list_ptr_t SignalCommandList,
-                            ur_event_handle_t &Event) {
+                            ur_event_handle_t *Event) {
   // Execution event for this enqueue of the UR command-buffer
   ur_event_handle_t RetEvent{};
 
@@ -1360,7 +1220,9 @@ ur_result_t createUserEvent(ur_exp_command_buffer_handle_t CommandBuffer,
                 &(CommandBuffer->SignalEvent->ZeEvent)));
   }
 
-  Event = RetEvent;
+  if (Event) {
+    *Event = RetEvent;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -1423,9 +1285,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (SignalCommandList->first, CommandBuffer->AllResetEvent->ZeEvent));
 
-  if (Event) {
-    UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, *Event));
-  }
+  // Appends a wait on the main command-list signal and registers output Event
+  // parameter with signal command-list completing.
+  UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, Event));
 
   UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
@@ -1602,8 +1464,8 @@ ur_result_t updateKernelCommand(
 
     uint32_t WG[3];
     UR_CALL(calculateKernelWorkDimensions(
-        Command->Kernel, CommandBuffer->Device, ZeThreadGroupDimensions, WG,
-        Dim, NewGlobalWorkSize, NewLocalWorkSize));
+        Command->Kernel->ZeKernel, CommandBuffer->Device,
+        ZeThreadGroupDimensions, WG, Dim, NewGlobalWorkSize, NewLocalWorkSize));
 
     auto MutableGroupCountDesc =
         std::make_unique<ZeStruct<ze_mutable_group_count_exp_desc_t>>();

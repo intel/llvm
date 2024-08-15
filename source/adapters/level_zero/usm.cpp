@@ -1,6 +1,6 @@
 //===--------- usm.cpp - Level Zero Adapter -------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -18,6 +18,7 @@
 
 #include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
+#include "ur_util.hpp"
 
 #include <umf_helpers.hpp>
 
@@ -310,8 +311,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Align > 65536 || (Align & (Align - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Align > 0) {
+    if (Align > 65536 || (Align & (Align - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Context->getPlatform();
   // If indirect access tracking is enabled then lock the mutex which is
@@ -380,8 +385,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -481,8 +490,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -766,6 +779,97 @@ umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
   return UMF_RESULT_SUCCESS;
 }
 
+typedef struct ze_ipc_data_t {
+  int pid;
+  ze_ipc_mem_handle_t zeHandle;
+} ze_ipc_data_t;
+
+umf_result_t L0MemoryProvider::get_ipc_handle_size(size_t *Size) {
+  UR_ASSERT(Size, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  *Size = sizeof(ze_ipc_data_t);
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
+                                              void *IpcData) {
+  std::ignore = Size;
+
+  UR_ASSERT(Ptr && IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+  auto Ret = ZE_CALL_NOCHECK(zeMemGetIpcHandle,
+                             (Context->ZeContext, Ptr, &zeIpcData->zeHandle));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  zeIpcData->pid = ur_getpid();
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
+  UR_ASSERT(IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+  std::ignore = zeIpcData;
+
+  // zeMemPutIpcHandle was introduced in Level Zero 1.6. Before Level Zero 1.6,
+  // IPC handle was released automatically when corresponding memory buffer
+  // was freed.
+#if (ZE_API_VERSION_CURRENT >= ZE_MAKE_VERSION(1, 6))
+  auto Ret = ZE_CALL_NOCHECK(zeMemPutIpcHandle,
+                             (Context->ZeContext, zeIpcData->zeHandle));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+#endif
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
+  UR_ASSERT(IpcData && Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+
+  int fdLocal = -1;
+  if (zeIpcData->pid != ur_getpid()) {
+    int fdRemote = -1;
+    memcpy(&fdRemote, &zeIpcData->zeHandle, sizeof(fdRemote));
+    fdLocal = ur_duplicate_fd(zeIpcData->pid, fdRemote);
+    if (fdLocal == -1) {
+      logger::error("duplicating file descriptor from IPC handle failed");
+      return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+    }
+
+    memcpy(&zeIpcData->zeHandle, &fdLocal, sizeof(fdLocal));
+  }
+
+  auto Ret =
+      ZE_CALL_NOCHECK(zeMemOpenIpcHandle, (Context->ZeContext, Device->ZeDevice,
+                                           zeIpcData->zeHandle, 0, Ptr));
+  if (fdLocal != -1) {
+    ur_close_fd(fdLocal);
+  }
+
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t Size) {
+  std::ignore = Size;
+
+  UR_ASSERT(Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  auto Ret = ZE_CALL_NOCHECK(zeMemCloseIpcHandle, (Context->ZeContext, Ptr));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
 ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
@@ -827,7 +931,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   HostMemPool =
       umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+          umfDisjointPoolOps(), std::move(MemProvider),
           &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
@@ -838,7 +942,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Device])
                             .second));
@@ -849,7 +953,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
@@ -861,7 +965,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(
             umf::poolMakeUniqueFromOps(
-                &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                umfDisjointPoolOps(), std::move(MemProvider),
                 &this->DisjointPoolConfigs
                      .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));
