@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b0c64c8154a4b6ddf2442d944239e3d5e5ebda82
-  # Merge: 8a620c09 5b22193d
+  # commit cabf128094eff9ff7b79bdff559640a8a111f0c3
+  # Merge: a96fcbc5 15bca3b6
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Aug 16 14:27:24 2024 +0100
-  #     Merge pull request #1983 from nrspruit/fix_coverity_l0_2
-  #     [L0] Fixed program info binary size query and fix program handle init
-  set(UNIFIED_RUNTIME_TAG b0c64c8154a4b6ddf2442d944239e3d5e5ebda82)
+  # Date:   Mon Aug 19 16:20:45 2024 +0100
+  #     Merge pull request #1984 from rafbiels/rafbiels/cuda-stream-race-cond
+  #     Fix race condition in CUDA stream creation
+  set(UNIFIED_RUNTIME_TAG cabf128094eff9ff7b79bdff559640a8a111f0c3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
