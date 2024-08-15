@@ -116,14 +116,9 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0342c95cbe1dae72e874821698b3726dbe3db284
-  # Merge: d7e0fad5 a4c6e912
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Aug 15 17:50:02 2024 +0100
-  #     Merge pull request #1953 from aarongreig/aaron/changeDeviceCreateWithNativeParam
-  #     Change urDeviceCreateWithNativeHandle to take an adapter handle.
-  set(UNIFIED_RUNTIME_TAG 0342c95cbe1dae72e874821698b3726dbe3db284)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # ~
+  set(UNIFIED_RUNTIME_TAG 61d8d082de2a1d5343549ddf130df7cf8ec871e4)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
