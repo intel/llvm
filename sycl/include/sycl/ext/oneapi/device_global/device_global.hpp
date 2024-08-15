@@ -68,6 +68,19 @@ protected:
   pointer_t get_ptr() noexcept { return usmptr; }
   pointer_t get_ptr() const noexcept { return usmptr; }
 
+  template <typename, typename, typename> friend class device_global_base;
+
+#ifndef __SYCL_DEVICE_ONLY__
+  template <typename OtherT, typename OtherProps>
+  static constexpr const T &
+  ExtractInitialVal(const device_global_base<OtherT, OtherProps> &Other) {
+    if constexpr (OtherProps::template has_property<device_image_scope_key>())
+      return Other.val;
+    else
+      return Other.init_val;
+  }
+#endif // __SYCL_DEVICE_ONLY__
+
 public:
 #if __cpp_consteval
   // The SFINAE is to allow the copy constructors to take priority.
@@ -87,7 +100,7 @@ public:
             typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
   constexpr device_global_base(
       const device_global_base<OtherT, OtherProps> &DGB)
-      : init_val{DGB.init_val} {}
+      : init_val{ExtractInitialVal(DGB)} {}
   constexpr device_global_base(const device_global_base &DGB)
       : init_val{DGB.init_val} {}
 #else
@@ -126,6 +139,8 @@ protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
   const T *get_ptr() const noexcept { return &val; }
+
+  template <typename, typename, typename> friend class device_global_base;
 
 public:
 #if __cpp_consteval
