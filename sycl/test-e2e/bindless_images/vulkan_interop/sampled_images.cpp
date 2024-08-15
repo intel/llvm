@@ -7,6 +7,10 @@
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
 
+#ifdef _WIN32
+#define NOMINMAX
+#endif
+
 #include "../helpers/common.hpp"
 #include "vulkan_common.hpp"
 
