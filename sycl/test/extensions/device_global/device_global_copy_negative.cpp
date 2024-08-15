@@ -26,5 +26,4 @@ oneapiext::device_global<float, device_image_properties> DGCopy3{DGInit3};
 oneapiext::device_global<const int> DGInit4{3};
 oneapiext::device_global<const int, device_image_properties> DGCopy4{DGInit4};
 
-
 int main() { return 0; }

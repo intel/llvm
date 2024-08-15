@@ -52,8 +52,7 @@ struct HasArrowOperator<T,
 // Checks that T is a reference to either device_global or
 // device_global_base. This is used by the variadic ctor to allow copy ctors to
 // take preference.
-template <typename T>
-struct IsDeviceGlobalOrBaseRef : std::false_type {};
+template <typename T> struct IsDeviceGlobalOrBaseRef : std::false_type {};
 
 // Base class for device_global.
 template <typename T, typename PropertyListT, typename = void>
