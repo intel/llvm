@@ -29,9 +29,9 @@ oneapiext::device_global<const int, decltype(oneapiext::properties{oneapiext::ho
 int main() {
   sycl::queue Q;
 
-  int ReadVals[2] = {0, 0};
+  int ReadVals[10] = {0, 0};
   {
-    sycl::buffer<int, 10> ReadValsBuff{ReadVals, 2};
+    sycl::buffer<int, 1> ReadValsBuff{ReadVals, 10};
 
     Q.submit([&](sycl::handler &CGH) {
        sycl::accessor ReadValsAcc{ReadValsBuff, CGH, sycl::write_only};
