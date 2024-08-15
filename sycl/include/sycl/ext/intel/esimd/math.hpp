@@ -1855,16 +1855,16 @@ __ESIMD_API uint64_t rdtsc() {
 /// @tparam T type of the vectors.
 /// @tparam N size of the vectors.
 /// @param src vector containing an input.
-/// @param minVal vector containing minimum values.
-/// @param maxVal vector containing maximum values.
+/// @param min_val vector containing minimum values.
+/// @param max_val vector containing maximum values.
 /// @return vector containing clamped input values between minimum and maximum.
 template <typename T, int N>
 __ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src,
-                                         __ESIMD_NS::simd<T, N> minVal,
-                                         __ESIMD_NS::simd<T, N> maxVal) {
+                                         __ESIMD_NS::simd<T, N> min_val,
+                                         __ESIMD_NS::simd<T, N> max_val) {
   __ESIMD_NS::simd<T, N> Result = src;
-  Result.merge(minVal, src < minVal);
-  Result.merge(maxVal, src > maxVal);
+  Result.merge(min_val, src < min_val);
+  Result.merge(max_val, src > max_val);
   return Result;
 }
 
@@ -1873,14 +1873,14 @@ __ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src,
 /// @tparam T type of the vectors.
 /// @tparam N size of the vectors.
 /// @param src vector containing an input.
-/// @param minVal minimum value.
-/// @param maxVal maximum values.
+/// @param min_val minimum value.
+/// @param max_val maximum values.
 /// @return vector containing clamped input values between minimum and maximum.
 template <typename T, int N>
-__ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src, T minVal,
-                                         T maxVal) {
-  __ESIMD_NS::simd<T, N> MinVal = minVal;
-  __ESIMD_NS::simd<T, N> MaxVal = maxVal;
+__ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src, T min_val,
+                                         T max_val) {
+  __ESIMD_NS::simd<T, N> MinVal = min_val;
+  __ESIMD_NS::simd<T, N> MaxVal = max_val;
   return clamp(src, MinVal, MaxVal);
 }
 
