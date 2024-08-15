@@ -2,9 +2,9 @@
 // if and only if caching is disabled.
 
 // RUN: %{build} -o %t.out
-// RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=1 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
+// RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
 // RUN: | FileCheck %s
-// RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=1 %{run} %t.out \
+// RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
 
 // TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768

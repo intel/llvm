@@ -3,9 +3,9 @@
 // REQUIRES: cpu
 //
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out separate equally | FileCheck %s --check-prefix CHECK-SEPARATE
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out separate equally | FileCheck %s --check-prefix CHECK-SEPARATE
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 
 #include <iostream>
 #include <string>
