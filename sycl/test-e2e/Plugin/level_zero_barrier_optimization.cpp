@@ -55,7 +55,7 @@ int main() {
 
     // CHECK: Test2
     // CHECK: ---> urEnqueueEventsWaitWithBarrier
-    // CHECK: ZE ---> {{zeEventCreate|zeEventHostReset}}
+    // CHECK-OPT: ZE ---> {{zeEventCreate|zeEventHostReset}}
     // CHECK: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
     // CHECK: ) -> UR_RESULT_SUCCESS
