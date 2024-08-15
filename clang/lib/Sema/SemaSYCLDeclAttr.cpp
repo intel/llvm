@@ -132,7 +132,7 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
   }
 
   // Diagnose SYCL 2020 spellings in later SYCL modes.
-  if (getLangOpts().getSYCLVersion() > LangOptions::SYCL_2020) {
+  if (getLangOpts().getSYCLVersion() >= LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
     // name in the sycl namespace as of SYCL 2020.
     if (A.hasScope() && A.getScopeName()->isStr("cl")) {
