@@ -11,8 +11,12 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "asan_options.hpp"
+#include "stacktrace.hpp"
 #include "ur_sanitizer_layer.hpp"
 #include "ur_sanitizer_utils.hpp"
+
+#include <memory>
 
 namespace ur_sanitizer_layer {
 
@@ -26,6 +30,17 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
         auto hDevice = phDevices[i];
         std::shared_ptr<DeviceInfo> DI;
         UR_CALL(getContext()->interceptor->insertDevice(hDevice, DI));
+        DI->Type = GetDeviceType(Context, hDevice);
+        if (DI->Type == DeviceType::UNKNOWN) {
+            getContext()->logger.error("Unsupport device");
+            return UR_RESULT_ERROR_INVALID_DEVICE;
+        }
+        getContext()->logger.info(
+            "DeviceInfo {} (Type={}, IsSupportSharedSystemUSM={})",
+            (void *)DI->Handle, ToString(DI->Type),
+            DI->IsSupportSharedSystemUSM);
+        getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
+                                  (void *)Context);
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
@@ -335,6 +350,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
         hNativeContext, ///< [in][nocheck] the native handle of the getContext()->
+    ur_adapter_handle_t hAdapter,
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -352,8 +368,9 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 
     getContext()->logger.debug("==== urContextCreateWithNativeHandle");
 
-    ur_result_t result = pfnCreateWithNativeHandle(
-        hNativeContext, numDevices, phDevices, pProperties, phContext);
+    ur_result_t result =
+        pfnCreateWithNativeHandle(hNativeContext, hAdapter, numDevices,
+                                  phDevices, pProperties, phContext);
 
     if (result == UR_RESULT_SUCCESS) {
         UR_CALL(setupContext(*phContext, numDevices, phDevices));
@@ -1275,6 +1292,39 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSetArgPointer
+__urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t argIndex, ///< [in] argument index in range [0, num args - 1]
+    const ur_kernel_arg_pointer_properties_t
+        *pProperties, ///< [in][optional] pointer to USM pointer properties.
+    const void *
+        pArgValue ///< [in][optional] Pointer obtained by USM allocation or virtual memory
+    ///< mapping operation. If null then argument value is considered null.
+) {
+    auto pfnSetArgPointer = getContext()->urDdiTable.Kernel.pfnSetArgPointer;
+
+    if (nullptr == pfnSetArgPointer) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug(
+        "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
+        pArgValue);
+
+    if (Options(getContext()->logger).DetectKernelArguments) {
+        auto KI = getContext()->interceptor->getKernelInfo(hKernel);
+        std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
+        KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
+    }
+
+    ur_result_t result =
+        pfnSetArgPointer(hKernel, argIndex, pProperties, pArgValue);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
 ///
@@ -1370,6 +1420,7 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
     pDdiTable->pfnSetArgValue = ur_sanitizer_layer::urKernelSetArgValue;
     pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
     pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgPointer = ur_sanitizer_layer::urKernelSetArgPointer;
 
     return result;
 }
@@ -1520,19 +1571,20 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     ur_result_t result = UR_RESULT_SUCCESS;
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {
-        getContext()->enabledType = SanitizerType::AddressSanitizer;
+        enabledType = SanitizerType::AddressSanitizer;
+        interceptor = std::make_unique<SanitizerInterceptor>(logger);
     } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
-        getContext()->enabledType = SanitizerType::MemorySanitizer;
+        enabledType = SanitizerType::MemorySanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
-        getContext()->enabledType = SanitizerType::ThreadSanitizer;
+        enabledType = SanitizerType::ThreadSanitizer;
     }
 
     // Only support AddressSanitizer now
-    if (getContext()->enabledType != SanitizerType::AddressSanitizer) {
+    if (enabledType != SanitizerType::AddressSanitizer) {
         return result;
     }
 
-    if (getContext()->enabledType == SanitizerType::AddressSanitizer) {
+    if (enabledType == SanitizerType::AddressSanitizer) {
         if (!(dditable->VirtualMem.pfnReserve && dditable->VirtualMem.pfnMap &&
               dditable->VirtualMem.pfnGranularityGetInfo)) {
             die("Some VirtualMem APIs are needed to enable UR_LAYER_ASAN");

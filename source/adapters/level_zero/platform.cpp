@@ -266,6 +266,67 @@ ur_result_t ur_platform_handle_t_::initialize() {
   return UR_RESULT_SUCCESS;
 }
 
+/// Checks the version of the level-zero driver.
+/// @param VersionMajor Major verion number to compare to.
+/// @param VersionMinor Minor verion number to compare to.
+/// @param VersionBuild Build verion number to compare to.
+/// @return true is the version of the driver is higher than or equal to the
+/// compared version
+bool ur_platform_handle_t_::isDriverVersionNewerOrSimilar(
+    uint32_t VersionMajor, uint32_t VersionMinor, uint32_t VersionBuild) {
+  uint32_t DriverVersionMajor = 0;
+  uint32_t DriverVersionMinor = 0;
+  uint32_t DriverVersionBuild = 0;
+  if (!ZeDriverVersionString.Supported) {
+    ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+    ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+    uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+    DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
+    DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
+    DriverVersionBuild = DriverVersion & 0x0000FFFF;
+  } else {
+    std::string ZeDriverVersion;
+    size_t sizeOfDriverString = 0;
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 nullptr, &sizeOfDriverString);
+    ZeDriverVersion.resize(sizeOfDriverString);
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 ZeDriverVersion.data(),
+                                                 &sizeOfDriverString);
+
+    // Intel driver version string is in the format:
+    // Major.Minor.Build+Hotfix where hotfix is optional.
+    std::stringstream VersionString(ZeDriverVersion);
+
+    std::string VersionValue;
+    std::vector<std::string> VersionValues;
+    char VersionDelim = '.';
+    char HotfixDelim = '+';
+
+    while (getline(VersionString, VersionValue, VersionDelim)) {
+      VersionValues.push_back(VersionValue);
+    }
+    // If the extension exists, but the string value comes by empty or
+    // malformed, assume this is a developer driver.
+    if (VersionValues.size() >= 3) {
+      DriverVersionMajor = atoi(VersionValues[0].c_str());
+      DriverVersionMinor = atoi(VersionValues[1].c_str());
+      std::stringstream HotfixString(VersionValues[2]);
+      std::vector<std::string> BuildHotfixVersionValues;
+      // Check to see if there is a hotfix value and strip it off.
+      while (getline(HotfixString, VersionValue, HotfixDelim)) {
+        BuildHotfixVersionValues.push_back(VersionValue);
+      }
+      DriverVersionBuild = atoi(BuildHotfixVersionValues[0].c_str());
+    } else {
+      return true;
+    }
+  }
+  return std::make_tuple(DriverVersionMajor, DriverVersionMinor,
+                         DriverVersionBuild) >=
+         std::make_tuple(VersionMajor, VersionMinor, VersionBuild);
+}
+
 // Get the cached PI device created for the L0 device handle.
 // Return NULL if no such PI device found.
 ur_device_handle_t
@@ -433,7 +494,22 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   DeviceCachePopulated = true;
+
+  size_t id = 0;
+  for (auto &dev : URDevicesCache) {
+    dev->Id = id++;
+  }
+
   return UR_RESULT_SUCCESS;
+}
+
+ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
+  for (auto &dev : URDevicesCache) {
+    if (dev->Id == id) {
+      return dev.get();
+    }
+  }
+  return nullptr;
 }
 
 // Returns plugin specific backend option.

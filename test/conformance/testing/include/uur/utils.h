@@ -202,8 +202,8 @@ inline std::string GetDeviceName(ur_device_handle_t device) {
         device_id =
             std::find(devices.begin(), devices.end(), device) - devices.begin();
     }
-    return GTestSanitizeString(device_name + "_" + std::to_string(device_id) +
-                               "_" + device_uuid);
+    return GTestSanitizeString(device_name + "_ID" + std::to_string(device_id) +
+                               "ID_" + device_uuid);
 }
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {
