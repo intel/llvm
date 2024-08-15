@@ -69,11 +69,7 @@ def do_configure(args):
         sycl_enabled_backends.append("level_zero")
 
     # lld is needed on Windows or for the HIP plugin on AMD
-    # For shared library builds, a preinstalled lld is used
-    # at runtime.
-    if platform.system() == "Windows" or (
-        args.hip and args.hip_platform == "AMD" and not args.shared_libs
-    ):
+    if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
         llvm_enable_projects += ";lld"
 
     libclc_enabled = args.cuda or args.hip or args.native_cpu
