@@ -109,8 +109,9 @@ struct ur_context_handle_t_ : RefCounted {
     return UR_RESULT_SUCCESS;
   }
 
-  const native_cpu::usm_alloc_info &
-  get_alloc_info_entry(const void *ptr) const {
+  // Note this is made non-const to access the mutex
+  const native_cpu::usm_alloc_info &get_alloc_info_entry(const void *ptr) {
+    std::lock_guard<std::mutex> lock(alloc_mutex);
     auto it = allocations.find(ptr);
     if (it == allocations.end()) {
       return native_cpu::usm_alloc_info_null_entry;
