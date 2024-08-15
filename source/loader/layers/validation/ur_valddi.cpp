@@ -719,7 +719,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -733,7 +734,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     if (getContext()->enableParameterValidation) {
-        if (NULL == hPlatform) {
+        if (NULL == hAdapter) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -742,7 +743,12 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+        getContext()->refCountContext->logInvalidReference(hAdapter);
+    }
+
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hAdapter,
                                                    pProperties, phDevice);
 
     if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
