@@ -31,6 +31,14 @@
 // SYCL_POS_NEG-NOT: "-fsycl-use-integration-headers"
 // SYCL_POS_NEG-NOT: "-D__INTEL_SYCL_USE_INTEGRATION_HEADERS"
 
+// This test tests that neither -fsycl-use-integration-headers nor
+// -fno-sycl-use-integration-headers is passed to the cc1 invocation
+// when -fsycl or -fsycl-is-device is specified.
+// RUN: %clang -### -c %s 2>&1 | FileCheck %s -check-prefix=NO_SYCL_OPT
+// NO_SYCL_OPT-NOT: "-fsycl-use-integration-headers"
+// NO_SYCL_OPT-NOT: "-fno-sycl-use-integration-headers"
+// NO_SYCL_OPT-NOT: "-D__INTEL_SYCL_USE_INTEGRATION_HEADERS"
+
 // The next three tests check that we detect errors when:
 //   1.  either option is used without -fsycl or -fsycl-device-only
 //   2.  -fno-sycl-use-integration-headers is used with -fsycl-host-compiler=
