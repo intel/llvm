@@ -11,7 +11,6 @@
 #include "sycl/handler.hpp"
 #include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
-#include <detail/cg.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
