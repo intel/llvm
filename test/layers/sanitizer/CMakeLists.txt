@@ -34,18 +34,4 @@ function(add_sanitizer_test name)
     set_sanitizer_test_properties(${name})
 endfunction()
 
-function(add_sanitizer_match_test name)
-    add_sanitizer_test_executable(${name} ${ARGN})
-
-    add_test(NAME ${name}
-        COMMAND ${CMAKE_COMMAND}
-        -D MODE=stdout
-        -D TEST_FILE=$<TARGET_FILE:${SAN_TEST_PREFIX}-${name}>
-        -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}.out.match
-        -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-
-    set_sanitizer_test_properties(${name})
-endfunction()
-
 add_sanitizer_test(asan asan.cpp)

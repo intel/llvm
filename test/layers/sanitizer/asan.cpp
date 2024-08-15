@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 #include <ur_api.h>
 
-TEST(DeviceASan, Initialization) {
+TEST(DeviceAsan, Initialization) {
     ur_result_t status;
 
     ur_loader_config_handle_t loaderConfig;
