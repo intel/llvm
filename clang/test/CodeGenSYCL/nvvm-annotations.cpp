@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -target-cpu sm_70 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,GRIDCONST
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -target-cpu sm_70 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,GRIDCONST
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fno-sycl-decompose-functor -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -target-cpu sm_70 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,GRIDCONST
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fno-sycl-decompose-functor -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -target-cpu sm_70 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,GRIDCONST
 
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -target-cpu sm_60 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,NOGRIDCONST
-// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -target-cpu sm_60 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,NOGRIDCONST
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fno-sycl-decompose-functor -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -target-cpu sm_60 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,NOGRIDCONST
+// RUN: %clang_cc1 -fno-sycl-force-inline-kernel-lambda -fno-sycl-decompose-functor -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -target-cpu sm_60 -disable-llvm-passes -sycl-std=2020 -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,NOGRIDCONST
 
 // Tests that certain SYCL kernel parameters are annotated with "grid_constant" for supported microarchitectures.
 
@@ -18,7 +18,7 @@ int main() {
   } s;
 
   q.submit([&](handler &h) {
-    // CHECK: define{{.*}} void @[[FUNC1:.*kernel_grid_const_params]](ptr noundef byval(%struct.S) align 4 %_arg_s)
+    // CHECK: define{{.*}} void @[[FUNC1:.*kernel_grid_const_params]](ptr noundef byval(%class.anon) align 4 %_arg__sycl_functor)
     h.single_task<class kernel_grid_const_params>([=]() { (void) s;});
   });
 

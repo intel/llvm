@@ -1,5 +1,5 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=return-type -o %t.out
 //
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
@@ -72,10 +72,10 @@ struct DevDescT {
   std::string platVer;
 };
 
-static void addEscapeSymbolToSpecialCharacters(std::string &str) {
+static void addEscapeSymbolToSpecialCharacters(std::string &str, size_t start_pos=0) {
   std::vector<std::string> specialCharacters{"(", ")", "[", "]", ".", "+", "-"};
   for (const auto &character : specialCharacters) {
-    size_t pos = 0;
+    size_t pos = start_pos;
     while ((pos = str.find(character, pos)) != std::string::npos) {
       std::string modifiedCharacter("\\" + character);
       str.replace(pos, character.size(), modifiedCharacter);
@@ -225,6 +225,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = dev->get_info<info::device::driver_version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -257,6 +258,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -292,6 +294,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver("98.76.54321");
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -333,6 +336,7 @@ int main(int argc, char *argv[]) {
           assert(false);
         }
       }();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver << "}}"
          << std::endl;
       return 0;
@@ -388,6 +392,7 @@ int main(int argc, char *argv[]) {
               pos++;
               ver.replace(pos, ver.length(), "*");
             }
+            addEscapeSymbolToSpecialCharacters(ver, pos+1);
 
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                       << "}}" << std::endl;
@@ -476,6 +481,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             if (count > 0) {
               std::cout << "|";
@@ -529,7 +535,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -555,7 +561,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -572,6 +578,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                       << ver << "}}" << std::endl;
@@ -588,7 +595,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -605,6 +612,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                 << ver << "}}" << std::endl;
       return 0;
@@ -616,7 +624,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;

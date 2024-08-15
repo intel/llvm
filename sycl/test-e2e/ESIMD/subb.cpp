@@ -93,7 +93,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
            }
 
          } // end for BI
-       }   // end for AI
+       } // end for AI
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';

@@ -14,7 +14,6 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/CXXInheritance.h"
-#include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
@@ -26,7 +25,6 @@
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/DarwinSDKInfo.h"
-#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/HLSLRuntime.h"
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/LangOptions.h"
@@ -68,13 +66,10 @@
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Assumptions.h"
 #include "llvm/MC/MCSectionMachO.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
-#include <cassert>
 #include <optional>
 
 using namespace clang;
@@ -156,8 +151,8 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Diagnose SYCL 2017 spellings in later SYCL modes.
-  if (LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+  // Diagnose SYCL 2020 spellings in later SYCL modes.
+  if (LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
     // name in the sycl namespace as of SYCL 2020.
     if (A.hasScope() && A.getScopeName()->isStr("cl")) {
@@ -181,14 +176,6 @@ void Sema::CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
           << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
       return;
     }
-  }
-
-  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
-  // extension.
-  if (LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && A.hasScope() &&
-      A.getScopeName()->isStr("sycl")) {
-    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
-    return;
   }
 }
 
@@ -238,9 +225,6 @@ static bool checkFunctionOrMethodParameterIndex(
   return true;
 }
 
-/// Check if the argument \p E is a ASCII string literal. If not emit an error
-/// and return false, otherwise set \p Str to the value of the string literal
-/// and return true.
 bool Sema::checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
                                           const Expr *E, StringRef &Str,
                                           SourceLocation *ArgLocation) {
@@ -258,10 +242,6 @@ bool Sema::checkStringLiteralArgumentAttr(const AttributeCommonInfo &CI,
   return true;
 }
 
-/// Check if the argument \p ArgNum of \p Attr is a ASCII string literal.
-/// If not emit an error and return false. If the argument is an identifier it
-/// will emit an error with a fixit hint and treat it as if it was a string
-/// literal.
 bool Sema::checkStringLiteralArgumentAttr(const ParsedAttr &AL, unsigned ArgNum,
                                           StringRef &Str,
                                           SourceLocation *ArgLocation) {
@@ -292,6 +272,13 @@ bool Sema::checkStringLiteralArgumentAttr(const ParsedAttr &AL, unsigned ArgNum,
   Str = Literal->getString();
   return checkStringLiteralArgumentAttr(AL, ArgExpr, Str, ArgLocation);
 }
+
+/// Check if the passed-in expression is of type int or bool.
+static bool isIntOrBool(Expr *Exp) {
+  QualType QT = Exp->getType();
+  return QT->isBooleanType() || QT->isIntegerType();
+}
+
 
 // Check to see if the type is a smart pointer of some kind.  We assume
 // it's a smart pointer if it defines both operator-> and operator*.
@@ -728,30 +715,14 @@ static bool checkTryLockFunAttrCommon(Sema &S, Decl *D, const ParsedAttr &AL,
   if (!AL.checkAtLeastNumArgs(S, 1))
     return false;
 
-  // The attribute's first argument defines the success value.
-  const Expr *SuccessArg = AL.getArgAsExpr(0);
-  if (!isa<CXXNullPtrLiteralExpr>(SuccessArg) &&
-      !isa<GNUNullExpr>(SuccessArg) && !isa<CXXBoolLiteralExpr>(SuccessArg) &&
-      !isa<IntegerLiteral>(SuccessArg) && !SuccessArg->getEnumConstantDecl()) {
+  if (!isIntOrBool(AL.getArgAsExpr(0))) {
     S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
-        << AL << 1 << AANT_ArgumentNullptrOrBoolIntOrEnumLiteral;
+        << AL << 1 << AANT_ArgumentIntOrBool;
     return false;
   }
 
-  // All remaining arguments must be lockable objects.
+  // check that all arguments are lockable objects
   checkAttrArgsAreCapabilityObjs(S, D, AL, Args, 1);
-
-  // The function must return a pointer, boolean, integer, or enum.  We already
-  // know that `D` is a function because `ExclusiveTrylockFunction` and friends
-  // are defined in Attr.td with subject lists that only include functions.
-  QualType ReturnType = D->getAsFunction()->getReturnType();
-  if (!ReturnType->isPointerType() && !ReturnType->isBooleanType() &&
-      !ReturnType->isIntegerType() && !ReturnType->isEnumeralType()) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type)
-        << AL << AL.isRegularKeywordAttribute()
-        << ExpectedFunctionReturningPointerBoolIntOrEnum;
-    return false;
-  }
 
   return true;
 }
@@ -4089,11 +4060,17 @@ bool static check32BitInt(const Expr *E, Sema &S, llvm::APSInt &I,
 
 void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
-  if (Context.getLangOpts().SYCLIsDevice &&
-      !Context.getTargetInfo().getTriple().isNVPTX()) {
-    Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
-        << CI << E->getSourceRange();
-    return;
+  if (Context.getLangOpts().SYCLIsDevice) {
+    if (!Context.getTargetInfo().getTriple().isNVPTX()) {
+      Diag(E->getBeginLoc(), diag::warn_launch_bounds_is_cuda_specific)
+          << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 0;
+      return;
+    }
   }
   if (!E->isValueDependent()) {
     // Validate that we have an integer constant expression and then store the
@@ -4129,13 +4106,14 @@ void Sema::AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr(Context, CI, E));
 }
 
-// Helper to get CudaArch.
-static CudaArch getCudaArch(const TargetInfo &TI) {
+// Helper to get OffloadArch.
+static OffloadArch getOffloadArch(const TargetInfo &TI) {
   if (!TI.getTriple().isNVPTX())
-    llvm_unreachable("getCudaArch is only valid for NVPTX triple");
+    llvm_unreachable("getOffloadArch is only valid for NVPTX triple");
   auto &TO = TI.getTargetOpts();
-  return StringToCudaArch(TO.CPU);
+  return StringToOffloadArch(TO.CPU);
 }
+
 
 void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     Decl *D, const AttributeCommonInfo &CI, Expr *E) {
@@ -4148,10 +4126,16 @@ void Sema::AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
     }
 
     // Feature '.maxclusterrank' requires .target sm_90 or higher.
-    auto SM = getCudaArch(TI);
-    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+    auto SM = getOffloadArch(TI);
+    if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
       Diag(E->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
-          << CudaArchToString(SM) << CI << E->getSourceRange();
+          << OffloadArchToString(SM) << CI << E->getSourceRange();
+      return;
+    }
+
+    if (!D->hasAttr<SYCLIntelMaxWorkGroupSizeAttr>() ||
+        !D->hasAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+      Diag(CI.getLoc(), diag::warn_launch_bounds_missing_attr) << CI << 1;
       return;
     }
   }
@@ -4366,18 +4350,12 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 }
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // This attribute is deprecated without replacement in SYCL 2020 mode.
+  // Given attribute is deprecated without replacement in SYCL 2020 mode.
   // Ignore the attribute in SYCL 2020.
-  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+  if (S.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020) {
     S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
     return;
   }
-
-  // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
-  // 2017 mode, we want to warn about using the newer name in the older
-  // standard as a compatibility extension.
-  if (S.LangOpts.getSYCLVersion() == LangOptions::SYCL_2017 && AL.hasScope())
-    S.Diag(AL.getLoc(), diag::ext_sycl_2020_attr_spelling) << AL;
 
   if (!AL.hasParsedType()) {
     S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
@@ -4425,15 +4403,6 @@ SectionAttr *Sema::mergeSectionAttr(Decl *D, const AttributeCommonInfo &CI,
   return ::new (Context) SectionAttr(Context, CI, Name);
 }
 
-/// Used to implement to perform semantic checking on
-/// attribute((section("foo"))) specifiers.
-///
-/// In this case, "foo" is passed in to be checked.  If the section
-/// specifier is invalid, return an Error that indicates the problem.
-///
-/// This is a simple quality of implementation feature to catch errors
-/// and give good diagnostics in cases when the assembler or code generator
-/// would otherwise reject the section specifier.
 llvm::Error Sema::isValidSectionSpecifier(StringRef SecName) {
   if (!Context.getTargetInfo().getTriple().isOSDarwin())
     return llvm::Error::success();
@@ -4546,8 +4515,6 @@ static void handleCodeSegAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(CSA);
 }
 
-// Check for things we'd like to warn about. Multiversioning issues are
-// handled later in the process, once we know how many exist.
 bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   enum FirstParam { Unsupported, Duplicate, Unknown };
   enum SecondParam { None, CPU, Tune };
@@ -4591,7 +4558,7 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
              << Unsupported << None << CurFeature << Target;
   }
 
-  TargetInfo::BranchProtectionInfo BPI;
+  TargetInfo::BranchProtectionInfo BPI{};
   StringRef DiagMsg;
   if (ParsedAttrs.BranchProtection.empty())
     return false;
@@ -4609,14 +4576,11 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   return false;
 }
 
-// Check Target Version attrs
 bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
-                                  StringRef &AttrStr, bool &isDefault) {
+                                  StringRef AttrStr) {
   enum FirstParam { Unsupported };
   enum SecondParam { None };
   enum ThirdParam { Target, TargetClones, TargetVersion };
-  if (AttrStr.trim() == "default")
-    isDefault = true;
   llvm::SmallVector<StringRef, 8> Features;
   AttrStr.split(Features, "+");
   for (auto &CurFeature : Features) {
@@ -4636,16 +4600,12 @@ bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
 static void handleTargetVersionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   StringRef Str;
   SourceLocation LiteralLoc;
-  bool isDefault = false;
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &LiteralLoc) ||
-      S.checkTargetVersionAttr(LiteralLoc, D, Str, isDefault))
+      S.checkTargetVersionAttr(LiteralLoc, D, Str))
     return;
-  // Do not create default only target_version attribute
-  if (!isDefault) {
-    TargetVersionAttr *NewAttr =
-        ::new (S.Context) TargetVersionAttr(S.Context, AL, Str);
-    D->addAttr(NewAttr);
-  }
+  TargetVersionAttr *NewAttr =
+      ::new (S.Context) TargetVersionAttr(S.Context, AL, Str);
+  D->addAttr(NewAttr);
 }
 
 static void handleTargetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
@@ -6772,8 +6732,6 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
   return false;
 }
 
-/// Checks a regparm attribute, returning true if it is ill-formed and
-/// otherwise setting numParams to the appropriate value.
 bool Sema::CheckRegparmAttr(const ParsedAttr &AL, unsigned &numParams) {
   if (AL.isInvalid())
     return true;
@@ -6865,10 +6823,10 @@ Sema::CreateLaunchBoundsAttr(const AttributeCommonInfo &CI, Expr *MaxThreads,
 
   if (MaxBlocks) {
     // '.maxclusterrank' ptx directive requires .target sm_90 or higher.
-    auto SM = getCudaArch(Context.getTargetInfo());
-    if (SM == CudaArch::UNKNOWN || SM < CudaArch::SM_90) {
+    auto SM = getOffloadArch(Context.getTargetInfo());
+    if (SM == OffloadArch::UNKNOWN || SM < OffloadArch::SM_90) {
       Diag(MaxBlocks->getBeginLoc(), diag::warn_cuda_maxclusterrank_sm_90)
-          << CudaArchToString(SM) << CI << MaxBlocks->getSourceRange();
+          << OffloadArchToString(SM) << CI << MaxBlocks->getSourceRange();
       // Ignore it by setting MaxBlocks to null;
       MaxBlocks = nullptr;
     } else {
@@ -6973,19 +6931,40 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
 // Checks if FPGA memory attributes apply on valid variables.
 // Returns true if an error occured.
 static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
-  if (const auto *VD = dyn_cast<VarDecl>(D)) {
-    if (!(isa<FieldDecl>(D) ||
-          (VD->getKind() != Decl::ImplicitParam &&
-           VD->getKind() != Decl::NonTypeTemplateParm &&
-           (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-                VD->getType()) ||
-            VD->getType().isConstQualified() ||
-            VD->getType().getAddressSpace() == LangAS::opencl_constant ||
-            VD->getStorageClass() == SC_Static || VD->hasLocalStorage())))) {
-      return true;
-    }
+  // Check for SYCL device compilation context.
+  if (!S.Context.getLangOpts().SYCLIsDevice) {
+    return false;
   }
-  return false;
+
+  const auto *VD = dyn_cast<VarDecl>(D);
+  if (!VD)
+    return false;
+
+  // Exclude implicit parameters and non-type template parameters.
+  if (VD->getKind() == Decl::ImplicitParam ||
+      VD->getKind() == Decl::NonTypeTemplateParm)
+    return false;
+
+  // Check for non-static data member.
+  if (isa<FieldDecl>(D))
+    return false;
+
+  // Check for SYCL device global attribute decoration.
+  if (S.SYCL().isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+          VD->getType()))
+    return false;
+
+  // Check for constant variables and variables in the OpenCL constant
+  // address space.
+  if (VD->getType().isConstQualified() ||
+      VD->getType().getAddressSpace() == LangAS::opencl_constant)
+    return false;
+
+  // Check for static storage class or local storage.
+  if (VD->getStorageClass() == SC_Static || VD->hasLocalStorage())
+    return false;
+
+  return true;
 }
 
 void Sema::AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
@@ -7069,9 +7048,8 @@ static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables
   // for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      ((D->getKind() == Decl::ParmVar) ||
-       CheckValidFPGAMemoryAttributesVar(S, D))) {
+  if ((D->getKind() == Decl::ParmVar) ||
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << AL << /*agent memory arguments*/ 0;
     return;
@@ -7103,9 +7081,8 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables
   // for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      ((D->getKind() == Decl::ParmVar) ||
-       CheckValidFPGAMemoryAttributesVar(S, D))) {
+  if ((D->getKind() == Decl::ParmVar) ||
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << AL << /*agent memory arguments*/ 0;
     return;
@@ -7158,8 +7135,7 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << AL << /*agent memory arguments*/ 1;
     return;
@@ -7187,9 +7163,8 @@ static void handleSYCLIntelRegisterAttr(Sema &S, Decl *D,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables
   // for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      ((D->getKind() == Decl::ParmVar) ||
-       CheckValidFPGAMemoryAttributesVar(S, D))) {
+  if ((D->getKind() == Decl::ParmVar) ||
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
     S.Diag(A.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << A << /*agent memory arguments*/ 0;
     return;
@@ -7233,8 +7208,7 @@ void Sema::AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables for the device compilation.
-    if (Context.getLangOpts().SYCLIsDevice &&
-        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
           << CI << /*agent memory arguments*/ 1;
       return;
@@ -7327,8 +7301,7 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables for the device compilation.
-    if (Context.getLangOpts().SYCLIsDevice &&
-        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
           << CI << /*agent memory arguments*/ 1;
       return;
@@ -7404,8 +7377,7 @@ static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
       S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
           << AL << /*agent memory arguments*/ 1;
       return;
@@ -7440,8 +7412,7 @@ void Sema::AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables for the device compilation.
-    if (Context.getLangOpts().SYCLIsDevice &&
-        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
           << CI << /*agent memory arguments*/ 1;
       return;
@@ -7533,9 +7504,8 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables
   // for the device compilation.
-  if (S.Context.getLangOpts().SYCLIsDevice &&
-      ((D->getKind() == Decl::ParmVar) ||
-       CheckValidFPGAMemoryAttributesVar(S, D))) {
+  if ((D->getKind() == Decl::ParmVar) ||
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << AL << /*agent memory arguments*/ 0;
     return;
@@ -7629,8 +7599,7 @@ void Sema::AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables for the device compilation.
-  if (Context.getLangOpts().SYCLIsDevice &&
-      CheckValidFPGAMemoryAttributesVar(*this, D)) {
+  if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
     Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
         << CI << /*agent memory arguments*/ 1;
     return;
@@ -7732,8 +7701,7 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables for the device compilation.
-    if (Context.getLangOpts().SYCLIsDevice &&
-        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
           << CI << /*agent memory arguments*/ 1;
       return;
@@ -8310,90 +8278,6 @@ static void handleSYCLAddIRAnnotationsMemberAttr(Sema &S, Decl *D,
   }
 
   S.AddSYCLAddIRAnnotationsMemberAttr(D, A, Args);
-}
-
-namespace {
-struct IntrinToName {
-  uint32_t Id;
-  int32_t FullName;
-  int32_t ShortName;
-};
-} // unnamed namespace
-
-static bool ArmBuiltinAliasValid(unsigned BuiltinID, StringRef AliasName,
-                                 ArrayRef<IntrinToName> Map,
-                                 const char *IntrinNames) {
-  AliasName.consume_front("__arm_");
-  const IntrinToName *It =
-      llvm::lower_bound(Map, BuiltinID, [](const IntrinToName &L, unsigned Id) {
-        return L.Id < Id;
-      });
-  if (It == Map.end() || It->Id != BuiltinID)
-    return false;
-  StringRef FullName(&IntrinNames[It->FullName]);
-  if (AliasName == FullName)
-    return true;
-  if (It->ShortName == -1)
-    return false;
-  StringRef ShortName(&IntrinNames[It->ShortName]);
-  return AliasName == ShortName;
-}
-
-static bool ArmMveAliasValid(unsigned BuiltinID, StringRef AliasName) {
-#include "clang/Basic/arm_mve_builtin_aliases.inc"
-  // The included file defines:
-  // - ArrayRef<IntrinToName> Map
-  // - const char IntrinNames[]
-  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
-}
-
-static bool ArmCdeAliasValid(unsigned BuiltinID, StringRef AliasName) {
-#include "clang/Basic/arm_cde_builtin_aliases.inc"
-  return ArmBuiltinAliasValid(BuiltinID, AliasName, Map, IntrinNames);
-}
-
-static bool ArmSveAliasValid(ASTContext &Context, unsigned BuiltinID,
-                             StringRef AliasName) {
-  if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
-    BuiltinID = Context.BuiltinInfo.getAuxBuiltinID(BuiltinID);
-  return BuiltinID >= AArch64::FirstSVEBuiltin &&
-         BuiltinID <= AArch64::LastSVEBuiltin;
-}
-
-static bool ArmSmeAliasValid(ASTContext &Context, unsigned BuiltinID,
-                             StringRef AliasName) {
-  if (Context.BuiltinInfo.isAuxBuiltinID(BuiltinID))
-    BuiltinID = Context.BuiltinInfo.getAuxBuiltinID(BuiltinID);
-  return BuiltinID >= AArch64::FirstSMEBuiltin &&
-         BuiltinID <= AArch64::LastSMEBuiltin;
-}
-
-static void handleArmBuiltinAliasAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_n_type)
-        << AL << 1 << AANT_ArgumentIdentifier;
-    return;
-  }
-
-  IdentifierInfo *Ident = AL.getArgAsIdent(0)->Ident;
-  unsigned BuiltinID = Ident->getBuiltinID();
-  StringRef AliasName = cast<FunctionDecl>(D)->getIdentifier()->getName();
-
-  bool IsAArch64 = S.Context.getTargetInfo().getTriple().isAArch64();
-  if ((IsAArch64 && !ArmSveAliasValid(S.Context, BuiltinID, AliasName) &&
-       !ArmSmeAliasValid(S.Context, BuiltinID, AliasName)) ||
-      (!IsAArch64 && !ArmMveAliasValid(BuiltinID, AliasName) &&
-       !ArmCdeAliasValid(BuiltinID, AliasName))) {
-    S.Diag(AL.getLoc(), diag::err_attribute_arm_builtin_alias);
-    return;
-  }
-
-  D->addAttr(::new (S.Context) ArmBuiltinAliasAttr(S.Context, AL, Ident));
-}
-
-static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
-  return BuiltinID >= RISCV::FirstRVVBuiltin &&
-         BuiltinID <= RISCV::LastRVVBuiltin;
 }
 
 static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
@@ -9008,6 +8892,15 @@ static const RecordDecl *GetEnclosingNamedOrTopAnonRecord(const FieldDecl *FD) {
   return RD;
 }
 
+static CountAttributedType::DynamicCountPointerKind
+getCountAttrKind(bool CountInBytes, bool OrNull) {
+  if (CountInBytes)
+    return OrNull ? CountAttributedType::SizedByOrNull
+                  : CountAttributedType::SizedBy;
+  return OrNull ? CountAttributedType::CountedByOrNull
+                : CountAttributedType::CountedBy;
+}
+
 enum class CountedByInvalidPointeeTypeKind {
   INCOMPLETE,
   SIZELESS,
@@ -9016,22 +8909,31 @@ enum class CountedByInvalidPointeeTypeKind {
   VALID,
 };
 
-static bool CheckCountedByAttrOnField(
-    Sema &S, FieldDecl *FD, Expr *E,
-    llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls) {
+static bool
+CheckCountedByAttrOnField(Sema &S, FieldDecl *FD, Expr *E,
+                          llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls,
+                          bool CountInBytes, bool OrNull) {
   // Check the context the attribute is used in
 
+  unsigned Kind = getCountAttrKind(CountInBytes, OrNull);
+
   if (FD->getParent()->isUnion()) {
-    S.Diag(FD->getBeginLoc(), diag::err_counted_by_attr_in_union)
-        << FD->getSourceRange();
+    S.Diag(FD->getBeginLoc(), diag::err_count_attr_in_union)
+        << Kind << FD->getSourceRange();
     return true;
   }
 
   const auto FieldTy = FD->getType();
+  if (FieldTy->isArrayType() && (CountInBytes || OrNull)) {
+    S.Diag(FD->getBeginLoc(),
+           diag::err_count_attr_not_on_ptr_or_flexible_array_member)
+        << Kind << FD->getLocation() << /* suggest counted_by */ 1;
+    return true;
+  }
   if (!FieldTy->isArrayType() && !FieldTy->isPointerType()) {
     S.Diag(FD->getBeginLoc(),
-           diag::err_counted_by_attr_not_on_ptr_or_flexible_array_member)
-        << FD->getLocation();
+           diag::err_count_attr_not_on_ptr_or_flexible_array_member)
+        << Kind << FD->getLocation() << /* do not suggest counted_by */ 0;
     return true;
   }
 
@@ -9042,7 +8944,7 @@ static bool CheckCountedByAttrOnField(
                                        StrictFlexArraysLevel, true)) {
     S.Diag(FD->getBeginLoc(),
            diag::err_counted_by_attr_on_array_not_flexible_array_member)
-        << FD->getLocation();
+        << Kind << FD->getLocation();
     return true;
   }
 
@@ -9063,7 +8965,7 @@ static bool CheckCountedByAttrOnField(
   // only `PointeeTy->isStructureTypeWithFlexibleArrayMember()` is reachable
   // when `FieldTy->isArrayType()`.
   bool ShouldWarn = false;
-  if (PointeeTy->isIncompleteType()) {
+  if (PointeeTy->isIncompleteType() && !CountInBytes) {
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::INCOMPLETE;
   } else if (PointeeTy->isSizelessType()) {
     InvalidTypeKind = CountedByInvalidPointeeTypeKind::SIZELESS;
@@ -9088,23 +8990,23 @@ static bool CheckCountedByAttrOnField(
                           : diag::err_counted_by_attr_pointee_unknown_size;
     S.Diag(FD->getBeginLoc(), DiagID)
         << SelectPtrOrArr << PointeeTy << (int)InvalidTypeKind
-        << (ShouldWarn ? 1 : 0) << FD->getSourceRange();
+        << (ShouldWarn ? 1 : 0) << Kind << FD->getSourceRange();
     return true;
   }
 
   // Check the expression
 
   if (!E->getType()->isIntegerType() || E->getType()->isBooleanType()) {
-    S.Diag(E->getBeginLoc(), diag::err_counted_by_attr_argument_not_integer)
-        << E->getSourceRange();
+    S.Diag(E->getBeginLoc(), diag::err_count_attr_argument_not_integer)
+        << Kind << E->getSourceRange();
     return true;
   }
 
   auto *DRE = dyn_cast<DeclRefExpr>(E);
   if (!DRE) {
     S.Diag(E->getBeginLoc(),
-           diag::err_counted_by_attr_only_support_simple_decl_reference)
-        << E->getSourceRange();
+           diag::err_count_attr_only_support_simple_decl_reference)
+        << Kind << E->getSourceRange();
     return true;
   }
 
@@ -9114,8 +9016,8 @@ static bool CheckCountedByAttrOnField(
     CountFD = IFD->getAnonField();
   }
   if (!CountFD) {
-    S.Diag(E->getBeginLoc(), diag::err_counted_by_must_be_in_structure)
-        << CountDecl << E->getSourceRange();
+    S.Diag(E->getBeginLoc(), diag::err_count_attr_must_be_in_structure)
+        << CountDecl << Kind << E->getSourceRange();
 
     S.Diag(CountDecl->getBeginLoc(),
            diag::note_flexible_array_counted_by_attr_field)
@@ -9125,8 +9027,8 @@ static bool CheckCountedByAttrOnField(
 
   if (FD->getParent() != CountFD->getParent()) {
     if (CountFD->getParent()->isUnion()) {
-      S.Diag(CountFD->getBeginLoc(), diag::err_counted_by_attr_refer_to_union)
-          << CountFD->getSourceRange();
+      S.Diag(CountFD->getBeginLoc(), diag::err_count_attr_refer_to_union)
+          << Kind << CountFD->getSourceRange();
       return true;
     }
     // Whether CountRD is an anonymous struct is not determined at this
@@ -9136,9 +9038,8 @@ static bool CheckCountedByAttrOnField(
     auto *CountRD = GetEnclosingNamedOrTopAnonRecord(CountFD);
 
     if (RD != CountRD) {
-      S.Diag(E->getBeginLoc(),
-             diag::err_flexible_array_count_not_in_same_struct)
-          << CountFD << E->getSourceRange();
+      S.Diag(E->getBeginLoc(), diag::err_count_attr_param_not_in_same_struct)
+          << CountFD << Kind << FieldTy->isArrayType() << E->getSourceRange();
       S.Diag(CountFD->getBeginLoc(),
              diag::note_flexible_array_counted_by_attr_field)
           << CountFD << CountFD->getSourceRange();
@@ -9158,12 +9059,35 @@ static void handleCountedByAttrField(Sema &S, Decl *D, const ParsedAttr &AL) {
   if (!CountExpr)
     return;
 
+  bool CountInBytes;
+  bool OrNull;
+  switch (AL.getKind()) {
+  case ParsedAttr::AT_CountedBy:
+    CountInBytes = false;
+    OrNull = false;
+    break;
+  case ParsedAttr::AT_CountedByOrNull:
+    CountInBytes = false;
+    OrNull = true;
+    break;
+  case ParsedAttr::AT_SizedBy:
+    CountInBytes = true;
+    OrNull = false;
+    break;
+  case ParsedAttr::AT_SizedByOrNull:
+    CountInBytes = true;
+    OrNull = true;
+    break;
+  default:
+    llvm_unreachable("unexpected counted_by family attribute");
+  }
+
   llvm::SmallVector<TypeCoupledDeclRefInfo, 1> Decls;
-  if (CheckCountedByAttrOnField(S, FD, CountExpr, Decls))
+  if (CheckCountedByAttrOnField(S, FD, CountExpr, Decls, CountInBytes, OrNull))
     return;
 
-  QualType CAT =
-      S.BuildCountAttributedArrayOrPointerType(FD->getType(), CountExpr);
+  QualType CAT = S.BuildCountAttributedArrayOrPointerType(
+      FD->getType(), CountExpr, CountInBytes, OrNull);
   FD->setType(CAT);
 }
 
@@ -9514,6 +9438,116 @@ EnforceTCBLeafAttr *Sema::mergeEnforceTCBLeafAttr(
     Decl *D, const EnforceTCBLeafAttr &AL) {
   return mergeEnforceTCBAttrImpl<EnforceTCBLeafAttr, EnforceTCBAttr>(
       *this, D, AL);
+}
+
+static void handleVTablePointerAuthentication(Sema &S, Decl *D,
+                                              const ParsedAttr &AL) {
+  CXXRecordDecl *Decl = cast<CXXRecordDecl>(D);
+  const uint32_t NumArgs = AL.getNumArgs();
+  if (NumArgs > 4) {
+    S.Diag(AL.getLoc(), diag::err_attribute_too_many_arguments) << AL << 4;
+    AL.setInvalid();
+  }
+
+  if (NumArgs == 0) {
+    S.Diag(AL.getLoc(), diag::err_attribute_too_few_arguments) << AL;
+    AL.setInvalid();
+    return;
+  }
+
+  if (D->getAttr<VTablePointerAuthenticationAttr>()) {
+    S.Diag(AL.getLoc(), diag::err_duplicated_vtable_pointer_auth) << Decl;
+    AL.setInvalid();
+  }
+
+  auto KeyType = VTablePointerAuthenticationAttr::VPtrAuthKeyType::DefaultKey;
+  if (AL.isArgIdent(0)) {
+    IdentifierLoc *IL = AL.getArgAsIdent(0);
+    if (!VTablePointerAuthenticationAttr::ConvertStrToVPtrAuthKeyType(
+            IL->Ident->getName(), KeyType)) {
+      S.Diag(IL->Loc, diag::err_invalid_authentication_key) << IL->Ident;
+      AL.setInvalid();
+    }
+    if (KeyType == VTablePointerAuthenticationAttr::DefaultKey &&
+        !S.getLangOpts().PointerAuthCalls) {
+      S.Diag(AL.getLoc(), diag::err_no_default_vtable_pointer_auth) << 0;
+      AL.setInvalid();
+    }
+  } else {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+        << AL << AANT_ArgumentIdentifier;
+    return;
+  }
+
+  auto AddressDiversityMode = VTablePointerAuthenticationAttr::
+      AddressDiscriminationMode::DefaultAddressDiscrimination;
+  if (AL.getNumArgs() > 1) {
+    if (AL.isArgIdent(1)) {
+      IdentifierLoc *IL = AL.getArgAsIdent(1);
+      if (!VTablePointerAuthenticationAttr::
+              ConvertStrToAddressDiscriminationMode(IL->Ident->getName(),
+                                                    AddressDiversityMode)) {
+        S.Diag(IL->Loc, diag::err_invalid_address_discrimination) << IL->Ident;
+        AL.setInvalid();
+      }
+      if (AddressDiversityMode ==
+              VTablePointerAuthenticationAttr::DefaultAddressDiscrimination &&
+          !S.getLangOpts().PointerAuthCalls) {
+        S.Diag(IL->Loc, diag::err_no_default_vtable_pointer_auth) << 1;
+        AL.setInvalid();
+      }
+    } else {
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+          << AL << AANT_ArgumentIdentifier;
+    }
+  }
+
+  auto ED = VTablePointerAuthenticationAttr::ExtraDiscrimination::
+      DefaultExtraDiscrimination;
+  if (AL.getNumArgs() > 2) {
+    if (AL.isArgIdent(2)) {
+      IdentifierLoc *IL = AL.getArgAsIdent(2);
+      if (!VTablePointerAuthenticationAttr::ConvertStrToExtraDiscrimination(
+              IL->Ident->getName(), ED)) {
+        S.Diag(IL->Loc, diag::err_invalid_extra_discrimination) << IL->Ident;
+        AL.setInvalid();
+      }
+      if (ED == VTablePointerAuthenticationAttr::DefaultExtraDiscrimination &&
+          !S.getLangOpts().PointerAuthCalls) {
+        S.Diag(AL.getLoc(), diag::err_no_default_vtable_pointer_auth) << 2;
+        AL.setInvalid();
+      }
+    } else {
+      S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
+          << AL << AANT_ArgumentIdentifier;
+    }
+  }
+
+  uint32_t CustomDiscriminationValue = 0;
+  if (ED == VTablePointerAuthenticationAttr::CustomDiscrimination) {
+    if (NumArgs < 4) {
+      S.Diag(AL.getLoc(), diag::err_missing_custom_discrimination) << AL << 4;
+      AL.setInvalid();
+      return;
+    }
+    if (NumArgs > 4) {
+      S.Diag(AL.getLoc(), diag::err_attribute_too_many_arguments) << AL << 4;
+      AL.setInvalid();
+    }
+
+    if (!AL.isArgExpr(3) || !S.checkUInt32Argument(AL, AL.getArgAsExpr(3),
+                                                   CustomDiscriminationValue)) {
+      S.Diag(AL.getLoc(), diag::err_invalid_custom_discrimination);
+      AL.setInvalid();
+    }
+  } else if (NumArgs > 3) {
+    S.Diag(AL.getLoc(), diag::err_attribute_too_many_arguments) << AL << 3;
+    AL.setInvalid();
+  }
+
+  Decl->addAttr(::new (S.Context) VTablePointerAuthenticationAttr(
+      S.Context, AL, KeyType, AddressDiversityMode, ED,
+      CustomDiscriminationValue));
 }
 
 //===----------------------------------------------------------------------===//
@@ -10208,6 +10242,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
 
   case ParsedAttr::AT_CountedBy:
+  case ParsedAttr::AT_CountedByOrNull:
+  case ParsedAttr::AT_SizedBy:
+  case ParsedAttr::AT_SizedByOrNull:
     handleCountedByAttrField(S, D, AL);
     break;
 
@@ -10246,6 +10283,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_HLSLResourceBinding:
     S.HLSL().handleResourceBindingAttr(D, AL);
+    break;
+  case ParsedAttr::AT_HLSLResourceClass:
+    S.HLSL().handleResourceClassAttr(D, AL);
     break;
   case ParsedAttr::AT_HLSLParamModifier:
     S.HLSL().handleParamModifierAttr(D, AL);
@@ -10512,11 +10552,13 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_TypeNullable:
     handleNullableTypeAttr(S, D, AL);
     break;
+
+  case ParsedAttr::AT_VTablePointerAuthentication:
+    handleVTablePointerAuthentication(S, D, AL);
+    break;
   }
 }
 
-/// ProcessDeclAttributeList - Apply all the decl attributes in the specified
-/// attribute list to the specified decl, ignoring any type attributes.
 void Sema::ProcessDeclAttributeList(
     Scope *S, Decl *D, const ParsedAttributesView &AttrList,
     const ProcessDeclAttributeOptions &Options) {
@@ -10611,8 +10653,6 @@ void Sema::ProcessDeclAttributeList(
   }
 }
 
-// Helper for delayed processing TransparentUnion or BPFPreserveAccessIndexAttr
-// attribute.
 void Sema::ProcessDeclAttributeDelayed(Decl *D,
                                        const ParsedAttributesView &AttrList) {
   for (const ParsedAttr &AL : AttrList)
@@ -10627,8 +10667,6 @@ void Sema::ProcessDeclAttributeDelayed(Decl *D,
     BPF().handlePreserveAIRecord(cast<RecordDecl>(D));
 }
 
-// Annotation attributes are the only attributes allowed after an access
-// specifier.
 bool Sema::ProcessAccessDeclAttributeList(
     AccessSpecDecl *ASDecl, const ParsedAttributesView &AttrList) {
   for (const ParsedAttr &AL : AttrList) {
@@ -10663,9 +10701,6 @@ static void checkUnusedDeclAttributes(Sema &S, const ParsedAttributesView &A) {
   }
 }
 
-/// checkUnusedDeclAttributes - Given a declarator which is not being
-/// used to build a declaration, complain about any decl attributes
-/// which might be lying around on it.
 void Sema::checkUnusedDeclAttributes(Declarator &D) {
   ::checkUnusedDeclAttributes(*this, D.getDeclarationAttributes());
   ::checkUnusedDeclAttributes(*this, D.getDeclSpec().getAttributes());
@@ -10674,8 +10709,6 @@ void Sema::checkUnusedDeclAttributes(Declarator &D) {
     ::checkUnusedDeclAttributes(*this, D.getTypeObject(i).getAttrs());
 }
 
-/// DeclClonePragmaWeak - clone existing decl (maybe definition),
-/// \#pragma weak needs a non-definition decl and source may not have one.
 NamedDecl *Sema::DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
                                      SourceLocation Loc) {
   assert(isa<FunctionDecl>(ND) || isa<VarDecl>(ND));
@@ -10720,8 +10753,6 @@ NamedDecl *Sema::DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
   return NewD;
 }
 
-/// DeclApplyPragmaWeak - A declaration (maybe definition) needs \#pragma weak
-/// applied to it, possibly with an alias.
 void Sema::DeclApplyPragmaWeak(Scope *S, NamedDecl *ND, const WeakInfo &W) {
   if (W.getAlias()) { // clone decl, impersonate __attribute(weak,alias(...))
     IdentifierInfo *NDId = ND->getIdentifier();
@@ -10940,9 +10971,6 @@ void Sema::PopParsingDeclaration(ParsingDeclState state, Decl *decl) {
   } while ((pool = pool->getParent()));
 }
 
-/// Given a set of delayed diagnostics, re-emit them as if they had
-/// been delayed in the current context instead of in the given pool.
-/// Essentially, this just moves them to the current pool.
 void Sema::redelayDiagnostics(DelayedDiagnosticPool &pool) {
   DelayedDiagnosticPool *curPool = DelayedDiagnostics.getCurrentPool();
   assert(curPool && "re-emitting in undelayed context not supported");

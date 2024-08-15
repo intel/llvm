@@ -59,7 +59,7 @@ private:
   std::shared_ptr<sycl::detail::physical_mem_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>

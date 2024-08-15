@@ -46,6 +46,11 @@ SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
                                                const llvm::Triple &TargetTriple,
                                                bool IsSpirvAOT);
 
+// Populates the SYCL device traits macros.
+void populateSYCLDeviceTraitsMacrosArgs(Compilation &C,
+    const llvm::opt::ArgList &Args,
+    const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
