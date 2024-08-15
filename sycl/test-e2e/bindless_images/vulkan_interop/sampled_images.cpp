@@ -176,11 +176,17 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
 
   printString("Validating\n");
   bool validated = true;
+  auto getExpectedValue = [&](int i) -> OutType {
+    if (CType == sycl::image_channel_type::unorm_int8)
+      return 0.5f;
+    if constexpr (std::is_integral_v<OutType>)
+      i = i % std::numeric_limits<OutType>::max();
+    return i / 2.f;
+  };
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
     VecType expected =
-        bindless_helpers::init_vector<OutType, NChannels>(static_cast<OutType>(
-            CType == sycl::image_channel_type::unorm_int8 ? 0.5f : (i / 2.f)));
+        bindless_helpers::init_vector<OutType, NChannels>(getExpectedValue(i));
     if (!bindless_helpers::equal_vec<OutType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
@@ -269,10 +275,16 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
+  auto getInputValue = [&](int i) -> DType {
+    if (CType == sycl::image_channel_type::unorm_int8)
+      return 255;
+    if constexpr (std::is_integral_v<DType>)
+      i = i % std::numeric_limits<DType>::max();
+    return i;
+  };
   for (int i = 0; i < numElems; ++i) {
     inputStagingData[i] =
-        bindless_helpers::init_vector<DType, NChannels>(static_cast<DType>(
-            CType == sycl::image_channel_type::unorm_int8 ? 255 : i));
+        bindless_helpers::init_vector<DType, NChannels>(getInputValue(i));
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
