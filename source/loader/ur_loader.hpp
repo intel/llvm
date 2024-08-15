@@ -8,6 +8,7 @@
  *
  */
 
+#include "logger/ur_logger.hpp"
 #ifndef UR_LOADER_HPP
 #define UR_LOADER_HPP 1
 
@@ -28,7 +29,7 @@ struct platform_t {
 
 using platform_vector_t = std::vector<platform_t>;
 
-class context_t {
+class context_t : public AtomicSingleton<context_t> {
   public:
     ur_api_version_t version = UR_API_VERSION_CURRENT;
 
@@ -39,10 +40,11 @@ class context_t {
 
     ur_result_t init();
     bool intercept_enabled = false;
+
+    struct handle_factories factories;
 };
 
-extern context_t *context;
-extern ur_event_factory_t ur_event_factory;
+context_t *getContext();
 
 } // namespace ur_loader
 

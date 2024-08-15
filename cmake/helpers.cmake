@@ -131,6 +131,11 @@ function(add_ur_library name)
     add_library(${name} ${ARGN})
     add_ur_target_compile_options(${name})
     add_ur_target_link_options(${name})
+    if(MSVC)
+        target_link_options(${name} PRIVATE
+            $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:/DEPENDENTLOADFLAG:0x2000>
+        )
+    endif()
 endfunction()
 
 include(FetchContent)

@@ -5,7 +5,6 @@
 		urAdapterGetLastError;
 		urAdapterRelease;
 		urAdapterRetain;
-		urBindlessImagesDestroyExternalSemaphoreExp;
 		urBindlessImagesImageAllocateExp;
 		urBindlessImagesImageCopyExp;
 		urBindlessImagesImageFreeExp;
@@ -13,9 +12,11 @@
 		urBindlessImagesImportExternalMemoryExp;
 		urBindlessImagesImportExternalSemaphoreExp;
 		urBindlessImagesMapExternalArrayExp;
+		urBindlessImagesMapExternalLinearMemoryExp;
 		urBindlessImagesMipmapFreeExp;
 		urBindlessImagesMipmapGetLevelExp;
-		urBindlessImagesReleaseInteropExp;
+		urBindlessImagesReleaseExternalMemoryExp;
+		urBindlessImagesReleaseExternalSemaphoreExp;
 		urBindlessImagesSampledImageCreateExp;
 		urBindlessImagesSampledImageHandleDestroyExp;
 		urBindlessImagesSignalExternalSemaphoreExp;
@@ -174,7 +175,6 @@
 		urPrintApiVersion;
 		urPrintBaseDesc;
 		urPrintBaseProperties;
-		urPrintBindlessImagesDestroyExternalSemaphoreExpParams;
 		urPrintBindlessImagesImageAllocateExpParams;
 		urPrintBindlessImagesImageCopyExpParams;
 		urPrintBindlessImagesImageFreeExpParams;
@@ -182,9 +182,11 @@
 		urPrintBindlessImagesImportExternalMemoryExpParams;
 		urPrintBindlessImagesImportExternalSemaphoreExpParams;
 		urPrintBindlessImagesMapExternalArrayExpParams;
+		urPrintBindlessImagesMapExternalLinearMemoryExpParams;
 		urPrintBindlessImagesMipmapFreeExpParams;
 		urPrintBindlessImagesMipmapGetLevelExpParams;
-		urPrintBindlessImagesReleaseInteropExpParams;
+		urPrintBindlessImagesReleaseExternalMemoryExpParams;
+		urPrintBindlessImagesReleaseExternalSemaphoreExpParams;
 		urPrintBindlessImagesSampledImageCreateExpParams;
 		urPrintBindlessImagesSampledImageHandleDestroyExpParams;
 		urPrintBindlessImagesSignalExternalSemaphoreExpParams;
@@ -305,12 +307,13 @@
 		urPrintExpCommandBufferUpdateValueArgDesc;
 		urPrintExpEnqueueNativeCommandFlags;
 		urPrintExpEnqueueNativeCommandProperties;
+		urPrintExpExternalMemDesc;
 		urPrintExpExternalMemType;
+		urPrintExpExternalSemaphoreDesc;
 		urPrintExpExternalSemaphoreType;
 		urPrintExpFileDescriptor;
 		urPrintExpImageCopyFlags;
-		urPrintExpInteropMemDesc;
-		urPrintExpInteropSemaphoreDesc;
+		urPrintExpImageCopyRegion;
 		urPrintExpLaunchProperty;
 		urPrintExpLaunchPropertyId;
 		urPrintExpPeerInfo;

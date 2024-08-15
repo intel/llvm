@@ -53,7 +53,7 @@ ur_result_t EnqueueMemCopyRectHelper(
     // loop call 2D memory copy function to implement it.
     for (size_t i = 0; i < Region.depth; i++) {
         ur_event_handle_t NewEvent{};
-        UR_CALL(context.urDdiTable.Enqueue.pfnUSMMemcpy2D(
+        UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D(
             Queue, Blocking, DstOrigin + (i * DstSlicePitch), DstRowPitch,
             SrcOrigin + (i * SrcSlicePitch), SrcRowPitch, Region.width,
             Region.height, NumEventsInWaitList, EventWaitList, &NewEvent));
@@ -61,8 +61,8 @@ ur_result_t EnqueueMemCopyRectHelper(
         Events.push_back(NewEvent);
     }
 
-    UR_CALL(context.urDdiTable.Enqueue.pfnEventsWait(Queue, Events.size(),
-                                                     Events.data(), Event));
+    UR_CALL(getContext()->urDdiTable.Enqueue.pfnEventsWait(
+        Queue, Events.size(), Events.data(), Event));
 
     return UR_RESULT_SUCCESS;
 }
@@ -80,23 +80,24 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        ur_result_t URes = context.interceptor->allocateMemory(
+        ur_result_t URes = getContext()->interceptor->allocateMemory(
             Context, Device, &USMDesc, Pool, Size, AllocType::MEM_BUFFER,
             ur_cast<void **>(&Allocation));
         if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error(
+            getContext()->logger.error(
                 "Failed to allocate {} bytes memory for buffer {}", Size, this);
             return URes;
         }
 
         if (HostPtr) {
             ManagedQueue Queue(Context, Device);
-            URes = context.urDdiTable.Enqueue.pfnUSMMemcpy(
+            URes = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
                 Queue, true, Allocation, HostPtr, Size, 0, nullptr, nullptr);
             if (URes != UR_RESULT_SUCCESS) {
-                context.logger.error("Failed to copy {} bytes data from host "
-                                     "pointer {} to buffer {}",
-                                     Size, HostPtr, this);
+                getContext()->logger.error(
+                    "Failed to copy {} bytes data from host "
+                    "pointer {} to buffer {}",
+                    Size, HostPtr, this);
                 return URes;
             }
         }
@@ -109,9 +110,10 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
 
 ur_result_t MemBuffer::free() {
     for (const auto &[_, Ptr] : Allocations) {
-        ur_result_t URes = context.interceptor->releaseMemory(Context, Ptr);
+        ur_result_t URes =
+            getContext()->interceptor->releaseMemory(Context, Ptr);
         if (URes != UR_RESULT_SUCCESS) {
-            context.logger.error("Failed to free buffer handle {}", Ptr);
+            getContext()->logger.error("Failed to free buffer handle {}", Ptr);
             return URes;
         }
     }

@@ -54,7 +54,7 @@ permissions:
 jobs:
   changed-files:
     name: Check for changed files
-    runs-on: ubuntu-22.04
+    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
     outputs:
       any_changed: ${{ steps.get-changed.outputs.any_changed }}
     steps:
@@ -65,6 +65,8 @@ jobs:
       with:
         files: |
           source/adapters/${{inputs.str_name}}/**
+          source/loader/**
+          .github/workflows/e2e*
 
   e2e-build-hw:
     # We want to run the job only if there are changes in the specific adapter
@@ -167,17 +169,24 @@ jobs:
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
 
-    - name: Set test filters for L0
-      if: matrix.adapter.name == 'L0'
-      run: |
-        echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
-        echo "LIT_XFAIL=${{inputs.xfail}}" >> $GITHUB_ENV
-        echo "LIT_FILTER_OUT=${{inputs.filter_out}}" >> $GITHUB_ENV
+    - name: Set LIT_XFAIL_NOT
+      if: inputs.xfail_not != ''
+      run: echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
+
+    - name: Set LIT_XFAIL
+      if: inputs.xfail != ''
+      run: echo "LIT_XFAIL=${{inputs.xfail}}" >> $GITHUB_ENV
+
+    - name: Set LIT_FILTER_OUT
+      if: inputs.filter_out != ''
+      run: echo "LIT_FILTER_OUT=${{inputs.filter_out}}" >> $GITHUB_ENV
 
     # TODO: remove once intel/llvm lit tests can properly recognize the GPU
     - name: Configure hardware platform feature for L0
       if: matrix.adapter.name == 'L0'
-      run: sed -i '/import lit.llvm/i config.available_features.add("gpu-intel-pvc-1T")' build-e2e/lit.site.cfg.py
+      run: |
+        sed -i '/import lit.llvm/i config.available_features.add("gpu-intel-pvc-1T")' build-e2e/lit.site.cfg.py
+        sed -i '/import lit.llvm/i config.available_features.add("gpu-intel-pvc")' build-e2e/lit.site.cfg.py
 
     - name: Run e2e tests
       id: tests

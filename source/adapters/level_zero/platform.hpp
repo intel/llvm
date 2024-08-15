@@ -10,9 +10,12 @@
 #pragma once
 
 #include "common.hpp"
+#include "ur_api.h"
 #include "ze_api.h"
 
 struct ur_device_handle_t_;
+
+typedef size_t DeviceId;
 
 struct ur_platform_handle_t_ : public _ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
@@ -53,9 +56,16 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Check the device cache and load it if necessary.
   ur_result_t populateDeviceCacheIfNeeded();
 
+  ur_device_handle_t getDeviceById(DeviceId);
+
   // Return the PI device from cache that represents given native device.
   // If not found, then nullptr is returned.
   ur_device_handle_t getDeviceFromNativeHandle(ze_device_handle_t);
+
+  /// Checks the version of the level-zero driver.
+  bool isDriverVersionNewerOrSimilar(uint32_t VersionMajor,
+                                     uint32_t VersionMinor,
+                                     uint32_t VersionBuild);
 
   // Keep track of all contexts in the platform. This is needed to manage
   // a lifetime of memory allocations in each context when there are kernels

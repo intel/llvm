@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #include "fixtures.hpp"
+#include "ur_api.h"
 #include <ur_print.hpp>
 
 using urLoaderInitTestWithParam =
@@ -30,6 +31,7 @@ TEST_P(urLoaderInitTestWithParam, Success) {
     ASSERT_SUCCESS(urLoaderInit(device_flags, config));
 
     ASSERT_SUCCESS(urLoaderTearDown());
+    urLoaderConfigRelease(config);
 }
 
 TEST(urLoaderInitTest, ErrorInvalidEnumerationDeviceFlags) {
