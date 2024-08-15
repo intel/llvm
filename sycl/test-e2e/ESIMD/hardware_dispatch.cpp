@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // XFAIL: igc-dev
 // REQUIRES: ocloc
+// https://github.com/intel/llvm/issues/15096
+// XFAIL: gpu-intel-dg2
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
 // RUN: %t.out
 
