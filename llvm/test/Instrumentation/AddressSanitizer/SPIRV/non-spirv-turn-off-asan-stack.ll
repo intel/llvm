@@ -1,8 +1,8 @@
 ; Make sure we can turn off asan-stack on host target without the interfering of spirv related flag
-; RUN: opt < %s -passes=asan -asan-stack=0 -asan-spir-privates=0 -S | FileCheck %s --prefix=CHECK-STACK
-; RUN: opt < %s -passes=asan -asan-stack=0 -asan-spir-privates=1 -S | FileCheck %s --prefix=CHECK-STACK
-; RUN: opt < %s -passes=asan -asan-stack=1 -asan-spir-privates=0 -S | FileCheck %s --prefix=CHECK-NOSTACK
-; RUN: opt < %s -passes=asan -asan-stack=1 -asan-spir-privates=1 -S | FileCheck %s --prefix=CHECK-NOSTACK
+; RUN: opt < %s -passes=asan -asan-stack=0 -asan-spir-privates=0 -S | FileCheck %s --prefix=CHECK-NOSTACK
+; RUN: opt < %s -passes=asan -asan-stack=0 -asan-spir-privates=1 -S | FileCheck %s --prefix=CHECK-NOSTACK
+; RUN: opt < %s -passes=asan -asan-stack=1 -asan-spir-privates=0 -S | FileCheck %s --prefix=CHECK-STACK
+; RUN: opt < %s -passes=asan -asan-stack=1 -asan-spir-privates=1 -S | FileCheck %s --prefix=CHECK-STACK
 
 target triple = "x86_64-unknown-linux-gnu"
 
