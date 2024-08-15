@@ -1869,7 +1869,7 @@ __ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src,
 }
 
 /// Performs clamping of values in a vector between min and max values.
-/// The variant of the API having scalars for minimum and maximum values.
+/// This variant of the API uses scalars for minimum and maximum values.
 /// @tparam T type of the vectors.
 /// @tparam N size of the vectors.
 /// @param src vector containing an input.
