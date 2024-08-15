@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f8336050f43a6529636fd6b2075dfe09961564f5
-  # Merge: 6c98e0e8 b75f2bc2
+  # commit d8f1c98e48e98ea2f6a227af82366734fcde977e
+  # Merge: 6e8efa3d 9e824480
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 13 13:07:23 2024 +0100
-  #     Merge pull request #1955 from nrspruit/fix_l0_coverity
-  #     [L0] fix Coverity issues for L0 Adapter
-  set(UNIFIED_RUNTIME_TAG f8336050f43a6529636fd6b2075dfe09961564f5)
+  # Date:   Wed Aug 14 11:46:59 2024 +0100
+  #     Merge pull request #1946 from callumfare/callum/update_ur_trace_env_var
+  #     Update expected values of SYCL_UR_TRACE environment variable
+  set(UNIFIED_RUNTIME_TAG d8f1c98e48e98ea2f6a227af82366734fcde977e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

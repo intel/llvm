@@ -75,7 +75,10 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 }
 
 namespace ur {
-bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
+bool trace(TraceLevel Level) {
+  auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
+  return (TraceLevelMask & Level) == Level;
+}
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig);
@@ -108,20 +111,23 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
     OwnLoaderConfig = true;
   }
 
-  auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
-  if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
-    const char *LogOptions = "level:info;output:stdout;flush:info";
+  const char *LogOptions = "level:info;output:stdout;flush:info";
+  if (trace(TraceLevel::TRACE_CALLS)) {
 #ifdef _WIN32
     _putenv_s("UR_LOG_TRACING", LogOptions);
-    _putenv_s("UR_LOG_LOADER", LogOptions);
 #else
     setenv("UR_LOG_TRACING", LogOptions, 1);
-    setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
+    CHECK_UR_SUCCESS(
+        urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
   }
 
-  if (std::getenv("UR_LOG_TRACING")) {
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+  if (trace(TraceLevel::TRACE_BASIC)) {
+#ifdef _WIN32
+    _putenv_s("UR_LOG_LOADER", LogOptions);
+#else
+    setenv("UR_LOG_LOADER", LogOptions, 1);
+#endif
   }
 
   CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(

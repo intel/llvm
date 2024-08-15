@@ -133,7 +133,7 @@ jobs:
     if: |
       always()
       && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
