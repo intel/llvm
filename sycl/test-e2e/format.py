@@ -201,6 +201,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             if "level_zero:gpu" in sycl_devices and litConfig.params.get("ur_l0_debug"):
                 extra_env.append("UR_L0_DEBUG={}".format(test.config.ur_l0_debug))
 
+            extra_env.append('UR_LOG_VALIDATION="level:info;output:stdout;flush:info"')
+
             if "level_zero:gpu" in sycl_devices and litConfig.params.get(
                 "ur_l0_leaks_debug"
             ):
