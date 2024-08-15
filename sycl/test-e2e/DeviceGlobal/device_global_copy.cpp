@@ -20,11 +20,15 @@ oneapiext::device_global<int> DGCopy2{DGInit2};
 oneapiext::device_global<float> DGInit3{5.0f};
 oneapiext::device_global<int> DGCopy3{DGInit3};
 
-oneapiext::device_global<const int, decltype(oneapiext::properties{oneapiext::device_image_scope})> DGInit4{6};
+oneapiext::device_global<const int, decltype(oneapiext::properties{
+                                        oneapiext::device_image_scope})>
+    DGInit4{6};
 oneapiext::device_global<const int> DGCopy4{DGInit4};
 
 oneapiext::device_global<const int> DGInit5{7};
-oneapiext::device_global<const int, decltype(oneapiext::properties{oneapiext::host_access_read})> DGCopy5{DGInit5};
+oneapiext::device_global<const int, decltype(oneapiext::properties{
+                                        oneapiext::host_access_read})>
+    DGCopy5{DGInit5};
 
 int main() {
   sycl::queue Q;
