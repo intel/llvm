@@ -50,9 +50,15 @@ struct joint_matrix {
   sycl::ext::oneapi::detail::joint_matrix_hip<T, Use, Rows, Cols, Layout>
       matrix_impl;
 #elif defined(__SPIR__) || defined(__SPIRV__)
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   __spv::__spirv_JointMatrixINTEL<
       T, Rows, Cols, spv_matrix_layout_traits<Layout>::value,
       spv_scope_traits<Group>::value, spv_matrix_use_traits<Use>::value> *spvm;
+#else
+  __spv::__spirv_CooperativeMatrixKHR<T, spv_scope_traits<Group>::value, Rows,
+                                      Cols, spv_matrix_use_traits<Use>::value>
+      *spvm;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else
   static_assert(false, "The joint_matrix API is only supported by the Intel, "
                        "CUDA and HIP (GFX90A) backends");
@@ -200,12 +206,20 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   res.spvm = __spirv_JointMatrixLoadINTEL<
       DecorT, S, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
       spv_scope_traits<Group>::value);
+#else
+  res.spvm = __spirv_CooperativeMatrixLoadKHR<
+      DecorT, S, NumRows, NumCols,
+      spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -246,12 +260,20 @@ joint_matrix_load(Group sg,
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(src);
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   res.spvm =
       __spirv_JointMatrixLoadINTEL<DecorT, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
           spv_scope_traits<Group>::value);
+#else
+  res.spvm =
+      __spirv_CooperativeMatrixLoadKHR<DecorT, S, NumRows, NumCols,
+                                       spv_matrix_use_traits<Use>::value,
+                                       spv_matrix_layout_traits<Layout>::value>(
+          Ptr, spv_matrix_layout_traits<Layout>::value, stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -284,11 +306,18 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #else
   std::ignore = sg;
   T *Ptr = src.get();
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   res.spvm = __spirv_JointMatrixLoadINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
       spv_scope_traits<Group>::value);
+#else
+  res.spvm = __spirv_CooperativeMatrixLoadKHR<
+      T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -323,12 +352,20 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
 #else
   std::ignore = sg;
   T *Ptr = src.get();
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   res.spvm =
       __spirv_JointMatrixLoadINTEL<T, S, NumRows, NumCols,
                                    spv_matrix_use_traits<Use>::value,
                                    spv_matrix_layout_traits<Layout>::value>(
           Ptr, stride, spv_matrix_layout_traits<Layout>::value,
           spv_scope_traits<Group>::value);
+#else
+  res.spvm =
+      __spirv_CooperativeMatrixLoadKHR<T, S, NumRows, NumCols,
+                                       spv_matrix_use_traits<Use>::value,
+                                       spv_matrix_layout_traits<Layout>::value>(
+          Ptr, spv_matrix_layout_traits<Layout>::value, stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -365,12 +402,20 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   __spirv_JointMatrixStoreINTEL<
       DecorT, T, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, src.spvm, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
       spv_scope_traits<Group>::value);
+#else
+  __spirv_CooperativeMatrixStoreKHR<
+      DecorT, T, NumRows, NumCols,
+      spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, src.spvm, sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -403,11 +448,18 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #else
   std::ignore = sg;
   T *Ptr = dst.get();
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   __spirv_JointMatrixStoreINTEL<
       T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
       Ptr, src.spvm, stride, sycl::detail::joint_matrix_layout_to_spv(Layout),
       spv_scope_traits<Group>::value);
+#else
+  __spirv_CooperativeMatrixStoreKHR<
+      T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
+      spv_matrix_layout_traits<layout::dynamic>::value>(
+      Ptr, src.spvm, sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = sg;
@@ -464,8 +516,9 @@ joint_matrix_mad(
                     "requires that joint_matrix data types Ta and Tb match");
   }
 #else
-  if constexpr (std::is_same<Ta, uint16_t>::value &&
-                std::is_same<Tb, uint16_t>::value &&
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
+  if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
                 std::is_same<Tc, float>::value)
     D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
   else if constexpr (std::is_unsigned<Ta>::value && std::is_unsigned<Tb>::value)
@@ -476,6 +529,38 @@ joint_matrix_mad(
     D.spvm = __spirv_JointMatrixUSMadINTEL(A.spvm, B.spvm, C.spvm);
   else
     D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
+#else
+  if constexpr (std::is_same<Ta, uint16_t>::value &&
+                std::is_same<Tb, uint16_t>::value &&
+                std::is_same<Tc, float>::value) {
+    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
+    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
+                                                MatrixOperand);
+  } else if constexpr (std::is_signed<Ta>::value &&
+                       std::is_unsigned<Tb>::value) {
+    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixASignedComponentsKHR);
+    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
+                                                MatrixOperand);
+  } else if constexpr (std::is_unsigned<Ta>::value &&
+                       std::is_signed<Tb>::value) {
+    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
+                                                MatrixOperand);
+  } else if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
+    constexpr uint32_t MatrixOperand =
+        static_cast<uint32_t>(
+            __spv::MatrixOperands::MatrixASignedComponentsKHR) +
+        static_cast<uint32_t>(
+            __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
+                                                MatrixOperand);
+  } else {
+    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm);
+  }
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;

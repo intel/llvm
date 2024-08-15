@@ -539,11 +539,9 @@ static void collectSYCLAttributes(SemaSYCL &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
-  // are applied to onto the kernel which calls the function.
-  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
-  if (DirectlyCalled || S.getASTContext().getLangOpts().getSYCLVersion() <
-                            LangOptions::SYCL_2020) {
+  // In SYCL 2020 mode, the attributes aren't propagated from the function they
+  // are applied on to the kernel which calls the function.
+  if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
@@ -553,14 +551,8 @@ static void collectSYCLAttributes(SemaSYCL &S, FunctionDecl *FD,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-    });
-  }
-
-  // Attributes that should not be propagated from device functions to a kernel.
-  if (DirectlyCalled) {
-    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-      return isa<SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
+                 SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
                  SYCLIntelDisableLoopPipeliningAttr,
                  SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
@@ -1073,10 +1065,8 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type, be declared at file scope,
-// outside any namespaces, and with the SYCL_DEVICE attribute. If the
-// SYCL_DEVICE attribute is not specified this function is not entered since the
-// possibility of the function being a free function is ruled out already.
+// FIXME: Free functions must have void return type and be declared at file
+// scope, outside any namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -4856,10 +4846,6 @@ public:
                       scope */
                 0 << KernelNameType;
             IsInvalid = true;
-          } else {
-            S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-            S.Diag(DeclNamed->getLocation(), diag::note_previous_decl)
-                << DeclNamed->getName();
           }
         }
       }
@@ -4930,13 +4916,9 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
-  if (KernelParamTy->isReferenceType()) {
-    // passing by reference, so emit warning if not using SYCL 2020
-    if (SemaRef.LangOpts.getSYCLVersion() < LangOptions::SYCL_2020)
-      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_reference_future);
-  } else {
+  if (not KernelParamTy->isReferenceType()) {
     // passing by value.  emit warning if using SYCL 2020 or greater
-    if (SemaRef.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017)
+    if (SemaRef.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020)
       Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
   }
 

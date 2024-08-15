@@ -131,8 +131,8 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Diagnose SYCL 2017 spellings in later SYCL modes.
-  if (getLangOpts().getSYCLVersion() > LangOptions::SYCL_2017) {
+  // Diagnose SYCL 2020 spellings in later SYCL modes.
+  if (getLangOpts().getSYCLVersion() > LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a
     // name in the sycl namespace as of SYCL 2020.
     if (A.hasScope() && A.getScopeName()->isStr("cl")) {
@@ -156,14 +156,6 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
           << "'[[sycl::" + A.getNormalizedFullName() + "]]'";
       return;
     }
-  }
-
-  // Diagnose SYCL 2020 spellings used in earlier SYCL modes as being an
-  // extension.
-  if (getLangOpts().getSYCLVersion() == LangOptions::SYCL_2017 &&
-      A.hasScope() && A.getScopeName()->isStr("sycl")) {
-    Diag(A.getLoc(), diag::ext_sycl_2020_attr_spelling) << A;
-    return;
   }
 }
 
