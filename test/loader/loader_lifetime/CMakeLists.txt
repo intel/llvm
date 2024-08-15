@@ -6,6 +6,7 @@
 add_executable(test-loader-lifetime
     urLoaderInit.cpp
     urLoaderTearDown.cpp
+    mixed.cpp
 )
 
 target_link_libraries(test-loader-lifetime

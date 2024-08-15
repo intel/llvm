@@ -14,15 +14,12 @@
 #include "asan_interceptor.hpp"
 
 namespace ur_sanitizer_layer {
-context_t context;
+context_t *getContext() { return context_t::get_direct(); }
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t()
     : logger(logger::create_logger("sanitizer", false, false,
-                                   logger::Level::WARN)),
-      interceptor(std::make_unique<SanitizerInterceptor>()) {}
-
-bool context_t::isAvailable() const { return true; }
+                                   logger::Level::WARN)) {}
 
 ur_result_t context_t::tearDown() { return UR_RESULT_SUCCESS; }
 

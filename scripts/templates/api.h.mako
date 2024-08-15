@@ -42,7 +42,7 @@ extern "C" {
 %if len(spec['objects']):
 // ${th.subt(n, tags, spec['header']['desc'])}
 #if !defined(__GNUC__)
-#pragma region ${spec['name']}
+#pragma region ${spec['name'].replace(' ', '_')}
 #endif
 %endif
 %for obj in spec['objects']:

@@ -61,3 +61,46 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
     ASSERT_SUCCESS(urKernelRelease(kernel));
     ASSERT_SUCCESS(urProgramRelease(program));
 }
+
+TEST_P(urLevelZeroKernelNativeHandleTest, NullProgram) {
+    ze_context_handle_t native_context;
+    urContextGetNativeHandle(context, (ur_native_handle_t *)&native_context);
+
+    ze_device_handle_t native_device;
+    urDeviceGetNativeHandle(device, (ur_native_handle_t *)&native_device);
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
+
+    auto kernel_name =
+        uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
+
+    ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
+    moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+    moduleDesc.inputSize = il_binary->size();
+    moduleDesc.pInputModule =
+        reinterpret_cast<const uint8_t *>(il_binary->data());
+    moduleDesc.pBuildFlags = "";
+    ze_module_handle_t module;
+
+    ASSERT_EQ(zeModuleCreate(native_context, native_device, &moduleDesc,
+                             &module, NULL),
+              ZE_RESULT_SUCCESS);
+
+    ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC};
+    kernelDesc.pKernelName = kernel_name.c_str();
+
+    ze_kernel_handle_t native_kernel;
+
+    ASSERT_EQ(zeKernelCreate(module, &kernelDesc, &native_kernel),
+              ZE_RESULT_SUCCESS);
+
+    ur_kernel_native_properties_t kprops = {
+        UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES, nullptr, 1};
+
+    ur_kernel_handle_t kernel;
+    EXPECT_EQ(urKernelCreateWithNativeHandle((ur_native_handle_t)native_kernel,
+                                             context, nullptr, &kprops,
+                                             &kernel),
+              UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}

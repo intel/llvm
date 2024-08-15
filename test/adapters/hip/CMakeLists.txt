@@ -11,6 +11,7 @@ add_adapter_test(hip
         urDeviceGetNativeHandle.cpp
         urEventGetNativeHandle.cpp
         test_context.cpp
+        test_event.cpp
     ENVIRONMENT
         "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_hip>\""
 )
@@ -26,4 +27,4 @@ target_compile_definitions(test-adapter-hip PRIVATE
     ${HIP_COMPILE_DEFINITIONS}
 )
 
-target_link_libraries(test-adapter-hip PRIVATE rocmdrv)
+target_link_libraries(test-adapter-hip PRIVATE rocmdrv ${PROJECT_NAME}::umf)

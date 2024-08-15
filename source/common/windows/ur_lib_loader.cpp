@@ -19,14 +19,18 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
             logger::error(
                 "Failed to unload the library with the handle at address {}",
                 handle);
+        } else {
+            logger::info("unloaded adapter 0x{}", handle);
         }
     }
 }
 
 std::unique_ptr<HMODULE, LibLoader::lib_dtor>
 LibLoader::loadAdapterLibrary(const char *name) {
-    return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(
+    auto handle = std::unique_ptr<HMODULE, LibLoader::lib_dtor>(
         LoadLibraryExA(name, nullptr, 0));
+    logger::info("loaded adapter 0x{} ({})", handle, name);
+    return handle;
 }
 
 void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {
