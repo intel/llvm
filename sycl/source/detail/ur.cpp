@@ -113,8 +113,10 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   // enable full validation by default.
   if(!LoaderConfig) {
     CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig,
-                                               "UR_LAYER_PARAMETER_VALIDATION"))
+    if (std::getenv("UR_LOG_VALIDATION")) {
+      CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(
+          LoaderConfig, "UR_LAYER_PARAMETER_VALIDATION"))
+    }
     OwnLoaderConfig = true;
   }
 
