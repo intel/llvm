@@ -156,8 +156,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/coldav/unified-runtime.git"
+    colin/fix_native_cpu_missing_mutex  
   )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
