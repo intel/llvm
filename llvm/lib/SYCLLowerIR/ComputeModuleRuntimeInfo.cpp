@@ -25,13 +25,18 @@ constexpr int DebugModuleProps = 0;
 #endif
 
 namespace llvm::sycl {
+
 bool isModuleUsingAsan(const Module &M) {
-  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
-  if (MD == nullptr)
-    return false;
-  assert(MD->getNumOperands() != 0);
-  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
-  return MDVal->getString() == "asan";
+  for (const auto &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+    if (F.arg_size() == 0)
+      continue;
+    const auto *LastArg = F.getArg(F.arg_size() - 1);
+    if (LastArg->getName() == "__asan_launch")
+      return true;
+  }
+  return false;
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
