@@ -3453,7 +3453,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   CompoundStmt *createKernelBody() {
     // Push the Kernel function scope to ensure the scope isn't empty
     SemaSYCLRef.SemaRef.PushFunctionScope();
-
     if (!UseTopLevelKernelObj) {
       // Initialize kernel object local clone
       assert(CollectionInitExprs.size() == 1 &&
@@ -3480,8 +3479,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
-    SourceLocation LL = NewBody ? NewBody->getBeginLoc() : SourceLocation();
-    SourceLocation LR = NewBody ? NewBody->getEndLoc() : SourceLocation();
+    SourceLocation LL =
+        CallOperator ? CallOperator->getBeginLoc() : SourceLocation();
+    SourceLocation LR =
+        CallOperator ? CallOperator->getEndLoc() : SourceLocation();
 
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
                                 FPOptionsOverride(), LL, LR);
