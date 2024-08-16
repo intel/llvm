@@ -33,8 +33,8 @@ jobs:
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/llvm"
-      build_cache_suffix: sprod_static
-      build_artifact_suffix: sprod_static
+      build_cache_suffix: default
+      build_artifact_suffix: default
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
@@ -97,7 +97,7 @@ jobs:
       ref: ${{ github.sha }}
       merge_ref: ''
 
-      sycl_toolchain_artifact: sycl_linux_sprod_static
+      sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
 
