@@ -372,7 +372,9 @@ def main():
     parser.add_argument(
         "--ci-defaults", action="store_true", help="Enable default CI parameters"
     )
-    parser.add_argument("--enable-backends", action="append", help="Enable SYCL backend")
+    parser.add_argument(
+        "--enable-backends", action="append", help="Enable SYCL backend"
+    )
     parser.add_argument(
         "--disable-preview-lib",
         action="store_true",
