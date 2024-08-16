@@ -139,7 +139,7 @@ TEST_P(EventPoolTest, Basic) {
         ur_event_handle_t first;
         ze_event_handle_t zeFirst;
         {
-            auto pool = cache->borrow(device->Id);
+            auto pool = cache->borrow(device->Id.value());
 
             first = pool->allocate();
             zeFirst = first->getZeEvent();
@@ -148,7 +148,7 @@ TEST_P(EventPoolTest, Basic) {
         ur_event_handle_t second;
         ze_event_handle_t zeSecond;
         {
-            auto pool = cache->borrow(device->Id);
+            auto pool = cache->borrow(device->Id.value());
 
             second = pool->allocate();
             zeSecond = second->getZeEvent();
@@ -165,7 +165,7 @@ TEST_P(EventPoolTest, Threaded) {
     for (int iters = 0; iters < 3; ++iters) {
         for (int th = 0; th < 10; ++th) {
             threads.emplace_back([&] {
-                auto pool = cache->borrow(device->Id);
+                auto pool = cache->borrow(device->Id.value());
                 std::vector<ur_event_handle_t> events;
                 for (int i = 0; i < 100; ++i) {
                     events.push_back(pool->allocate());
@@ -183,7 +183,7 @@ TEST_P(EventPoolTest, Threaded) {
 }
 
 TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
-    auto pool = cache->borrow(device->Id);
+    auto pool = cache->borrow(device->Id.value());
     std::list<ur_event_handle_t> events;
     for (int i = 0; i < 128; ++i) {
         events.push_back(pool->allocate());
