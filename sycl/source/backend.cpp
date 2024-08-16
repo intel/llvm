@@ -84,8 +84,8 @@ __SYCL_EXPORT device make_device(ur_native_handle_t NativeHandle,
   const auto &Plugin = getPlugin(Backend);
 
   ur_device_handle_t UrDevice = nullptr;
-  Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle, nullptr, nullptr,
-               &UrDevice);
+  Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle,
+               Plugin->getUrAdapter(), nullptr, &UrDevice);
   // Construct the SYCL device from UR device.
   return detail::createSyclObjFromImpl<device>(
       std::make_shared<device_impl>(UrDevice, Plugin));

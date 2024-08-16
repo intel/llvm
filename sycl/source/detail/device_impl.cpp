@@ -42,8 +42,8 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
     // Get UR device from the raw device handle.
     // NOTE: this is for OpenCL interop only (and should go away).
     // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call(urDeviceCreateWithNativeHandle, InteropDeviceHandle, nullptr,
-                 nullptr, &MDevice);
+    Plugin->call(urDeviceCreateWithNativeHandle, InteropDeviceHandle,
+                 Plugin->getUrAdapter(), nullptr, &MDevice);
     InteroperabilityConstructor = true;
   }
 

@@ -117,7 +117,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-<<<<<<< HEAD
   # commit a99dbcee3404a56d05b8803c63caede64a073076 (HEAD, origin/main, origin/HEAD)
   # Merge: 9d71afb8 4bf58035
   # Author: Callum Fare <callum@codeplay.com>
@@ -125,15 +124,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #  Merge pull request #2067 from sarnex/fixbuild
   #  [OpenCL] Use older OpenCL-Headers commit to fix build
   set(UNIFIED_RUNTIME_TAG a99dbcee3404a56d05b8803c63caede64a073076)
-=======
-  # commit d8f1c98e48e98ea2f6a227af82366734fcde977e
-  # Merge: 6e8efa3d 9e824480
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 14 11:46:59 2024 +0100
-  #     Merge pull request #1946 from callumfare/callum/update_ur_trace_env_var
-  #     Update expected values of SYCL_UR_TRACE environment variable
-  set(UNIFIED_RUNTIME_TAG d8f1c98e48e98ea2f6a227af82366734fcde977e)
->>>>>>> 390a472df2f0 ([SYCL] Implement multiple tracing levels for SYCL_UR_TRACE (#14983))
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
