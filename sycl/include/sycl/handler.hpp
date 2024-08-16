@@ -689,8 +689,8 @@ private:
 #endif
   }
   template <typename DataT>
-  void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, nullptr, Arg->size, ArgIndex);
+  void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> &&Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, sizeof(Arg), ArgIndex);
 }
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -913,13 +913,14 @@ private:
 
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
-
+std::cout << sizeof(KernelFunc) << std::endl;
+std::cout << KI::getKernelSize() << std::endl;
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
         !KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
-        "Unexpected kernel lambda size. This can be caused by an "
+        "Unexpected kernel lambda size. Expected This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
         "In many cases the difference is related to capturing constexpr "
@@ -2026,7 +2027,7 @@ public:
   }
 
   template<typename DataT>
-  void set_arg(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> Arg) {
+  void set_arg(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
 }
   // set_arg for graph dynamic_parameters
