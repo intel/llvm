@@ -43,7 +43,7 @@ struct DeviceInfo {
     uptr ShadowOffsetEnd = 0;
 
     // Device features
-    bool IsSupportSharedSystemUSM;
+    bool IsSupportSharedSystemUSM = false;
 
     ur_mutex Mutex;
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
