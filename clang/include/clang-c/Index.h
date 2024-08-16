@@ -2980,6 +2980,9 @@ enum CXTypeKind {
   CXType_Atomic = 177,
   CXType_BTFTagAttributed = 178,
 
+  // HLSL Intangible Types
+  CXType_HLSLResource = 179,
+
   /* SPIRV builtin types. */
   CXType_SampledOCLImage1dRO = 200,
   CXType_SampledOCLImage1dArrayRO = 201,
