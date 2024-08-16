@@ -64,7 +64,9 @@ params:
       desc: "[in][optional] pointer to value properties."
     - type: "const void*"
       name: pArgValue
-      desc: "[in] argument value represented as matching arg type."
+      desc: |
+         [in] argument value represented as matching arg type.
+         The data pointed to will be copied and therefore can be reused on return.
 returns:
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE

@@ -3356,6 +3356,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
+    ///< The data pointed to will be copied and therefore can be reused on return.
 ) {
     auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
