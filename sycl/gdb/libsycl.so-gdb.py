@@ -6,6 +6,10 @@
 #
 # ===-----------------------------------------------------------------------===#
 #
+# Please follow the LLVM coding standard for python formatting under section
+# "Python version and Source Code Formatting" here:
+#   https://llvm.org/docs/CodingStandards.html
+#
 # This file has been formatted with the 'black' utility version 23.
 #
 # ===-----------------------------------------------------------------------===#
