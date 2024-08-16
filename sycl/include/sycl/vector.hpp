@@ -170,10 +170,11 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     // sycl::half may convert to _Float16, and we would try to instantiate
     // vec class with _Float16 DataType, which is not expected there. As
     // such, leave vector<half, N> as-is.
-    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
-                                               decltype(convertToOpenCLType(
-                                                   std::declval<ElemTy>()))>,
-                            no_ref::size()>;
+    using MatchingVec =
+        vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
+                               decltype(convertToOpenCLType(
+                                   std::declval<ElemTy>()))>,
+            no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::bit_cast<typename MatchingVec::vector_t>(x);
 #else
@@ -184,10 +185,11 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     // sycl::half may convert to _Float16, and we would try to instantiate
     // vec class with _Float16 DataType, which is not expected there. As
     // such, leave vector<half, N> as-is.
-    using MatchingVec = vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
-                                               decltype(convertToOpenCLType(
-                                                   std::declval<ElemTy>()))>,
-                            no_ref::size()>;
+    using MatchingVec =
+        vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
+                               decltype(convertToOpenCLType(
+                                   std::declval<ElemTy>()))>,
+            no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::bit_cast<typename MatchingVec::vector_t>(x);
 #else
@@ -400,7 +402,6 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
 #undef __SYCL_SWIZZLE_MIXIN_METHOD_CONST
 #undef __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST
 
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -416,8 +417,6 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
 
 #include <sycl/detail/named_swizzles_mixin.hpp>
 #endif
-
-
 
 namespace sycl {
 inline namespace _V1 {
@@ -1064,8 +1063,10 @@ struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, N>,
       public NonTemplateBinaryOpsMixin<Self, DataT, SwizzleImpl, DataT, N>,
       public NonTemplateBinaryOpsMixin<DataT, Self, SwizzleImpl, DataT, N>,
-      public NonTemplateBinaryOpsMixin<Self, vec<DataT, N>, SwizzleImpl, DataT, N>,
-      public NonTemplateBinaryOpsMixin<vec<DataT, N>, Self, SwizzleImpl, DataT, N>,
+      public NonTemplateBinaryOpsMixin<Self, vec<DataT, N>, SwizzleImpl, DataT,
+                                       N>,
+      public NonTemplateBinaryOpsMixin<vec<DataT, N>, Self, SwizzleImpl, DataT,
+                                       N>,
       public UnaryOpsMixin<Self, SwizzleImpl, DataT>,
       public SwizzleTemplateBinaryOpsMixin<Self, VecT, DataT, N> {};
 
@@ -1227,8 +1228,8 @@ private:
       return ResultVec{this->Vec[Indexes]...};
 #ifdef __SYCL_DEVICE_ONLY__
     } else if constexpr (std::is_same_v<To, vector_t>) {
-    // operator ResultVec() isn't available for single-element swizzle, create
-    // sycl::vec explicitly here.
+      // operator ResultVec() isn't available for single-element swizzle, create
+      // sycl::vec explicitly here.
       return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
 #endif
     } else {
@@ -1336,13 +1337,13 @@ class __SYCL_EBO vec :
                                    vec<DataT, NumElements>, DataT, NumElements,
                                    /* AllowAssignOps = */ true>,
     public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>, NumElements>,
-    public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>,
-                                             vec<DataT, NumElements>,
-                                             detail::VectorImpl, DataT, NumElements>,
-    public detail::NonTemplateBinaryOpsMixin<vec<DataT, NumElements>, DataT,
-                                             detail::VectorImpl, DataT, NumElements>,
-    public detail::NonTemplateBinaryOpsMixin<DataT, vec<DataT, NumElements>,
-                                             detail::VectorImpl, DataT, NumElements>,
+    public detail::NonTemplateBinaryOpsMixin<
+        vec<DataT, NumElements>, vec<DataT, NumElements>, detail::VectorImpl,
+        DataT, NumElements>,
+    public detail::NonTemplateBinaryOpsMixin<
+        vec<DataT, NumElements>, DataT, detail::VectorImpl, DataT, NumElements>,
+    public detail::NonTemplateBinaryOpsMixin<
+        DataT, vec<DataT, NumElements>, detail::VectorImpl, DataT, NumElements>,
     public detail::UnaryOpsMixin<vec<DataT, NumElements>, detail::VectorImpl,
                                  DataT>,
     public detail::NonTemplateBinaryOpAssignOpsMixin<
