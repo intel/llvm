@@ -33,13 +33,13 @@
 ;
 ; CHECK-TU0-IR: @_ZL2GV = internal addrspace(1) constant
 ; CHECK-TU0-IR: define dso_local spir_kernel void @_ZTSZ4mainE11TU1_kernel0
-; CHECK-TU0-IR: define dso_local spir_func i32 @_Z4foo1v
+; CHECK-TU0-IR: define {{.*}} spir_func i32 @_Z4foo1v
 ; CHECK-TU0-IR: define dso_local spir_kernel void @_ZTSZ4mainE11TU1_kernel1
-; CHECK-TU0-IR: define dso_local spir_func void @_Z4foo2v
+; CHECK-TU0-IR: define {{.*}} spir_func void @_Z4foo2v
 ;
 ; CHECK-TU1-IR: define dso_local spir_kernel void @_ZTSZ4mainE10TU0_kernel
-; CHECK-TU1-IR: define dso_local spir_func void @_Z3foov
-; CHECK-TU1-IR: define dso_local spir_func i32 @_Z4foo3v
+; CHECK-TU1-IR: define {{.*}} spir_func void @_Z3foov
+; CHECK-TU1-IR: define {{.*}} spir_func i32 @_Z4foo3v
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"

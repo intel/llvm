@@ -187,7 +187,8 @@ def opencl_Group : OptionGroup<"<opencl group>">, Group<f_Group>,
                    DocName<"OpenCL options">;
 
 def sycl_Group : OptionGroup<"<SYCL group>">, Group<f_Group>,
-                 DocName<"SYCL options">;
+                 DocName<"SYCL options">,
+                 Visibility<[ClangOption, CLOption]>;
 
 def cuda_Group : OptionGroup<"<CUDA group>">, Group<f_Group>,
                    DocName<"CUDA options">,
@@ -1689,6 +1690,7 @@ def shared_libsan : Flag<["-"], "shared-libsan">,
 def static_libsan : Flag<["-"], "static-libsan">,
   HelpText<"Statically link the sanitizer runtime (Not supported for ASan, TSan or UBSan on darwin)">;
 def : Flag<["-"], "shared-libasan">, Alias<shared_libsan>;
+def : Flag<["-"], "static-libasan">, Alias<static_libsan>;
 def fasm : Flag<["-"], "fasm">, Group<f_Group>;
 
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
@@ -3562,6 +3564,11 @@ defm objc_avoid_heapify_local_blocks : BoolFOption<"objc-avoid-heapify-local-blo
   PosFlag<SetTrue, [], [ClangOption], "Try">,
   NegFlag<SetFalse, [], [ClangOption], "Don't try">,
   BothFlags<[], [CC1Option], " to avoid heapifying local blocks">>;
+defm disable_block_signature_string : BoolFOption<"disable-block-signature-string",
+  CodeGenOpts<"DisableBlockSignatureString">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption], "Disable">,
+  NegFlag<SetFalse, [], [ClangOption], "Don't disable">,
+  BothFlags<[], [CC1Option], " block signature string)">>;
 
 def fomit_frame_pointer : Flag<["-"], "fomit-frame-pointer">, Group<f_Group>,
   Visibility<[ClangOption, FlangOption]>,
@@ -3972,200 +3979,6 @@ def fstrict_overflow : Flag<["-"], "fstrict-overflow">, Group<f_Group>;
 def fdriver_only : Flag<["-"], "fdriver-only">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption]>,
   Group<Action_Group>, HelpText<"Only run the driver.">;
-def fintelfpga : Flag<["-"], "fintelfpga">, Group<f_Group>,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
-  HelpText<"Perform ahead-of-time compilation for FPGA">;
-def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Compile SYCL kernels for device">;
-def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Embed LLVM IR for runtime kernel fusion">;
-defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
-    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultTrue,
-    PosFlag<SetTrue, [], [ClangOption], "Enforce using stateless memory accesses. "
-            "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
-            "Enabled by default.">,
-    NegFlag<SetFalse, [], [ClangOption], "Do not enforce using stateless memory accesses.">,
-    BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
-// TODO: Remove this option once ESIMD headers are updated to
-// guard vectors to be device only.
-def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, Flags<[HelpHidden]>,
-  HelpText<"Don't build the host implementation of ESIMD functions.">;
-def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
-def fsycl_force_target_EQ : Joined<["-"], "fsycl-force-target=">,
-  Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Force the usage of the given triple when extracting device code "
-           "from any given objects on the command line">;
-def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
-   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-   HelpText<"Perform SYCL device code split: per_kernel (device code module is "
-  "created for each SYCL kernel) | per_source (device code module is created for each source (translation unit)) | off (no device code split). | auto (use heuristic to select the best way of splitting device code). "
-  "Default is 'auto' - use heuristic to distribute device code across modules">, Values<"per_source, per_kernel, off, auto">;
-def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">, Alias<fsycl_device_code_split_EQ>,
-  AliasArgs<["auto"]>, Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use heuristic to distribute device code across modules">;
-def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
-def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
-defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
-  PosFlag<SetTrue, [], [ClangOption, CLOption],
-           "Generates a copy of every device image that uses a specialization constant and "
-           "replaces all usages of specialization constant with default values specified by specialization_id. "
-           "If a device image doesn't use a specialization constant at all then no copy is generated. "
-           "This option is only useful if used in conjunction with Ahead of Time Compilation (-fsycl-target command line option).">,
-  NegFlag<SetFalse, [], [ClangOption, CLOption],
-           "Turns off generation of device image where all specialization constant usages are replaced "
-           "with default values.">
->;
-defm sycl_instrument_device_code
-    : BoolFOption<"sycl-instrument-device-code",
-          CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
-          PosFlag<SetTrue, [], [ClangOption], "Add">,
-          NegFlag<SetFalse, [], [ClangOption], "Do not add">,
-          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " Instrumentation and Tracing "
-                    "Technology (ITT) instrumentation intrinsics calls "
-                    "(experimental)">>;
-defm sycl_decompose_functor
-    : BoolFOption<"sycl-decompose-functor",
-          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
-          PosFlag<SetTrue, [], [ClangOption], "Do">,
-          NegFlag<SetFalse, [], [ClangOption], "Do not">,
-          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option],
-           " decompose SYCL functor if possible (experimental, CUDA only)">>;
-def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
-  Group<Link_Group>, HelpText<"Generate and use a custom linker script for huge"
-  " device code sections">;
-def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
-  Group<Link_Group>, HelpText<"Do not generate or use a custom linker script"
-  " for huge device code sections (default)">;
-defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
-  LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
-  PosFlag<SetTrue, [], [ClangOption], "Assume">, NegFlag<SetFalse, [], [ClangOption], "Do not assume">,
-  BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " that SYCL ID queries fit within MAX_INT.">>;
-def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Values<"spirv,llvmir">, HelpText<"Specify format of "
-  "device code stored in the resulting object. Valid values are: spirv, llvmir "
-  "(default)">;
-def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
-  Alias<fsycl_device_obj_EQ>, AliasArgs<["llvmir"]>,
-  Flags<[Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects (deprecated)">;
-def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
-  Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>,
-  Flags<[Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects (deprecated)">;
-def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Generate partially linked device and host object to be used at various stages of compilation">, Values<"image,early">;
-def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
-  AliasArgs<["early"]>, Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Generate partially linked device object to be used with the host link">;
-defm sycl_unnamed_lambda
-    : BoolFOption<
-          "sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,
-          Default<!strconcat(
-              sycl_ver.KeyPath,
-              " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
-          PosFlag<SetTrue, [], [ClangOption], "Allow">, NegFlag<SetFalse, [], [ClangOption], "Disallow">,
-          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " unnamed SYCL lambda kernels">>;
-defm sycl_force_inline_kernel_lambda
-    : BoolFOption<
-          "sycl-force-inline-kernel-lambda", LangOpts<"SYCLForceInlineKernelLambda">,
-          DefaultTrue,
-          PosFlag<SetTrue, [], [ClangOption], "Allow">, NegFlag<SetFalse, [], [ClangOption], "Disallow">,
-          BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], " force inline SYCL kernels lambda in entry point">>;
-def fsycl_help_EQ : Joined<["-"], "fsycl-help=">,
-  Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Emit help information from the "
-  "related offline compilation tool. Valid values: all, fpga, gen, x86_64.">,
-  Values<"all,fpga,gen,x86_64">;
-def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
-  Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, DXCOption]>, AliasArgs<["all"]>, HelpText<"Emit help information "
-  "from all of the offline compilation tools">;
-def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, HelpText<"Path to libspirv library">;
-def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Disable check for libspirv">;
-def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
-  Visibility<[ClangOption, CLOption]>, Flags<[HelpHidden]>, HelpText<"Use the SPIR-V backend for SPIR-V code generation. "
-  "Has effect only for SPIR-based targets. It is off by default and "
-  "the SPIR-V LLVM Translator is used for SPIR-V code generation. (experimental)">;
-def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
-  Flags<[NoArgumentUnused]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Specify C++ compiler binary to perform host "
-  "compilation with during SYCL offload compiles.">;
-def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"When performing the host compilation with "
-  "-fsycl-host-compiler specified, use the given options during that compile. "
-  "Options are expected to be a quoted list of space separated options.">;
-def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  Values<"on,disable,force">,
-  NormalizedValuesScope<"LangOptions::SYCLRangeRoundingPreference">,
-  NormalizedValues<["On", "Disable", "Force"]>,
-  MarshallingInfoEnum<LangOpts<"SYCLRangeRounding">, "On">,
-  HelpText<"Options for range rounding of SYCL range kernels: "
-  "disable (do not generate range rounded kernels) "
-  "force (only generate range rounded kernels) "
-  "on (generate range rounded kernels as well as unrounded kernels). Default is 'on'">;
-def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
-  HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
-  Flags<[Deprecated]>;
-def fsycl_exp_range_rounding : Flag<["-"], "fsycl-exp-range-rounding">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  HelpText<"Use experimental range rounding.">,
-  MarshallingInfoFlag<LangOpts<"SYCLExperimentalRangeRounding">>;
-def fsycl_fp64_conv_emu : Flag<["-"], "fsycl-fp64-conv-emu">,
-  Visibility<[ClangOption, CLOption, CC1Option]>,
-  HelpText<"Enable fp64 partial emulation for kernels with only fp64 conversion operations and no fp64 computation operations (requires Intel GPU backend supporting fp64 partial emulation).">,
-  MarshallingInfoFlag<CodeGenOpts<"FP64ConvEmu">>;
-def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Disable usage of the integration footer during SYCL enabled "
-   "compilations.">;
-def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Specify the location of the temporary "
-  "source file with the included integration footer.">;
-def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Disable adding of the default (spir64) triple "
-  "when discovered in user specified objects and archives.">;
-def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Group<f_Group>,
-  HelpText<"Experimental feature: Controls the maximum parallelism of actions performed "
-  "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
-  "or AOT compilation of each device image.">;
-def fsycl_preserve_device_nonsemantic_metadata : Flag<["-"], "fsycl-preserve-device-nonsemantic-metadata">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Flags<[HelpHidden]>, HelpText<"Preserve non-semantic "
-  "metadata in SPIR-V device images.">;
-def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Experimental feature: Reduce target "
-  "compilation time, with potential runtime performance trade-off.">;
-def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Expose exported symbols in a generated "
-  "target library to allow for visibilty to other modules.">;
-def fno_target_export_symbols : Flag<["-"], "fno-target-export-symbols">,
-  Visibility<[ClangOption, CLOption, DXCOption]>;
-def ftarget_register_alloc_mode_EQ : Joined<["-"], "ftarget-register-alloc-mode=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  HelpText<"Specify a register allocation mode for specific hardware for use by supported "
-  "target backends.">;
-def : Flag<["-"], "fsycl-rdc">, Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fgpu_rdc>;
-def : Flag<["-"], "fno-sycl-rdc">,
-  Visibility<[ClangOption, CLOption, DXCOption]>, Alias<fno_gpu_rdc>,
-  HelpText<"Generate relocatable device code during SYCL offload target "
-           "compilation. Use of ‘-fno-sycl-rdc’ in combination with ‘-c’ will "
-           "produce final device binaries within the generated fat object. "
-           "When using this option, each kernel must be self-contained within "
-           "its translation unit (source file).  Therefore, the use of "
-           "SYCL_EXTERNAL is disallowed when this option is enabled.">;
-def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
-  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
-  MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
-  HelpText<"Option used in conjunction with -O0 to "
-  "optimize SYCL framework utility functions and leave user's kernel code unoptimized. (experimental)">;
 def fsyntax_only : Flag<["-"], "fsyntax-only">,
   Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option, FC1Option, FlangOption]>,
@@ -4185,16 +3998,6 @@ def foperator_arrow_depth_EQ : Joined<["-"], "foperator-arrow-depth=">, Group<f_
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Maximum number of 'operator->'s to call for a member access">,
   MarshallingInfoInt<LangOpts<"ArrowDepth">, "256">;
-def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-external-funcs">,
-  Group<sycl_Group>, HelpText<"Allow removal of unused `SYCL_EXTERNAL` functions (default)">;
-def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
-  Group<sycl_Group>, HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
-def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependencies">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption]>,
-  HelpText<"Allow dependencies between device code images">;
-def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption]>,
-  HelpText<"Do not allow dependencies between device code images (default)">;
 
 def fsave_optimization_record : Flag<["-"], "fsave-optimization-record">,
   Visibility<[ClangOption, FlangOption]>,
@@ -4524,12 +4327,20 @@ defm ptrauth_vtable_pointer_address_discrimination :
 defm ptrauth_vtable_pointer_type_discrimination :
   OptInCC1FFlag<"ptrauth-vtable-pointer-type-discrimination", "Enable type discrimination of vtable pointers">;
 defm ptrauth_init_fini : OptInCC1FFlag<"ptrauth-init-fini", "Enable signing of function pointers in init/fini arrays">;
+defm ptrauth_function_pointer_type_discrimination : OptInCC1FFlag<"ptrauth-function-pointer-type-discrimination",
+  "Enable type discrimination on C function pointers">;
 }
 
 def fenable_matrix : Flag<["-"], "fenable-matrix">, Group<f_Group>,
     Visibility<[ClangOption, CC1Option]>,
     HelpText<"Enable matrix data type and related builtin functions">,
     MarshallingInfoFlag<LangOpts<"MatrixTypes">>;
+
+defm raw_string_literals : BoolFOption<"raw-string-literals",
+    LangOpts<"RawStringLiterals">, Default<std#".hasRawStringLiterals()">,
+    PosFlag<SetTrue, [], [], "Enable">,
+    NegFlag<SetFalse, [], [], "Disable">,
+    BothFlags<[], [ClangOption, CC1Option], " raw string literals">>;
 
 def fzero_call_used_regs_EQ
     : Joined<["-"], "fzero-call-used-regs=">, Group<f_Group>,
@@ -4912,10 +4723,10 @@ def inline_asm_EQ : Joined<["-"], "inline-asm=">, Group<m_Group>,
   NormalizedValuesScope<"CodeGenOptions">, NormalizedValues<["IAD_ATT", "IAD_Intel"]>,
   MarshallingInfoEnum<CodeGenOpts<"InlineAsmDialect">, "IAD_ATT">;
 def mcmodel_EQ : Joined<["-"], "mcmodel=">, Group<m_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   MarshallingInfoString<TargetOpts<"CodeModel">, [{"default"}]>;
 def mlarge_data_threshold_EQ : Joined<["-"], "mlarge-data-threshold=">, Group<m_Group>,
-  Flags<[TargetSpecific]>, Visibility<[ClangOption, CC1Option]>,
+  Flags<[TargetSpecific]>, Visibility<[ClangOption, CC1Option,FlangOption, FC1Option]>,
   MarshallingInfoInt<TargetOpts<"LargeDataThreshold">, "0">;
 def mtls_size_EQ : Joined<["-"], "mtls-size=">, Group<m_Group>,
   Visibility<[ClangOption, CC1Option]>,
@@ -5140,6 +4951,14 @@ def mstrict_align : Flag<["-"], "mstrict-align">, Group<m_Group>,
   HelpText<"Force all memory accesses to be aligned (AArch64/LoongArch/RISC-V only)">;
 def mno_strict_align : Flag<["-"], "mno-strict-align">, Group<m_Group>,
   HelpText<"Allow memory accesses to be unaligned (AArch64/LoongArch/RISC-V only)">;
+def mscalar_strict_align : Flag<["-"], "mscalar-strict-align">, Group<m_Group>,
+  HelpText<"Force all scalar memory accesses to be aligned (RISC-V only)">;
+def mno_scalar_strict_align : Flag<["-"], "mno-scalar-strict-align">, Group<m_Group>,
+  HelpText<"Allow scalar memory accesses to be unaligned (RISC-V only)">;
+def mvector_strict_align : Flag<["-"], "mvector-strict-align">, Group<m_Group>,
+  HelpText<"Force all vector memory accesses to be aligned (RISC-V only)">;
+def mno_vector_strict_align : Flag<["-"], "mno-vector-strict-align">, Group<m_Group>,
+  HelpText<"Allow vector memory accesses to be unaligned (RISC-V only)">;
 def mno_thumb : Flag<["-"], "mno-thumb">, Group<m_arm_Features_Group>;
 def mrestrict_it: Flag<["-"], "mrestrict-it">, Group<m_arm_Features_Group>,
   HelpText<"Disallow generation of complex IT blocks. It is off by default.">;
@@ -5216,6 +5035,9 @@ def mno_bti_at_return_twice : Flag<["-"], "mno-bti-at-return-twice">,
 foreach i = {1-31} in
   def ffixed_x#i : Flag<["-"], "ffixed-x"#i>, Group<m_Group>,
     HelpText<"Reserve the x"#i#" register (AArch64/RISC-V only)">;
+
+def mlr_for_calls_only : Flag<["-"], "mlr-for-calls-only">, Group<m_aarch64_Features_Group>,
+  HelpText<"Do not allocate the LR register for general purpose usage, only for calls. (AArch64 only)">;
 
 foreach i = {8-15,18} in
   def fcall_saved_x#i : Flag<["-"], "fcall-saved-x"#i>, Group<m_aarch64_Features_Group>,
@@ -5454,6 +5276,13 @@ def mvx : Flag<["-"], "mvx">, Group<m_Group>;
 def mno_vx : Flag<["-"], "mno-vx">, Group<m_Group>;
 } // let Flags = [TargetSpecific]
 
+let Flags = [TargetSpecific] in {
+def msse2avx : Flag<["-"], "msse2avx">, Group<m_Group>,
+  Visibility<[ClangOption, CC1Option, CC1AsOption]>,
+  HelpText<"Specify that the assembler should encode SSE instructions with VEX prefix">,
+  MarshallingInfoFlag<CodeGenOpts<"SSE2AVX">>;
+} // let Flags = [TargetSpecific]
+
 defm zvector : BoolFOption<"zvector",
   LangOpts<"ZVector">, DefaultFalse,
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
@@ -5552,6 +5381,9 @@ def mlasx : Flag<["-"], "mlasx">, Group<m_loongarch_Features_Group>,
   HelpText<"Enable Loongson Advanced SIMD Extension (LASX).">;
 def mno_lasx : Flag<["-"], "mno-lasx">, Group<m_loongarch_Features_Group>,
   HelpText<"Disable Loongson Advanced SIMD Extension (LASX).">;
+def msimd_EQ : Joined<["-"], "msimd=">, Group<m_loongarch_Features_Group>,
+  Flags<[TargetSpecific]>,
+  HelpText<"Select the SIMD extension(s) to be enabled in LoongArch either 'none', 'lsx', 'lasx'.">;
 def mnop_mcount : Flag<["-"], "mnop-mcount">, HelpText<"Generate mcount/__fentry__ calls as nops. To activate they need to be patched in.">,
   Visibility<[ClangOption, CC1Option]>, Group<m_Group>,
   MarshallingInfoFlag<CodeGenOpts<"MNopMCount">>;
@@ -5721,6 +5553,7 @@ def module_file_info : Flag<["-"], "module-file-info">, Flags<[]>,
   HelpText<"Provide information about a particular module file">;
 def mthumb : Flag<["-"], "mthumb">, Group<m_Group>;
 def mtune_EQ : Joined<["-"], "mtune=">, Group<m_Group>,
+  Visibility<[ClangOption, FlangOption]>,
   HelpText<"Only supported on AArch64, PowerPC, RISC-V, SPARC, SystemZ, and X86">;
 def multi__module : Flag<["-"], "multi_module">;
 def multiply__defined__unused : Separate<["-"], "multiply_defined_unused">;
@@ -5837,7 +5670,10 @@ def print_prog_name_EQ : Joined<["-", "--"], "print-prog-name=">,
   Visibility<[ClangOption, CLOption]>;
 def print_resource_dir : Flag<["-", "--"], "print-resource-dir">,
   HelpText<"Print the resource directory pathname">,
-  Visibility<[ClangOption, CLOption]>;
+  HelpTextForVariants<[FlangOption],
+                      "Print the resource directory pathname that contains lib and "
+                      "include directories with the runtime libraries and MODULE files.">,
+  Visibility<[ClangOption, CLOption, FlangOption]>;
 def print_search_dirs : Flag<["-", "--"], "print-search-dirs">,
   HelpText<"Print the paths used for finding libraries and programs">,
   Visibility<[ClangOption, CLOption]>;
@@ -5885,7 +5721,7 @@ def resource_dir_EQ : Joined<["-"], "resource-dir=">, Flags<[NoXarchOption]>,
   Alias<resource_dir>;
 def rpath : Separate<["-"], "rpath">, Flags<[LinkerInput]>, Group<Link_Group>,
   Visibility<[ClangOption, CLOption, DXCOption, FlangOption]>;
-def rtlib_EQ : Joined<["-", "--"], "rtlib=">, Visibility<[ClangOption, CLOption]>,
+def rtlib_EQ : Joined<["-", "--"], "rtlib=">, Visibility<[ClangOption, CLOption, FlangOption]>,
   HelpText<"Compiler runtime library to use">;
 def frtlib_add_rpath: Flag<["-"], "frtlib-add-rpath">, Flags<[NoArgumentUnused]>,
   Visibility<[ClangOption, FlangOption]>,
@@ -5916,9 +5752,6 @@ def regcall4 : Flag<["-"], "regcall4">, Group<m_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set __regcall4 as a default calling convention to respect __regcall ABI v.4">,
   MarshallingInfoFlag<LangOpts<"RegCall4">>;
-def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption]>,
-  HelpText<"Dump device code into the user provided directory.">;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
   HelpText<"Save intermediate compilation results. <arg> can be set to 'cwd' for "
@@ -6015,6 +5848,11 @@ def print_supported_extensions : Flag<["-", "--"], "print-supported-extensions">
   Visibility<[ClangOption, CC1Option, CLOption]>,
   HelpText<"Print supported -march extensions (RISC-V, AArch64 and ARM only)">,
   MarshallingInfoFlag<FrontendOpts<"PrintSupportedExtensions">>;
+def print_enabled_extensions : Flag<["-", "--"], "print-enabled-extensions">,
+  Visibility<[ClangOption, CC1Option, CLOption]>,
+  HelpText<"Print the extensions enabled by the given target and -march/-mcpu options."
+           " (AArch64 and RISC-V only)">,
+  MarshallingInfoFlag<FrontendOpts<"PrintEnabledExtensions">>;
 def : Flag<["-"], "mcpu=help">, Alias<print_supported_cpus>;
 def : Flag<["-"], "mtune=help">, Alias<print_supported_cpus>;
 def time : Flag<["-"], "time">,
@@ -6396,10 +6234,6 @@ def mno_80387 : Flag<["-"], "mno-80387">, Alias<mno_x87>;
 def mno_fp_ret_in_387 : Flag<["-"], "mno-fp-ret-in-387">, Alias<mno_x87>;
 def mmmx : Flag<["-"], "mmmx">, Group<m_x86_Features_Group>;
 def mno_mmx : Flag<["-"], "mno-mmx">, Group<m_x86_Features_Group>;
-def m3dnow : Flag<["-"], "m3dnow">, Group<m_x86_Features_Group>;
-def mno_3dnow : Flag<["-"], "mno-3dnow">, Group<m_x86_Features_Group>;
-def m3dnowa : Flag<["-"], "m3dnowa">, Group<m_x86_Features_Group>;
-def mno_3dnowa : Flag<["-"], "mno-3dnowa">, Group<m_x86_Features_Group>;
 def mamx_bf16 : Flag<["-"], "mamx-bf16">, Group<m_x86_Features_Group>;
 def mno_amx_bf16 : Flag<["-"], "mno-amx-bf16">, Group<m_x86_Features_Group>;
 def mamx_complex : Flag<["-"], "mamx-complex">, Group<m_x86_Features_Group>;
@@ -6616,9 +6450,9 @@ def mno_gather : Flag<["-"], "mno-gather">, Group<m_Group>,
 def mno_scatter : Flag<["-"], "mno-scatter">, Group<m_Group>,
                   HelpText<"Disable generation of scatter instructions in auto-vectorization(x86 only)">;
 def mapx_features_EQ : CommaJoined<["-"], "mapx-features=">, Group<m_x86_Features_Group>,
-    HelpText<"Enable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf,zu">;
+    HelpText<"Enable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf,zu">,  Visibility<[ClangOption, CLOption, FlangOption]>;
 def mno_apx_features_EQ : CommaJoined<["-"], "mno-apx-features=">, Group<m_x86_Features_Group>,
-    HelpText<"Disable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf,zu">;
+    HelpText<"Disable features of APX">, Values<"egpr,push2pop2,ppx,ndd,ccmp,nf,cf,zu">, Visibility<[ClangOption, CLOption, FlangOption]>;
 // For stability, we only add a feature to -mapxf after it passes the validation of llvm-test-suite && cpu2017 on Intel SDE.
 def mapxf : Flag<["-"], "mapxf">, Alias<mapx_features_EQ>, AliasArgs<["egpr","push2pop2","ppx","ndd","ccmp","nf","cf"]>;
 def mno_apxf : Flag<["-"], "mno-apxf">, Alias<mno_apx_features_EQ>, AliasArgs<["egpr","push2pop2","ppx","ndd","ccmp","nf","cf"]>;
@@ -6632,6 +6466,12 @@ def mvevpu : Flag<["-"], "mvevpu">, Group<m_ve_Features_Group>,
   HelpText<"Emit VPU instructions for VE">;
 def mno_vevpu : Flag<["-"], "mno-vevpu">, Group<m_ve_Features_Group>;
 } // let Flags = [TargetSpecific]
+
+// Unsupported X86 feature flags (triggers a warning)
+def m3dnow : Flag<["-"], "m3dnow">;
+def mno_3dnow : Flag<["-"], "mno-3dnow">;
+def m3dnowa : Flag<["-"], "m3dnowa">;
+def mno_3dnowa : Flag<["-"], "mno-3dnowa">;
 
 // These are legacy user-facing driver-level option spellings. They are always
 // aliases for options that are spelled using the more common Unix / GNU flag
@@ -6866,51 +6706,280 @@ defm : FlangIgnoredDiagOpt<"frontend-loop-interchange">;
 defm : FlangIgnoredDiagOpt<"target-lifetime">;
 
 // C++ SYCL options
+let Group = sycl_Group in {
 def reuse_exe_EQ : Joined<["-"], "reuse-exe=">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Speed up FPGA aoc compile if the device code in <exe> is unchanged.">,
   MetaVarName<"<exe>">;
 def fsycl : Flag<["-"], "fsycl">,
-  Visibility<[ClangOption, CLOption]>,
-  Group<sycl_Group>, HelpText<"Enables SYCL kernels compilation for device">;
+  HelpText<"Enables SYCL kernels compilation for device">;
 def fno_sycl : Flag<["-"], "fno-sycl">,
-  Visibility<[ClangOption, CLOption]>,
-  Group<sycl_Group>, HelpText<"Disables SYCL kernels compilation for device">;
+  HelpText<"Disables SYCL kernels compilation for device">;
+defm sycl_early_optimizations :
+  OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard "
+                 "optimization pipeline for SYCL device compiler",
+                 [ClangOption, CLOption]>,
+                 MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
+def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
+  HelpText<"Enables elimination of DPC++ dead kernel arguments">;
+def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
+  HelpText<"Disables elimination of DPC++ dead kernel arguments">;
+def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">,
+  Flags<[NoXarchOption]>,
+  Values<"libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,all">,
+  HelpText<"Control inclusion of device libraries into device binary linkage. "
+           "Valid arguments are libc, libm-fp32, libm-fp64, libimf-fp32, "
+           "libimf-fp64, libimf-bf16, all">;
+def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">,
+  Flags<[NoXarchOption]>, Values<"libc, libm-fp32, libm-fp64, all">,
+  HelpText<"Control exclusion of device libraries from device binary linkage. "
+           "Valid arguments are libc, libm-fp32, libm-fp64, all">;
+def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
+  HelpText<"Enables sycl device library jit link (experimental)">;
+def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
+  HelpText<"Disables sycl device library jit link (experimental)">;
+def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">,
+  Visibility<[ClangOption, CC1Option]>, HelpText<"SYCL only. Specify that "
+  "single precision floating-point sqrt is correctly rounded.">,
+  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
+def fsycl_default_sub_group_size
+    : Separate<["-"], "fsycl-default-sub-group-size">,
+      HelpText<"Set the default sub group size for SYCL kernels">,
+      Visibility<[ClangOption, CC1Option]>;
+def fsycl_default_sub_group_size_EQ
+    : Joined<["-"], "fsycl-default-sub-group-size=">,
+      Alias<fsycl_default_sub_group_size>, Visibility<[ClangOption, CC1Option]>;
+def fintelfpga : Flag<["-"], "fintelfpga">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
+  HelpText<"Perform ahead-of-time compilation for FPGA">;
+def fsycl_device_only : Flag<["-"], "fsycl-device-only">,
+  HelpText<"Compile SYCL kernels for device">;
+def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
+  HelpText<"Embed LLVM IR for runtime kernel fusion">;
+defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
+  LangOpts<"SYCLESIMDForceStatelessMem">, DefaultTrue,
+  PosFlag<SetTrue, [], [ClangOption, CLOption], "Enforce using stateless "
+          "memory accesses. Convert stateful accesses via SYCL accessors to "
+          "stateless within ESIMD kernels. Enabled by default.">,
+  NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not enforce using "
+          "stateless memory accesses.">,
+  BothFlags<[], [ClangOption, CLOption, CC1Option], "">>;
+// TODO: Remove this option once ESIMD headers are updated to
+// guard vectors to be device only.
+def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
+  Visibility<[ClangOption, CLOption, CC1Option]>, Flags<[HelpHidden]>,
+  HelpText<"Do not build the host implementation of ESIMD functions.">;
+def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">,
+  Flags<[NoXarchOption]>, Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Specify comma-separated list of triples SYCL offloading targets "
+           "to be supported">;
+def fsycl_force_target_EQ : Joined<["-"], "fsycl-force-target=">,
+  Flags<[NoXarchOption]>,
+  HelpText<"Force the usage of the given triple when extracting device code "
+           "from any given objects on the command line">;
+def fsycl_device_code_split_EQ : Joined<["-"], "fsycl-device-code-split=">,
+  HelpText<"Perform SYCL device code split: per_kernel (device code module is "
+           "created for each SYCL kernel) | per_source (device code module is "
+           "created for each source (translation unit)) | off (no device code "
+           "split). | auto (use heuristic to select the best way of splitting "
+           "device code). Default is 'auto' - use heuristic to distribute "
+           "device code across modules">,
+  Values<"per_source, per_kernel, off, auto">;
+def fsycl_device_code_split : Flag<["-"], "fsycl-device-code-split">,
+  Alias<fsycl_device_code_split_EQ>, AliasArgs<["auto"]>,
+  HelpText<"Perform SYCL device code split in the 'auto' mode, i.e. use "
+           "heuristic to distribute device code across modules">;
+def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">,
+  HelpText<"split ESIMD device code from SYCL into a separate device binary "
+           "image (default). Has effect only for SPIR-based targets. "
+           "(experimental)">;
+def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
+  HelpText<"do not split ESIMD and SYCL device code into separate device "
+           "binary images. Has effect only for SPIR-based targets. "
+           "(experimental)">;
+defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
+  PosFlag<SetTrue, [], [ClangOption, CLOption], "Generates a copy of every "
+          "device image that uses a specialization constant and replaces all "
+          "usages of specialization constant with default values specified by "
+          "specialization_id. If a device image does not use a specialization "
+          "constant at all then no copy is generated. This option is only "
+          "useful if used in conjunction with Ahead of Time Compilation "
+          "(-fsycl-target command line option).">,
+  NegFlag<SetFalse, [], [ClangOption, CLOption], "Turns off generation of "
+          "device image where all specialization constant usages are replaced "
+          "with default values.">>;
+defm sycl_instrument_device_code
+    : BoolFOption<"sycl-instrument-device-code",
+          CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,
+          PosFlag<SetTrue, [], [ClangOption, CLOption], "Add">,
+          NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not add">,
+          BothFlags<[], [ClangOption, CLOption, CC1Option],
+                    " Instrumentation and Tracing "
+                    "Technology (ITT) instrumentation intrinsics calls "
+                    "(experimental)">>;
+defm sycl_decompose_functor
+    : BoolFOption<"sycl-decompose-functor",
+          LangOpts<"SYCLDecomposeStruct">, DefaultTrue,
+          PosFlag<SetTrue, [], [ClangOption, CLOption], "Do">,
+          NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not">,
+          BothFlags<[], [ClangOption, CLOption, CC1Option],
+           " decompose SYCL functor if possible (experimental, CUDA only)">>;
+def flink_huge_device_code : Flag<["-"], "flink-huge-device-code">,
+  HelpText<"Generate and use a custom linker script for huge device code "
+           "sections">;
+def fno_link_huge_device_code : Flag<["-"], "fno-link-huge-device-code">,
+  HelpText<"Do not generate or use a custom linker script for huge device "
+           "code sections (default)">;
+defm sycl_id_queries_fit_in_int: BoolFOption<"sycl-id-queries-fit-in-int",
+  LangOpts<"SYCLValueFitInMaxInt">, DefaultTrue,
+  PosFlag<SetTrue, [], [ClangOption, CLOption], "Assume">,
+  NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not assume">,
+  BothFlags<[], [ClangOption, CLOption, CC1Option], " that SYCL ID queries fit "
+            "within MAX_INT.">>;
+def fsycl_device_obj_EQ : Joined<["-"], "fsycl-device-obj=">,
+  Values<"spirv,llvmir">, HelpText<"Specify format of device code stored in "
+  "the resulting object. Valid values are: spirv, llvmir (default)">;
+def fsycl_use_bitcode : Flag<["-"], "fsycl-use-bitcode">,
+  Alias<fsycl_device_obj_EQ>, AliasArgs<["llvmir"]>, Flags<[Deprecated]>,
+  HelpText<"Use LLVM bitcode instead of SPIR-V in fat objects (deprecated)">;
+def fno_sycl_use_bitcode : Flag<["-"], "fno-sycl-use-bitcode">,
+  Alias<fsycl_device_obj_EQ>, AliasArgs<["spirv"]>, Flags<[Deprecated]>,
+  HelpText<"Use SPIR-V instead of LLVM bitcode in fat objects (deprecated)">;
+def fsycl_link_EQ : Joined<["-"], "fsycl-link=">,
+  HelpText<"Generate partially linked device and host object to be used at "
+           "various stages of compilation">, Values<"image,early">;
+def fsycl_link : Flag<["-"], "fsycl-link">, Alias<fsycl_link_EQ>,
+  AliasArgs<["early"]>, HelpText<"Generate partially linked device object to "
+  "be used with the host link">;
+defm sycl_unnamed_lambda
+    : BoolFOption<
+          "sycl-unnamed-lambda", LangOpts<"SYCLUnnamedLambda">,
+          Default<!strconcat(
+              sycl_ver.KeyPath,
+              " >= clang::LangOptions::SYCLMajorVersion::SYCL_2020")>,
+          PosFlag<SetTrue, [], [ClangOption, CLOption], "Allow">,
+          NegFlag<SetFalse, [], [ClangOption, CLOption], "Disallow">,
+          BothFlags<[], [ClangOption, CLOption, CC1Option], " unnamed SYCL "
+                    "lambda kernels">>;
+defm sycl_force_inline_kernel_lambda
+    : BoolFOption<
+          "sycl-force-inline-kernel-lambda",
+          LangOpts<"SYCLForceInlineKernelLambda">,
+          DefaultTrue,
+          PosFlag<SetTrue, [], [ClangOption, CLOption], "Allow">,
+          NegFlag<SetFalse, [], [ClangOption, CLOption], "Disallow">,
+          BothFlags<[], [ClangOption, CLOption, CC1Option], " force inline "
+                    "SYCL kernels lambda in entry point">>;
+def fsycl_help_EQ : Joined<["-"], "fsycl-help=">, Flags<[NoXarchOption]>,
+  HelpText<"Emit help information from the related offline compilation tool. "
+           "Valid values: all, fpga, gen, x86_64.">,
+  Values<"all,fpga,gen,x86_64">;
+def fsycl_help : Flag<["-"], "fsycl-help">, Alias<fsycl_help_EQ>,
+  Flags<[NoXarchOption]>, AliasArgs<["all"]>,
+  HelpText<"Emit help information from all of the offline compilation tools">;
+def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
+  HelpText<"Path to libspirv library">;
+def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">,
+  HelpText<"Disable check for libspirv">;
+def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
+  Flags<[HelpHidden]>,
+  HelpText<"Use the SPIR-V backend for SPIR-V code generation. "
+           "Has effect only for SPIR-based targets. It is off by default and "
+           "the SPIR-V LLVM Translator is used for SPIR-V code generation. "
+           "(experimental)">;
+def fsycl_host_compiler_EQ : Joined<["-"], "fsycl-host-compiler=">,
+  Flags<[NoArgumentUnused]>,
+  HelpText<"Specify C++ compiler binary to perform host compilation with "
+           "during SYCL offload compiles.">;
+def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=">,
+  HelpText<"When performing the host compilation with -fsycl-host-compiler "
+           "specified, use the given options during that compile. Options are "
+           "expected to be a quoted list of space separated options.">;
+def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  Values<"on,disable,force">,
+  NormalizedValuesScope<"LangOptions::SYCLRangeRoundingPreference">,
+  NormalizedValues<["On", "Disable", "Force"]>,
+  MarshallingInfoEnum<LangOpts<"SYCLRangeRounding">, "On">,
+  HelpText<"Options for range rounding of SYCL range kernels: "
+           "disable (do not generate range rounded kernels) "
+           "force (only generate range rounded kernels) "
+           "on (generate range rounded kernels as well as unrounded kernels). "
+           "Default is 'on'">;
+def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
+  Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
+  HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
+  Flags<[Deprecated]>;
+def fsycl_exp_range_rounding : Flag<["-"], "fsycl-exp-range-rounding">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Use experimental range rounding.">,
+  MarshallingInfoFlag<LangOpts<"SYCLExperimentalRangeRounding">>;
+def fsycl_fp64_conv_emu : Flag<["-"], "fsycl-fp64-conv-emu">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  HelpText<"Enable fp64 partial emulation for kernels with only fp64 "
+           "conversion operations and no fp64 computation operations (requires "
+           "Intel GPU backend supporting fp64 partial emulation).">,
+  MarshallingInfoFlag<CodeGenOpts<"FP64ConvEmu">>;
+def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">,
+  HelpText<"Disable usage of the integration footer during SYCL enabled "
+           "compilations.">;
+def fsycl_footer_path_EQ : Joined<["-"], "fsycl-footer-path=">,
+  HelpText<"Specify the location of the temporary source file with the "
+           "included integration footer.">;
+def fno_sycl_link_spirv : Flag<["-"], "fno-sycl-link-spirv">,
+  HelpText<"Disable adding of the default (spir64) triple when discovered in "
+           "user specified objects and archives.">;
+def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
+  HelpText<"Controls the maximum parallelism of actions performed on SYCL "
+           "device code post-link, i.e. the generation of SPIR-V device images "
+           "or AOT compilation of each device image. (experimental)">;
+def fsycl_preserve_device_nonsemantic_metadata : Flag<["-"], "fsycl-preserve-device-nonsemantic-metadata">,
+  Flags<[HelpHidden]>, HelpText<"Preserve non-semantic metadata in SPIR-V "
+  "device images.">;
+def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
+  HelpText<"Experimental feature: Reduce target compilation time, with "
+           "potential runtime performance trade-off.">;
+def ftarget_export_symbols : Flag<["-"], "ftarget-export-symbols">,
+  Visibility<[ClangOption, CLOption]>, HelpText<"Expose exported symbols in a "
+  "generated target library to allow for visibilty to other modules.">;
+def fno_target_export_symbols : Flag<["-"], "fno-target-export-symbols">,
+  Visibility<[ClangOption, CLOption, DXCOption]>;
+def ftarget_register_alloc_mode_EQ : Joined<["-"], "ftarget-register-alloc-mode=">,
+  HelpText<"Specify a register allocation mode for specific hardware for use "
+           "by supported target backends.">;
+def : Flag<["-"], "fsycl-rdc">, Alias<fgpu_rdc>;
+def : Flag<["-"], "fno-sycl-rdc">, Alias<fno_gpu_rdc>,
+  HelpText<"Generate relocatable device code during SYCL offload target "
+           "compilation. Use of ‘-fno-sycl-rdc’ in combination with ‘-c’ will "
+           "produce final device binaries within the generated fat object. "
+           "When using this option, each kernel must be self-contained within "
+           "its translation unit (source file).  Therefore, the use of "
+           "SYCL_EXTERNAL is disallowed when this option is enabled.">;
+def fsycl_optimize_non_user_code : Flag<["-"], "fsycl-optimize-non-user-code">,
+  Visibility<[ClangOption, CLOption, CC1Option]>,
+  MarshallingInfoFlag<CodeGenOpts<"OptimizeSYCLFramework">>,
+  HelpText<"Option used in conjunction with -O0 to optimize SYCL framework "
+  "utility functions and leave user's kernel code unoptimized. (experimental)">;
+def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-external-funcs">,
+  HelpText<"Allow removal of unused `SYCL_EXTERNAL` functions (default)">;
+def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
+  HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
+def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependencies">,
+  HelpText<"Allow dependencies between device code images">;
+def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
+  HelpText<"Do not allow dependencies between device code images (default)">;
+def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
+  Flags<[NoXarchOption]>,
+  HelpText<"Dump device code into the user provided directory.">;
+} // let Group = sycl_Group
+
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
-def : Flag<["-"], "fsycl-explicit-simd">, Flags<[Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
+def : Flag<["-"], "fsycl-explicit-simd">, Flags<[Deprecated]>,
   Group<clang_ignored_legacy_options_Group>,
   HelpText<"Enable SYCL explicit SIMD extension. (deprecated)">;
 def : Flag<["-"], "fno-sycl-explicit-simd">,
-  Flags<[Deprecated]>, Visibility<[ClangOption, CLOption, DXCOption]>,
-  Group<clang_ignored_legacy_options_Group>,
+  Flags<[Deprecated]>, Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
-defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [ClangOption, CLOption, DXCOption]>,
-  MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
-def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Enables "
-  "elimination of DPC++ dead kernel arguments">;
-def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Disables "
-  "elimination of DPC++ dead kernel arguments">;
-def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  Values<"libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, libimf-bf16, all">, HelpText<"Control inclusion of "
-  "device libraries into device binary linkage. Valid arguments "
-  "are libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, libimf-bf16, all">;
-def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
-  "device libraries from device binary linkage. Valid arguments "
-  "are libc, libm-fp32, libm-fp64, all">;
-def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Enables "
-  "sycl device library jit link (experimental)">;
-def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Disables "
-  "sycl device library jit link (experimental)">;
-def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>,
-  Visibility<[ClangOption, CC1Option]>,
-  HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
 
 // OS-specific options
 let Flags = [TargetSpecific] in {
@@ -7003,6 +7072,9 @@ defm stack_arrays : BoolOptionWithoutMarshalling<"f", "stack-arrays",
 defm loop_versioning : BoolOptionWithoutMarshalling<"f", "version-loops-for-stride",
   PosFlag<SetTrue, [], [ClangOption], "Create unit-strided versions of loops">,
    NegFlag<SetFalse, [], [ClangOption], "Do not create unit-strided loops (default)">>;
+
+def fhermetic_module_files : Flag<["-"], "fhermetic-module-files">, Group<f_Group>,
+  HelpText<"Emit hermetic module files (no nested USE association)">;
 } // let Visibility = [FC1Option, FlangOption]
 
 def J : JoinedOrSeparate<["-"], "J">,
@@ -7081,9 +7153,6 @@ def emit_hlfir : Flag<["-"], "emit-hlfir">, Group<Action_Group>,
 
 let Visibility = [CC1Option, CC1AsOption] in {
 
-def tune_cpu : Separate<["-"], "tune-cpu">,
-  HelpText<"Tune for a specific cpu type">,
-  MarshallingInfoString<TargetOpts<"TuneCPU">>;
 def target_abi : Separate<["-"], "target-abi">,
   HelpText<"Target a particular ABI type">,
   MarshallingInfoString<TargetOpts<"ABI">>;
@@ -7110,6 +7179,9 @@ def darwin_target_variant_triple : Separate<["-"], "darwin-target-variant-triple
 
 let Visibility = [CC1Option, CC1AsOption, FC1Option] in {
 
+def tune_cpu : Separate<["-"], "tune-cpu">,
+  HelpText<"Tune for a specific cpu type">,
+  MarshallingInfoString<TargetOpts<"TuneCPU">>;
 def target_cpu : Separate<["-"], "target-cpu">,
   HelpText<"Target a specific cpu type">,
   MarshallingInfoString<TargetOpts<"CPU">>;
@@ -7363,6 +7435,9 @@ def massembler_no_warn : Flag<["-"], "massembler-no-warn">,
 def massembler_fatal_warnings : Flag<["-"], "massembler-fatal-warnings">,
   HelpText<"Make assembler warnings fatal">,
   MarshallingInfoFlag<CodeGenOpts<"FatalWarnings">>;
+def crel : Flag<["--"], "crel">,
+  HelpText<"Enable CREL relocation format (ELF only)">,
+  MarshallingInfoFlag<CodeGenOpts<"Crel">>;
 def mrelax_relocations_no : Flag<["-"], "mrelax-relocations=no">,
     HelpText<"Disable x86 relax relocations">,
     MarshallingInfoNegativeFlag<CodeGenOpts<"RelaxELFRelocations">>;
@@ -8462,19 +8537,9 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
 } // let Visibility = [CC1Option]
 
 def sycl_std_EQ : Joined<["-"], "sycl-std=">, Group<sycl_Group>,
-  Flags<[NoArgumentUnused]>,
-  Visibility<[ClangOption, CC1Option, CLOption]>,
-  HelpText<"SYCL language standard to compile for.">,
-  Values<"2020">,
+  Flags<[NoArgumentUnused]>, Visibility<[ClangOption, CC1Option, CLOption]>,
+  HelpText<"SYCL language standard to compile for.">, Values<"2020">,
   ShouldParseIf<!strconcat(fsycl_is_device.KeyPath, "||", fsycl_is_host.KeyPath)>;
-
-def fsycl_default_sub_group_size
-    : Separate<["-"], "fsycl-default-sub-group-size">,
-      HelpText<"Set the default sub group size for SYCL kernels">,
-      Visibility<[ClangOption, CC1Option]>;
-def fsycl_default_sub_group_size_EQ
-    : Joined<["-"], "fsycl-default-sub-group-size=">,
-      Alias<fsycl_default_sub_group_size>, Visibility<[ClangOption, CC1Option]>;
 
 defm gpu_approx_transcendentals : BoolFOption<"gpu-approx-transcendentals",
   LangOpts<"GPUDeviceApproxTranscendentals">, DefaultFalse,
