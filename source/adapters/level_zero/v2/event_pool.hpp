@@ -37,7 +37,7 @@ public:
   event_pool(const event_pool &) = delete;
   event_pool &operator=(const event_pool &) = delete;
 
-  DeviceId Id() { return provider->device()->Id; };
+  DeviceId Id() { return provider->device()->Id.value(); };
 
   ur_event_handle_t_ *allocate();
   void free(ur_event_handle_t_ *event);
