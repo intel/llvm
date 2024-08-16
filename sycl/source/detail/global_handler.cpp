@@ -362,7 +362,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     std::exit(1);
   }
 
-  bool PrintUrTrace = sycl::detail::ur::trace();
+  bool PrintUrTrace =
+      sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
