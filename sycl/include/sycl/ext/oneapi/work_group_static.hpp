@@ -81,22 +81,23 @@ std::enable_if_t<
 }
 
 // Property
+struct work_group_static_size_key;
 
 struct work_group_static_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
           ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
-      ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
-      property_value<work_group_static_size> {
-  // Compile time property
-  using value_t = property_value<work_group_static_size>;
+      property_value<work_group_static_size_key> {
   // Runtime property part
   constexpr work_group_static_size(size_t bytes) : size(bytes) {}
 
   size_t size;
 };
 
-using work_group_static_size_key = work_group_static_size;
+struct work_group_static_size_key
+    : ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem> {
+  using value_t = work_group_static_size;
+};
 
 // inline constexpr work_group_static_size_key::value_t work_group_static_size;
 
@@ -117,12 +118,12 @@ template <> struct PropertyMetaInfo<work_group_static_size_key> {
 
 } // namespace detail
 
-inline bool operator==(const work_group_static_size_key &lhs,
-                       const work_group_static_size_key &rhs) {
+inline bool operator==(const work_group_static_size &lhs,
+                       const work_group_static_size &rhs) {
   return lhs.size == rhs.size;
 }
-inline bool operator!=(const work_group_static_size_key &lhs,
-                       const work_group_static_size_key &rhs) {
+inline bool operator!=(const work_group_static_size &lhs,
+                       const work_group_static_size &rhs) {
   return !(lhs == rhs);
 }
 
