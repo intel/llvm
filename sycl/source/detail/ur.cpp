@@ -91,6 +91,13 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
   std::call_once(PluginsInitDone, [&]() {
+    // TODO: Remove this SYCL_PI_TRACE notification in the first patch release
+    // after the next ABI breaking window.
+    if (std::getenv("SYCL_PI_TRACE")) {
+      std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
+      std::exit(1);
+    }
+
     initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
   });
   return GlobalHandler::instance().getPlugins();
