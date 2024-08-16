@@ -5533,7 +5533,7 @@ class OffloadingActionBuilder final {
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
-        if (IsSPIR || IsNVPTX || IsSYCLNativeCPU) {
+        if (IsSPIR || IsSYCLNativeCPU) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5891,10 +5891,9 @@ class OffloadingActionBuilder final {
         }
       }
 
-      // For NVPTX backend we need to also link libclc and CUDA libdevice
-      // at the same stage that we link all of the unbundled SYCL libdevice
-      // objects together.
-      if ((TC->getTriple().isNVPTX() || isNativeCPU) && NumOfDeviceLibLinked) {
+      // For Natice CPU backend we need to also link libclc at the same stage
+      // that we link all of the unbundled SYCL libdevice objects together.
+      if (isNativeCPU && NumOfDeviceLibLinked) {
         std::string LibSpirvFile;
         if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
           auto ProvidedPath =
@@ -5948,23 +5947,6 @@ class OffloadingActionBuilder final {
         if (isNativeCPU) {
           // return here to not generate cuda actions
           return NumOfDeviceLibLinked != 0;
-        }
-
-        const toolchains::CudaToolChain *CudaTC =
-            static_cast<const toolchains::CudaToolChain *>(TC);
-        for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
-          const char *BoundArch =
-              SYCLTargetInfoList[LinkInputEnum.index()].BoundArch;
-          std::string LibDeviceFile =
-              CudaTC->CudaInstallation.getLibDeviceFile(BoundArch);
-          if (!LibDeviceFile.empty()) {
-            Arg *CudaDeviceLibInputArg =
-                MakeInputArg(Args, C.getDriver().getOpts(),
-                             Args.MakeArgString(LibDeviceFile));
-            auto *SYCLDeviceLibInputAction = C.MakeAction<InputAction>(
-                *CudaDeviceLibInputArg, types::TY_LLVM_BC);
-            DeviceLinkObjects.push_back(SYCLDeviceLibInputAction);
-          }
         }
       }
       return NumOfDeviceLibLinked != 0;

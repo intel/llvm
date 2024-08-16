@@ -263,9 +263,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   }
 
-  if (TargetTriple.isNVPTX() && !NoDeviceLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
-
   if (IgnoreSingleLibs && !NoDeviceLibs)
     return LibraryList;
 

@@ -6881,6 +6881,8 @@ def fsycl_libspirv_path_EQ : Joined<["-"], "fsycl-libspirv-path=">,
   HelpText<"Path to libspirv library">;
 def fno_sycl_libspirv : Flag<["-"], "fno-sycl-libspirv">,
   HelpText<"Disable check for libspirv">;
+def fno_sycl_libdevice : Flag<["-"], "fno-sycl-libdevice">,
+  HelpText<"Disable check for sycl libdevice">;
 def fsycl_use_spirv_backend_for_spirv_gen : Flag<["-"], "fsycl-use-spirv-backend-for-spirv-gen">,
   Flags<[HelpHidden]>,
   HelpText<"Use the SPIR-V backend for SPIR-V code generation. "

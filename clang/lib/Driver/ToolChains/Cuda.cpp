@@ -875,6 +875,9 @@ static const char *getLibSpirvTargetName(const ToolChain &HostTC) {
   return "remangled-l64-signed_char.libspirv-nvptx64-nvidia-cuda.bc";
 }
 
+// Select DeviceLib file.
+static const char *getDeviceLibTargetName() { return "devicelib--cuda.bc"; }
+
 void NVPTXToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadingKind) const {
@@ -1033,6 +1036,41 @@ void CudaToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
+  auto NoDeviceLib = DriverArgs.hasArg(options::OPT_fno_sycl_libdevice) ||
+                     getDriver().offloadDeviceOnly();
+
+  if (DeviceOffloadingKind == Action::OFK_SYCL && !NoDeviceLib) {
+    std::string DeviceLibFile;
+
+    SmallVector<StringRef, 8> LibraryPaths;
+
+    // Expected path w/out install.
+    SmallString<256> WithoutInstallPath(getDriver().ResourceDir);
+    llvm::sys::path::append(WithoutInstallPath, Twine("../../"));
+    LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+    // Select remangled libclc variant
+    std::string DeviceLibTargetName = getDeviceLibTargetName();
+
+    for (StringRef LibraryPath : LibraryPaths) {
+      SmallString<128> DeviceLibTargetFile(LibraryPath);
+      llvm::sys::path::append(DeviceLibTargetFile, DeviceLibTargetName);
+      if (llvm::sys::fs::exists(DeviceLibTargetFile) ||
+          DriverArgs.hasArg(options::OPT__HASH_HASH_HASH)) {
+        DeviceLibFile = std::string(DeviceLibTargetFile.str());
+        break;
+      }
+    }
+
+    if (DeviceLibFile.empty()) {
+      getDriver().Diag(diag::err_drv_no_sycl_libdevice)
+          << getDeviceLibTargetName();
+      return;
+    }
+
+    CC1Args.push_back("-mlink-builtin-bitcode");
+    CC1Args.push_back(DriverArgs.MakeArgString(DeviceLibFile));
+  }
   if (DriverArgs.hasArg(options::OPT_nogpulib))
     return;
 
