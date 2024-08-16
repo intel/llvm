@@ -7006,41 +7006,6 @@ def : Flag<["-"], "fsycl-explicit-simd">, Flags<[Deprecated]>,
 def : Flag<["-"], "fno-sycl-explicit-simd">,
   Flags<[Deprecated]>, Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
-defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [ClangOption, CLOption, DXCOption]>,
-  MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
-def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Enables "
-  "elimination of DPC++ dead kernel arguments">;
-def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Disables "
-  "elimination of DPC++ dead kernel arguments">;
-def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  Values<"libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, libimf-bf16, all">, HelpText<"Control inclusion of "
-  "device libraries into device binary linkage. Valid arguments "
-  "are libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, libimf-bf16, all">;
-def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  Values<"libc, libm-fp32, libm-fp64, all">, HelpText<"Control exclusion of "
-  "device libraries from device binary linkage. Valid arguments "
-  "are libc, libm-fp32, libm-fp64, all">;
-def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Enables "
-  "sycl device library jit link (experimental)">;
-def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
-  Group<sycl_Group>, Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"Disables "
-  "sycl device library jit link (experimental)">;
-def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>,
-  Visibility<[ClangOption, CC1Option]>,
-  HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLFp32PrecSqrt">>;
-defm sycl_use_integration_headers : BoolFOption<"sycl-use-integration-headers",
-      LangOpts<"SYCLUseIntegrationHeaders">, DefaultTrue,
-      PosFlag<SetTrue, [], [ClangOption, CLOption], "Specify">,
-      NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not specify">,
-      BothFlags<[HelpHidden], [ClangOption, CLOption, CC1Option],
-      " that integration headers be used for "
-      "communication between the host and the device compilations. SYCL Only">>;
 
 // OS-specific options
 let Flags = [TargetSpecific] in {
