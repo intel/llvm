@@ -58,12 +58,12 @@ public:
     SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
   }
 
-  /// Constructs an event instance from a plug-in event handle.
+  /// Constructs an event instance from a UR event handle.
   ///
-  /// The SyclContext must match the plug-in context associated with the
-  /// ClEvent.
+  /// The SyclContext must match the UR context associated with the
+  /// ur_event_handle_t.
   ///
-  /// \param Event is a valid instance of plug-in event.
+  /// \param Event is a valid instance of UR event.
   /// \param SyclContext is an instance of SYCL context.
   event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
@@ -129,12 +129,12 @@ public:
   /// Returns raw interoperability event handle. Returned reference will be
   /// invalid if event_impl was destroyed.
   ///
-  /// \return a reference to an instance of plug-in event handle.
+  /// \return a reference to an instance of ur_event_handle_t.
   ur_event_handle_t &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be
   /// invalid if event_impl was destroyed.
   ///
-  /// \return a const reference to an instance of plug-in event handle.
+  /// \return a const reference to an instance of ur_event_handle_t.
   const ur_event_handle_t &getHandleRef() const;
 
   /// Returns context that is associated with this event.

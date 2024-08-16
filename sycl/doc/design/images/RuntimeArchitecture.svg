@@ -24,7 +24,6 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
-        <dc:title />
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -42,8 +41,8 @@
      id="namedview5075"
      showgrid="false"
      inkscape:zoom="1.3779974"
-     inkscape:cx="376.99636"
-     inkscape:cy="609.94309"
+     inkscape:cx="371.55368"
+     inkscape:cy="435.77731"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
@@ -1045,9 +1044,9 @@
        style="font-size:16.2436px;text-align:center;text-anchor:middle;fill:#ffffff;fill-opacity:1;stroke-width:0.93713">Device Binary</tspan><tspan
        sodipodi:role="line"
        x="282.74991"
-       y="247.2184"
+       y="247.21844"
        id="tspan62343"
-       style="font-size:16.2436px;text-align:center;text-anchor:middle;fill:#ffffff;fill-opacity:1;stroke-width:0.93713">mgmt</tspan></text>
+       style="font-size:16.2436px;text-align:center;text-anchor:middle;fill:#ffffff;fill-opacity:1;stroke-width:0.93713">mgr</tspan></text>
   <path
      style="fill:#0082b3;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1.09488"
      d="m 489.41359,344.97148 v 29.06623 h 273.7227 v -29.06623 h -155.7192 -27.00183 z"
