@@ -169,44 +169,6 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   // it when invoking the offload wrapper job
   Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
-  bool isCompressed = false;
-  switch (Format) {
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
-    Format = SYCL_DEVICE_BINARY_TYPE_NONE;
-    isCompressed = true;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE:
-    Format = SYCL_DEVICE_BINARY_TYPE_NATIVE;
-    isCompressed = true;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV:
-    Format = SYCL_DEVICE_BINARY_TYPE_SPIRV;
-    isCompressed = true;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE:
-    Format = SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
-    isCompressed = true;
-    break;
-  default:
-    break;
-  }
-
-  if (isCompressed) {
-    size_t DecompressedSize = 0;
-    char *DecompressedData =
-        decompressBlob(reinterpret_cast<const char *>(Bin->BinaryStart),
-                       getSize(), DecompressedSize);
-    if (!DecompressedSize) {
-      std::cerr << "Failed to decompress device binary image\n";
-      return;
-    }
-
-    this->Bin = new sycl_device_binary_struct(*Bin);
-    this->Bin->BinaryStart =
-        reinterpret_cast<unsigned char *>(DecompressedData);
-    this->Bin->BinaryEnd = this->Bin->BinaryStart + DecompressedSize;
-  }
-
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
     Format = ur::getBinaryImageFormat(this->Bin->BinaryStart, getSize());
@@ -264,6 +226,57 @@ DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
 }
 
 DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
+  delete Bin;
+  Bin = nullptr;
+}
+
+CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
+    sycl_device_binary CompressedBin)
+    : RTDeviceBinaryImage() {
+
+  // Decompress the binary image.
+  size_t DecompressedSize = 0;
+  size_t compressedDataSize = static_cast<size_t>(CompressedBin->BinaryEnd -
+                                                  CompressedBin->BinaryStart);
+  char *DecompressedData =
+      decompressBlob(reinterpret_cast<const char *>(CompressedBin->BinaryStart),
+                     compressedDataSize, DecompressedSize);
+
+  if (!DecompressedSize) {
+    std::cerr << "Failed to decompress device binary image\n";
+    return;
+  }
+
+  Bin = new sycl_device_binary_struct(*CompressedBin);
+  Bin->BinaryStart = reinterpret_cast<unsigned char *>(DecompressedData);
+  Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
+
+  // Get the new format.
+  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
+  switch (currFormat) {
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
+    currFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
+    break;
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE:
+    currFormat = SYCL_DEVICE_BINARY_TYPE_NATIVE;
+    break;
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV:
+    currFormat = SYCL_DEVICE_BINARY_TYPE_SPIRV;
+    break;
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE:
+    currFormat = SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
+    break;
+  default:
+    break;
+  }
+  Bin->Format = currFormat;
+
+  init(Bin);
+}
+
+CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
+  // De-allocate the decompressed image.
+  delete Bin->BinaryStart;
   delete Bin;
   Bin = nullptr;
 }

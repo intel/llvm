@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "ur_utils.hpp"
 #include <detail/compiler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <ur_api.h>
-#include "ur_utils.hpp"
 
 #include <sycl/detail/iostream_proxy.hpp>
 
@@ -274,6 +274,20 @@ public:
 
 protected:
   std::unique_ptr<char[]> Data;
+};
+
+// Compressed device binary image. It decompresses the binary image on
+// construction and stores the decompressed data as RTDeviceBinaryImage.
+// Also, frees the decompressed data in destructor.
+class CompressedRTDeviceBinaryImage : public RTDeviceBinaryImage {
+public:
+  CompressedRTDeviceBinaryImage(sycl_device_binary Bin);
+  ~CompressedRTDeviceBinaryImage() override;
+
+  void print() const override {
+    RTDeviceBinaryImage::print();
+    std::cerr << "    COMPRESSED\n";
+  }
 };
 
 } // namespace detail

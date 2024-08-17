@@ -1570,7 +1570,12 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+    std::unique_ptr<RTDeviceBinaryImage> Img;
+    if (isDeviceImageCompressed(RawImg))
+      Img = std::move(std::make_unique<CompressedRTDeviceBinaryImage>(RawImg));
+    else
+      Img = std::move(std::make_unique<RTDeviceBinaryImage>(RawImg));
+
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -2705,6 +2710,21 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   }
 
   return UrKernel;
+}
+
+// Check if device image is compressed.
+inline bool
+ProgramManager::isDeviceImageCompressed(sycl_device_binary Bin) const {
+
+  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
+
+  if (currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE ||
+      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE ||
+      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV ||
+      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE)
+    return true;
+  else
+    return false;
 }
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
