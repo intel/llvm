@@ -591,6 +591,13 @@ public:
   /// specified subarch
   llvm::Triple MakeSYCLDeviceTriple(StringRef TargetArch = "spir64") const;
 
+  /// Utility function to parse all devices passed via -fsycl-targets.
+  /// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
+  /// Otherwise return 'false'.
+  bool
+  GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
+                                       const llvm::opt::ArgList &Args) const;
+
   /// PrintActions - Print the list of actions.
   void PrintActions(const Compilation &C) const;
 

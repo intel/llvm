@@ -1348,6 +1348,32 @@ static void appendOneArg(InputArgList &Args, const Arg *Opt,
   Args.append(Copy);
 }
 
+  /// Utility function to parse all devices passed via -fsycl-targets.
+  /// Return 'true' for JIT, AOT Intel CPU/GPUs and NVidia/AMD targets.
+  /// Otherwise return 'false'.
+bool Driver::GetUseNewOffloadDriverForSYCLOffload(Compilation &C,
+                                                  const ArgList &Args) const {
+  // Check only if enabled with -fsycl
+  if (!Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
+    return false;
+
+  if (Args.hasFlag(options::OPT_no_offload_new_driver,
+                   options::OPT_offload_new_driver, false))
+    return false;
+
+  if (Args.hasArg(options::OPT_fintelfpga))
+    return false;
+
+  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    for (const char *Val : A->getValues()) {
+      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      if ((!TT.isSPIROrSPIRV()) || TT.isSPIRAOT())
+        return false;
+    }
+  }
+  return true;
+}
+
 bool Driver::readConfigFile(StringRef FileName,
                             llvm::cl::ExpansionContext &ExpCtx) {
   // Try opening the given file.
@@ -1899,11 +1925,10 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   // Use new offloading path for OpenMP.  This is disabled as the SYCL
   // offloading path is not properly setup to use the updated device linking
   // scheme.
-  if ((C->isOffloadingHostKind(Action::OFK_OpenMP) &&
-       TranslatedArgs->hasFlag(options::OPT_fopenmp_new_driver,
-                               options::OPT_no_offload_new_driver, true)) ||
+ if (C->isOffloadingHostKind(Action::OFK_OpenMP) ||
       TranslatedArgs->hasFlag(options::OPT_offload_new_driver,
-                              options::OPT_no_offload_new_driver, false))
+                              options::OPT_no_offload_new_driver, false) ||
+      GetUseNewOffloadDriverForSYCLOffload(*C, *TranslatedArgs))
     setUseNewOffloadingDriver();
 
   // Determine FPGA emulation status.
@@ -7289,7 +7314,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
       Args.hasFlag(options::OPT_offload_new_driver,
-                   options::OPT_no_offload_new_driver, false);
+                   options::OPT_no_offload_new_driver, false) ||
+      GetUseNewOffloadDriverForSYCLOffload(C, Args);
 
   // Builder to be used to build offloading actions.
   std::unique_ptr<OffloadingActionBuilder> OffloadBuilder =
