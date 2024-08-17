@@ -69,6 +69,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  include_directories(${CMAKE_BINARY_DIR}/include/sycl-compress/)
+  target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_BINARY_DIR}/lib/libsycl-compress.a)
+  target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_BINARY_DIR}/tools/sycl-compress/zstd/install/lib/libzstd.a)
+  
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 
   # ur_win_proxy_loader

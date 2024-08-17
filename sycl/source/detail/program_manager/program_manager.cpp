@@ -117,9 +117,8 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
 }
 
 // TODO replace this with a new UR API function
-static bool
-isDeviceBinaryTypeSupported(const context &C,
-                            ur::DeviceBinaryType Format) {
+static bool isDeviceBinaryTypeSupported(const context &C,
+                                        ur::DeviceBinaryType Format) {
   // All formats except SYCL_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -532,21 +531,19 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
     return UR_DEVICE_BINARY_TARGET_SPIRV32;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64;
-  else if (strcmp(URDeviceTarget,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
-    return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
            0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(URDeviceTarget,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
+           0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
     return UR_DEVICE_BINARY_TARGET_AMDGCN;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
-           0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
     return "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
 
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -2700,8 +2697,8 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
-  Plugin->call<errc::kernel_not_supported>(urKernelCreate,
-      BuildProgram.get(), KernelName.c_str(), &UrKernel);
+  Plugin->call<errc::kernel_not_supported>(urKernelCreate, BuildProgram.get(),
+                                           KernelName.c_str(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     m_MaterializedKernels[KernelName][SpecializationConsts] = UrKernel;

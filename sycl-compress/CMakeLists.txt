@@ -29,7 +29,7 @@ include_directories(${ZSTD_INCLUDE_DIR})
 
 add_subdirectory(src)
 add_dependencies(sycl-compress zstd)
-target_link_libraries(sycl-compress ${ZSTD_LIBRARY})
+#target_link_libraries(sycl-compress ${ZSTD_LIBRARY})
 
 if (LLVM_BINARY_DIR)
   file(GLOB_RECURSE SYCL_COMPRESS_HEADERS_LIST CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress/*")
@@ -54,3 +54,5 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT sycl-compress
 )
+
+set(SYCL_COMPRESS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress)

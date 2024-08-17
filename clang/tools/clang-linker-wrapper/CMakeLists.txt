@@ -34,6 +34,11 @@ add_clang_tool(clang-linker-wrapper
   ${tablegen_deps}
   )
 
+add_dependencies(clang-linker-wrapper sycl-compress)
+include_directories(${CMAKE_BINARY_DIR}/include/sycl-compress/)
+message(CHECK_START "Finding sycl-compress")
+set(SYCL_COMPRESS_LIB ${CMAKE_BINARY_DIR}/lib/libsycl-compress.a)
+
 set(CLANG_LINKER_WRAPPER_LIB_DEPS
   clangBasic
   )
@@ -41,4 +46,5 @@ set(CLANG_LINKER_WRAPPER_LIB_DEPS
 target_link_libraries(clang-linker-wrapper
   PRIVATE
   ${CLANG_LINKER_WRAPPER_LIB_DEPS}
+  ${SYCL_COMPRESS_LIB}
   )
