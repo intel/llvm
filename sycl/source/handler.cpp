@@ -493,7 +493,7 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CGType::None:
-    if (detail::ur::trace()) {
+    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
     }
 
@@ -1544,8 +1544,47 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "Queue operation cannot depend on discarded event.");
   }
+
+  auto EventGraph = EventImpl->getCommandGraph();
+  if (MQueue && EventGraph) {
+    auto QueueGraph = MQueue->getCommandGraph();
+
+    if (EventGraph->getContext() != MQueue->get_context()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot submit to a queue with a dependency from a graph that is "
+          "associated with a different context.");
+    }
+
+    if (EventGraph->getDevice() != MQueue->get_device()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot submit to a queue with a dependency from a graph that is "
+          "associated with a different device.");
+    }
+
+    if (MQueue->is_in_fusion_mode()) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "Queue in fusion mode cannot have a dependency from a graph");
+    }
+
+    if (QueueGraph && QueueGraph != EventGraph) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "Cannot submit to a recording queue with a "
+                            "dependency from a different graph.");
+    }
+
+    // If the event dependency has a graph, that means that the queue that
+    // created it was in recording mode. If the current queue is not recording,
+    // we need to set it to recording (implements the transitive queue recording
+    // feature).
+    if (!QueueGraph) {
+      EventGraph->beginRecording(MQueue);
+    }
+  }
+
   if (auto Graph = getCommandGraph(); Graph) {
-    auto EventGraph = EventImpl->getCommandGraph();
     if (EventGraph == nullptr) {
       throw sycl::exception(
           make_error_code(errc::invalid),

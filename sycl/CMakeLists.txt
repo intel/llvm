@@ -16,10 +16,15 @@ if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()
 
-# If SYCL_ENABLE_PLUGINS is undefined, we default to enabling OpenCL and Level
-# Zero plugins.
-if (NOT DEFINED SYCL_ENABLE_PLUGINS)
-  set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
+if (SYCL_ENABLE_PLUGINS)
+  message(WARNING "SYCL_ENABLE_PLUGINS has been renamed, please use SYCL_ENABLE_BACKENDS instead")
+  set(SYCL_ENABLE_BACKENDS "${SYCL_ENABLE_PLUGINS}" CACHE STRING "Backends enabled for SYCL" FORCE)
+endif()
+
+# If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
+# Zero backends.
+if (NOT DEFINED SYCL_ENABLE_BACKENDS)
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
@@ -167,23 +172,26 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
 
 # Needed for feature_test.hpp
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_CUDA ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_CUDA ON)
 endif()
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_HIP ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_HIP ON)
 endif()
-if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
 endif()
-if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
+
+# Set backend macros based on whether we can compile kernels for the target
+# rather than if we're building the runtime adapter.
+set(SYCL_EXT_ONEAPI_BACKEND_CUDA ${LLVM_HAS_NVPTX_TARGET})
+set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -333,7 +341,11 @@ if (NOT WIN32)
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  set(XPTIFW_LIBS xpti xptifw)
+  if (MSVC)
+    set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
+  else()
+    set(XPTIFW_LIBS xpti xptifw)
+  endif()
 endif()
 
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
@@ -379,13 +391,6 @@ cmake_policy(SET CMP0057 NEW)
 
 if (libdevice IN_LIST LLVM_ENABLE_PROJECTS)
   add_dependencies(sycl-toolchain libsycldevice)
-endif()
-
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_dependencies( sycl-toolchain xpti)
-  if (MSVC)
-    add_dependencies( sycl-toolchain xptid)
-  endif()
 endif()
 
 if (SYCL_ENABLE_STACK_PRINTING)
@@ -483,7 +488,7 @@ if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -495,7 +500,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )

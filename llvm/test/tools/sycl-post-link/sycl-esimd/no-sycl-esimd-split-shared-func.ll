@@ -106,7 +106,7 @@ attributes #3 = { "referenced-indirectly" }
 
 ;---------------- Verify IR. Outlined to avoid complications with reordering.
 ; Check the function is modified in ESIMD module.
-; CHECK: define dso_local spir_func <4 x float> @SHARED_F.esimd(i64 %{{.*}}) #[[SHARED_F_ATTRS:[0-9]+]] {
+; CHECK: define {{.*}} spir_func <4 x float> @SHARED_F.esimd(i64 %{{.*}}) #[[SHARED_F_ATTRS:[0-9]+]] {
 ; CHECK:   %{{.*}} = call spir_func <4 x float> @__intrin(i64 %{{.*}})
 ; CHECK:   ret <4 x float> %{{.*}}
 
@@ -121,17 +121,16 @@ attributes #3 = { "referenced-indirectly" }
 ; CHECK-NEXT:  %{{.*}} = fadd <4 x float> %{{.*}}, %{{.*}}
 ; CHECK-NEXT:  ret <4 x float> {{.*}}
 
-; Check the original version (for SYCL call graph) is retained
-; CHECK: define dso_local spir_func <4 x float> @SHARED_F(
-
 ; Verify __builtin_invoke_simd lowering
 ; 1) the second argument (function pointer) is removed
 ; 2) The call target (helper) is changed to the optimized one
-; CHECK: define dso_local spir_func float @SPMD_CALLER(float %{{.*}})
+; CHECK: define {{.*}} spir_func float @SPMD_CALLER(float %{{.*}})
 ; CHECK:   %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX_{{.+}}(ptr @[[NEW_HELPER_NAME]], float %{{.*}})
 ; CHECK:   ret float %{{.*}}
 
+; Check the original version (for SYCL call graph) is retained
+; CHECK: define {{.*}} spir_func <4 x float> @SHARED_F(
+
 ; Check that VCStackCall attribute is added to the invoke_simd helpers functions:
 ; CHECK: attributes #[[SHARED_F_ATTRS]] = { noinline "VCFunction" }
-; CHECK: attributes #[[NEW_HELPER_ATTRS]] = { "VCFunction" "VCStackCall" "sycl-module-id"="invoke_simd.cpp" }
-
+; CHECK: attributes #[[NEW_HELPER_ATTRS]] = { "VCFunction" "VCStackCall" "referenced-indirectly" "sycl-module-id"="invoke_simd.cpp" }

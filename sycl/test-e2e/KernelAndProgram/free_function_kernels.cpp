@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: cuda
 
 // This test tests free function kernel code generation and execution.
 
@@ -46,7 +46,7 @@ bool checkUSM(int *usmPtr, int size, int *Result) {
   return false;
 }
 
-extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+extern "C" SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel)) void ff_0(int *ptr,
                                                                int start,
                                                                int end) {
@@ -96,7 +96,6 @@ bool test_0(queue Queue) {
 }
 
 // Overloaded free function definition.
-SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_1(int *ptr, int start, int end) {
@@ -147,7 +146,6 @@ bool test_1(queue Queue) {
 }
 
 // Overloaded free function definition.
-SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_1(int *ptr, int start) {
@@ -203,8 +201,9 @@ bool test_2(queue Queue) {
 
 // Templated free function definition.
 template <typename T>
-SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
-    ext::oneapi::experimental::nd_range_kernel<2>)) void ff_3(T *ptr, T start) {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<2>))
+void ff_3(T *ptr, T start) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
@@ -212,7 +211,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
   ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + start;
 }
 
-// Explicit instantiation with “int*”.
+// Explicit instantiation with "int*".
 template void ff_3(int *ptr, int start);
 
 bool test_3(queue Queue) {
