@@ -1574,25 +1574,35 @@ MemoryBuffer *BinaryWrapper::addELFNotes(MemoryBuffer *Buf,
   // Run llvm-objcopy like this:
   //   llvm-objcopy --add-section=.note.openmp=<notes-tmp-file-name> \
     //       <orig-file-name> <elf-tmp-file-name>
-  //
-  // This will add a SHT_NOTE section on top of the original ELF.
-  std::vector<StringRef> Args;
-  Args.push_back(ObjcopyPath);
-  std::string Option("--add-section=.note.openmp=" + NotesTmpFileName);
-  Args.push_back(Option);
-  Args.push_back(OriginalFileName);
-  Args.push_back(ELFTmpFileName);
-  bool ExecutionFailed = false;
-  std::string ErrMsg;
-  (void)sys::ExecuteAndWait(ObjcopyPath, Args,
-                            /*Env=*/std::nullopt, /*Redirects=*/{},
-                            /*SecondsToWait=*/0,
-                            /*MemoryLimit=*/0, &ErrMsg, &ExecutionFailed);
+    //
+    // This will add a SHT_NOTE section on top of the original ELF.
+    std::vector<StringRef> Args;
+    Args.push_back(ObjcopyPath);
+    std::string Option("--add-section=.note.openmp=" + NotesTmpFileName);
+    Args.push_back(Option);
+    Args.push_back("--no-verify-note-sections");
+    Args.push_back(OriginalFileName);
+    Args.push_back(ELFTmpFileName);
+    bool ExecutionFailed = false;
+    std::string ErrMsg;
+    (void)sys::ExecuteAndWait(ObjcopyPath, Args,
+                              /*Env=*/std::nullopt, /*Redirects=*/{},
+                              /*SecondsToWait=*/0,
+                              /*MemoryLimit=*/0, &ErrMsg, &ExecutionFailed);
 
-  if (ExecutionFailed) {
-    warningOS() << ErrMsg << "\n";
-    return Buf;
-  }
+    if (ExecutionFailed) {
+      warningOS() << ErrMsg << "\n";
+      return Buf;
+    }
+
+    // Substitute the original ELF with new one.
+    ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
+        MemoryBuffer::getFile(ELFTmpFileName);
+    if (!BufOrErr) {
+      handleErrorAsWarning(
+          createFileError(ELFTmpFileName, BufOrErr.getError()));
+      return Buf;
+    }
 
   // Substitute the original ELF with new one.
   ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =

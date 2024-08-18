@@ -47,3 +47,5 @@ target_link_libraries(clang-linker-wrapper
   ${CLANG_LINKER_WRAPPER_LIB_DEPS}
   sycl-compress
   )
+
+export_executable_symbols_for_plugins(clang-linker-wrapper)
