@@ -143,6 +143,7 @@ static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
                                     cl::cat(ClangOffloadWrapperCategory));
 
 // CLI options for device image compression.
+// TODO: Turn off this option by default.
 static cl::opt<bool>
     SYCLCompressDevImg("sycl-compress-dev-imgs", cl::init(true), cl::Optional,
                        cl::desc("Enable device image compression using ZSTD."),
@@ -152,6 +153,12 @@ static cl::opt<int>
     SYCLCompressLevel("sycl-compress-level", cl::init(10), cl::Optional,
                       cl::desc("ZSTD Compression level. Default: 10"),
                       cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    SYCLCompressThreshold("sycl-compress-threshold", cl::init(1024),
+                          cl::Optional,
+                          cl::desc("ZSTD Compression threshold. Default: 1024"),
+                          cl::cat(ClangOffloadWrapperCategory));
 
 // Binary image formats supported by this tool. The support basically means
 // mapping string representation given at the command line to a value from this
@@ -1111,9 +1118,10 @@ private:
       } else {
 
         // Don't compress if the user explicitly specifies the binary image
-        // format.
+        // format or if the image is smaller than the threshold.
         if (Kind != OffloadKind::SYCL || !SYCLCompressDevImg ||
-            Img.Fmt != BinaryImageFormat::none) {
+            Img.Fmt != BinaryImageFormat::none ||
+            static_cast<int>(Bin->getBufferSize()) < SYCLCompressThreshold) {
           Fbin = addDeviceImageToModule(
               ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
               Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,

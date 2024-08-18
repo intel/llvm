@@ -142,6 +142,8 @@ lit_config.note("Triple: {}".format(triple))
 config.substitutions.append(("%sycl_triple", triple))
 
 additional_flags = config.sycl_clang_extra_flags.split(" ")
+# TODO: Remove this.
+additional_flags.append("-fsycl-compress-dev-imgs")
 
 if config.cuda == "ON":
     config.available_features.add("cuda")

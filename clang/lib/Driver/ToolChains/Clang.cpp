@@ -10001,6 +10001,42 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SmallString<128> TargetTripleOpt = TT.getArchName();
     bool WrapFPGADevice = false;
     bool FPGAEarly = false;
+
+    // Validate and propogate CLI options related to dveice image compression.
+    {
+      // -fsycl-compress-dev-imgs
+      bool isImgCompress = false;
+      if (C.getInputArgs().getLastArg(options::OPT_fsycl_compress_dev_imgs)) {
+        isImgCompress = true;
+        WrapperArgs.push_back(
+            C.getArgs().MakeArgString(Twine("-sycl-compress-dev-imgs")));
+      }
+
+      // -fsycl-compress-level=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_fsycl_compress_level_EQ)) {
+
+        if (!isImgCompress)
+          C.getDriver().Diag(diag::warn_sycl_compress_opt_ignored)
+              << A->getAsString(C.getInputArgs());
+        else
+          WrapperArgs.push_back(C.getArgs().MakeArgString(
+              Twine("-sycl-compress-level=") + A->getValue()));
+      }
+
+      // -fsycl-compress-threshold=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_fsycl_compress_threshold_EQ)) {
+
+        if (!isImgCompress)
+          C.getDriver().Diag(diag::warn_sycl_compress_opt_ignored)
+              << A->getAsString(C.getInputArgs());
+        else
+          WrapperArgs.push_back(C.getArgs().MakeArgString(
+              Twine("-sycl-compress-threshold=") + A->getValue()));
+      }
+    }
+
     if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
       WrapFPGADevice = true;
       FPGAEarly = (A->getValue() == StringRef("early"));
