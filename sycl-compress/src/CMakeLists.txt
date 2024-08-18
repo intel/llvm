@@ -1,9 +1,9 @@
 include(GNUInstallDirs)
 
 macro(add_syclcompress_lib target_name)
-  add_library(${target_name} STATIC ${ARGN})
+
+  add_library(${target_name} SHARED ${ARGN})
   target_include_directories(${target_name} PRIVATE ${SYCL_COMPRESS_DIR}/include ${ZSTD_INCLUDE_DIR})
-  target_link_libraries(${target_name} PRIVATE ${ZSTD_LIBRARY})
 
   # if (MSVC)
   #   target_compile_options(${target_name} PRIVATE /EHsc)

@@ -16,20 +16,22 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 # Download and build zstd
 include(ExternalProject)
 ExternalProject_Add(zstd
+  DEPENDS
   URL https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz
   URL_HASH SHA256=8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1
   SOURCE_SUBDIR build/cmake
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/zstd/install -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DZSTD_BUILD_STATIC=ON -DZSTD_BUILD_SHARED=OFF 
-)
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/zstd/install -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_STATIC=ON -DZSTD_BUILD_SHARED=OFF -DZSTD_MULTITHREAD_SUPPORT=OFF
+  BUILD_BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/zstd/install/lib/libzstd.a"
+  )
 
-set(ZSTD_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/zstd/install/lib/libzstd.a)
+set(ZSTD_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/zstd/install/lib/libzstd.a CACHE PATH "ZSTD library" FORCE)
 set(ZSTD_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/zstd/install/include)
 
 include_directories(${ZSTD_INCLUDE_DIR})
 
 add_subdirectory(src)
 add_dependencies(sycl-compress zstd)
-#target_link_libraries(sycl-compress ${ZSTD_LIBRARY})
+target_link_libraries(sycl-compress PRIVATE ${ZSTD_LIBRARY})
 
 if (LLVM_BINARY_DIR)
   file(GLOB_RECURSE SYCL_COMPRESS_HEADERS_LIST CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress/*")
