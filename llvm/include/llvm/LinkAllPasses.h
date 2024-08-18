@@ -123,7 +123,6 @@ namespace {
       (void) llvm::createMergeICmpsLegacyPass();
       (void) llvm::createExpandLargeDivRemPass();
       (void)llvm::createExpandMemCmpLegacyPass();
-      (void) llvm::createExpandVectorPredicationPass();
       (void)llvm::createESIMDVerifierPass();
       (void)llvm::createSYCLLowerInvokeSimdPass();
       std::string buf;
