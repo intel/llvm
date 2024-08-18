@@ -1144,8 +1144,6 @@ private:
                      << Bin->getBufferSize()
                      << " Compressed image size:" << dstSize << "\n";
 
-            errs() << "Image format:" << Img.Fmt << "\n";
-            errs() << "Image target:" << Img.Tgt << "\n";
             Fbin = addDeviceImageToModule(
                 ArrayRef<char>((const char *)dst, dstSize),
                 Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,

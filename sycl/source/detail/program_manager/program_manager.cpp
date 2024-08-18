@@ -171,6 +171,14 @@ static bool isDeviceBinaryTypeSupported(const context &C,
     return "SPIR-V";
   case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return "LLVM IR";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
+    return "compressed none";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE:
+    return "compressed native";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV:
+    return "compressed SPIR-V";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE:
+    return "compressed LLVM IR";
   }
   assert(false && "Unknown device image format");
   return "unknown";
