@@ -455,21 +455,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
   // Allocate a cuArray
   if (pImageDesc->numMipLevel == 1) {
-    CUarray ImageArray;
+    CUarray ImageArray{};
 
     try {
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
       *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return Err;
     } catch (...) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   } else // Allocate a cuMipmappedArray
   {
-    CUmipmappedArray mip_array;
+    CUmipmappedArray mip_array{};
     array_desc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
 
     try {
@@ -477,10 +481,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
                                             pImageDesc->numMipLevel));
       *phImageMem = (ur_exp_image_mem_native_handle_t)mip_array;
     } catch (ur_result_t Err) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return Err;
     } catch (...) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }

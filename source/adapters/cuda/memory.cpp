@@ -439,7 +439,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(cuMemAlloc(&DevPtr, Buffer.Size));
     }
   } else {
-    CUarray ImageArray;
+    CUarray ImageArray{};
     CUsurfObject Surface;
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
@@ -465,12 +465,12 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
       Image.SurfObjs[DeviceIdx] = Surface;
     } catch (ur_result_t Err) {
-      if (ImageArray) {
+      if (ImageArray != CUarray{}) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
       }
       return Err;
     } catch (...) {
-      if (ImageArray) {
+      if (ImageArray != CUarray{}) {
         UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
       }
       return UR_RESULT_ERROR_UNKNOWN;

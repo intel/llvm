@@ -498,7 +498,7 @@ ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
       UR_CHECK_ERROR(hipMalloc(&DevPtr, Buffer.Size));
     }
   } else {
-    hipArray *ImageArray;
+    hipArray *ImageArray{};
     hipSurfaceObject_t Surface;
     try {
       auto &Image = std::get<SurfaceMem>(Mem->Mem);
