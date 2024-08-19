@@ -1093,19 +1093,18 @@ struct __SYCL_EBO SwizzleMixins<Self, VecT, DataT, N, true>
       public NonTemplateBinaryOpAssignOpsMixin<vec<DataT, N>, Self, DataT, N>,
       public SwizzleTemplateBinaryOpAssignOpsMixin<Self, VecT, DataT, N> {};
 
-template <typename VecT, int... Indexes>
-inline constexpr bool is_assignable_swizzle =
-    !std::is_const_v<VecT> && []() constexpr {
-      int Idxs[] = {Indexes...};
-      for (std::size_t i = 1; i < sizeof...(Indexes); ++i) {
-        for (std::size_t j = 0; j < i; ++j)
-          if (Idxs[j] == Idxs[i])
-            // Repeating index
-            return false;
-      }
+template <int... Indexes>
+inline constexpr bool has_repeating_indexes = []() constexpr {
+  int Idxs[] = {Indexes...};
+  for (std::size_t i = 1; i < sizeof...(Indexes); ++i) {
+    for (std::size_t j = 0; j < i; ++j)
+      if (Idxs[j] == Idxs[i])
+        // Repeating index
+        return true;
+  }
 
-      return true;
-    }();
+  return false;
+}();
 
 template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
 
@@ -1174,12 +1173,15 @@ protected:
 template <typename VecT, int... Indexes>
 class __SYCL_EBO Swizzle
     : public SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
-                         is_assignable_swizzle<VecT, Indexes...>>,
+                         (!std::is_const_v<VecT> &&
+                          !has_repeating_indexes<Indexes...>)>,
       public SwizzleMixins<Swizzle<VecT, Indexes...>, VecT,
                            typename VecT::element_type, sizeof...(Indexes),
-                           is_assignable_swizzle<VecT, Indexes...>> {
+                           (!std::is_const_v<VecT> &&
+                            !has_repeating_indexes<Indexes...>)> {
   using Base = SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
-                           is_assignable_swizzle<VecT, Indexes...>>;
+                           (!std::is_const_v<VecT> &&
+                            !has_repeating_indexes<Indexes...>)>;
   using DataT = typename VecT::element_type;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
