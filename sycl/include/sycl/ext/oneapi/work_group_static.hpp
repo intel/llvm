@@ -99,8 +99,6 @@ struct work_group_static_size_key
   using value_t = work_group_static_size;
 };
 
-// inline constexpr work_group_static_size_key::value_t work_group_static_size;
-
 template <>
 struct is_property_key<work_group_static_size_key> : std::true_type {};
 
