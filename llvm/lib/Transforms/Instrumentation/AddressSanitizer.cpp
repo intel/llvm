@@ -829,8 +829,10 @@ struct AddressSanitizer {
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
-  void instrumentSyclStaticLocalMemory(CallInst *CI);
-  bool instrumentSyclDynamicLocalMemory(Function &F);
+  void instrumentSyclStaticLocalMemory(CallInst *CI,
+                                       ArrayRef<Instruction *> RetVec);
+  bool instrumentSyclDynamicLocalMemory(Function &F,
+                                        ArrayRef<Instruction *> RetVec);
 
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
@@ -879,7 +881,9 @@ private:
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
   FunctionCallee AsanSetShadowStaticLocalFunc;
+  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
+  FunctionCallee AsanUnpoisonShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
   StringMap<GlobalVariable *> GlobalStringMap;
   Constant *AsanLaunchInfo;
@@ -1612,7 +1616,8 @@ static uint64_t getSizeAndRedzoneSizeForLocal(uint64_t Size,
 }
 
 // Instument static local memory
-void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
+void AddressSanitizer::instrumentSyclStaticLocalMemory(
+    CallInst *CI, ArrayRef<Instruction *> RetVec) {
   InstrumentationIRBuilder IRB(CI->getNextNode());
   auto *Size = cast<ConstantInt>(CI->getArgOperand(0));
   auto *Alignment = cast<ConstantInt>(CI->getArgOperand(1));
@@ -1633,18 +1638,29 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
   //   uptr beg,
   //   size_t size,
   //   size_t size_with_redzone,
-  //   uptr launch_info
   // )
-  IRB.CreateCall(
-      AsanSetShadowStaticLocalFunc,
-      {IRB.CreatePointerCast(NewCI, IntptrTy), Size, SizeWithRedZone});
+  auto LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
+  IRB.CreateCall(AsanSetShadowStaticLocalFunc,
+                 {LocalAddr, Size, SizeWithRedZone});
+
+  // __asan_unpoison_shadow_static_local(
+  //   uptr beg,
+  //   size_t size,
+  //   size_t size_with_redzone,
+  // )
+  for (Instruction *Ret : RetVec) {
+    IRBuilder<> IRBRet(Ret);
+    IRBRet.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
+                      {LocalAddr, Size, SizeWithRedZone});
+  }
 
   CI->replaceAllUsesWith(NewCI);
   CI->eraseFromParent();
 }
 
 // Instument dynamic local memory
-bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
+bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
+    Function &F, ArrayRef<Instruction *> RetVec) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
 
   // Save "__asan_launch" into local memory "__AsanLaunchInfo"
@@ -1670,9 +1686,18 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
         IRB.CreateGEP(IntptrTy, ArgsArray, ConstantInt::get(Int32Ty, i));
     IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
   }
+
+  auto ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
-                 {IRB.CreatePointerCast(ArgsArray, IntptrTy),
-                  ConstantInt::get(Int32Ty, LocalArgs.size())});
+                 {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+
+  for (Instruction *Ret : RetVec) {
+    IRBuilder<> IRBRet(Ret);
+    IRBRet.CreateCall(
+        AsanUnpoisonShadowDynamicLocalFunc,
+        {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+  }
+
   return true;
 }
 
@@ -3266,12 +3291,28 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
         M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
                               IntptrTy, IntptrTy, IntptrTy);
 
+    // __asan_unpoison_shadow_static_local(
+    //   uptr ptr,
+    //   size_t size,
+    // )
+    AsanUnpoisonShadowStaticLocalFunc =
+        M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
+                              IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
+
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args
     // )
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
+
+    // __asan_unpoison_shadow_dynamic_local(
+    //   uptr ptr,
+    //   uint32_t num_args
+    // )
+    AsanUnpoisonShadowDynamicLocalFunc =
+        M.getOrInsertFunction("__asan_unpoison_shadow_dynamic_local",
+                              IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
         "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
@@ -3515,12 +3556,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                     F.getParent()->getDataLayout(), RTCI);
     FunctionModified = true;
   }
-  if (TargetTriple.isSPIROrSPIRV()) {
-    for (auto *CI : SyclAllocateLocalMemoryCalls) {
-      instrumentSyclStaticLocalMemory(CI);
-      FunctionModified = true;
-    }
-  } else {
+  if (!TargetTriple.isSPIROrSPIRV()) {
     for (auto *Inst : IntrinToInstrument) {
       if (!suppressInstrumentationSiteForDebug(NumInstrumented))
         instrumentMemIntrinsic(Inst, RTCI);
@@ -3546,9 +3582,15 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
-  // We need to instrument dynamic local arguments after stack poisoner
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-    FunctionModified |= instrumentSyclDynamicLocalMemory(F);
+  // We need to instrument dynamic/static local arguments after stack poisoner
+  if (TargetTriple.isSPIROrSPIRV()) {
+    for (auto *CI : SyclAllocateLocalMemoryCalls) {
+      instrumentSyclStaticLocalMemory(CI, FSP.RetVec);
+      FunctionModified = true;
+    }
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
+    }
   }
 
   LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "

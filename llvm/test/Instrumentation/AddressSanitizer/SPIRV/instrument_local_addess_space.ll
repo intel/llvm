@@ -16,6 +16,7 @@ entry:
   ; CHECK:      [[T0:%.*]] = call ptr addrspace(3) @__sycl_allocateLocalMemory(i64 32, i64 8)
   ; CHECK-NEXT: [[T1:%.*]] = ptrtoint ptr addrspace(3) [[T0]] to i64
   ; CHECK-NEXT: call void @__asan_set_shadow_static_local(i64 [[T1]], i64 16, i64 32)
+  ; CHECK-NEXT: call void @__asan_unpoison_shadow_static_local(i64 %1, i64 16, i64 32)
   ret void
 }
 
@@ -28,6 +29,7 @@ entry:
   ; CHECK-NEXT: store i64 [[T1]], ptr [[T0]], align 8
   ; CHECK-NEXT: [[T2:%.*]] = ptrtoint ptr %local_args to i64
   ; CHECK-NEXT: call void @__asan_set_shadow_dynamic_local(i64 [[T2]], i32 1)
+  ; CHECK: call void @__asan_unpoison_shadow_dynamic_local(i64 %2, i32 1)
   ret void
 }
 
