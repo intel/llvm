@@ -25,10 +25,11 @@ struct is_valid_elem_type<marray<T, N>, Ts...>
 template <typename T, int N, typename... Ts>
 struct is_valid_elem_type<vec<T, N>, Ts...>
     : std::bool_constant<check_type_in_v<T, Ts...>> {};
-template <typename VecT, int... Indexes, typename... Ts>
-struct is_valid_elem_type<Swizzle<VecT, Indexes...>, Ts...>
-    : std::bool_constant<check_type_in_v<typename VecT::element_type, Ts...>> {
-};
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes,
+          typename... Ts>
+struct is_valid_elem_type<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+                          Ts...>
+    : std::bool_constant<check_type_in_v<DataT, Ts...>> {};
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress, typename... Ts>
 struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
@@ -44,8 +45,8 @@ template <typename T, size_t N>
 struct num_elements<marray<T, N>> : std::integral_constant<size_t, N> {};
 template <typename T, int N>
 struct num_elements<vec<T, N>> : std::integral_constant<size_t, size_t(N)> {};
-template <typename VecT, int... Indexes>
-struct num_elements<Swizzle<VecT, Indexes...>>
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct num_elements<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
     : std::integral_constant<size_t, sizeof...(Indexes)> {};
 
 // Utilty trait for checking that the number of elements in T is in Ns.
@@ -58,9 +59,9 @@ constexpr bool is_valid_size_v = is_valid_size<T, Ns...>::value;
 
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
-template <typename VecT, int... Indexes>
-struct simplify_if_swizzle<Swizzle<VecT, Indexes...>> {
-  using type = vec<typename VecT::element_type, sizeof...(Indexes)>;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct simplify_if_swizzle<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = vec<DataT, sizeof...(Indexes)>;
 };
 
 template <typename T1, typename T2>
@@ -75,12 +76,11 @@ template <typename T, size_t N> struct same_size_signed_int<marray<T, N>> {
 template <typename T, int N> struct same_size_signed_int<vec<T, N>> {
   using type = vec<typename same_size_signed_int<T>::type, N>;
 };
-template <typename VecT, int... Indexes>
-struct same_size_signed_int<Swizzle<VecT, Indexes...>> {
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct same_size_signed_int<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   // Converts to vec for simplicity.
   using type =
-      vec<typename same_size_signed_int<typename VecT::element_type>::type,
-          sizeof...(Indexes)>;
+      vec<typename same_size_signed_int<DataT>::type, sizeof...(Indexes)>;
 };
 
 template <typename T, size_t N> struct same_size_unsigned_int<marray<T, N>> {
@@ -89,12 +89,11 @@ template <typename T, size_t N> struct same_size_unsigned_int<marray<T, N>> {
 template <typename T, int N> struct same_size_unsigned_int<vec<T, N>> {
   using type = vec<typename same_size_unsigned_int<T>::type, N>;
 };
-template <typename VecT, int... Indexes>
-struct same_size_unsigned_int<Swizzle<VecT, Indexes...>> {
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct same_size_unsigned_int<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   // Converts to vec for simplicity.
   using type =
-      vec<typename same_size_unsigned_int<typename VecT::element_type>::type,
-          sizeof...(Indexes)>;
+      vec<typename same_size_unsigned_int<DataT>::type, sizeof...(Indexes)>;
 };
 
 // Utility trait for changing the element type of a type T. If T is a scalar,
@@ -110,12 +109,11 @@ template <typename NewElemT, typename T, int N>
 struct change_elements<NewElemT, vec<T, N>> {
   using type = vec<typename change_elements<NewElemT, T>::type, N>;
 };
-template <typename NewElemT, typename VecT, int... Indexes>
-struct change_elements<NewElemT, Swizzle<VecT, Indexes...>> {
+template <typename NewElemT, bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct change_elements<NewElemT, Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   // Converts to vec for simplicity.
   using type =
-      vec<typename change_elements<NewElemT, typename VecT::element_type>::type,
-          sizeof...(Indexes)>;
+      vec<typename change_elements<NewElemT, DataT>::type, sizeof...(Indexes)>;
 };
 
 template <typename NewElemT, typename T>

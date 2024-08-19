@@ -698,7 +698,8 @@ struct NonTemplateBinaryOpMixin {};
 template <typename Lhs, typename Rhs, typename Op, bool Enable>
 struct NonTemplateBinaryOpAssignMixin {};
 
-template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle;
 
 // Swizzles require template parameters on the operators (e.g., if another
 // swizzle shuffles a vec using different indices that are part of the swizzle's
@@ -711,10 +712,10 @@ template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
 //   }
 //
 // SwizzleTemplate* mixins implement these templates.
-template <typename Self, bool IsConstVecT, typename DataT, int N, typename Op,
+template <typename Self, bool IsConstVec, typename DataT, int N, typename Op,
           bool Enable>
 struct SwizzleTemplateBinaryOpMixin {};
-template <typename Self, bool IsConstVecT, typename DataT, int N, typename Op,
+template <typename Self, bool IsConstVec, typename DataT, int N, typename Op,
           bool Enable>
 struct SwizzleTemplateBinaryOpAssignMixin {};
 
@@ -729,28 +730,27 @@ inline constexpr bool is_op_available =
       return Impl{}(lhs, rhs, OP{});                                           \
     }                                                                          \
   };                                                                           \
-  template <typename Self, bool IsConstVecT, typename DataT, int N>            \
-  struct SwizzleTemplateBinaryOpMixin<Self, IsConstVecT, DataT, N, OP, true> { \
-    template <typename OtherVecT, int... OtherIndexes,                         \
-              typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
-                  N == sizeof...(OtherIndexes)>>                               \
+  template <typename Self, bool IsConstVec, typename DataT, int N>             \
+  struct SwizzleTemplateBinaryOpMixin<Self, IsConstVec, DataT, N, OP, true> {  \
+    template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes,     \
+              typename = std::enable_if_t<N == sizeof...(OtherIndexes)>>       \
     friend auto                                                                \
     operator BINOP(const Self &lhs,                                            \
-                   const Swizzle<OtherVecT, OtherIndexes...> &rhs) {           \
+                   const Swizzle<OtherIsConstVec, DataT, OtherVecSize,         \
+                                 OtherIndexes...> &rhs) {                      \
       using ResultVec = vec<DataT, N>;                                         \
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
     /* Can't have both (Self, Swizzle) and (Swizzle, Self) enabled at the same \
      * time if they use the same `const` as that would be ambiguous. As such,  \
      * only enable the latter if "constness" differs. */                       \
-    template <typename OtherVecT, int... OtherIndexes,                         \
-              typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
-                  N == sizeof...(OtherIndexes) &&                              \
-                  IsConstVecT != std::is_const_v<OtherVecT>>>                  \
-    friend auto operator BINOP(const Swizzle<OtherVecT, OtherIndexes...> &lhs, \
-                               const Self &rhs) {                              \
+    template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes,     \
+              typename = std::enable_if_t<N == sizeof...(OtherIndexes) &&      \
+                                          IsConstVec != OtherIsConstVec>>      \
+    friend auto                                                                \
+    operator BINOP(const Swizzle<OtherIsConstVec, DataT, OtherVecSize,         \
+                                 OtherIndexes...> &lhs,                        \
+                   const Self &rhs) {                                          \
       using ResultVec = vec<DataT, N>;                                         \
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
@@ -765,27 +765,25 @@ inline constexpr bool is_op_available =
       return lhs;                                                              \
     }                                                                          \
   };                                                                           \
-  template <typename Self, bool IsConstVecT, typename DataT, int N>            \
-  struct SwizzleTemplateBinaryOpAssignMixin<Self, IsConstVecT, DataT, N, OP,   \
+  template <typename Self, bool IsConstVec, typename DataT, int N>             \
+  struct SwizzleTemplateBinaryOpAssignMixin<Self, IsConstVec, DataT, N, OP,    \
                                             true> {                            \
-    template <typename OtherVecT, int... OtherIndexes,                         \
-              typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
-                  N == sizeof...(OtherIndexes)>>                               \
+    template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes,     \
+              typename = std::enable_if_t<N == sizeof...(OtherIndexes)>>       \
     friend const Self &                                                        \
     operator OPASSIGN(const Self & lhs,                                        \
-                      const Swizzle<OtherVecT, OtherIndexes...> &rhs) {        \
+                      const Swizzle<OtherIsConstVec, DataT, OtherVecSize,      \
+                                    OtherIndexes...> &rhs) {                   \
       using ResultVec = vec<DataT, N>;                                         \
       lhs = OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));    \
       return lhs;                                                              \
     }                                                                          \
-    template <typename OtherVecT, int... OtherIndexes,                         \
-              typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
-                  N == sizeof...(OtherIndexes) &&                              \
-                  IsConstVecT != std::is_const_v<OtherVecT>>>                  \
+    template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes,     \
+              typename = std::enable_if_t<N == sizeof...(OtherIndexes) &&      \
+                                          IsConstVec != OtherIsConstVec>>      \
     friend auto                                                                \
-    operator OPASSIGN(const Swizzle<OtherVecT, OtherIndexes...> &lhs,          \
+    operator OPASSIGN(const Swizzle<OtherIsConstVec, DataT, OtherVecSize,      \
+                                    OtherIndexes...> &lhs,                     \
                       const Self &rhs) {                                       \
       using ResultVec = vec<DataT, N>;                                         \
       lhs = OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));    \
@@ -1106,7 +1104,8 @@ inline constexpr bool has_repeating_indexes = []() constexpr {
   return false;
 }();
 
-template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle;
 
 template <typename Self, typename VecT, int N, bool AllowAssignOps>
 class SwizzleBase {
@@ -1131,11 +1130,10 @@ public:
     *static_cast<Self *>(this) = v;
   }
 
-  template <typename OtherVecT, int... OtherIndexes>
-  std::enable_if_t<std::is_same_v<typename OtherVecT::element_type, DataT> &&
-                       sizeof...(OtherIndexes) == N,
-                   const Self &>
-  operator=(const Swizzle<OtherVecT, OtherIndexes...> &rhs) {
+  template <bool OtherIsConstVec, int OtherVecSize, int... OtherIndexes>
+  std::enable_if_t<sizeof...(OtherIndexes) == N, const Self &>
+  operator=(const Swizzle<OtherIsConstVec, DataT, OtherVecSize, OtherIndexes...>
+                &rhs) {
     return (*this = static_cast<vec<DataT, N>>(rhs));
   }
 
@@ -1170,19 +1168,27 @@ protected:
   VecT &Vec;
 };
 
-template <typename VecT, int... Indexes>
+// Can't have sycl::vec anywhere in template parameters because that would bring
+// its hidden friends into ADL.
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 class __SYCL_EBO Swizzle
-    : public SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
-                         (!std::is_const_v<VecT> &&
-                          !has_repeating_indexes<Indexes...>)>,
-      public SwizzleMixins<Swizzle<VecT, Indexes...>, VecT,
-                           typename VecT::element_type, sizeof...(Indexes),
-                           (!std::is_const_v<VecT> &&
-                            !has_repeating_indexes<Indexes...>)> {
-  using Base = SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
-                           (!std::is_const_v<VecT> &&
-                            !has_repeating_indexes<Indexes...>)>;
-  using DataT = typename VecT::element_type;
+    : public SwizzleBase<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+          std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
+                             vec<DataT, VecSize>>,
+          sizeof...(Indexes),
+          (!IsConstVec && !has_repeating_indexes<Indexes...>)>,
+      public SwizzleMixins<
+          Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+          std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
+                             vec<DataT, VecSize>>,
+          DataT, sizeof...(Indexes),
+          (!IsConstVec && !has_repeating_indexes<Indexes...>)> {
+  using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
+                                  vec<DataT, VecSize>>;
+  using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+                           VecT, sizeof...(Indexes),
+                           (!IsConstVec && !has_repeating_indexes<Indexes...>)>;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
 
@@ -1196,8 +1202,7 @@ class __SYCL_EBO Swizzle
 
 #ifdef __SYCL_DEVICE_ONLY__
 public:
-  using vector_t =
-      typename vec<typename VecT::element_type, sizeof...(Indexes)>::vector_t;
+  using vector_t = typename vec<DataT, NumElements>::vector_t;
 
 private:
 #endif // __SYCL_DEVICE_ONLY__
@@ -1400,10 +1405,10 @@ private:
   using VecArgArrayCreator =
       detail::ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
 
-  template <int... Indexes> using Swizzle = detail::Swizzle<vec, Indexes...>;
-
   template <int... Indexes>
-  using ConstSwizzle = detail::Swizzle<const vec, Indexes...>;
+  using Swizzle = detail::Swizzle<false, DataT, NumElements, Indexes...>;
+  template <int... Indexes>
+  using ConstSwizzle = detail::Swizzle<true, DataT, NumElements, Indexes...>;
 
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
   template <typename CtorArgTy>

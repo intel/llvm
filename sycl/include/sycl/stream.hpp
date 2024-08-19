@@ -751,9 +751,10 @@ inline void writeHItem(GlobalBufAccessorT &GlobalFlushBuf,
 
 template <typename> struct IsSwizzle : std::false_type {};
 
-template <typename VecT, int... Indexes>
-struct IsSwizzle<sycl::detail::Swizzle<VecT, Indexes...>> : std::true_type {
-  using T = typename VecT::element_type;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct IsSwizzle<sycl::detail::Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
+    : std::true_type {
+  using T = DataT;
   using Type = typename sycl::vec<T, (sizeof...(Indexes))>;
 };
 

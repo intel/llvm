@@ -25,7 +25,8 @@ template <class T> struct is_fixed_size_group : std::false_type {};
 template <class T>
 inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
 
-template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle;
 } // namespace detail
 
 template <int Dimensions> class group;
@@ -163,9 +164,9 @@ template <typename T, size_t N> struct get_elem_type_unqual<marray<T, N>> {
 template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
   using type = T;
 };
-template <typename VecT, int... Indexes>
-struct get_elem_type_unqual<Swizzle<VecT, Indexes...>> {
-  using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct get_elem_type_unqual<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = DataT;
 };
 
 template <typename ElementType, access::address_space Space,
@@ -245,9 +246,9 @@ template <class T> struct make_signed<const T> {
 template <class T, int N> struct make_signed<vec<T, N>> {
   using type = vec<make_signed_t<T>, N>;
 };
-template <typename VecT, int... Indexes>
-struct make_signed<Swizzle<VecT, Indexes...>> {
-  using type = make_signed_t<std::remove_cv_t<VecT>>;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct make_signed<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = vec<make_signed_t<DataT>, sizeof...(Indexes)>;
 };
 template <class T, std::size_t N> struct make_signed<marray<T, N>> {
   using type = marray<make_signed_t<T>, N>;
@@ -264,9 +265,9 @@ template <class T> struct make_unsigned<const T> {
 template <class T, int N> struct make_unsigned<vec<T, N>> {
   using type = vec<make_unsigned_t<T>, N>;
 };
-template <typename VecT, int... Indexes>
-struct make_unsigned<Swizzle<VecT, Indexes...>> {
-  using type = make_unsigned_t<std::remove_cv_t<VecT>>;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct make_unsigned<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  using type = vec<make_unsigned_t<DataT>, sizeof...(Indexes)>;
 };
 template <class T, std::size_t N> struct make_unsigned<marray<T, N>> {
   using type = marray<make_unsigned_t<T>, N>;
@@ -292,8 +293,9 @@ template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
 
 // is_swizzle
 template <typename> struct is_swizzle : std::false_type {};
-template <typename VecT, int... Indexes>
-struct is_swizzle<Swizzle<VecT, Indexes...>> : std::true_type {};
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct is_swizzle<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
+    : std::true_type {};
 
 template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
 
