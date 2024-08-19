@@ -3113,7 +3113,7 @@ void SemaSYCL::handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  D->addAttr(SYCLScopeAttr::Create(S.getASTContext(),
+  D->addAttr(SYCLScopeAttr::Create(SemaRef.getASTContext(),
                                    SYCLScopeAttr::Level::WorkGroup, AL));
 }
 
