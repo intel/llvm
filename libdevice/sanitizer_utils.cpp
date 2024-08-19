@@ -883,8 +883,9 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_end);
 }
 
-static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_begin[] =
-    "[kernel] BEGIN __asan_unpoison_shadow_dynamic_local\n";
+static __SYCL_CONSTANT__ const char
+    __mem_unpoison_shadow_dynamic_local_begin[] =
+        "[kernel] BEGIN __asan_unpoison_shadow_dynamic_local\n";
 static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_end[] =
     "[kernel] END   __asan_unpoison_shadow_dynamic_local\n";
 
