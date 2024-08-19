@@ -5117,7 +5117,7 @@ static void ProcessVSRuntimeLibrary(const ToolChain &TC, const ArgList &Args,
       (RTOptionID == options::OPT__SLASH_MT ||
        RTOptionID == options::OPT__SLASH_MTd))
     // Use of /MT or /MTd is not supported for SYCL.
-    TC.getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
+    TC.getDriver().Diag(diag::err_drv_unsupported_opt_sycl)
         << SetArg->getOption().getName();
 
   enum { addDEBUG = 0x1, addMT = 0x2, addDLL = 0x4 };
@@ -5427,8 +5427,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                      options::OPT_fno_sycl_dead_args_optimization,
                      isSYCLOptimizationO2orHigher(Args)))
       CmdArgs.push_back("-fenable-sycl-dae");
-    bool IsMSVC = AuxT.isWindowsMSVCEnvironment();
-    if (IsMSVC) {
+    if (IsWindowsMSVC) {
       CmdArgs.push_back("-fms-extensions");
       CmdArgs.push_back("-fms-compatibility");
       CmdArgs.push_back("-fdelayed-template-parsing");
@@ -5634,14 +5633,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
 
-      if (!D.IsCLMode()) {
+      if (!D.IsCLMode() && IsWindowsMSVC &&
+          !Args.hasArg(options::OPT_fms_runtime_lib_EQ)) {
         // SYCL library is guaranteed to work correctly only with dynamic
         // MSVC runtime.
-        llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
-        if (AuxT.isWindowsMSVCEnvironment()) {
-          CmdArgs.push_back("-D_MT");
-          CmdArgs.push_back("-D_DLL");
-        }
+        CmdArgs.push_back("-D_MT");
+        CmdArgs.push_back("-D_DLL");
       }
     }
     // Add any predefined macros associated with intel_gpu* type targets
@@ -6725,8 +6722,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // the command line.  This is to allow for CMake based builds using the
   // Linux based driver on Windows to correctly pull in the expected debug
   // library.
-  if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl)) {
-    if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
+  if (Args.hasArg(options::OPT_fsycl) && !Args.hasArg(options::OPT_nolibsycl) &&
+      !D.IsCLMode()) {
+    if (TC.getTriple().isWindowsMSVCEnvironment()) {
       if (isDependentLibAdded(Args, "msvcrtd")) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
@@ -6734,7 +6732,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         else
           CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       }
-    } else if (!D.IsCLMode() && TC.getTriple().isWindowsGNUEnvironment()) {
+    } else if (TC.getTriple().isWindowsGNUEnvironment()) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
         CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
                           "-preview.dll");
