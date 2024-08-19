@@ -203,21 +203,21 @@ int main(int argc, char *argv[])
     void *temp = null;
 
     // memory pool re-uses previously allocated memory
-    auto e1 = q.submit_with_event([&](handler &cgh) {
+    auto e4 = q.submit_with_event([&](handler &cgh) {
       temp = async_malloc_from_pool(q, 1024, memPool);
     });
 
     // memory allocation is used for second kernel
-    auto e2 = q.submit_with_event([&](handler &cgh) {
-      cgh.depends_on(e1);
+    auto e5 = q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e4);
       parallel_for(q, range{1024}, [=](id<1> idx) {
         do_something_else(idx, temp);
       });
     });
 
     // memory is available to be used by another allocation
-    auto e3 = q.submit_with_event([&](handler &cgh) {
-      cgh.depends_on(e2);
+    q.submit_with_event([&](handler &cgh) {
+      cgh.depends_on(e5);
       async_free(q, temp);
     });
   }
@@ -488,7 +488,7 @@ struct zero_init_key {
 struct use_existing_memory_key {
   using value_t = property_value<use_existing_memory_key>;
 
-  use_existing_memory(void *ptr, size_t size);
+  use_existing_memory_key(void *ptr, size_t size);
 };
 
 inline constexpr initial_threshold_key::value_t initial_threshold;
