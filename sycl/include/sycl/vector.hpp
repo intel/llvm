@@ -488,14 +488,12 @@ struct ConversionOperatorMixin<Self, To, true, true> {
 // a separate mixin for each overload/narrow set of overloads and just "merge"
 // them all back later.
 
-template <typename SelfOperandTy, typename DataT, bool EnablePostfix,
-          typename = void>
+template <typename SelfOperandTy, typename DataT, typename = void>
 struct IncDecMixin {};
 
 template <typename SelfOperandTy, typename DataT>
-struct IncDecMixin<SelfOperandTy, DataT, true,
-                   std::enable_if_t<!std::is_same_v<bool, DataT>>>
-    : public IncDecMixin<SelfOperandTy, DataT, false> {
+struct IncDecMixin<SelfOperandTy, DataT,
+                   std::enable_if_t<!std::is_same_v<bool, DataT>>> {
   friend SelfOperandTy &operator++(SelfOperandTy &x) {
     x += DataT{1};
     return x;
@@ -520,14 +518,16 @@ struct IncDecMixin<SelfOperandTy, DataT, true,
 // the implementation has been doing and it seems to be a reasonable thing to
 // do. Otherwise shift operators for byte element type would have to be disabled
 // completely to follow C++ standard approach.
-template <typename Self, typename OpAssignSelfOperandTy, typename DataT, int N,
-          bool EnableOpAssign, typename = void>
-struct ByteShiftsMixin {};
+template <typename Self, typename DataT, int N, typename = void>
+struct ByteShiftsNonAssignMixin {};
+
+template <typename SelfOperandTy, typename DataT, int N, typename = void>
+struct ByteShiftsOpAssignMixin {};
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <typename Self, typename OpAssignSelfOperandTy, typename DataT, int N>
-struct ByteShiftsMixin<Self, OpAssignSelfOperandTy, DataT, N, false,
-                       std::enable_if_t<std::is_same_v<std::byte, DataT>>> {
+template <typename Self, typename DataT, int N>
+struct ByteShiftsNonAssignMixin<
+    Self, DataT, N, std::enable_if_t<std::is_same_v<std::byte, DataT>>> {
   friend auto operator<<(const Self &lhs, int shift) {
     vec<DataT, N> tmp;
     for (int i = 0; i < N; ++i)
@@ -542,17 +542,15 @@ struct ByteShiftsMixin<Self, OpAssignSelfOperandTy, DataT, N, false,
   }
 };
 
-template <typename Self, typename OpAssignSelfOperandTy, typename DataT, int N>
-struct ByteShiftsMixin<Self, OpAssignSelfOperandTy, DataT, N, true,
-                       std::enable_if_t<std::is_same_v<std::byte, DataT>>>
-    : public ByteShiftsMixin<Self, OpAssignSelfOperandTy, DataT, N, false> {
-  friend OpAssignSelfOperandTy &operator<<=(OpAssignSelfOperandTy &lhs,
-                                            int shift) {
+template <typename SelfOperandTy, typename DataT, int N>
+struct ByteShiftsOpAssignMixin<
+    SelfOperandTy, DataT, N,
+    std::enable_if_t<std::is_same_v<std::byte, DataT>>> {
+  friend SelfOperandTy &operator<<=(SelfOperandTy &lhs, int shift) {
     lhs = lhs << shift;
     return lhs;
   }
-  friend OpAssignSelfOperandTy &operator>>=(OpAssignSelfOperandTy &lhs,
-                                            int shift) {
+  friend SelfOperandTy &operator>>=(SelfOperandTy &lhs, int shift) {
     lhs = lhs >> shift;
     return lhs;
   }
@@ -1060,11 +1058,33 @@ struct __SYCL_EBO SwizzleMixins
       public NonTemplateBinaryOpsMixin<vec<DataT, N>, Self, SwizzleImpl, DataT,
                                        N>,
       public UnaryOpsMixin<Self, SwizzleImpl, DataT, N>,
-      public SwizzleTemplateBinaryOpsMixin<Self, VecT, DataT, N> {};
+      public SwizzleTemplateBinaryOpsMixin<Self, VecT, DataT, N>,
+      public ByteShiftsNonAssignMixin<Self, DataT, N>,
+      // Conversion to scalar DataT for single-element swizzles:
+      public ConversionOperatorMixin<Self, DataT,
+                                     /* Explicit = */ false,
+                                     /* Enable = */ N == 1>,
+#ifdef __SYCL_DEVICE_ONLY__
+      public ConversionOperatorMixin<
+          Self, typename vec<DataT, N>::vector_t,
+          /* Explicit = */ true,
+          // if `vector_t` and `DataT` are the same, then the `operator DataT`
+          // from the above is enough.
+          !std::is_same_v<DataT, typename vec<DataT, N>::vector_t>>,
+#endif
+      // Conversion to sycl::vec, must be available only when `NumElements > 1`
+      // per the SYCL 2020 specification:
+      public ConversionOperatorMixin<Self, vec<DataT, N>,
+                                     /* Explicit = */ false,
+                                     /* Enable = */ (N > 1)>
+
+{};
 
 template <typename Self, typename VecT, typename DataT, int N>
 struct __SYCL_EBO SwizzleMixins<Self, VecT, DataT, N, true>
     : public SwizzleMixins<Self, VecT, DataT, N, false>,
+      public IncDecMixin<const Self, DataT>,
+      public ByteShiftsOpAssignMixin<const Self, DataT, N>,
       public NonTemplateBinaryOpAssignOpsMixin<const Self, DataT, DataT, N>,
       public NonTemplateBinaryOpAssignOpsMixin<const Self, vec<DataT, N>, DataT,
                                                N>,
@@ -1154,36 +1174,6 @@ template <typename VecT, int... Indexes>
 class __SYCL_EBO Swizzle
     : public SwizzleBase<Swizzle<VecT, Indexes...>, VecT, sizeof...(Indexes),
                          is_assignable_swizzle<VecT, Indexes...>>,
-      // Conversion to scalar DataT for single-element swizzles:
-      public ConversionOperatorMixin<Swizzle<VecT, Indexes...>,
-                                     typename VecT::element_type,
-                                     /* Explicit = */ false,
-                                     /* Enable = */ sizeof...(Indexes) == 1>,
-      // Conversion to sycl::vec, must be available only when `NumElements > 1`
-      // per the SYCL 2020 specification:
-      public ConversionOperatorMixin<
-          Swizzle<VecT, Indexes...>,
-          vec<typename VecT::element_type, sizeof...(Indexes)>,
-          /* Explicit = */ false, /* Enable = */ (sizeof...(Indexes) > 1)>,
-#ifdef __SYCL_DEVICE_ONLY__
-      public detail::ConversionOperatorMixin<
-          Swizzle<VecT, Indexes...>,
-          typename vec<typename VecT::element_type,
-                       sizeof...(Indexes)>::vector_t,
-          /* Explicit = */ true,
-          // if `vector_t` and `DataT` are the same, then the `operator DataT`
-          // from the above is enough.
-          !std::is_same_v<typename VecT::element_type,
-                          typename vec<typename VecT::element_type,
-                                       sizeof...(Indexes)>::vector_t>>,
-#endif
-      public IncDecMixin<const Swizzle<VecT, Indexes...>,
-                         typename VecT::element_type,
-                         is_assignable_swizzle<VecT, Indexes...>>,
-      public ByteShiftsMixin<Swizzle<VecT, Indexes...>,
-                             const Swizzle<VecT, Indexes...>,
-                             typename VecT::element_type, sizeof...(Indexes),
-                             is_assignable_swizzle<VecT, Indexes...>>,
       public SwizzleMixins<Swizzle<VecT, Indexes...>, VecT,
                            typename VecT::element_type, sizeof...(Indexes),
                            is_assignable_swizzle<VecT, Indexes...>> {
@@ -1323,11 +1313,11 @@ class __SYCL_EBO vec :
         // from the above is enough.
         !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
 #endif
-    public detail::IncDecMixin<vec<DataT, NumElements>, DataT,
-                               /* AllowAssignOps = */ true>,
-    public detail::ByteShiftsMixin<vec<DataT, NumElements>,
-                                   vec<DataT, NumElements>, DataT, NumElements,
-                                   /* AllowAssignOps = */ true>,
+    public detail::IncDecMixin<vec<DataT, NumElements>, DataT>,
+    public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>, DataT,
+                                            NumElements>,
+    public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>, DataT,
+                                           NumElements>,
     public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>, NumElements>,
     public detail::NonTemplateBinaryOpsMixin<
         vec<DataT, NumElements>, vec<DataT, NumElements>, detail::VectorImpl,
