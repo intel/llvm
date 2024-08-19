@@ -127,6 +127,28 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_UR_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
+
+public:
+  static int get() {
+    static bool Initialized = false;
+    // We don't use TraceLevel enum here because user can provide any bitmask
+    // which can correspond to several enum values.
+    static int Level = 0; // No tracing by default
+
+    // Configuration parameters are processed only once, like reading a string
+    // from environment and converting it into a typed object.
+    if (Initialized)
+      return Level;
+
+    const char *ValStr = BaseT::getRawValue();
+    Level = (ValStr ? std::atoi(ValStr) : 0);
+    Initialized = true;
+    return Level;
+  }
+};
+
 template <> class SYCLConfig<SYCL_RT_WARNING_LEVEL> {
   using BaseT = SYCLConfigBase<SYCL_RT_WARNING_LEVEL>;
 

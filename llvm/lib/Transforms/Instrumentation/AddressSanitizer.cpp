@@ -1281,10 +1281,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
-        F.hasFnAttribute(Attribute::SanitizeAddress)) {
+    // FIXME: We don't have a way to check if the kernel has been extended
+    // on Unified Runtime, so we always extend spir_kernels here, even it will
+    // not be instrumented by any asan function.
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       SpirFixupFuncs.emplace_back(&F);
-    }
   }
 
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
@@ -1340,18 +1341,33 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     // Fixup metadata
     IRBuilder<> Builder(M.getContext());
 
-    auto FixupMetadata = [&NewF](StringRef MDName, Constant *NewV) {
+    auto FixupMetadata = [&NewF](StringRef MDName, Metadata *NewV) {
       auto *Node = NewF->getMetadata(MDName);
       if (!Node)
         return;
       SmallVector<Metadata *, 8> NewMD(Node->operands());
-      NewMD.emplace_back(ConstantAsMetadata::get(NewV));
+      NewMD.emplace_back(NewV);
       NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
     };
 
-    FixupMetadata("kernel_arg_buffer_location", Builder.getInt32(-1));
-    FixupMetadata("kernel_arg_runtime_aligned", Builder.getFalse());
-    FixupMetadata("kernel_arg_exclusive_ptr", Builder.getFalse());
+    FixupMetadata("kernel_arg_buffer_location",
+                  ConstantAsMetadata::get(Builder.getInt32(-1)));
+    FixupMetadata("kernel_arg_runtime_aligned",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+    FixupMetadata("kernel_arg_exclusive_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+
+    FixupMetadata(
+        "kernel_arg_addr_space",
+        ConstantAsMetadata::get(Builder.getInt32(kSpirOffloadGlobalAS)));
+    FixupMetadata("kernel_arg_access_qual",
+                  MDString::get(M.getContext(), "read_write"));
+    FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_base_type",
+                  MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_type_qual", MDString::get(M.getContext(), ""));
+    FixupMetadata("kernel_arg_accessor_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
 
     SpirFuncs.emplace_back(F, NewF);
   }
@@ -1380,7 +1396,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
     // Replace old Func to new Func in metadata
     ValueAsMetadata::handleRAUW(F, NewF);
-    F->removeFromParent();
+    F->eraseFromParent();
   }
 }
 
@@ -1412,24 +1428,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
-    bool HasESIMDKernel = false;
-
-    // ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    for (Function &F : M)
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        F.removeFnAttr(Attribute::SanitizeAddress);
-        HasESIMDKernel = true;
-      }
-
-    // FIXME: we can't check if the kernel is ESIMD kernel at UR, so we
-    // have to disable ASan completely in this case
-    if (HasESIMDKernel)
-      return PreservedAnalyses::all();
-
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
     ExtendSpirKernelArgs(M, FAM);
-  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -3386,6 +3386,10 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
       return false;
+    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    if (F.hasMetadata("sycl_explicit_simd"))
+      return false;
   }
 
   bool FunctionModified = false;
@@ -4079,6 +4083,15 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // Poison the stack red zones at the entry.
   Value *ShadowBase =
       ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
+
+  // FIXME: For device sanitizer, we always cleanup shadow memory before using
+  // it. So, unpoison stack before ret instructions is unnecessary.
+  if (TargetTriple.isSPIROrSPIRV()) {
+    SmallVector<uint8_t, 64> ShadowMask(ShadowAfterScope.size(), 1);
+    SmallVector<uint8_t, 64> ShadowBytes(ShadowAfterScope.size(), 0);
+    copyToShadow(ShadowMask, ShadowBytes, IRB, ShadowBase, true);
+  }
+
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,
