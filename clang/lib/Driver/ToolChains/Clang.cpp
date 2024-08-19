@@ -10002,7 +10002,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     bool WrapFPGADevice = false;
     bool FPGAEarly = false;
 
-    // Validate and propogate CLI options related to dveice image compression.
+    // Validate and propogate CLI options related to device image compression.
     {
       // -fsycl-compress-dev-imgs
       bool isImgCompress = false;

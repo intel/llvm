@@ -17,7 +17,6 @@ include_directories(${CMAKE_BINARY_DIR}/include/sycl-compress/)
 
 add_dependencies(clang clang-offload-wrapper)
 
-#find_library(SYCL_COMPRESS_LIB sycl-compress PATHS ${CMAKE_BINARY_DIR}/lib NO_DEFAULT_PATH)
 clang_target_link_libraries(clang-offload-wrapper
   PRIVATE
   ${CLANG_OFFLOAD_WRAPPER_LIB_DEPS}

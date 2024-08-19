@@ -6,32 +6,53 @@ project (sycl-compress VERSION "${SYCL_COMPRESS_VERSION}" LANGUAGES CXX)
 # Setting the same version as SYCL
 set(CMAKE_CXX_STANDARD 17)
 
-set(SYCL_COMPRESS_DIR ${CMAKE_CURRENT_LIST_DIR})
-
 set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type (default Release)" FORCE)
 
+set(SYCL_COMPRESS_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR})
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/lib/${CMAKE_BUILD_TYPE})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-# Download and build zstd
+# Download and build zstd statically.
+set(ZSTD_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/zstd/install)
+
+if (WIN32)
+  set(ZSTD_LIBRARY_NAME libzstd.lib)
+else()
+  set(ZSTD_LIBRARY_NAME libzstd.a)
+endif()
+
 include(ExternalProject)
 ExternalProject_Add(zstd
   DEPENDS
   URL https://github.com/facebook/zstd/releases/download/v1.5.6/zstd-1.5.6.tar.gz
   URL_HASH SHA256=8c29e06cf42aacc1eafc4077ae2ec6c6fcb96a626157e0593d5e82a34fd403c1
   SOURCE_SUBDIR build/cmake
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/zstd/install -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_STATIC=ON -DZSTD_BUILD_SHARED=OFF -DZSTD_MULTITHREAD_SUPPORT=OFF
-  BUILD_BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/zstd/install/lib/libzstd.a"
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${ZSTD_INSTALL_DIR} -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DZSTD_BUILD_PROGRAMS=OFF -DZSTD_BUILD_STATIC=ON -DZSTD_BUILD_SHARED=OFF -DZSTD_MULTITHREAD_SUPPORT=OFF
+  BUILD_BYPRODUCTS "${ZSTD_INSTALL_DIR}/lib/${ZSTD_LIBRARY_NAME}"
+  DOWNLOAD_EXTRACT_TIMESTAMP ON
   )
 
-set(ZSTD_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/zstd/install/lib/libzstd.a CACHE PATH "ZSTD library" FORCE)
-set(ZSTD_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/zstd/install/include)
+set(ZSTD_LIBRARY ${ZSTD_INSTALL_DIR}/lib/${ZSTD_LIBRARY_NAME})
+set(ZSTD_INCLUDE_DIR ${ZSTD_INSTALL_DIR}/include)
 
-include_directories(${ZSTD_INCLUDE_DIR})
+# Setup sycl-compress library. Add dependency on zstd.
+set(SOURCES
+  src/sycl-compress.cpp
+)
 
-add_subdirectory(src)
+add_library(sycl-compress SHARED ${SOURCES})
+
 add_dependencies(sycl-compress zstd)
+target_include_directories(sycl-compress PRIVATE ${SYCL_COMPRESS_INCLUDE_DIR}/include ${ZSTD_INCLUDE_DIR})
 target_link_libraries(sycl-compress PRIVATE ${ZSTD_LIBRARY})
+
+# Set the location of the library installation
+include(GNUInstallDirs)
+install(TARGETS sycl-compress
+  RUNTIME DESTINATION bin COMPONENT sycl-compress
+  LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-compress
+  ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-compress
+)
 
 if (LLVM_BINARY_DIR)
   file(GLOB_RECURSE SYCL_COMPRESS_HEADERS_LIST CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress/*")

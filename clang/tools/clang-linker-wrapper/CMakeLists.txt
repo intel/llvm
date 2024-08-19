@@ -41,7 +41,6 @@ set(CLANG_LINKER_WRAPPER_LIB_DEPS
   clangBasic
   )
 
-#find_library(SYCL_COMPRESS_LIB sycl-compress PATHS ${CMAKE_BINARY_DIR}/lib)
 target_link_libraries(clang-linker-wrapper
   PRIVATE
   ${CLANG_LINKER_WRAPPER_LIB_DEPS}
