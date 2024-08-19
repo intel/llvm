@@ -469,8 +469,7 @@ public:
                                                   const ParsedAttr &AL);
   void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
                                                      const ParsedAttr &AL);
-  void handleSYCLScopeAttr(Decl *D,
-                                                     const ParsedAttr &AL);
+  void handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL);
 
   void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
 

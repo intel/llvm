@@ -3107,7 +3107,8 @@ void SemaSYCL::handleSYCLScopeAttr(Decl *D, const ParsedAttr &AL) {
     return;
   if (auto *CRD = dyn_cast<CXXRecordDecl>(D);
       !CRD || !(CRD->isClass() || CRD->isStruct())) {
-    SemaRef.Diag(AL.getRange().getBegin(), diag::err_attribute_wrong_decl_type_str)
+    SemaRef.Diag(AL.getRange().getBegin(),
+                 diag::err_attribute_wrong_decl_type_str)
         << AL << AL.isRegularKeywordAttribute() << "classes";
     return;
   }

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/access/access.hpp>                    // for address_space, decorated
-#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/exception.hpp>                 // for exception
+#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
 #include <sycl/ext/oneapi/properties/properties.hpp> // for properties
-#include <sycl/exception.hpp>                        // for exception
-#include <sycl/ext/intel/usm_pointers.hpp>           // for multi_ptr
 
 #include <type_traits> // for enable_if_t
 
@@ -27,8 +27,9 @@ namespace experimental {
 #endif
 
 /// @brief Allocate data in device local memory.
-/// Any work_group_static object will be place in device local memory and hold an object of type T.
-/// work_group_static object are implicitly treated as static.
+/// Any work_group_static object will be place in device local memory and hold
+/// an object of type T. work_group_static object are implicitly treated as
+/// static.
 /// @tparam T must be a trivially constructible and destructible type
 template <typename T> class __SYCL_WG_SCOPE work_group_static {
 public:
@@ -64,10 +65,11 @@ private:
 };
 
 template <typename T>
-std::enable_if_t<
-    std::is_trivially_destructible_v<T> && std::is_trivially_constructible_v<T>,
-    multi_ptr<T, access::address_space::local_space, access::decorated::no>>
-    __SYCL_ALWAYS_INLINE get_dynamic_work_group_memory() {
+std::enable_if_t<std::is_trivially_destructible_v<T> &&
+                     std::is_trivially_constructible_v<T>,
+                 multi_ptr<T, access::address_space::local_space,
+                           access::decorated::no>> __SYCL_ALWAYS_INLINE
+get_dynamic_work_group_memory() {
 #ifdef __SYCL_DEVICE_ONLY__
   return multi_ptr<T, access::address_space::local_space,
                    access::decorated::no>{
