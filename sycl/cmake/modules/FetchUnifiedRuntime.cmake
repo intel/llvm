@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cabf128094eff9ff7b79bdff559640a8a111f0c3
-  # Merge: a96fcbc5 15bca3b6
+  # commit 804851e4508167fec4bacd45a8b354318013911c
+  # Merge: 0702e7ba 58ef967d
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 19 16:20:45 2024 +0100
-  #     Merge pull request #1984 from rafbiels/rafbiels/cuda-stream-race-cond
-  #     Fix race condition in CUDA stream creation
-  set(UNIFIED_RUNTIME_TAG cabf128094eff9ff7b79bdff559640a8a111f0c3)
+  # Date:   Tue Aug 20 16:03:18 2024 +0100
+  #     Merge pull request #1991 from aarongreig/aaron/clearExtFuncPtrCache
+  #     Clear OpenCL function pointer cache when context is released.
+  set(UNIFIED_RUNTIME_TAG 804851e4508167fec4bacd45a8b354318013911c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
