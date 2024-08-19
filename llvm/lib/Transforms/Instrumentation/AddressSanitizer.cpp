@@ -1071,8 +1071,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         DIB(*F.getParent(), /*AllowUnresolved*/ false), C(ASan.C),
         IntptrTy(ASan.IntptrTy), IntptrPtrTy(PointerType::get(IntptrTy, 0)),
         Mapping(ASan.Mapping),
-        PoisonStack((ClStack || ClSpirOffloadPrivates) &&
-                    !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
+        PoisonStack(
+            Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
+                ? ClSpirOffloadPrivates
+                : (ClStack &&
+                   !Triple(F.getParent()->getTargetTriple()).isAMDGPU())) {}
 
   bool runOnFunction() {
     if (!PoisonStack)
