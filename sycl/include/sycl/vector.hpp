@@ -711,10 +711,10 @@ template <typename VecT, int... Indexes> class __SYCL_EBO Swizzle;
 //   }
 //
 // SwizzleTemplate* mixins implement these templates.
-template <typename Self, typename VecT, typename DataT, int N, typename Op,
+template <typename Self, bool IsConstVecT, typename DataT, int N, typename Op,
           bool Enable>
 struct SwizzleTemplateBinaryOpMixin {};
-template <typename Self, typename VecT, typename DataT, int N, typename Op,
+template <typename Self, bool IsConstVecT, typename DataT, int N, typename Op,
           bool Enable>
 struct SwizzleTemplateBinaryOpAssignMixin {};
 
@@ -729,8 +729,8 @@ inline constexpr bool is_op_available =
       return Impl{}(lhs, rhs, OP{});                                           \
     }                                                                          \
   };                                                                           \
-  template <typename Self, typename VecT, typename DataT, int N>               \
-  struct SwizzleTemplateBinaryOpMixin<Self, VecT, DataT, N, OP, true> {        \
+  template <typename Self, bool IsConstVecT, typename DataT, int N>            \
+  struct SwizzleTemplateBinaryOpMixin<Self, IsConstVecT, DataT, N, OP, true> { \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
                   std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
@@ -748,7 +748,7 @@ inline constexpr bool is_op_available =
               typename = std::enable_if_t<                                     \
                   std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes) &&                              \
-                  std::is_const_v<VecT> != std::is_const_v<OtherVecT>>>        \
+                  IsConstVecT != std::is_const_v<OtherVecT>>>                  \
     friend auto operator BINOP(const Swizzle<OtherVecT, OtherIndexes...> &lhs, \
                                const Self &rhs) {                              \
       using ResultVec = vec<DataT, N>;                                         \
@@ -765,8 +765,9 @@ inline constexpr bool is_op_available =
       return lhs;                                                              \
     }                                                                          \
   };                                                                           \
-  template <typename Self, typename VecT, typename DataT, int N>               \
-  struct SwizzleTemplateBinaryOpAssignMixin<Self, VecT, DataT, N, OP, true> {  \
+  template <typename Self, bool IsConstVecT, typename DataT, int N>            \
+  struct SwizzleTemplateBinaryOpAssignMixin<Self, IsConstVecT, DataT, N, OP,   \
+                                            true> {                            \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
                   std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
@@ -782,7 +783,7 @@ inline constexpr bool is_op_available =
               typename = std::enable_if_t<                                     \
                   std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes) &&                              \
-                  std::is_const_v<VecT> != std::is_const_v<OtherVecT>>>        \
+                  IsConstVecT != std::is_const_v<OtherVecT>>>                  \
     friend auto                                                                \
     operator OPASSIGN(const Swizzle<OtherVecT, OtherIndexes...> &lhs,          \
                       const Self &rhs) {                                       \
@@ -851,10 +852,10 @@ struct UnaryOpMixin {};
   public NonTemplateBinaryOpAssignMixin<Lhs, Rhs, OP, is_op_available<OP, DataT, N>>
 
 #define __SYCL_MIXIN_FOR_TEMPLATE_BINARY(OP)                                   \
-  public SwizzleTemplateBinaryOpMixin<Self, VecT, DataT, N, OP, is_op_available<OP, DataT, N>>
+  public SwizzleTemplateBinaryOpMixin<Self, std::is_const_v<VecT>, DataT, N, OP, is_op_available<OP, DataT, N>>
 
 #define __SYCL_MIXIN_FOR_TEMPLATE_BINARY_OPASSIGN(OP)                          \
-  public SwizzleTemplateBinaryOpAssignMixin<Self, VecT, DataT, N, OP, is_op_available<OP, DataT, N>>
+  public SwizzleTemplateBinaryOpAssignMixin<Self, std::is_const_v<VecT>, DataT, N, OP, is_op_available<OP, DataT, N>>
 
 #define __SYCL_MIXIN_FOR_UNARY(OP)                                             \
   public UnaryOpMixin<T, Impl, DataT, N, OP>
