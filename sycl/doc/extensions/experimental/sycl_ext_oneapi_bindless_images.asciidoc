@@ -2871,7 +2871,7 @@ These features still need to be handled:
                     funcs.
 |5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
                     `release_external_semaphore`.
-|5.15|2024-07-19 - Add missing device queries for image arrays, sampling USM 
+|5.15|2024-07-19| - Add missing device queries for image arrays, sampling USM 
                    images and unique addressing per dimension.
                  - Remove aspects for semaphore export, memory export and fetch 
                    3D USM images as they are not supported on any platform.
