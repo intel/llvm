@@ -167,3 +167,101 @@ TEST_P(urEnqueueUSMMemcpyTest, InvalidNullPtrEventWaitList) {
 }
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueUSMMemcpyTest);
+
+struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
+    void SetUp() override {
+        uur::urAllDevicesTest::SetUp();
+        for (auto &device : devices) {
+            ur_device_usm_access_capability_flags_t device_usm = 0;
+            ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
+            if (device_usm) {
+                usm_devices.push_back(device);
+                if (usm_devices.size() == 2) {
+                    break;
+                }
+            }
+        }
+
+        if (usm_devices.size() < 2) {
+            GTEST_SKIP() << "Not enough devices in platform with USM support";
+        }
+
+        ASSERT_SUCCESS(urContextCreate(usm_devices.size(), usm_devices.data(),
+                                       nullptr, &context));
+        ASSERT_SUCCESS(
+            urQueueCreate(context, usm_devices[0], nullptr, &src_queue));
+        ASSERT_SUCCESS(
+            urQueueCreate(context, usm_devices[1], nullptr, &dst_queue));
+
+        ASSERT_SUCCESS(
+            urUSMHostAlloc(context, nullptr, nullptr, alloc_size, &host_alloc));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, usm_devices[0], nullptr,
+                                        nullptr, alloc_size, &src_alloc));
+        ASSERT_SUCCESS(urUSMDeviceAlloc(context, usm_devices[1], nullptr,
+                                        nullptr, alloc_size, &dst_alloc));
+
+        ASSERT_SUCCESS(urEnqueueUSMFill(src_queue, src_alloc,
+                                        sizeof(fill_pattern), &fill_pattern,
+                                        alloc_size, 0, nullptr, nullptr));
+        ASSERT_SUCCESS(urQueueFinish(src_queue));
+    }
+
+    void TearDown() override {
+        if (src_alloc) {
+            ASSERT_SUCCESS(urUSMFree(context, src_alloc));
+        }
+        if (dst_alloc) {
+            ASSERT_SUCCESS(urUSMFree(context, dst_alloc));
+        }
+        if (host_alloc) {
+            ASSERT_SUCCESS(urUSMFree(context, host_alloc));
+        }
+        if (src_queue) {
+            ASSERT_SUCCESS(urQueueRelease(src_queue));
+        }
+        if (dst_queue) {
+            ASSERT_SUCCESS(urQueueRelease(dst_queue));
+        }
+        if (context) {
+            ASSERT_SUCCESS(urContextRelease(context));
+        }
+        uur::urAllDevicesTest::TearDown();
+    }
+
+    void verifyData() {
+        for (size_t i = 0; i < alloc_size; i++) {
+            EXPECT_EQ(static_cast<uint8_t *>(host_alloc)[i], fill_pattern);
+        }
+    }
+
+    std::vector<ur_device_handle_t> usm_devices;
+    ur_context_handle_t context = nullptr;
+    ur_queue_handle_t src_queue = nullptr;
+    ur_queue_handle_t dst_queue = nullptr;
+    void *src_alloc = nullptr;
+    void *dst_alloc = nullptr;
+    void *host_alloc = nullptr;
+    size_t alloc_size = 64;
+    uint8_t fill_pattern = 42;
+};
+
+TEST_F(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyBlocking) {
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(src_queue, true, dst_alloc, src_alloc,
+                                      alloc_size, 0, nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(dst_queue, true, host_alloc, dst_alloc,
+                                      alloc_size, 0, nullptr, nullptr));
+    verifyData();
+}
+
+TEST_F(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyNonBlocking) {
+    ur_event_handle_t device_copy_event = nullptr;
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(src_queue, false, dst_alloc, src_alloc,
+                                      alloc_size, 0, nullptr,
+                                      &device_copy_event));
+    ASSERT_SUCCESS(urQueueFlush(src_queue));
+    ASSERT_SUCCESS(urEventWait(1, &device_copy_event));
+    ASSERT_SUCCESS(urEventRelease(device_copy_event));
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(dst_queue, true, host_alloc, dst_alloc,
+                                      alloc_size, 0, nullptr, nullptr));
+    verifyData();
+}

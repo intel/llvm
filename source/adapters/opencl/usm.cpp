@@ -11,6 +11,14 @@
 #include <ur/ur.hpp>
 
 #include "common.hpp"
+#include "usm.hpp"
+
+template <class T>
+void AllocDeleterCallback(cl_event event, cl_int, void *pUserData) {
+  clReleaseEvent(event);
+  auto Info = static_cast<T *>(pUserData);
+  delete Info;
+}
 
 namespace umf {
 ur_result_t getProviderNativeError(const char *, int32_t) {
@@ -312,32 +320,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
       &CopyEvent));
 
-  struct DeleteCallbackInfo {
-    DeleteCallbackInfo(clMemBlockingFreeINTEL_fn USMFree, cl_context CLContext,
-                       void *HostBuffer)
-        : USMFree(USMFree), CLContext(CLContext), HostBuffer(HostBuffer) {
-      clRetainContext(CLContext);
-    }
-    ~DeleteCallbackInfo() {
-      USMFree(CLContext, HostBuffer);
-      clReleaseContext(CLContext);
-    }
-    DeleteCallbackInfo(const DeleteCallbackInfo &) = delete;
-    DeleteCallbackInfo &operator=(const DeleteCallbackInfo &) = delete;
+  if (phEvent) {
+    // Since we're releasing this in the callback above we need to retain it
+    // here to keep the user copy alive.
+    CL_RETURN_ON_FAILURE(clRetainEvent(CopyEvent));
+    *phEvent = cl_adapter::cast<ur_event_handle_t>(CopyEvent);
+  }
 
-    clMemBlockingFreeINTEL_fn USMFree;
-    cl_context CLContext;
-    void *HostBuffer;
-  };
+  // This self destructs taking the event and allocation with it.
+  auto Info = new AllocDeleterCallbackInfo(USMFree, CLContext, HostBuffer);
 
-  auto Info = new DeleteCallbackInfo(USMFree, CLContext, HostBuffer);
-
-  auto DeleteCallback = [](cl_event, cl_int, void *pUserData) {
-    auto Info = static_cast<DeleteCallbackInfo *>(pUserData);
-    delete Info;
-  };
-
-  ClErr = clSetEventCallback(CopyEvent, CL_COMPLETE, DeleteCallback, Info);
+  ClErr =
+      clSetEventCallback(CopyEvent, CL_COMPLETE,
+                         AllocDeleterCallback<AllocDeleterCallbackInfo>, Info);
   if (ClErr != CL_SUCCESS) {
     // We can attempt to recover gracefully by attempting to wait for the copy
     // to finish and deleting the info struct here.
@@ -345,11 +340,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     delete Info;
     clReleaseEvent(CopyEvent);
     CL_RETURN_ON_FAILURE(ClErr);
-  }
-  if (phEvent) {
-    *phEvent = cl_adapter::cast<ur_event_handle_t>(CopyEvent);
-  } else {
-    CL_RETURN_ON_FAILURE(clReleaseEvent(CopyEvent));
   }
 
   return UR_RESULT_SUCCESS;
@@ -369,20 +359,131 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     return mapCLErrorToUR(CLErr);
   }
 
-  clEnqueueMemcpyINTEL_fn FuncPtr = nullptr;
-  ur_result_t RetVal = cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
-      CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemcpyINTELCache,
-      cl_ext::EnqueueMemcpyName, &FuncPtr);
+  clGetMemAllocInfoINTEL_fn GetMemAllocInfo = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clGetMemAllocInfoINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clGetMemAllocInfoINTELCache,
+      cl_ext::GetMemAllocInfoName, &GetMemAllocInfo));
 
-  if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
-        FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue), blocking, pDst,
-                pSrc, size, numEventsInWaitList,
-                cl_adapter::cast<const cl_event *>(phEventWaitList),
-                cl_adapter::cast<cl_event *>(phEvent)));
+  clEnqueueMemcpyINTEL_fn USMMemcpy = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clEnqueueMemcpyINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clEnqueueMemcpyINTELCache,
+      cl_ext::EnqueueMemcpyName, &USMMemcpy));
+
+  clMemBlockingFreeINTEL_fn USMFree = nullptr;
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clMemBlockingFreeINTEL_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clMemBlockingFreeINTELCache,
+      cl_ext::MemBlockingFreeName, &USMFree));
+
+  // Check if the two allocations are DEVICE allocations from different
+  // devices, if they are we need to do the copy indirectly via a host
+  // allocation.
+  cl_device_id SrcDevice = 0, DstDevice = 0;
+  CL_RETURN_ON_FAILURE(
+      GetMemAllocInfo(CLContext, pSrc, CL_MEM_ALLOC_DEVICE_INTEL,
+                      sizeof(cl_device_id), &SrcDevice, nullptr));
+  CL_RETURN_ON_FAILURE(
+      GetMemAllocInfo(CLContext, pDst, CL_MEM_ALLOC_DEVICE_INTEL,
+                      sizeof(cl_device_id), &DstDevice, nullptr));
+
+  if ((SrcDevice && DstDevice) && SrcDevice != DstDevice) {
+    // We need a queue associated with each device, so first figure out which
+    // one we weren't given.
+    cl_device_id QueueDevice = nullptr;
+    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+        cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_DEVICE,
+        sizeof(QueueDevice), &QueueDevice, nullptr));
+
+    cl_command_queue MissingQueue = nullptr, SrcQueue = nullptr,
+                     DstQueue = nullptr;
+    if (QueueDevice == SrcDevice) {
+      MissingQueue = clCreateCommandQueue(CLContext, DstDevice, 0, &CLErr);
+      SrcQueue = cl_adapter::cast<cl_command_queue>(hQueue);
+      DstQueue = MissingQueue;
+    } else {
+      MissingQueue = clCreateCommandQueue(CLContext, SrcDevice, 0, &CLErr);
+      DstQueue = cl_adapter::cast<cl_command_queue>(hQueue);
+      SrcQueue = MissingQueue;
+    }
+    CL_RETURN_ON_FAILURE(CLErr);
+
+    cl_event HostCopyEvent = nullptr, FinalCopyEvent = nullptr;
+    clHostMemAllocINTEL_fn HostMemAlloc = nullptr;
+    UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<clHostMemAllocINTEL_fn>(
+        CLContext, cl_ext::ExtFuncPtrCache->clHostMemAllocINTELCache,
+        cl_ext::HostMemAllocName, &HostMemAlloc));
+
+    auto HostAlloc = HostMemAlloc(CLContext, nullptr, size, 0, &CLErr);
+    CL_RETURN_ON_FAILURE(CLErr);
+
+    // Now that we've successfully allocated we should try to clean it up if we
+    // hit an error somewhere.
+    auto checkCLErr = [&](cl_int CLErr) -> ur_result_t {
+      if (CLErr != CL_SUCCESS) {
+        if (HostCopyEvent) {
+          clReleaseEvent(HostCopyEvent);
+        }
+        if (FinalCopyEvent) {
+          clReleaseEvent(FinalCopyEvent);
+        }
+        USMFree(CLContext, HostAlloc);
+        CL_RETURN_ON_FAILURE(CLErr);
+      }
+      return UR_RESULT_SUCCESS;
+    };
+
+    UR_RETURN_ON_FAILURE(checkCLErr(USMMemcpy(
+        SrcQueue, blocking, HostAlloc, pSrc, size, numEventsInWaitList,
+        cl_adapter::cast<const cl_event *>(phEventWaitList), &HostCopyEvent)));
+
+    UR_RETURN_ON_FAILURE(
+        checkCLErr(USMMemcpy(DstQueue, blocking, pDst, HostAlloc, size, 1,
+                             &HostCopyEvent, &FinalCopyEvent)));
+
+    // If this is a blocking operation we can do our cleanup immediately,
+    // otherwise we need to defer it to an event callback.
+    if (blocking) {
+      CL_RETURN_ON_FAILURE(USMFree(CLContext, HostAlloc));
+      CL_RETURN_ON_FAILURE(clReleaseEvent(HostCopyEvent));
+      CL_RETURN_ON_FAILURE(clReleaseCommandQueue(MissingQueue));
+      if (phEvent) {
+        *phEvent = cl_adapter::cast<ur_event_handle_t>(FinalCopyEvent);
+      } else {
+        CL_RETURN_ON_FAILURE(clReleaseEvent(FinalCopyEvent));
+      }
+    } else {
+      if (phEvent) {
+        *phEvent = cl_adapter::cast<ur_event_handle_t>(FinalCopyEvent);
+        // We are going to release this event in our callback so we need to
+        // retain if the user wants a copy.
+        CL_RETURN_ON_FAILURE(clRetainEvent(FinalCopyEvent));
+      }
+
+      // This self destructs taking the event and allocation with it.
+      auto DeleterInfo = new AllocDeleterCallbackInfoWithQueue(
+          USMFree, CLContext, HostAlloc, MissingQueue);
+
+      CLErr = clSetEventCallback(
+          HostCopyEvent, CL_COMPLETE,
+          AllocDeleterCallback<AllocDeleterCallbackInfoWithQueue>, DeleterInfo);
+
+      if (CLErr != CL_SUCCESS) {
+        // We can attempt to recover gracefully by attempting to wait for the
+        // copy to finish and deleting the info struct here.
+        clWaitForEvents(1, &HostCopyEvent);
+        delete DeleterInfo;
+        clReleaseEvent(HostCopyEvent);
+        CL_RETURN_ON_FAILURE(CLErr);
+      }
+    }
+  } else {
+    CL_RETURN_ON_FAILURE(
+        USMMemcpy(cl_adapter::cast<cl_command_queue>(hQueue), blocking, pDst,
+                  pSrc, size, numEventsInWaitList,
+                  cl_adapter::cast<const cl_event *>(phEventWaitList),
+                  cl_adapter::cast<cl_event *>(phEvent)));
   }
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
