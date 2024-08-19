@@ -4053,12 +4053,6 @@ static void RenderBuiltinOptions(const ToolChain &TC, const llvm::Triple &T,
     if (UseBuiltins)
       A->render(Args, CmdArgs);
   }
-
-  // le32-specific flags:
-  //  -fno-math-builtin: clang should not convert math builtins to intrinsics
-  //                     by default.
-  if (TC.getArch() == llvm::Triple::le32)
-    CmdArgs.push_back("-fno-math-builtin");
 }
 
 bool Driver::getDefaultModuleCachePath(SmallVectorImpl<char> &Result) {
@@ -8317,6 +8311,12 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_rewrite_includes, false) ||
       (C.isForDiagnostics() && !HaveModules))
     CmdArgs.push_back("-frewrite-includes");
+
+  if (Args.hasFlag(options::OPT_fzos_extensions,
+                   options::OPT_fno_zos_extensions, false))
+    CmdArgs.push_back("-fzos-extensions");
+  else if (Args.hasArg(options::OPT_fno_zos_extensions))
+    CmdArgs.push_back("-fno-zos-extensions");
 
   // Only allow -traditional or -traditional-cpp outside in preprocessing modes.
   if (Arg *A = Args.getLastArg(options::OPT_traditional,

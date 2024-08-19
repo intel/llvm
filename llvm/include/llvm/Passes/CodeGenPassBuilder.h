@@ -629,7 +629,7 @@ void CodeGenPassBuilder<Derived, TargetMachineT>::addISelPasses(
   if (TM.useEmulatedTLS())
     addPass(LowerEmuTLSPass());
 
-  addPass(PreISelIntrinsicLoweringPass(TM));
+  addPass(PreISelIntrinsicLoweringPass(&TM));
 
   derived().addIRPasses(addPass);
   addPass(FPBuiltinFnSelectionPass());

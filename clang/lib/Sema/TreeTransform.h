@@ -2081,10 +2081,11 @@ public:
   ///
   /// By default, performs semantic analysis to build the new statement.
   /// Subclasses may override this routine to provide different behavior.
-  OMPClause *RebuildOMPNumTeamsClause(Expr *NumTeams, SourceLocation StartLoc,
+  OMPClause *RebuildOMPNumTeamsClause(ArrayRef<Expr *> VarList,
+                                      SourceLocation StartLoc,
                                       SourceLocation LParenLoc,
                                       SourceLocation EndLoc) {
-    return getSema().OpenMP().ActOnOpenMPNumTeamsClause(NumTeams, StartLoc,
+    return getSema().OpenMP().ActOnOpenMPNumTeamsClause(VarList, StartLoc,
                                                         LParenLoc, EndLoc);
   }
 
@@ -5867,7 +5868,8 @@ QualType TreeTransform<Derived>::TransformDependentAddressSpaceType(
     TypeLocBuilder &TLB, DependentAddressSpaceTypeLoc TL) {
   const DependentAddressSpaceType *T = TL.getTypePtr();
 
-  QualType pointeeType = getDerived().TransformType(T->getPointeeType());
+  QualType pointeeType =
+      getDerived().TransformType(TLB, TL.getPointeeTypeLoc());
 
   if (pointeeType.isNull())
     return QualType();
@@ -5900,9 +5902,7 @@ QualType TreeTransform<Derived>::TransformDependentAddressSpaceType(
     NewTL.setAttrNameLoc(TL.getAttrNameLoc());
 
   } else {
-    TypeSourceInfo *DI = getSema().Context.getTrivialTypeSourceInfo(
-        Result, getDerived().getBaseLocation());
-    TransformType(TLB, DI->getTypeLoc());
+    TLB.TypeWasModifiedSafely(Result);
   }
 
   return Result;
@@ -10714,7 +10714,7 @@ TreeTransform<Derived>::TransformOMPReductionClause(OMPReductionClause *C) {
           SemaRef.Context, /*NamingClass=*/nullptr,
           ReductionIdScopeSpec.getWithLocInContext(SemaRef.Context), NameInfo,
           /*ADL=*/true, Decls.begin(), Decls.end(),
-          /*KnownDependent=*/false));
+          /*KnownDependent=*/false, /*KnownInstantiationDependent=*/false));
     } else
       UnresolvedReductions.push_back(nullptr);
   }
@@ -10761,7 +10761,7 @@ OMPClause *TreeTransform<Derived>::TransformOMPTaskReductionClause(
           SemaRef.Context, /*NamingClass=*/nullptr,
           ReductionIdScopeSpec.getWithLocInContext(SemaRef.Context), NameInfo,
           /*ADL=*/true, Decls.begin(), Decls.end(),
-          /*KnownDependent=*/false));
+          /*KnownDependent=*/false, /*KnownInstantiationDependent=*/false));
     } else
       UnresolvedReductions.push_back(nullptr);
   }
@@ -10807,7 +10807,7 @@ TreeTransform<Derived>::TransformOMPInReductionClause(OMPInReductionClause *C) {
           SemaRef.Context, /*NamingClass=*/nullptr,
           ReductionIdScopeSpec.getWithLocInContext(SemaRef.Context), NameInfo,
           /*ADL=*/true, Decls.begin(), Decls.end(),
-          /*KnownDependent=*/false));
+          /*KnownDependent=*/false, /*KnownInstantiationDependent=*/false));
     } else
       UnresolvedReductions.push_back(nullptr);
   }
@@ -10989,7 +10989,7 @@ bool transformOMPMappableExprListClause(
           TT.getSema().Context, /*NamingClass=*/nullptr,
           MapperIdScopeSpec.getWithLocInContext(TT.getSema().Context),
           MapperIdInfo, /*ADL=*/true, Decls.begin(), Decls.end(),
-          /*KnownDependent=*/false));
+          /*KnownDependent=*/false, /*KnownInstantiationDependent=*/false));
     } else {
       UnresolvedMappers.push_back(nullptr);
     }
@@ -11046,7 +11046,7 @@ TreeTransform<Derived>::TransformOMPAllocateClause(OMPAllocateClause *C) {
 template <typename Derived>
 OMPClause *
 TreeTransform<Derived>::TransformOMPNumTeamsClause(OMPNumTeamsClause *C) {
-  ExprResult E = getDerived().TransformExpr(C->getNumTeams());
+  ExprResult E = getDerived().TransformExpr(C->getNumTeams().front());
   if (E.isInvalid())
     return nullptr;
   return getDerived().RebuildOMPNumTeamsClause(
