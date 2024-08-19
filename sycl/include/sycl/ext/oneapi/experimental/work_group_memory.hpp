@@ -41,7 +41,12 @@ public:
   using value_type = std::remove_all_extents_t<DataT>;
 
 private:
-  using element_type = std::remove_extent_t<DataT>;
+  using reference_type =
+      std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
+                         std::decay_t<DataT>, DataT &>;
+  using pointer_type =
+      std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
+                         std::decay_t<DataT>, DataT *>;
   using decoratedPtr = typename sycl::detail::DecoratedType<
       value_type, access::address_space::local_space>::type *;
 
@@ -64,11 +69,13 @@ public:
     return sycl::address_space_cast<access::address_space::local_space,
                                     IsDecorated, value_type>(ptr);
   }
-  __attribute__((always_inline)) DataT *operator&() const {
-    return reinterpret_cast<DataT *>(ptr);
-  }
-  __attribute__((always_inline)) operator DataT &() const {
-    return *reinterpret_cast<DataT *>(ptr);
+  pointer_type operator&() const { return reinterpret_cast<pointer_type>(ptr); }
+  operator reference_type() const {
+    if constexpr (!sycl::detail::is_unbounded_array_v<DataT>) {
+      return *(this->operator&());
+    } else {
+      return this->operator&();
+    }
   }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
