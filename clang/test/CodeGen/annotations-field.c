@@ -20,6 +20,10 @@ static struct foo gf;
 int main(int argc, char **argv) {
     struct foo f;
     f.v = argc;
+// CHECK: getelementptr inbounds nuw %struct.foo, ptr %{{.*}}, i32 0, i32 0
+// CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 9, ptr[[$CONST_AS]] null)
+// CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 9, ptr[[$CONST_AS]] null)
+
 // CHECK: getelementptr inbounds %struct.foo, ptr %{{.*}}, i32 0, i32 0
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 13, ptr[[$CONST_AS]] null)
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 13, ptr[[$CONST_AS]] null)
@@ -31,6 +35,7 @@ int main(int argc, char **argv) {
 // CHECK: getelementptr inbounds %struct.foo, ptr %{{.*}}, i32 0, i32 2
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 15, ptr[[$CONST_AS]] null)
 // CHECK-NEXT: call ptr @llvm.ptr.annotation.p0.[[$MANGLE_AS]]({{.*}}str{{.*}}str{{.*}}i32 15, ptr[[$CONST_AS]] null)
+
     gf.v = argc;
 // X86: call ptr @llvm.ptr.annotation.p0.p0(ptr @gf, ptr @.str{{.*}}, ptr @.str{{.*}}, i32 13, ptr null)
 // X86-NEXT: call ptr @llvm.ptr.annotation.p0.p0(ptr %{{.*}}, ptr @.str{{.*}}, ptr @.str{{.*}}, i32 13, ptr null)
