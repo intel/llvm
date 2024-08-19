@@ -829,8 +829,10 @@ struct AddressSanitizer {
   bool maybeInsertAsanInitAtFunctionEntry(Function &F);
   bool maybeInsertDynamicShadowAtFunctionEntry(Function &F);
   void markEscapedLocalAllocas(Function &F);
-  void instrumentSyclStaticLocalMemory(CallInst *CI);
-  bool instrumentSyclDynamicLocalMemory(Function &F);
+  void instrumentSyclStaticLocalMemory(CallInst *CI,
+                                       ArrayRef<Instruction *> RetVec);
+  bool instrumentSyclDynamicLocalMemory(Function &F,
+                                        ArrayRef<Instruction *> RetVec);
 
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
@@ -879,7 +881,9 @@ private:
   FunctionCallee AsanHandleNoReturnFunc;
   FunctionCallee AsanPtrCmpFunction, AsanPtrSubFunction;
   FunctionCallee AsanSetShadowStaticLocalFunc;
+  FunctionCallee AsanUnpoisonShadowStaticLocalFunc;
   FunctionCallee AsanSetShadowDynamicLocalFunc;
+  FunctionCallee AsanUnpoisonShadowDynamicLocalFunc;
   Constant *AsanShadowGlobal;
   StringMap<GlobalVariable *> GlobalStringMap;
   Constant *AsanLaunchInfo;
@@ -1072,8 +1076,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
         DIB(*F.getParent(), /*AllowUnresolved*/ false), C(ASan.C),
         IntptrTy(ASan.IntptrTy), IntptrPtrTy(PointerType::get(IntptrTy, 0)),
         Mapping(ASan.Mapping),
-        PoisonStack((ClStack || ClSpirOffloadPrivates) &&
-                    !Triple(F.getParent()->getTargetTriple()).isAMDGPU()) {}
+        PoisonStack(
+            Triple(F.getParent()->getTargetTriple()).isSPIROrSPIRV()
+                ? ClSpirOffloadPrivates
+                : (ClStack &&
+                   !Triple(F.getParent()->getTargetTriple()).isAMDGPU())) {}
 
   bool runOnFunction() {
     if (!PoisonStack)
@@ -1281,10 +1288,11 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
   for (Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
-        F.hasFnAttribute(Attribute::SanitizeAddress)) {
+    // FIXME: We don't have a way to check if the kernel has been extended
+    // on Unified Runtime, so we always extend spir_kernels here, even it will
+    // not be instrumented by any asan function.
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       SpirFixupFuncs.emplace_back(&F);
-    }
   }
 
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
@@ -1340,18 +1348,33 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     // Fixup metadata
     IRBuilder<> Builder(M.getContext());
 
-    auto FixupMetadata = [&NewF](StringRef MDName, Constant *NewV) {
+    auto FixupMetadata = [&NewF](StringRef MDName, Metadata *NewV) {
       auto *Node = NewF->getMetadata(MDName);
       if (!Node)
         return;
       SmallVector<Metadata *, 8> NewMD(Node->operands());
-      NewMD.emplace_back(ConstantAsMetadata::get(NewV));
+      NewMD.emplace_back(NewV);
       NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
     };
 
-    FixupMetadata("kernel_arg_buffer_location", Builder.getInt32(-1));
-    FixupMetadata("kernel_arg_runtime_aligned", Builder.getFalse());
-    FixupMetadata("kernel_arg_exclusive_ptr", Builder.getFalse());
+    FixupMetadata("kernel_arg_buffer_location",
+                  ConstantAsMetadata::get(Builder.getInt32(-1)));
+    FixupMetadata("kernel_arg_runtime_aligned",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+    FixupMetadata("kernel_arg_exclusive_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
+
+    FixupMetadata(
+        "kernel_arg_addr_space",
+        ConstantAsMetadata::get(Builder.getInt32(kSpirOffloadGlobalAS)));
+    FixupMetadata("kernel_arg_access_qual",
+                  MDString::get(M.getContext(), "read_write"));
+    FixupMetadata("kernel_arg_type", MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_base_type",
+                  MDString::get(M.getContext(), "void*"));
+    FixupMetadata("kernel_arg_type_qual", MDString::get(M.getContext(), ""));
+    FixupMetadata("kernel_arg_accessor_ptr",
+                  ConstantAsMetadata::get(Builder.getFalse()));
 
     SpirFuncs.emplace_back(F, NewF);
   }
@@ -1380,7 +1403,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
     // Replace old Func to new Func in metadata
     ValueAsMetadata::handleRAUW(F, NewF);
-    F->removeFromParent();
+    F->eraseFromParent();
   }
 }
 
@@ -1412,24 +1435,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
-    bool HasESIMDKernel = false;
-
-    // ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    for (Function &F : M)
-      if (F.hasMetadata("sycl_explicit_simd")) {
-        F.removeFnAttr(Attribute::SanitizeAddress);
-        HasESIMDKernel = true;
-      }
-
-    // FIXME: we can't check if the kernel is ESIMD kernel at UR, so we
-    // have to disable ASan completely in this case
-    if (HasESIMDKernel)
-      return PreservedAnalyses::all();
-
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
     ExtendSpirKernelArgs(M, FAM);
-  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -1609,7 +1616,8 @@ static uint64_t getSizeAndRedzoneSizeForLocal(uint64_t Size,
 }
 
 // Instument static local memory
-void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
+void AddressSanitizer::instrumentSyclStaticLocalMemory(
+    CallInst *CI, ArrayRef<Instruction *> RetVec) {
   InstrumentationIRBuilder IRB(CI->getNextNode());
   auto *Size = cast<ConstantInt>(CI->getArgOperand(0));
   auto *Alignment = cast<ConstantInt>(CI->getArgOperand(1));
@@ -1630,18 +1638,29 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
   //   uptr beg,
   //   size_t size,
   //   size_t size_with_redzone,
-  //   uptr launch_info
   // )
-  IRB.CreateCall(
-      AsanSetShadowStaticLocalFunc,
-      {IRB.CreatePointerCast(NewCI, IntptrTy), Size, SizeWithRedZone});
+  auto LocalAddr = IRB.CreatePointerCast(NewCI, IntptrTy);
+  IRB.CreateCall(AsanSetShadowStaticLocalFunc,
+                 {LocalAddr, Size, SizeWithRedZone});
+
+  // __asan_unpoison_shadow_static_local(
+  //   uptr beg,
+  //   size_t size,
+  //   size_t size_with_redzone,
+  // )
+  for (Instruction *Ret : RetVec) {
+    IRBuilder<> IRBRet(Ret);
+    IRBRet.CreateCall(AsanUnpoisonShadowStaticLocalFunc,
+                      {LocalAddr, Size, SizeWithRedZone});
+  }
 
   CI->replaceAllUsesWith(NewCI);
   CI->eraseFromParent();
 }
 
 // Instument dynamic local memory
-bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
+bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
+    Function &F, ArrayRef<Instruction *> RetVec) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
 
   // Save "__asan_launch" into local memory "__AsanLaunchInfo"
@@ -1667,9 +1686,18 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
         IRB.CreateGEP(IntptrTy, ArgsArray, ConstantInt::get(Int32Ty, i));
     IRB.CreateStore(IRB.CreatePointerCast(LocalArgs[i], IntptrTy), StoreDest);
   }
+
+  auto ArgsArrayAddr = IRB.CreatePointerCast(ArgsArray, IntptrTy);
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
-                 {IRB.CreatePointerCast(ArgsArray, IntptrTy),
-                  ConstantInt::get(Int32Ty, LocalArgs.size())});
+                 {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+
+  for (Instruction *Ret : RetVec) {
+    IRBuilder<> IRBRet(Ret);
+    IRBRet.CreateCall(
+        AsanUnpoisonShadowDynamicLocalFunc,
+        {ArgsArrayAddr, ConstantInt::get(Int32Ty, LocalArgs.size())});
+  }
+
   return true;
 }
 
@@ -3263,12 +3291,28 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
         M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
                               IntptrTy, IntptrTy, IntptrTy);
 
+    // __asan_unpoison_shadow_static_local(
+    //   uptr ptr,
+    //   size_t size,
+    // )
+    AsanUnpoisonShadowStaticLocalFunc =
+        M.getOrInsertFunction("__asan_unpoison_shadow_static_local",
+                              IRB.getVoidTy(), IntptrTy, IntptrTy, IntptrTy);
+
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args
     // )
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty);
+
+    // __asan_unpoison_shadow_dynamic_local(
+    //   uptr ptr,
+    //   uint32_t num_args
+    // )
+    AsanUnpoisonShadowDynamicLocalFunc =
+        M.getOrInsertFunction("__asan_unpoison_shadow_dynamic_local",
+                              IRB.getVoidTy(), IntptrTy, Int32Ty);
 
     AsanLaunchInfo = M.getOrInsertGlobal(
         "__AsanLaunchInfo", IntptrTy->getPointerTo(kSpirOffloadGlobalAS), [&] {
@@ -3385,6 +3429,10 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
+      return false;
+    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    if (F.hasMetadata("sycl_explicit_simd"))
       return false;
   }
 
@@ -3508,12 +3556,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                     F.getDataLayout(), RTCI);
     FunctionModified = true;
   }
-  if (TargetTriple.isSPIROrSPIRV()) {
-    for (auto *CI : SyclAllocateLocalMemoryCalls) {
-      instrumentSyclStaticLocalMemory(CI);
-      FunctionModified = true;
-    }
-  } else {
+  if (!TargetTriple.isSPIROrSPIRV()) {
     for (auto *Inst : IntrinToInstrument) {
       if (!suppressInstrumentationSiteForDebug(NumInstrumented))
         instrumentMemIntrinsic(Inst, RTCI);
@@ -3539,9 +3582,15 @@ bool AddressSanitizer::instrumentFunction(Function &F,
   if (ChangedStack || !NoReturnCalls.empty())
     FunctionModified = true;
 
-  // We need to instrument dynamic local arguments after stack poisoner
-  if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-    FunctionModified |= instrumentSyclDynamicLocalMemory(F);
+  // We need to instrument dynamic/static local arguments after stack poisoner
+  if (TargetTriple.isSPIROrSPIRV()) {
+    for (auto *CI : SyclAllocateLocalMemoryCalls) {
+      instrumentSyclStaticLocalMemory(CI, FSP.RetVec);
+      FunctionModified = true;
+    }
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      FunctionModified |= instrumentSyclDynamicLocalMemory(F, FSP.RetVec);
+    }
   }
 
   LLVM_DEBUG(dbgs() << "ASAN done instrumenting: " << FunctionModified << " "
@@ -4079,15 +4128,6 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // Poison the stack red zones at the entry.
   Value *ShadowBase =
       ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
-
-  // FIXME: For device sanitizer, we always cleanup shadow memory before using
-  // it. So, unpoison stack before ret instructions is unnecessary.
-  if (TargetTriple.isSPIROrSPIRV()) {
-    SmallVector<uint8_t, 64> ShadowMask(ShadowAfterScope.size(), 1);
-    SmallVector<uint8_t, 64> ShadowBytes(ShadowAfterScope.size(), 0);
-    copyToShadow(ShadowMask, ShadowBytes, IRB, ShadowBase, true);
-  }
-
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,

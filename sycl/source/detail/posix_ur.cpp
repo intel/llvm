@@ -21,7 +21,7 @@ void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
   void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
-  if (!so && detail::ur::trace()) {
+  if (!so && trace(TraceLevel::TRACE_ALL)) {
     char *Error = dlerror();
     std::cerr << "SYCL_UR_TRACE: dlopen(" << LibraryPath << ") failed with <"
               << (Error ? Error : "unknown error") << ">" << std::endl;
