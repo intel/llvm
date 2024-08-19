@@ -290,6 +290,36 @@ SYCL events>>) will not create edges in the graph, but will create runtime
 dependencies for a graph node on those other events.
 |===
 
+===== Explicit API Example
+
+Simple example that shows using the explicit API to add two nodes to a graph
+with the <<depends-on-property, depends_on property>> used to define
+dependencies between them.
+
+[source, c++]
+----
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+sycl_ext::command_graph Graph {SyclContext, SyclDevice};
+
+sycl_ext::node NodeA = Graph.add(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  }
+);
+
+Graph.add(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  },
+  sycl_ext::property::node::depends_on{NodeA}  
+);
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.finalize();
+
+SyclQueue.ext_oneapi_graph(ExecGraph);
+----
+
 ==== Queue Recording API
 
 When using the record & replay API to construct a graph by recording a queue,
@@ -327,6 +357,37 @@ edge is added automatically between two sequential command groups submitted to
 the in-order queue. 
 
 |===
+
+===== Queue Recording API Example
+
+Simple example that shows using the Queue Recording API to add two nodes to a
+graph with a `sycl::event` used to define the dependency between them.
+
+[source, c++]
+----
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+sycl_ext::command_graph Graph {SyclContext, SyclDevice};
+
+Graph.begin_recording(SyclQueue);
+
+sycl::event EventA = SyclQueue.submit(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  }
+);
+
+SyclQueue.submit(
+  [&](sycl::handler& CGH){
+    CGH.depends_on(EventA);
+    CGH.parallel_for(...);
+  }
+);
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.finalize();
+
+SyclQueue.ext_oneapi_graph(ExecGraph);
+----
 
 ==== Sub-Graph
 
@@ -2057,6 +2118,17 @@ default constructed `dynamic_event` with no underlying SYCL event.
 
 === Events
 
+Events can be used with graphs in the following ways:
+
+- Defining dependencies between nodes in the same graph.
+- Defining dependencies between <<inter-graph-dependencies, different graphs>>.
+- Obtaining <<node-execution-events, execution events for invidual nodes>>
+within an executable graph, which can be waited on or used as dependencies for
+eager SYCL operations.
+- Creating external event dependencies for a graph, either
+<<external-event-dependencies, one-time>> or <<dynamic-events, updatable between
+executions>>.
+
 ==== Node-Level Execution Events [[node-execution-events]]
 
 Events representing the completion of an individual node inside a given
@@ -2091,6 +2163,36 @@ if they are to be performed for every graph execution.
 
 These events cannot be used to define dependencies between graphs. These should
 instead be defined as described in <<inter-graph-dependencies, this section>>.
+
+==== Adding External Event Dependencies To Graphs [[external-event-dependencies]]
+
+<<event-terminology, Regular SYCL events>> can be passed as dependencies to
+graph nodes to create runtime dependencies at graph execution time on regular,
+eager SYCL operations. This is done in the same way as creating dependencies
+between graph nodes using events, for example:
+
+[source, c++]
+----
+// Submit an eager SYCL operation
+event ExternalEvent = SyclQueue.submit(...);
+
+// Record a graph node which depends on this external event
+Graph.begin_recording(SyclQueue);
+
+SyclQueue.submit(
+  [&](handler& CGH){
+    CGH.depends_on(ExternalEvent);
+    CGH.parallel_for(...);
+  }
+);
+
+Graph.end_recording();
+----
+
+This can be useful for things such as one-time warmups which must be executed
+before a given graph node executes. For external dependencies which need to be
+updated between graph execution, <<dynamic-events, Dynamic Events>> should be
+used instead.
 
 ==== Dynamic Events [[dynamic-events]]
 
