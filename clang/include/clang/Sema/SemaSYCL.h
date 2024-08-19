@@ -419,6 +419,124 @@ public:
                                        ParsedType ParsedTy);
 
   void handleKernelAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLTypeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLDeviceAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLDeviceIndirectlyCallableAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLGlobalVarAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLRegisterNumAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelESimdVectorizeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLDeviceHasAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLUsesAspectsAttr(Decl *D, const ParsedAttr &AL);
+  void handleLaunchBoundsAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLWorkGroupSizeHintAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLReqdWorkGroupSizeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMinWorkGroupsPerComputeUnitAttr(Decl *D,
+                                                      const ParsedAttr &AL);
+  void handleSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(Decl *D,
+                                                         const ParsedAttr &AL);
+  void handleIntelReqdSubGroupSizeAttr(Decl *D, const ParsedAttr &AL);
+  void handleIntelNamedSubGroupSizeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelNumSimdWorkItemsAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelNoGlobalWorkOffsetAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelUseStallEnableClustersAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelLoopFuseAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelInitiationIntervalAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelDoublePumpAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelSinglePumpAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMemoryAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelRegisterAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelBankWidthAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelNumBanksAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelPrivateCopiesAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMaxReplicatesAttr(Decl *D, const ParsedAttr &AL);
+  void handleIntelSimpleDualPortAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMergeAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelBankBitsAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelForcePow2DepthAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelPipeIOAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMaxConcurrencyAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLAddIRAttributesFunctionAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLAddIRAttributesKernelParameterAttr(Decl *D,
+                                                    const ParsedAttr &AL);
+  void handleSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
+                                                   const ParsedAttr &AL);
+  void handleSYCLAddIRAnnotationsMemberAttr(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMaxWorkGroupSize(Decl *D, const ParsedAttr &AL);
+  void handleSYCLIntelMinWorkGroupsPerComputeUnit(Decl *D,
+                                                  const ParsedAttr &AL);
+  void handleSYCLIntelMaxWorkGroupsPerMultiprocessor(Decl *D,
+                                                     const ParsedAttr &AL);
+
+  void checkSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
+
+  SYCLReqdWorkGroupSizeAttr *
+  mergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
+  SYCLIntelNumSimdWorkItemsAttr *
+  mergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
+                                     const SYCLIntelNumSimdWorkItemsAttr &A);
+  SYCLIntelInitiationIntervalAttr *mergeSYCLIntelInitiationIntervalAttr(
+      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *mergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  SYCLIntelMaxGlobalWorkDimAttr *
+  mergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
+  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+  mergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
+  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+  mergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
+  SYCLIntelLoopFuseAttr *
+  mergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  SYCLIntelESimdVectorizeAttr *
+  mergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                   const SYCLIntelESimdVectorizeAttr &A);
+  SYCLIntelNoGlobalWorkOffsetAttr *mergeSYCLIntelNoGlobalWorkOffsetAttr(
+      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
+  SYCLIntelBankWidthAttr *
+  mergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
+  SYCLIntelNumBanksAttr *
+  mergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
+  SYCLIntelMaxReplicatesAttr *
+  mergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
+  SYCLIntelForcePow2DepthAttr *
+  mergeSYCLIntelForcePow2DepthAttr(Decl *D,
+                                   const SYCLIntelForcePow2DepthAttr &A);
+  SYCLIntelPipeIOAttr *mergeSYCLIntelPipeIOAttr(Decl *D,
+                                                const SYCLIntelPipeIOAttr &A);
+  SYCLIntelMaxConcurrencyAttr *
+  mergeSYCLIntelMaxConcurrencyAttr(Decl *D,
+                                   const SYCLIntelMaxConcurrencyAttr &A);
+  SYCLAddIRAttributesFunctionAttr *mergeSYCLAddIRAttributesFunctionAttr(
+      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
+  SYCLAddIRAttributesKernelParameterAttr *
+  mergeSYCLAddIRAttributesKernelParameterAttr(
+      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
+  SYCLAddIRAttributesGlobalVariableAttr *
+  mergeSYCLAddIRAttributesGlobalVariableAttr(
+      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
+  SYCLAddIRAnnotationsMemberAttr *
+  mergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
+                                      const SYCLAddIRAnnotationsMemberAttr &A);
+  SYCLDeviceHasAttr *mergeSYCLDeviceHasAttr(Decl *D,
+                                            const SYCLDeviceHasAttr &A);
+  SYCLUsesAspectsAttr *mergeSYCLUsesAspectsAttr(Decl *D,
+                                                const SYCLUsesAspectsAttr &A);
+  SYCLTypeAttr *mergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  SYCLTypeAttr::SYCLType TypeName);
+  SYCLWorkGroupSizeHintAttr *
+  mergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
+  SYCLIntelMaxWorkGroupSizeAttr *
+  mergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
+                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
+  IntelReqdSubGroupSizeAttr *
+  mergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  IntelNamedSubGroupSizeAttr *
+  mergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
 
   static OffloadArch getOffloadArch(const TargetInfo &TI);
   static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize);
