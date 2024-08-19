@@ -725,31 +725,27 @@ int main() {
   validated &= runTest<1, sycl::half, 4>(sycl::image_channel_type::fp16,
                                          globalSize1, localSize1);
 
-  sycl::range<2> globalSize2{64, 64};
-  sycl::range<2> localSize2{16, 16};
   validated &= runTest<2, uint32_t, 1>(sycl::image_channel_type::unsigned_int32,
-                                       globalSize2, localSize2);
+                                       {1024, 1024}, {16, 16});
   validated &= runTest<2, uint8_t, 4>(sycl::image_channel_type::unorm_int8,
-                                      globalSize2, localSize2);
-  validated &= runTest<2, float, 1>(sycl::image_channel_type::fp32, globalSize2,
-                                    localSize2);
+                                      {1920, 1080}, {16, 8});
+  validated &= runTest<2, float, 1>(sycl::image_channel_type::fp32,
+                                    {1920, 1080}, {16, 8});
   validated &= runTest<2, sycl::half, 2>(sycl::image_channel_type::fp16,
-                                         globalSize2, localSize2);
+                                         {2048, 2048}, {16, 16});
   validated &= runTest<2, sycl::half, 4>(sycl::image_channel_type::fp16,
-                                         globalSize2, localSize2);
+                                         {2048, 2048}, {16, 16});
 
-  sycl::range<3> globalSize3{64, 16, 4};
-  sycl::range<3> localSize3{16, 16, 1};
   validated &= runTest<3, uint32_t, 1>(sycl::image_channel_type::unsigned_int32,
-                                       globalSize3, localSize3);
+                                       {1024, 1024, 16}, {16, 16, 1});
   validated &= runTest<3, uint8_t, 4>(sycl::image_channel_type::unorm_int8,
-                                      globalSize3, localSize3);
-  validated &= runTest<3, float, 1>(sycl::image_channel_type::fp32, globalSize3,
-                                    localSize3);
+                                      {1920, 1080, 8}, {16, 8, 2});
+  validated &= runTest<3, float, 1>(sycl::image_channel_type::fp32,
+                                    {1920, 1080, 8}, {16, 8, 1});
   validated &= runTest<3, sycl::half, 2>(sycl::image_channel_type::fp16,
-                                         globalSize3, localSize3);
+                                         {2048, 2048, 4}, {16, 16, 1});
   validated &= runTest<3, sycl::half, 4>(sycl::image_channel_type::fp16,
-                                         globalSize3, localSize3);
+                                         {2048, 2048, 4}, {16, 16, 1});
 
   if (validated) {
     std::cout << "Test passed!" << std::endl;
