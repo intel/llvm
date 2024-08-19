@@ -733,7 +733,7 @@ inline constexpr bool is_op_available =
   struct SwizzleTemplateBinaryOpMixin<Self, VecT, DataT, N, OP, true> {        \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename VecT::element_type> &&        \
+                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes)>>                               \
     friend auto                                                                \
     operator BINOP(const Self &lhs,                                            \
@@ -746,7 +746,7 @@ inline constexpr bool is_op_available =
      * only enable the latter if "constness" differs. */                       \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename VecT::element_type> &&        \
+                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes) &&                              \
                   std::is_const_v<VecT> != std::is_const_v<OtherVecT>>>        \
     friend auto operator BINOP(const Swizzle<OtherVecT, OtherIndexes...> &lhs, \
@@ -769,7 +769,7 @@ inline constexpr bool is_op_available =
   struct SwizzleTemplateBinaryOpAssignMixin<Self, VecT, DataT, N, OP, true> {  \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename VecT::element_type> &&        \
+                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes)>>                               \
     friend const Self &                                                        \
     operator OPASSIGN(const Self & lhs,                                        \
@@ -780,7 +780,7 @@ inline constexpr bool is_op_available =
     }                                                                          \
     template <typename OtherVecT, int... OtherIndexes,                         \
               typename = std::enable_if_t<                                     \
-                  std::is_same_v<DataT, typename VecT::element_type> &&        \
+                  std::is_same_v<DataT, typename OtherVecT::element_type> &&   \
                   N == sizeof...(OtherIndexes) &&                              \
                   std::is_const_v<VecT> != std::is_const_v<OtherVecT>>>        \
     friend auto                                                                \
