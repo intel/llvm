@@ -1,5 +1,4 @@
 #include <sycl/detail/core.hpp>
-#include <sycl/reduction.hpp>
 #include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
