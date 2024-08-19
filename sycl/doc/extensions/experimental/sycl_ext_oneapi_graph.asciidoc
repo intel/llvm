@@ -233,16 +233,16 @@ For the purposes of clarity when talking about events in this specification we
 will split events into two categories:
 
 - *Limited graph events*: These are events returned from a queue submission
-which is recorded to a `command_graph`. These events are only valid for use
-defining dependencies for other nodes inside a `command_graph`. These events
-cannot be waited on or used as dependencies for normal SYCL operations. They
-also cannot be used with <<dynamic-events, Dynamic Events>>. See the section on
+which is recorded to a `command_graph`. These events are only valid for defining
+dependencies for other nodes inside a `command_graph`. These events cannot be
+waited on or used as dependencies for normal SYCL operations. They also cannot
+be used with <<dynamic-events, Dynamic Events>>. See the section on
 <<event-limitations, Event Limitations>> for a more detailed overview of the
 limitations of these events.
 
 - *Regular SYCL events*: These are normal SYCL events as defined in the SYCL
 specification. See {events-spec}[the SYCL specification] for reference. These
-include normal submissions to SYCL queue, events returned from submitting an
+include normal submissions to a SYCL queue, events returned from submitting an
 executable `command_graph` for execution and events obtained via
 `command_graph<graph_state::executable>::get_event()`.
 
@@ -1342,8 +1342,8 @@ std::vector<node> get_root_nodes() const;
 event get_event(const node& node);
 ----
 |Returns a <<event-terminology, regular SYCL event>> which represents the
-completion of `node` which is valid only for the most recent execution of
-the graph. This event can be used as a dependency in the same way as normal SYCL
+completion of `node` and is valid only for the most recent execution of the
+graph. This event can be used as a dependency in the same way as normal SYCL
 events. Nodes must have been created using the <<requires-execution-event,
 `requires_execution_event`>> property to allow obtaining an event here.
 
@@ -1995,9 +1995,9 @@ Exceptions:
 * Throws synchronously with error code `invalid` if this function is called from
 a normal SYCL command-group submission.
 
-* Throws synchronously with error code `invalid` if any of the `sycl::event`s
-associated with `waitList` came from the same graph that the graph node
-resulting from this command-group submission is associated with.
+* Throws synchronously with error code `invalid` if any of the events associated
+with `waitList` came from the same graph that the graph node resulting from this
+command-group submission is associated with.
 
 * Throws synchronously with error code `invalid` if any of `waitList` is a
 default constructed `dynamic_event` with no underlying SYCL event.
@@ -2077,7 +2077,7 @@ Queue.submit((sycl::handler& CGH)
   });
 
 // The above operation will only execute once SomeNode has finished executing
-// inside execGraph
+// inside ExecGraph
 Queue.ext_oneapi_graph(ExecGraph);
 ....
 
@@ -2106,11 +2106,11 @@ namespace ext::oneapi::experimental {
 }
 ----
 
-Dynamic events represent <<event-terminology, reglular SYCL events>> from
-outside of a given `command_graph` which nodes in that graph may depend on.
-These events are either obtained from normal SYCL operations or from another
-`command_graph` via `get_event()`. The `dynamic_event` object enables these
-dependent events to be updated between graph executions.
+Dynamic events represent <<event-terminology, regular SYCL events>> from outside
+of a given `command_graph` which nodes in that graph may depend on. These events
+are either obtained from normal SYCL operations or from another `command_graph`
+via `get_event()`. The `dynamic_event` object enables these dependent events to
+be updated between graph executions.
 
 Dynamic events can be used to add dependencies to a graph node in the same way
 that regular SYCL events can, by passing them as parameters to
