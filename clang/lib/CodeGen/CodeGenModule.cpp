@@ -6235,13 +6235,14 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     getCUDARuntime().handleVarRegistration(D, *GV);
   }
 
-  // SYCL device globals are initialized externally
   if (LangOpts.isSYCL()) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
     if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>()) {
+      // SYCL device globals are initialized externally
       GV->setExternallyInitialized(true);
       // Since static device global symbols need to cross host device boundary,
-      // don't allow internal linkage
+      // don't allow internal linkage as it might tamper with the device global
+      // symbol
       if (Linkage == llvm::GlobalValue::InternalLinkage)
         Linkage = llvm::GlobalValue::ExternalLinkage;
     }
