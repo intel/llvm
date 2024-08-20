@@ -186,6 +186,18 @@ SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
     DestroyShadowMemoryOnDG2();
+
+    // We must release these objects before releasing adapters, since
+    // they may use the adapter in their destructor
+    m_Quarantine = nullptr;
+    m_MemBufferMap.clear();
+    m_AllocationMap.clear();
+    m_KernelMap.clear();
+    m_ContextMap.clear();
+
+    for (auto Adapter : m_Adapters) {
+        getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    }
 }
 
 /// The memory chunk allocated from the underlying allocator looks like this:

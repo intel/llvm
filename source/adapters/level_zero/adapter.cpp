@@ -43,15 +43,31 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   }
 
   std::vector<ze_driver_handle_t> ZeDrivers;
+  std::vector<ze_device_handle_t> ZeDevices;
   ZeDrivers.resize(ZeDriverCount);
 
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-    auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
-    UR_CALL(platform->initialize());
+    ze_device_properties_t device_properties{};
+    device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    uint32_t ZeDeviceCount = 0;
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, nullptr));
+    ZeDevices.resize(ZeDeviceCount);
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
+    // Check if this driver has GPU Devices
+    for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
 
-    // Save a copy in the cache for future uses.
-    platforms.push_back(std::move(platform));
+      if (ZE_DEVICE_TYPE_GPU == device_properties.type) {
+        // If this Driver is a GPU, save it as a usable platform.
+        auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
+        UR_CALL(platform->initialize());
+
+        // Save a copy in the cache for future uses.
+        platforms.push_back(std::move(platform));
+        break;
+      }
+    }
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
@@ -105,8 +121,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       // We must only initialize the driver once, even if urPlatformGet() is
       // called multiple times.  Declaring the return value as "static" ensures
       // it's only called once.
-      GlobalAdapter->ZeResult =
-          ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+
+      // Init with all flags set to enable for all driver types to be init in
+      // the application.
+      ze_init_flags_t L0InitFlags = ZE_INIT_FLAG_GPU_ONLY;
+      if (UrL0InitAllDrivers) {
+        L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
+      }
+      logger::debug("\nzeInit with flags value of {}\n",
+                    static_cast<int>(L0InitFlags));
+      GlobalAdapter->ZeResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
     }
     assert(GlobalAdapter->ZeResult !=
            std::nullopt); // verify that level-zero is initialized

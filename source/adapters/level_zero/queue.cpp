@@ -1169,7 +1169,7 @@ ur_queue_handle_legacy_t_::ur_queue_handle_legacy_t_(
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
-  static const bool useDriverCounterBasedEvents = [Device] {
+  static const bool useDriverCounterBasedEvents = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
     if (!UrRet) {
       return true;

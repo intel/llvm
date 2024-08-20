@@ -726,9 +726,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
         uint32_t deviceIndex = 0;
         for (auto &ZeDeviceModule : Program->ZeModuleMap) {
           size_t binarySize = 0;
-          ZE2UR_CALL(
-              zeModuleGetNativeBinary,
-              (ZeDeviceModule.second, &binarySize, PBinary[deviceIndex++]));
+          if (PBinary) {
+            NativeBinaryPtr = PBinary[deviceIndex++];
+          }
+          ZE2UR_CALL(zeModuleGetNativeBinary,
+                     (ZeDeviceModule.second, &binarySize, NativeBinaryPtr));
           SzBinary += binarySize;
         }
       } else {

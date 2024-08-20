@@ -15,7 +15,7 @@ class ComputeBench:
     def __init__(self, directory):
         self.directory = directory
         self.built = False
-        self.adapter_short_name = {'level_zero' : 'L0'}
+        self.adapter_short_name = {'level_zero' : 'L0', "level_zero_v2" : 'L0_V2'}
         return
 
     def setup(self):
