@@ -116,14 +116,15 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/frasercrmck/unified-runtime.git")
+    
   # commit cabf128094eff9ff7b79bdff559640a8a111f0c3
   # Merge: a96fcbc5 15bca3b6
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Mon Aug 19 16:20:45 2024 +0100
   #     Merge pull request #1984 from rafbiels/rafbiels/cuda-stream-race-cond
   #     Fix race condition in CUDA stream creation
-  set(UNIFIED_RUNTIME_TAG cabf128094eff9ff7b79bdff559640a8a111f0c3)
+  set(UNIFIED_RUNTIME_TAG 52918b62251fa9b61b959a6af705a57b36eb86aa)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -146,8 +147,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    https://github.com/frasercrmck/unified-runtime.git
-    52918b62251fa9b61b959a6af705a57b36eb86aa
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
