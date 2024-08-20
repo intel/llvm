@@ -49,7 +49,6 @@ target_link_libraries(sycl-compress PRIVATE ${ZSTD_LIBRARY})
 # Set the location of the library installation
 include(GNUInstallDirs)
 install(TARGETS sycl-compress
-  RUNTIME DESTINATION bin COMPONENT sycl-compress
   LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-compress
   ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT sycl-compress
 )
@@ -77,5 +76,3 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT sycl-compress
 )
-
-set(SYCL_COMPRESS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress)

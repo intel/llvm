@@ -7,8 +7,11 @@
 #define ZSTD_CONTENTSIZE_UNKNOWN (0ULL - 1)
 #define ZSTD_CONTENTSIZE_ERROR (0ULL - 2)
 
-char *compressBlob(const char *src, size_t srcSize, size_t &dstSize,
-                   int level) {
+#if defined(_MSC_VER)
+__declspec(dllexport)
+#endif
+char *
+compressBlob(const char *src, size_t srcSize, size_t &dstSize, int level) {
   auto dstBufferSize = ZSTD_compressBound(srcSize);
   char *dstBuffer = static_cast<char *>(malloc(dstBufferSize));
   dstSize = ZSTD_compress(static_cast<void *>(dstBuffer), dstBufferSize,
@@ -25,7 +28,11 @@ char *compressBlob(const char *src, size_t srcSize, size_t &dstSize,
   return dstBuffer;
 }
 
-char *decompressBlob(const char *src, size_t srcSize, size_t &dstSize) {
+#if defined(_MSC_VER)
+__declspec(dllexport)
+#endif
+char *
+decompressBlob(const char *src, size_t srcSize, size_t &dstSize) {
   // Size of decompressed image can be larger than what we can allocate
   // on heap. In that case, we need to use streaming decompression.
   // TODO: Throw if the decompression size is too large.
