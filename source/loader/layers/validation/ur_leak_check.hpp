@@ -109,7 +109,7 @@ struct RefCountContext {
         // No more active adapters, so any references still held are leaked
         if (adapterCount == 0) {
             logInvalidReferences();
-            clear();
+            counts.clear();
         }
     }
 
@@ -132,8 +132,6 @@ struct RefCountContext {
     void createOrIncrementRefCount(T handle, bool isAdapterHandle = false) {
         updateRefCount(handle, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
     }
-
-    void clear() { counts.clear(); }
 
     template <typename T> bool isReferenceValid(T handle) {
         std::unique_lock<std::mutex> lock(mutex);
