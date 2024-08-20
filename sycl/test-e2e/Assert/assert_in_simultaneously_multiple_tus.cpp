@@ -38,7 +38,7 @@
 #undef NDEBUG
 #endif
 
-#include <cassert>
+#include <sycl/detail/device_assert_win.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
