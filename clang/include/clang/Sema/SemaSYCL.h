@@ -16,9 +16,11 @@
 #include "clang/AST/Attr.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
+#include "clang/Basic/Cuda.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/SemaBase.h"
+#include "clang/Sema/SemaDiagnostic.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SetVector.h"
 
@@ -215,6 +217,27 @@ private:
   void emitSpecIDName(raw_ostream &O, const VarDecl *VD);
 };
 
+// Handles max_global_work_dim.
+// Returns a OneArgResult value; EqualToOne means all argument values are
+// equal to one, NotEqualToOne means at least one argument value is not
+// equal to one, and Unknown means that at least one of the argument values
+// could not be determined.
+enum class OneArgResult { Unknown, EqualToOne, NotEqualToOne };
+static inline OneArgResult areAllArgsOne(const Expr *Args[], size_t Count) {
+  for (size_t Idx = 0; Idx < Count; ++Idx) {
+    const Expr *Arg = Args[Idx];
+    // Optional arguments are considered trivially one.
+    if (!Arg)
+      return OneArgResult::EqualToOne;
+    const auto *CE = dyn_cast<ConstantExpr>(Args[Idx]);
+    if (!CE)
+      return OneArgResult::Unknown;
+    if (CE->getResultAsAPSInt() != 1)
+      return OneArgResult::NotEqualToOne;
+  }
+  return OneArgResult::EqualToOne;
+}
+
 class SemaSYCL : public SemaBase {
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
@@ -308,7 +331,6 @@ public:
     KernelCallFunctionPointer,
     KernelAllocateStorage,
     KernelUseAssembly,
-    KernelCallDllimportFunction,
     KernelCallVariadicFunction,
     KernelCallUndefinedFunction,
     KernelConstStaticVariable
@@ -397,6 +419,112 @@ public:
                                        ParsedType ParsedTy);
 
   void handleKernelAttr(Decl *D, const ParsedAttr &AL);
+
+  static OffloadArch getOffloadArch(const TargetInfo &TI);
+  static bool hasDependentExpr(Expr **Exprs, const size_t ExprsSize);
+
+  /// Emit a diagnostic about the given attribute having a deprecated name, and
+  /// also emit a fixit hint to generate the new attribute name.
+  void diagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                   StringRef NewName);
+
+  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
+  /// the attribute in the 'intel' namespace instead.
+  void checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
+                                            StringRef NewName = "");
+
+  bool checkValidFPGAMemoryAttributesVar(Decl *D);
+
+  bool checkWorkGroupSize(const Expr *NSWIValue, const Expr *RWGSXDim,
+                          const Expr *RWGSYDim, const Expr *RWGSZDim);
+  bool checkMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
+                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
+                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
+  bool areInvalidWorkGroupSizeAttrs(const Expr *MGValue, const Expr *XDim,
+                                    const Expr *YDim, const Expr *ZDim);
+
+  // If the declaration has a SYCLIntelMaxWorkGroupSizeAttr or
+  // ReqdWorkGroupSizeAttr, check to see if they hold equal values
+  // (1, 1, 1). Returns true if diagnosed.
+  template <typename AttrTy>
+  bool checkWorkGroupSizeAttrExpr(Decl *D, const AttributeCommonInfo &AL) {
+    if (const auto *A = D->getAttr<AttrTy>()) {
+      const Expr *Args[3] = {A->getXDim(), A->getYDim(), A->getZDim()};
+      if (OneArgResult::NotEqualToOne == areAllArgsOne(Args, 3)) {
+        Diag(A->getLocation(), diag::err_sycl_x_y_z_arguments_must_be_one)
+            << A << AL;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool anyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
+                               const Expr *LHSZDim, const Expr *RHSXDim,
+                               const Expr *RHSYDim, const Expr *RHSZDim);
+  bool allWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
+                             const Expr *LHSZDim, const Expr *RHSXDim,
+                             const Expr *RHSYDim, const Expr *RHSZDim);
+
+  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  void addSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
+                            Expr **Exprs, unsigned Size);
+  void addSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
+                              Expr **Exprs, unsigned Size);
+  void addSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  void addSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  void addSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  void addSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  void addSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  void addSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  void addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  void addSYCLIntelMaxConcurrencyAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  void addSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void addSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void addSYCLIntelInitiationIntervalAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  void addSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  void addSYCLAddIRAttributesFunctionAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          MutableArrayRef<Expr *> Args);
+  void addSYCLAddIRAttributesKernelParameterAttr(Decl *D,
+                                                 const AttributeCommonInfo &CI,
+                                                 MutableArrayRef<Expr *> Args);
+  void addSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
+                                                const AttributeCommonInfo &CI,
+                                                MutableArrayRef<Expr *> Args);
+  void addSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         MutableArrayRef<Expr *> Args);
+  void addSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  void addSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  void addSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim);
+  void addSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  void addSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E);
+  void addSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  void addSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr **Exprs, unsigned Size);
+  void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *E);
 };
 
 } // namespace clang

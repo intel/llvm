@@ -6,21 +6,21 @@
 
 // clang-format off
 // RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t1.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t1.out | FileCheck --match-full-lines --check-prefix=CHECK-ENABLED %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out | FileCheck --match-full-lines --check-prefix=CHECK-ENABLED %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is not
 // used.
 
 // RUN: %clangxx  -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t2.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT %s
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
 // and we have spirv image in addition to AOT.
 
 // clang-format off
 // RUN: %clangxx  -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
@@ -29,7 +29,7 @@
 
 // clang-format off
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
@@ -39,7 +39,7 @@
 
 // clang-format off
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
 
 #include <sycl/detail/core.hpp>

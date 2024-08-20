@@ -10,7 +10,7 @@
 // RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 

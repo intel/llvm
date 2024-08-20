@@ -169,7 +169,7 @@ if (NOT MSVC)
 endif()
 set(gsort_obj_deps device.h spirv_decls.hpp spirv_vars.h group_helper.hpp sort_helper.hpp sycl-compiler)
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   if (NOT DEFINED NATIVE_CPU_DIR)
     message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
   endif()
