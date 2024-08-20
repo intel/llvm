@@ -6,7 +6,7 @@
 // FIXME separate compilation requires -fno-sycl-dead-args-optimization
 // >> ---- compile src1
 // >> device compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -o a_kernel.bc -Wno-sycl-strict
 // >> host compilation...
 // RUN: %clangxx -Wno-error=ignored-attributes -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
