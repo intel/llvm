@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d8f1c98e48e98ea2f6a227af82366734fcde977e
-  # Merge: 6e8efa3d 9e824480
+  # commit cabf128094eff9ff7b79bdff559640a8a111f0c3
+  # Merge: a96fcbc5 15bca3b6
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 14 11:46:59 2024 +0100
-  #     Merge pull request #1946 from callumfare/callum/update_ur_trace_env_var
-  #     Update expected values of SYCL_UR_TRACE environment variable
-  set(UNIFIED_RUNTIME_TAG d8f1c98e48e98ea2f6a227af82366734fcde977e)
+  # Date:   Mon Aug 19 16:20:45 2024 +0100
+  #     Merge pull request #1984 from rafbiels/rafbiels/cuda-stream-race-cond
+  #     Fix race condition in CUDA stream creation
+  set(UNIFIED_RUNTIME_TAG cabf128094eff9ff7b79bdff559640a8a111f0c3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
