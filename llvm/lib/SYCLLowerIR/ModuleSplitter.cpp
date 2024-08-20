@@ -1400,11 +1400,9 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
     MD2.fixupLinkageOfDirectInvokeSimdTargets();
 
     std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
-    if (Settings.DumpSplitModules) {
-      errs() << formatv("Split Module. Index: {0}", ID);
-      MD2.getModule().dump();
-    }
-
+    // TODO: Presented processSpecConstants functionality should be invoked
+    // later combined with SPIRV Backend conversion. This is happening here
+    // until SPIRV translator is being used.
     auto SCMode = Settings.SpecConstantMode;
     if (SCMode.has_value())
       MD2.processSpecConstants(SCMode.value());
@@ -1460,9 +1458,9 @@ convertSplitterSettingsToString(const ModuleSplitterSettings &S) {
                          ? convertSpecConstModeToString(*S.SpecConstantMode)
                          : "";
   return formatv("split_mode: {0}, output_assembly: {1}, output_prefix: {2}, "
-                 "dump_split_modules: {3}, spec_const_mode: {4}",
+                 "spec_const_mode: {3}",
                  convertSplitModeToString(S.Mode), S.OutputAssembly,
-                 S.OutputPrefix, S.DumpSplitModules, SCMStr)
+                 S.OutputPrefix, SCMStr)
       .sstr<64>();
 }
 

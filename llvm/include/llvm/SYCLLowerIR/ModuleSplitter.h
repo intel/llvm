@@ -315,7 +315,6 @@ struct ModuleSplitterSettings {
   IRSplitMode Mode;
   bool OutputAssembly = false; // Bitcode or LLVM IR.
   StringRef OutputPrefix;
-  bool DumpSplitModules = false;
   std::optional<SpecConstantsPass::HandlingMode> SpecConstantMode;
 };
 

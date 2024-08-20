@@ -757,7 +757,6 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   llvm::module_split::ModuleSplitterSettings Settings;
   Settings.Mode = Mode;
   Settings.OutputPrefix = "";
-  Settings.DumpSplitModules = Args.hasArg(OPT_print_split_modules);
   if (Args.hasArg(OPT_sycl_spec_const_handling_mode_EQ))
     Settings.SpecConstantMode = convertStringToSpecConstMode(
         Args.getLastArgValue(OPT_sycl_spec_const_handling_mode_EQ));
@@ -803,10 +802,9 @@ runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       SplitOutputFilesStr += SplitModules[I].ModuleFilePath;
     }
 
-    errs() << formatv(
-        "sycl-module-split: input: {0}, output: {1}, settings: {2}\n",
-        InputFilesStr, SplitOutputFilesStr,
-        convertSplitterSettingsToString(Settings));
+    errs() << formatv("sycl-module-split: input: {0}, output: {1}, {2}\n",
+                      InputFilesStr, SplitOutputFilesStr,
+                      convertSplitterSettingsToString(Settings));
   }
 
   return SplitModules;
