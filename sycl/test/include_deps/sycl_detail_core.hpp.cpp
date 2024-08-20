@@ -154,6 +154,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/virtual_functions.hpp
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/work_group_static.hpp
+// CHECK-NEXT: ext/intel/usm_pointers.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
 // CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
