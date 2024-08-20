@@ -2773,6 +2773,12 @@ int main(int Argc, char **Argv) {
     SPIRVDumpDir = Dir;
   }
 
+  if (Args.hasArg(OPT_sycl_spec_const_handling_mode_EQ) &&
+      !Args.hasArg(OPT_sycl_module_split_mode_EQ))
+    reportError(createStringError(
+        "-sycl-spec-const-handling command line option should be used in "
+        "conjunction with -sycl-module-split-mode command line option."));
+
   {
     llvm::TimeTraceScope TimeScope("Execute linker wrapper");
 
