@@ -68,10 +68,10 @@ template <typename ElementType, access::address_space Space,
 class multi_ptr;
 
 template <typename To, typename From>
-std::enable_if_t<sizeof(To) == sizeof(From) &&
-                     std::is_trivially_copyable<From>::value &&
-                     std::is_trivially_copyable<To>::value,
-                 To>
+constexpr std::enable_if_t<sizeof(To) == sizeof(From) &&
+                               std::is_trivially_copyable<From>::value &&
+                               std::is_trivially_copyable<To>::value,
+                           To>
 bit_cast(const From &from) noexcept {
   return __builtin_bit_cast(To, from);
 }
@@ -800,13 +800,19 @@ inline constexpr bool is_over_const_vec =
   template <typename Self, typename DataT, int N>                              \
   struct SwizzleOpMixin<Self, DataT, N, false, OP,                             \
                         std::enable_if_t<is_op_available<OP, DataT, N>>> {     \
-    friend auto operator BINOP(const Self &lhs, const DataT &rhs) {            \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
+                                          !is_swizzle_v<T>>>                   \
+    friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
       using Vec = vec<DataT, N>;                                               \
-      return OP{}(Vec{lhs}, Vec{rhs});                                         \
+      return OP{}(Vec{lhs}, Vec{static_cast<DataT>(rhs)});                     \
     }                                                                          \
-    friend auto operator BINOP(const DataT &lhs, const Self &rhs) {            \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
+                                          !is_swizzle_v<T>>>                   \
+    friend auto operator BINOP(const T &lhs, const Self &rhs) {                \
       using Vec = vec<DataT, N>;                                               \
-      return OP{}(Vec{lhs}, Vec{rhs});                                         \
+      return OP{}(Vec{static_cast<DataT>(lhs)}, Vec{rhs});                     \
     }                                                                          \
     friend auto operator BINOP(const Self &lhs, const vec<DataT, N> &rhs) {    \
       return OP{}(vec<DataT, N>{lhs}, rhs);                                    \
@@ -862,8 +868,10 @@ inline constexpr bool is_over_const_vec =
   template <typename Self, typename DataT, int N>                              \
   struct SwizzleOpMixin<Self, DataT, N, true, OP,                              \
                         std::enable_if_t<is_op_available<OP, DataT, N>>> {     \
-    friend const Self &operator OPASSIGN(const Self & lhs,                     \
-                                         const DataT & rhs) {                  \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
+                                          !is_swizzle_v<T>>>                   \
+    friend const Self &operator OPASSIGN(const Self & lhs, const T & rhs) {    \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
@@ -1000,7 +1008,7 @@ struct __SYCL_EBO SwizzleMixins
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Self, DataT,
                                      /* Explicit = */ false,
-                                     /* Enable = */ N == 1>,
+                                     /* Enable = */ true>,
 #ifdef __SYCL_DEVICE_ONLY__
       public ConversionOperatorMixin<
           Self, typename vec<DataT, N>::vector_t,
@@ -1081,9 +1089,12 @@ public:
     return *static_cast<const Self *>(this);
   }
 
-  const Self &operator=(const DataT &rhs) const {
+  template <typename T,
+            typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&
+                                        !is_swizzle_v<T>>>
+  const Self &operator=(const T &rhs) const {
     for (int i = 0; i < N; ++i)
-      (*static_cast<const Self *>(this))[i] = rhs;
+      (*static_cast<const Self *>(this))[i] = static_cast<DataT>(rhs);
 
     return *static_cast<const Self *>(this);
   }
@@ -1374,9 +1385,11 @@ public:
   constexpr vec(vec &&Rhs) = default;
 
 private:
-  // Implementation detail for the next public ctor.
-  template <size_t... Is>
-  constexpr vec(const std::array<DataT, NumElements> &Arr,
+  // Implementation detail for the next public ctor. Note that for 3-elements
+  // vector created from vector_t we use 4-elements array, potentially ignoring
+  // the last padding element.
+  template <size_t N, size_t... Is, typename = std::enable_if_t<(N >= NumElements)>>
+  constexpr vec(const std::array<DataT, N> &Arr,
                 std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
 
@@ -1410,9 +1423,9 @@ public:
   template <
       typename vector_t_ = vector_t,
       typename = typename std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
-  explicit constexpr vec(vector_t_ openclVector) {
-    m_Data = sycl::bit_cast<DataType>(openclVector);
-  }
+  explicit constexpr vec(vector_t openclVector)
+      : vec(sycl::bit_cast<DataType>(openclVector),
+            std::make_index_sequence<NumElements>()) {}
 #endif // __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")

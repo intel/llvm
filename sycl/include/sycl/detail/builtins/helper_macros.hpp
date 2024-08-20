@@ -192,12 +192,14 @@
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
   detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>(NAME)(                             \
       NUM_ARGS##_TEMPLATE_TYPE_ARG) {                                          \
+    /* vec(vector_t) is explicit, cannot rely on implicit conversion: */       \
+    using ret_type = detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>;                \
     if constexpr (detail::is_marray_v<T0>) {                                   \
-      return detail::DELEGATOR(                                                \
+      return ret_type{detail::DELEGATOR(                                       \
           [](NUM_ARGS##_AUTO_ARG) { return (NS::NAME)(NUM_ARGS##_ARG); },      \
-          NUM_ARGS##_ARG);                                                     \
+          NUM_ARGS##_ARG)};                                                    \
     } else {                                                                   \
-      return __VA_ARGS__(NUM_ARGS##_CONVERTED_ARG);                            \
+      return ret_type{__VA_ARGS__(NUM_ARGS##_CONVERTED_ARG)};                  \
     }                                                                          \
   }
 
