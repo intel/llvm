@@ -663,11 +663,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   AddToConfigHandle(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
-
-  auto SetUpOption = [](std::string Value) {
-    ::jit_compiler::JITEnvVar Option(Value.size());
-    memcpy(static_cast<void *>(Option.begin()),
-           static_cast<const void *>(Value.data()), Value.size());
+  auto SetUpOption = [](const std::string &Value) {
+    ::jit_compiler::JITEnvVar Option(Value.size(), Value.data());
     return Option;
   };
   ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(

@@ -10,6 +10,7 @@
 #define SYCL_FUSION_COMMON_DYNARRAY_H
 
 #include <algorithm>
+#include <cstring>
 
 namespace jit_compiler {
 
@@ -21,6 +22,11 @@ public:
   DynArray() = default;
 
   explicit DynArray(size_t Size) { init(Size); }
+
+  explicit DynArray(size_t Size, const void *Data) {
+    init(Size);
+    memcpy(static_cast<void *>(this->begin()), Data, Size * sizeof(T));
+  }
 
   ~DynArray() { deinit(); }
 
