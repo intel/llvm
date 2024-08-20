@@ -43,7 +43,7 @@ public:
 private:
   using reference_type =
       std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
-                         std::decay_t<DataT>, DataT &>;
+                         std::decay_t<DataT> &, DataT &>;
   using pointer_type =
       std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
                          std::decay_t<DataT>, DataT *>;
@@ -74,7 +74,7 @@ public:
     if constexpr (!sycl::detail::is_unbounded_array_v<DataT>) {
       return *(this->operator&());
     } else {
-      return this->operator&();
+      return std::reference_wrapper<pointer_type>(this->operator&());
     }
   }
   template <typename T = DataT,
