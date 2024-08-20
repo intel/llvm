@@ -22,7 +22,6 @@
 #include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
-#include <sycl/detail/device_assert_win.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_aspect_traits.hpp>
 #include <sycl/device_selector.hpp>
@@ -116,3 +115,5 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
+
+#include <sycl/detail/device_assert_win.hpp>
