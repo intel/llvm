@@ -14,3 +14,4 @@
 // CHECK-ACC: The test ended.
 
 #include "assert_in_multiple_tus.hpp"
+#include <sycl/detail/device_assert_win.hpp>
