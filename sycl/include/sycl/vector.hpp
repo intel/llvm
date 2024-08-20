@@ -842,11 +842,15 @@ inline constexpr bool is_over_const_vec =
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, false, OP,                                 \
                     std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
-    friend auto operator BINOP(const Self &lhs, const DataT &rhs) {            \
-      return OP{}(lhs, Self{rhs});                                             \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
+      return OP{}(lhs, Self{static_cast<DataT>(rhs)});                         \
     }                                                                          \
-    friend auto operator BINOP(const DataT &lhs, const Self &rhs) {            \
-      return OP{}(Self{lhs}, rhs);                                             \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    friend auto operator BINOP(const T &lhs, const Self &rhs) {                \
+      return OP{}(Self{static_cast<DataT>(lhs)}, rhs);                         \
     }                                                                          \
     friend auto operator BINOP(const Self &lhs, const Self &rhs) {             \
       return VectorImpl{}(lhs, rhs, OP{});                                     \
@@ -882,8 +886,10 @@ inline constexpr bool is_over_const_vec =
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, true, OP,                                  \
                     std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
-    friend Self &operator OPASSIGN(Self & lhs, const DataT & rhs) {            \
-      lhs = OP{}(lhs, rhs);                                                    \
+    template <typename T,                                                      \
+              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    friend Self &operator OPASSIGN(Self & lhs, const T & rhs) {                \
+      lhs = OP{}(lhs, static_cast<DataT>(rhs));                                \
       return lhs;                                                              \
     }                                                                          \
     friend Self &operator OPASSIGN(Self & lhs, const Self & rhs) {             \
@@ -1007,6 +1013,9 @@ struct __SYCL_EBO SwizzleMixins
       // per the SYCL 2020 specification:
       public ConversionOperatorMixin<Self, vec<DataT, N>,
                                      /* Explicit = */ false,
+                                     /* Enable = */ (N > 1)>,
+      public ConversionOperatorMixin<Self, bool,
+                                     /* Explicit = */ true,
                                      /* Enable = */ (N > 1)>
 
 {
@@ -1150,6 +1159,8 @@ private:
       // sycl::vec explicitly here.
       return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
 #endif
+    } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
+      return (*this)[0] != 0;
     } else {
       static_assert(!std::is_same_v<To, To>,
                     "Must not be instantiated like this!");
@@ -1236,27 +1247,29 @@ using vector_t =
 // Provides a cross-platform vector class template that works efficiently on
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
-class __SYCL_EBO vec :
-    // Conversion to scalar DataT for single-element vec:
-    public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
-                                           /* Explicit = */ false,
-                                           /* Enable = */ NumElements == 1>,
+class __SYCL_EBO vec
+    : public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
+                                             /* Explicit = */ false,
+                                             /* Enable = */ NumElements == 1>,
+      public detail::ConversionOperatorMixin<vec<DataT, NumElements>, bool,
+                                             /* Explicit = */ true,
+                                             /* Enable = */ (NumElements > 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
-    public detail::ConversionOperatorMixin<
-        vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
-        /* Explicit = */ true,
-        // if `vector_t` and `DataT` are the same, then the `operator DataT`
-        // from the above is enough.
-        !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
+      public detail::ConversionOperatorMixin<
+          vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
+          /* Explicit = */ true,
+          // if `vector_t` and `DataT` are the same, then the `operator DataT`
+          // from the above is enough.
+          !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
 #endif
-    public detail::IncDecMixin<vec<DataT, NumElements>, DataT>,
-    public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>, DataT,
-                                            NumElements>,
-    public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>, DataT,
-                                           NumElements>,
-    public detail::VecOpsMixin<vec<DataT, NumElements>, DataT, NumElements>,
-    public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
-                                          NumElements> {
+      public detail::IncDecMixin<vec<DataT, NumElements>, DataT>,
+      public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>, DataT,
+                                              NumElements>,
+      public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>, DataT,
+                                             NumElements>,
+      public detail::VecOpsMixin<vec<DataT, NumElements>, DataT, NumElements>,
+      public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
+                                            NumElements> {
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -1294,6 +1307,8 @@ private:
        */
       return sycl::bit_cast<vector_t>(m_Data);
 #endif
+    } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
+      return m_Data[0] != 0;
     } else {
       static_assert(!std::is_same_v<To, To>,
                     "Must not be instantiated like this!");
@@ -1330,16 +1345,9 @@ private:
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
   template <typename CtorArgTy>
   static constexpr bool AllowArgTypeInVariadicCtor = []() constexpr {
-    // TODO: align implementation and the specification.
     if constexpr (detail::is_vec_or_swizzle_v<CtorArgTy>) {
-      if constexpr (CtorArgTy::size() == 1)
-        // Emulate old implementation behavior, the spec requires it to be
-        // `std::is_same_v`.
-        return std::is_convertible_v<typename CtorArgTy::element_type, DataT>;
-      else
-        return std::is_same_v<typename CtorArgTy::element_type, DataT>;
+      return std::is_convertible_v<typename CtorArgTy::element_type, DataT>;
     } else {
-      // Likewise.
       return std::is_convertible_v<CtorArgTy, DataT>;
     }
   }();
@@ -1391,20 +1399,18 @@ public:
   /****************** Assignment Operators **************/
   constexpr vec &operator=(const vec &Rhs) = default;
 
-  vec &operator=(const DataT &Rhs) {
-    *this = vec{Rhs};
+  template <typename T,
+            typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>
+  vec &operator=(const T &Rhs) {
+    *this = vec{static_cast<DataT>(Rhs)};
     return *this;
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // Make it a template to avoid ambiguity with `vec(const DataT &)` when
-  // `vector_t` is the same as `DataT`. Not that the other ctor isn't a template
-  // so we don't even need a smart `enable_if` condition here, the mere fact of
-  // this being a template makes the other ctor preferred.
   template <
       typename vector_t_ = vector_t,
-      typename = typename std::enable_if_t<std::is_same_v<vector_t_, vector_t>>>
-  constexpr vec(vector_t_ openclVector) {
+      typename = typename std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
+  explicit constexpr vec(vector_t_ openclVector) {
     m_Data = sycl::bit_cast<DataType>(openclVector);
   }
 #endif // __SYCL_DEVICE_ONLY__
