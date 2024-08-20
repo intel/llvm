@@ -3,6 +3,7 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
+#include <sycl/detail/device_assert_win.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG
