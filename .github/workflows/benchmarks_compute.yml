@@ -12,6 +12,7 @@ on:
         default: 'level_zero'
         options:
           - level_zero
+          - level_zero_v2
       unit:
         description: Test unit (cpu/gpu)
         type: choice

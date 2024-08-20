@@ -68,7 +68,7 @@ struct ur_program_handle_t_ : _ur_object {
   // Construct a program in IL.
   ur_program_handle_t_(state St, ur_context_handle_t Context, const void *Input,
                        size_t Length)
-      : Context{Context},
+      : Context{Context}, NativeDevice{nullptr}, NativeProperties{nullptr},
         OwnZeModule{true}, State{St}, Code{new uint8_t[Length]},
         CodeLength{Length}, ZeModule{nullptr}, ZeBuildLog{nullptr} {
     std::memcpy(Code.get(), Input, Length);
@@ -89,26 +89,29 @@ struct ur_program_handle_t_ : _ur_object {
   ur_program_handle_t_(state St, ur_context_handle_t Context,
                        ze_module_handle_t ZeModule,
                        ze_module_build_log_handle_t ZeBuildLog)
-      : Context{Context}, OwnZeModule{true}, State{St}, ZeModule{ZeModule},
-        ZeBuildLog{ZeBuildLog} {}
+      : Context{Context}, NativeDevice{nullptr}, NativeProperties{nullptr},
+        OwnZeModule{true}, State{St}, ZeModule{ZeModule}, ZeBuildLog{
+                                                              ZeBuildLog} {}
 
   // Construct a program in Exe state (interop).
   ur_program_handle_t_(state St, ur_context_handle_t Context,
                        ze_module_handle_t ZeModule, bool OwnZeModule)
-      : Context{Context}, OwnZeModule{OwnZeModule}, State{St},
-        ZeModule{ZeModule}, ZeBuildLog{nullptr} {}
+      : Context{Context}, NativeDevice{nullptr}, NativeProperties{nullptr},
+        OwnZeModule{OwnZeModule}, State{St}, ZeModule{ZeModule}, ZeBuildLog{
+                                                                     nullptr} {}
 
   // Construct a program from native handle
   ur_program_handle_t_(state St, ur_context_handle_t Context,
                        ze_module_handle_t ZeModule)
-      : Context{Context}, OwnZeModule{true}, State{St}, ZeModule{ZeModule},
-        ZeBuildLog{nullptr} {}
+      : Context{Context}, NativeDevice{nullptr}, NativeProperties{nullptr},
+        OwnZeModule{true}, State{St}, ZeModule{ZeModule}, ZeBuildLog{nullptr} {}
 
   // Construct a program in Invalid state with a custom error message.
   ur_program_handle_t_(state St, ur_context_handle_t Context,
                        const std::string &ErrorMessage)
-      : Context{Context}, OwnZeModule{true}, ErrorMessage{ErrorMessage},
-        State{St}, ZeModule{nullptr}, ZeBuildLog{nullptr} {}
+      : Context{Context}, NativeDevice{nullptr}, NativeProperties{nullptr},
+        OwnZeModule{true}, ErrorMessage{ErrorMessage}, State{St},
+        ZeModule{nullptr}, ZeBuildLog{nullptr} {}
 
   ~ur_program_handle_t_();
   void ur_release_program_resources(bool deletion);

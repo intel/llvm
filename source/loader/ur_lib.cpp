@@ -57,7 +57,8 @@ void context_t::initLayers() const {
 }
 
 void context_t::tearDownLayers() const {
-    for (auto &[layer, destroy] : layers) {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+        auto [layer, destroy] = *it;
         layer->tearDown();
         destroy();
     }
