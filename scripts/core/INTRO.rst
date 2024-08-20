@@ -161,7 +161,7 @@ Tracing
 
 Unified Runtime loader implements tracing support through the `XPTI framework <https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md>`__.
 
-.. list-table:: UR Stream `"ur"` Notification Signatures
+.. list-table:: UR Stream `"ur.call"` Notification Signatures
    :header-rows: 1
 
    * - Trace Point Type
