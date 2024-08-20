@@ -15,3 +15,4 @@
 // CHECK-ACC: The test ended.
 
 #include "assert_in_kernels.hpp"
+#include <sycl/detail/device_assert_win.hpp>
