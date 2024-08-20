@@ -1254,6 +1254,26 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   }
 }
 
+const char *getArchName(const device &Device) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  auto Arch = Device.get_info<syclex::info::device::architecture>();
+  switch (Arch) {
+#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
+  case syclex::architecture::ARCH:                                             \
+    return #ARCH;
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
+#include <sycl/ext/oneapi/experimental/architectures.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  }
+  return "unknown";
+}
+
+sycl_device_binary getRawImg(RTDeviceBinaryImage *Img) {
+  return reinterpret_cast<sycl_device_binary>(
+      const_cast<sycl_device_binary>(&Img->getRawData()));
+}
+
 template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
@@ -1262,16 +1282,51 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (ItBegin == ItEnd)
     return nullptr;
 
-  std::vector<sycl_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
-  auto It = ItBegin;
-  for (unsigned I = 0; It != ItEnd; ++It, ++I)
-    RawImgs[I] = reinterpret_cast<sycl_device_binary>(
-        const_cast<sycl_device_binary>(&It->second->getRawData()));
+  // Here, we aim to select all the device images from the
+  // [ItBegin, ItEnd) range that are AOT compiled for Device
+  // (checked using info::device::architecture) or  JIT compiled.
+  // This selection will then be passed to urDeviceSelectBinary
+  // for final selection.
+  std::string_view ArchName = getArchName(Device);
+  std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
+  DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
+  for (auto It = ItBegin; It != ItEnd; ++It) {
+    auto PropRange = It->second->getDeviceRequirements();
+    auto PropIt =
+        std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
+          return Prop->Name == std::string_view("compile_target");
+        });
+    auto AddImg = [&]() { DeviceFilteredImgs.push_back(It->second); };
 
-  std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
-  for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
-    UrBinaries[BinaryCount].pDeviceTargetSpec =
-        getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
+    // Device image has no compile_target property, so it is JIT compiled.
+    if (PropIt == PropRange.end()) {
+      AddImg();
+      continue;
+    }
+
+    // Device image has the compile_target property, so it is AOT compiled for
+    // some device, check if that architecture is Device's architecture.
+    auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
+    CompileTargetByteArray.dropBytes(8);
+    std::string_view CompileTarget(
+        reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
+        CompileTargetByteArray.size());
+    // Note: there are no explicit targets for CPUs, so on x86_64,
+    // so we use a spir64_x86_64 compile target image.
+    if ((ArchName == CompileTarget) ||
+        (ArchName == "x86_64" && CompileTarget == "spir64_x86_64")) {
+      AddImg();
+    }
+  }
+
+  if (DeviceFilteredImgs.empty())
+    return nullptr;
+
+  std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
+  for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
+       BinaryCount++) {
+    UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
+        getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
   }
 
   uint32_t ImgInd = 0;
@@ -1280,8 +1335,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   getSyclObjImpl(Context)->getPlugin()->call(
       urDeviceSelectBinary, getSyclObjImpl(Device)->getHandleRef(),
       UrBinaries.data(), UrBinaries.size(), &ImgInd);
-  std::advance(ItBegin, ImgInd);
-  return ItBegin->second;
+  return DeviceFilteredImgs[ImgInd];
 }
 
 RTDeviceBinaryImage &
@@ -1310,10 +1364,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
         KernelId != m_KernelName2KernelIDs.end()) {
-      // Kernel ID presence guarantees that we have bin image in the storage.
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
                                     Context, Device);
-      assert(Img && "No binary image found for kernel id");
     } else {
       Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, Context,
                                     Device);
