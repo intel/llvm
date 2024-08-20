@@ -29,7 +29,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
                              queue_type queue) {
   ZeStruct<ze_event_pool_desc_t> desc;
   desc.count = EVENTS_BURST;
-  desc.flags = 0;
+  desc.flags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
 
   ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
       ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr};
@@ -79,7 +79,6 @@ event_allocation provider_normal::allocate() {
   TRACK_SCOPE_LATENCY("provider_normal::allocate");
 
   if (pools.empty()) {
-    TRACK_SCOPE_LATENCY("provider_normal::allocate#createProviderPool");
     pools.emplace_back(createProviderPool());
   }
 
@@ -91,7 +90,6 @@ event_allocation provider_normal::allocate() {
     }
   }
 
-  TRACK_SCOPE_LATENCY("provider_normal::allocate#slowPath");
   std::sort(pools.begin(), pools.end(), [](auto &a, auto &b) {
     return a->nfree() < b->nfree(); // asceding
   });

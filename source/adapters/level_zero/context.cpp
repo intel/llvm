@@ -829,3 +829,12 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t Device) const {
   }
   return false;
 }
+
+const std::vector<ur_device_handle_t> &
+ur_context_handle_t_::getDevices() const {
+  return Devices;
+}
+
+ze_context_handle_t ur_context_handle_t_::getZeHandle() const {
+  return ZeContext;
+}
