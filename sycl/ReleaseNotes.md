@@ -1,6 +1,6 @@
 # Release notes Jul'24
 
-Release notes for commit https://github.com/intel/llvm/commit/range
+Release notes for commit range
 [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
 ...
 [ebb3b4a21b3b0e](https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83e436)
@@ -43,7 +43,7 @@ commit a8609a5925a3fcb2bd85636702556d15ae5574f4
     [New offload][llc] Pass -relocation-model=pic option to llc when building shared libraries (#13687)
 commit 16007fa8be4292159f0b19e5fb911b90e3f84aa4
     [SYCL][Device libs][New offload] Add missing fallback SYCL device library files (#13869)
-commit /5ddc6881a4f5c2ee5f0ccbbd873e57a62bceb30d
+commit 5ddc6881a4f5c2ee5f0ccbbd873e57a62bceb30d
     [Driver][SYCL][NewOffloadModel] Improve arch association for device (#13898)
 commit 7439fb46f1469cf401d89bf203f91ea22bc7ee57
     [Driver][SYCL][NewOffloadModel] Hook up options for the offload-wrapper (#14001)
@@ -2061,7 +2061,7 @@ commit https://github.com/intel/llvm/commit/cf402b8473e9b3a4ee675a6154b80f0d54b1
 
 
 # Mar'24 release notes
-Release notes for commit https://github.com/intel/llvm/commit/range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
+Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
 
 ## New Features
 ### SYCL Compiler
@@ -2211,7 +2211,7 @@ The following changes ared only in effect if the `-fpreview-breaking-changes` fl
 
 
 # Nov'23 release notes
-Release notes for commit https://github.com/intel/llvm/commit/range f4e0d3177338..f4ed132f243a
+Release notes for commit range f4e0d3177338..f4ed132f243a
 
 ## New Features
 ### SYCL Compiler
@@ -2382,7 +2382,7 @@ The following changes ared only in effect if the `-fpreview-breaking-changes` fl
 
 # Oct'23 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range [`cb91c232c661..f4e0d3177338`](https://github.com/intel/llvm/compare/cb91c232c661..f4e0d3177338)
+Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com/intel/llvm/compare/cb91c232c661..f4e0d3177338)
 
 ## New features
 
@@ -2708,7 +2708,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range [`cb91c232c6
 
 # March'23 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range [`ca54ea30..cb91c232`](https://github.com/intel/llvm/compare/ca54ea30...cb91c232)
+Release notes for commit range [`ca54ea30..cb91c232`](https://github.com/intel/llvm/compare/ca54ea30...cb91c232)
 
 ## New features
 
@@ -2941,7 +2941,7 @@ in certain cases likely due to strict aliasing violations [86c08b3c]
 
 # December'22 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range [`0f579bae..6977f1ac`](https://github.com/intel/llvm/compare/0f579bae...6977f1ac)
+Release notes for commit range [`0f579bae..6977f1ac`](https://github.com/intel/llvm/compare/0f579bae...6977f1ac)
 
 ## New features
 
@@ -3301,7 +3301,7 @@ missing. [cd832bff]
 
 # September'22 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range [`4043dda3..0f579bae`](https://github.com/intel/llvm/compare/4043dda3...0f579bae)
+Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/llvm/compare/4043dda3...0f579bae)
 
 ## New features
 
@@ -3591,7 +3591,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range [`4043dda3..
 
 # June'22 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range f34ba2c..4043dda
+Release notes for commit range f34ba2c..4043dda
 
 ## New features
 ### SYCL Compiler
@@ -3965,7 +3965,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range f34ba2c..404
 
 # December'21 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 23ca0c2..27f59d8
+Release notes for commit range 23ca0c2..27f59d8
 
 ## New features
 ### SYCL Compiler
@@ -4390,7 +4390,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 23ca0c2..27f
 
 # September'21 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 4fc5ebe..bd68232
+Release notes for commit range 4fc5ebe..bd68232
 
 ## New features
 ### SYCL Compiler
@@ -4634,7 +4634,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 4fc5ebe..bd6
 
 # July'21 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 6a49170027fb..962909fe9e78
+Release notes for commit range 6a49170027fb..962909fe9e78
 
 ## New features
  - Implemented SYCL 2020 specialization constants [07b27965] [ba3d657]
@@ -4873,7 +4873,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 6a49170027fb
 
 # May'21 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 2ffafb95f887..6a49170027fb
+Release notes for commit range 2ffafb95f887..6a49170027fb
 
 ## New features
  - [ESIMD] Allowed ESIMD and regular SYCL kernels to coexist in the same
@@ -5078,7 +5078,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 2ffafb95f887
 
 # January'21 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 5eebd1e4bfce..2ffafb95f887
+Release notes for commit range 5eebd1e4bfce..2ffafb95f887
 
 ## New features
 ### SYCL Compiler
@@ -5185,7 +5185,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 5eebd1e4bfce
 
 # December'20 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 5d7e0925..5eebd1e4bfce
+Release notes for commit range 5d7e0925..5eebd1e4bfce
 
 ## New features
 ### SYCL Compiler
@@ -5317,7 +5317,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range 5d7e0925..5e
 
 # November'20 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range c9d50752..5d7e0925
+Release notes for commit range c9d50752..5d7e0925
 
 ## New features
   - Implemented support for new loop attribute(intel::nofusion) for FPGA
@@ -5513,7 +5513,7 @@ Release notes for commit https://github.com/intel/llvm/commit/range c9d50752..5d
 
 # September'20 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/range 5976ff0..1fc0e4f
+Release notes for commit range 5976ff0..1fc0e4f
 
 ## New features
 
