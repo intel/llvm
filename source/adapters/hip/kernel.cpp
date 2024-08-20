@@ -127,6 +127,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
         &Bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+    // FIXME: could be added
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

@@ -16,7 +16,9 @@ UUR_TEST_SUITE_P(
                       UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                       UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE,
                       UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
-                      UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE),
+                      UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE,
+                      UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+                      UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE),
     uur::deviceTestWithParamPrinter<ur_kernel_group_info_t>);
 
 struct urKernelGetGroupInfoSingleTest : uur::urKernelTest {
@@ -86,11 +88,25 @@ TEST_P(urKernelGetGroupInfoWgSizeTest, CompileWorkGroupSize) {
 }
 
 TEST_P(urKernelGetGroupInfoSingleTest, CompileWorkGroupSizeEmpty) {
-    // Returns 0 by default when there is no sepecific information
+    // Returns 0 by default when there is no specific information
     std::array<size_t, 3> read_dims{1, 1, 1};
     std::array<size_t, 3> zero{0, 0, 0};
     ASSERT_SUCCESS(urKernelGetGroupInfo(
         kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(read_dims), read_dims.data(), nullptr));
     ASSERT_EQ(read_dims, zero);
+}
+
+TEST_P(urKernelGetGroupInfoSingleTest, CompileMaxWorkGroupSizeEmpty) {
+    // Returns 0 by default when there is no specific information
+    std::array<size_t, 3> read_dims{1, 1, 1};
+    std::array<size_t, 3> zero{0, 0, 0};
+    auto result = urKernelGetGroupInfo(
+        kernel, device, UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+        sizeof(read_dims), read_dims.data(), nullptr);
+    if (result == UR_RESULT_SUCCESS) {
+        ASSERT_EQ(read_dims, zero);
+    } else {
+        ASSERT_EQ(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+    }
 }

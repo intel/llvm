@@ -7994,6 +7994,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_group_info_t va
     case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE:
         os << "UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE";
         break;
+    case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+        os << "UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE";
+        break;
+    case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+        os << "UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -8075,6 +8081,32 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_grou
         os << ")";
     } break;
     case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+        const size_t *tptr = (const size_t *)ptr;
+        if (sizeof(size_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE: {
+
+        const size_t *tptr = (const size_t *)ptr;
+        os << "{";
+        size_t nelems = size / sizeof(size_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            os << tptr[i];
+        }
+        os << "}";
+    } break;
+    case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE: {
         const size_t *tptr = (const size_t *)ptr;
         if (sizeof(size_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(size_t) << ")";

@@ -130,6 +130,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
+  if (propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE ||
+      propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
       cl_adapter::cast<cl_kernel>(hKernel),
       cl_adapter::cast<cl_device_id>(hDevice),

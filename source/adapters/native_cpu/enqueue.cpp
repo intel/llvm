@@ -81,11 +81,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     DIE_NO_IMPLEMENTATION;
   }
 
-  // Check reqd_work_group_size
-  if (hKernel->hasReqdWGSize() && pLocalWorkSize != nullptr) {
-    const auto &Reqd = hKernel->getReqdWGSize();
+  // Check reqd_work_group_size and other kernel constraints
+  if (pLocalWorkSize != nullptr) {
+    uint64_t TotalNumWIs = 1;
     for (uint32_t Dim = 0; Dim < workDim; Dim++) {
-      if (pLocalWorkSize[Dim] != Reqd[Dim]) {
+      TotalNumWIs *= pLocalWorkSize[Dim];
+      if (auto Reqd = hKernel->getReqdWGSize();
+          Reqd && pLocalWorkSize[Dim] != Reqd.value()[Dim]) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+      if (auto MaxWG = hKernel->getMaxWGSize();
+          MaxWG && pLocalWorkSize[Dim] > MaxWG.value()[Dim]) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+    }
+    if (auto MaxLinearWG = hKernel->getMaxLinearWGSize()) {
+      if (TotalNumWIs > MaxLinearWG) {
         return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
       }
     }
