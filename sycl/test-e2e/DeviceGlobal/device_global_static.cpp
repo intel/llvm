@@ -29,4 +29,3 @@ int main() {
   assert(OutVal == 42 && "Read value does not match.");
   return 0;
 }
-
