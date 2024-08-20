@@ -46,7 +46,7 @@ FunctionPass *createSIWholeQuadModePass();
 FunctionPass *createSIFixControlFlowLiveIntervalsPass();
 FunctionPass *createSIOptimizeExecMaskingPreRAPass();
 FunctionPass *createSIOptimizeVGPRLiveRangePass();
-FunctionPass *createSIFixSGPRCopiesPass();
+FunctionPass *createSIFixSGPRCopiesLegacyPass();
 FunctionPass *createLowerWWMCopiesPass();
 FunctionPass *createSIMemoryLegalizerPass();
 FunctionPass *createSIInsertWaitcntsPass();
@@ -173,8 +173,8 @@ extern char &SIPeepholeSDWAID;
 void initializeSIShrinkInstructionsPass(PassRegistry&);
 extern char &SIShrinkInstructionsID;
 
-void initializeSIFixSGPRCopiesPass(PassRegistry &);
-extern char &SIFixSGPRCopiesID;
+void initializeSIFixSGPRCopiesLegacyPass(PassRegistry &);
+extern char &SIFixSGPRCopiesLegacyID;
 
 void initializeSIFixVGPRCopiesPass(PassRegistry &);
 extern char &SIFixVGPRCopiesID;
@@ -292,12 +292,22 @@ public:
   PreservedAnalyses run(Function &, FunctionAnalysisManager &);
 };
 
+struct AMDGPUAttributorOptions {
+  bool IsClosedWorld = false;
+};
+
 class AMDGPUAttributorPass : public PassInfoMixin<AMDGPUAttributorPass> {
 private:
   TargetMachine &TM;
 
+  AMDGPUAttributorOptions Options;
+
+  /// Asserts whether we can assume whole program visibility.
+  bool HasWholeProgramVisibility = false;
+
 public:
-  AMDGPUAttributorPass(TargetMachine &TM) : TM(TM){};
+  AMDGPUAttributorPass(TargetMachine &TM, AMDGPUAttributorOptions Options = {})
+      : TM(TM), Options(Options) {};
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM);
 };
 

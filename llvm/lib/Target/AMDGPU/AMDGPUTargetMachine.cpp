@@ -32,6 +32,7 @@
 #include "R600.h"
 #include "R600MachineFunctionInfo.h"
 #include "R600TargetMachine.h"
+#include "SIFixSGPRCopies.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
@@ -54,6 +55,7 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/SYCLLowerIR/GlobalOffset.h"
 #include "llvm/SYCLLowerIR/LocalAccessorToSharedMemory.h"
 #include "llvm/Transforms/HipStdPar/HipStdPar.h"
@@ -401,7 +403,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSILowerWWMCopiesPass(*PR);
   initializeAMDGPUMarkLastScratchLoadPass(*PR);
   initializeSILowerSGPRSpillsPass(*PR);
-  initializeSIFixSGPRCopiesPass(*PR);
+  initializeSIFixSGPRCopiesLegacyPass(*PR);
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFoldOperandsPass(*PR);
   initializeSIPeepholeSDWAPass(*PR);
@@ -668,6 +670,24 @@ Error AMDGPUTargetMachine::buildCodeGenPipeline(
     PassInstrumentationCallbacks *PIC) {
   AMDGPUCodeGenPassBuilder CGPB(*this, Opts, PIC);
   return CGPB.buildPipeline(MPM, Out, DwoOut, FileType);
+}
+
+Expected<AMDGPUAttributorOptions>
+parseAMDGPUAttributorPassOptions(StringRef Params) {
+  AMDGPUAttributorOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+    if (ParamName == "closed-world") {
+      Result.IsClosedWorld = true;
+    } else {
+      return make_error<StringError>(
+          formatv("invalid AMDGPUAttributor pass parameter '{0}' ", ParamName)
+              .str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
 }
 
 void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
@@ -1284,7 +1304,7 @@ bool GCNPassConfig::addILPOpts() {
 
 bool GCNPassConfig::addInstSelector() {
   AMDGPUPassConfig::addInstSelector();
-  addPass(&SIFixSGPRCopiesID);
+  addPass(&SIFixSGPRCopiesLegacyID);
   addPass(createSILowerI1CopiesPass());
   return false;
 }
