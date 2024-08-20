@@ -882,12 +882,11 @@ inline constexpr bool is_over_const_vec =
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, true, OP,                                  \
                     std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
-    friend const Self &operator OPASSIGN(const Self & lhs,                     \
-                                         const DataT & rhs) {                  \
+    friend Self &operator OPASSIGN(Self & lhs, const DataT & rhs) {            \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
-    friend const Self &operator OPASSIGN(const Self & lhs, const Self & rhs) { \
+    friend Self &operator OPASSIGN(Self & lhs, const Self & rhs) {             \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
