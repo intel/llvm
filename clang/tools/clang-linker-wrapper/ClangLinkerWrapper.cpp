@@ -1398,6 +1398,7 @@ Expected<StringRef> clang(ArrayRef<StringRef> InputFiles, const ArgList &Args,
 
   // Forward all of the `--offload-opt` and similar options to the device.
   if (linkerSupportsLTO(Args)) {
+    CmdArgs.push_back("-flto");
     for (auto &Arg : Args.filtered(OPT_offload_opt_eq_minus, OPT_mllvm))
       CmdArgs.append(
           {"-Xlinker",
