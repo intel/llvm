@@ -1420,11 +1420,18 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
  public:
-   template <
-       typename vector_t_ = vector_t,
-       typename = typename std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
-   explicit constexpr vec(vector_t openclVector)
-       : vec(openclVector, std::make_index_sequence<AdjustedNum>()) {}
+   template <typename vector_t_,
+             typename = std::enable_if_t<!std::is_same_v<vector_t_, DataT> &&
+                                         std::is_same_v<vector_t_, vector_t>>>
+   // TODO: current draft would use non-template `vector_t` as an operand,
+   // causing sycl::vec<sycl::half, N>{1} to go through different paths on
+   // host/device, open question in the specification.
+   explicit constexpr vec(vector_t_ openclVector)
+       // FIXME: Doesn't work when instantiated for 3-elements vectors,
+       // indetermined padding can't be used to initialize constexpr std::array
+       // storage.
+       : vec(bit_cast<DataType>(openclVector),
+             std::make_index_sequence<AdjustedNum>()) {}
 #endif // __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
