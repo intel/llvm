@@ -1388,9 +1388,8 @@ private:
   // Implementation detail for the next public ctor. Note that for 3-elements
   // vector created from vector_t we use 4-elements array, potentially ignoring
   // the last padding element.
-  template <size_t N, size_t... Is, typename = std::enable_if_t<(N >= NumElements)>>
-  constexpr vec(const std::array<DataT, N> &Arr,
-                std::index_sequence<Is...>)
+  template <typename Container, size_t... Is>
+  constexpr vec(const Container &Arr, std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
 
 public:
@@ -1420,12 +1419,12 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  template <
-      typename vector_t_ = vector_t,
-      typename = typename std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
-  explicit constexpr vec(vector_t openclVector)
-      : vec(sycl::bit_cast<DataType>(openclVector),
-            std::make_index_sequence<NumElements>()) {}
+ public:
+   template <
+       typename vector_t_ = vector_t,
+       typename = typename std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
+   explicit constexpr vec(vector_t openclVector)
+       : vec(openclVector, std::make_index_sequence<AdjustedNum>()) {}
 #endif // __SYCL_DEVICE_ONLY__
 
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
