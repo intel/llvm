@@ -856,6 +856,10 @@ ur_result_t urKernelGetGroupInfo(
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     return ReturnValue(uint32_t{Kernel->ZeKernelProperties->privateMemSize});
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+    // No corresponding enumeration in Level Zero
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default: {
     logger::error(
         "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",

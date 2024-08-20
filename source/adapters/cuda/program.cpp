@@ -54,9 +54,10 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
 
     auto [Prefix, Tag] = splitMetadataName(MetadataElementName);
 
-    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
-      // If metadata is reqd_work_group_size, record it for the corresponding
-      // kernel name.
+    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE ||
+        Tag == __SYCL_UR_PROGRAM_METADATA_TAG_MAX_WORK_GROUP_SIZE) {
+      // If metadata is reqd_work_group_size/max_work_group_size, record it for
+      // the corresponding kernel name.
       size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
 
       // Expect between 1 and 3 32-bit integer values.
@@ -69,11 +70,13 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
           reinterpret_cast<const char *>(MetadataElement.value.pData) +
           sizeof(std::uint64_t);
       // Read values and pad with 1's for values not present.
-      std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
-      std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
-      KernelReqdWorkGroupSizeMD[Prefix] =
-          std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
-                          ReqdWorkGroupElements[2]);
+      std::array<uint32_t, 3> WorkGroupElements = {1, 1, 1};
+      std::memcpy(WorkGroupElements.data(), ValuePtr, MDElemsSize);
+      (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE
+           ? KernelReqdWorkGroupSizeMD
+           : KernelMaxWorkGroupSizeMD)[Prefix] =
+          std::make_tuple(WorkGroupElements[0], WorkGroupElements[1],
+                          WorkGroupElements[2]);
     } else if (Tag == __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
       const char *MetadataValPtr =
           reinterpret_cast<const char *>(MetadataElement.value.pData) +
@@ -81,6 +84,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
       const char *MetadataValPtrEnd =
           MetadataValPtr + MetadataElement.size - sizeof(std::uint64_t);
       GlobalIDMD[Prefix] = std::string{MetadataValPtr, MetadataValPtrEnd};
+    } else if (Tag ==
+               __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
+      KernelMaxLinearWorkGroupSizeMD[Prefix] = MetadataElement.value.data64;
     }
   }
   return UR_RESULT_SUCCESS;

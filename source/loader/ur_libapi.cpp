@@ -3764,7 +3764,7 @@ ur_result_t UR_APICALL urKernelGetInfo(
 ///         + `NULL == hKernel`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName`
+///         + `::UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE < propName`
 ur_result_t UR_APICALL urKernelGetGroupInfo(
     ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
     ur_device_handle_t hDevice, ///< [in] handle of the Device object

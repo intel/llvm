@@ -41,15 +41,14 @@ struct ur_kernel_handle_t_ : RefCounted {
 
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler)
-      : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)},
-        HasReqdWGSize(false) {}
+      : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)} {}
 
   ur_kernel_handle_t_(const ur_kernel_handle_t_ &other)
       : hProgram(other.hProgram), _name(other._name),
         _subhandler(other._subhandler), _args(other._args),
         _localArgInfo(other._localArgInfo), _localMemPool(other._localMemPool),
         _localMemPoolSize(other._localMemPoolSize),
-        HasReqdWGSize(other.HasReqdWGSize), ReqdWGSize(other.ReqdWGSize) {
+        ReqdWGSize(other.ReqdWGSize) {
     incrementReferenceCount();
   }
 
@@ -60,9 +59,12 @@ struct ur_kernel_handle_t_ : RefCounted {
   }
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *name,
                       nativecpu_task_t subhandler,
-                      const native_cpu::ReqdWGSize_t &ReqdWGSize)
+                      std::optional<native_cpu::WGSize_t> ReqdWGSize,
+                      std::optional<native_cpu::WGSize_t> MaxWGSize,
+                      std::optional<uint64_t> MaxLinearWGSize)
       : hProgram(hProgram), _name{name}, _subhandler{std::move(subhandler)},
-        HasReqdWGSize(true), ReqdWGSize(ReqdWGSize) {}
+        ReqdWGSize(ReqdWGSize), MaxWGSize(MaxWGSize),
+        MaxLinearWGSize(MaxLinearWGSize) {}
 
   ur_program_handle_t hProgram;
   std::string _name;
@@ -70,9 +72,13 @@ struct ur_kernel_handle_t_ : RefCounted {
   std::vector<native_cpu::NativeCPUArgDesc> _args;
   std::vector<local_arg_info_t> _localArgInfo;
 
-  bool hasReqdWGSize() const { return HasReqdWGSize; }
+  std::optional<native_cpu::WGSize_t> getReqdWGSize() const {
+    return ReqdWGSize;
+  }
 
-  const native_cpu::ReqdWGSize_t &getReqdWGSize() const { return ReqdWGSize; }
+  std::optional<native_cpu::WGSize_t> getMaxWGSize() const { return MaxWGSize; }
+
+  std::optional<uint64_t> getMaxLinearWGSize() const { return MaxLinearWGSize; }
 
   void updateMemPool(size_t numParallelThreads) {
     // compute requested size.
@@ -103,6 +109,7 @@ struct ur_kernel_handle_t_ : RefCounted {
 private:
   char *_localMemPool = nullptr;
   size_t _localMemPoolSize = 0;
-  bool HasReqdWGSize;
-  native_cpu::ReqdWGSize_t ReqdWGSize;
+  std::optional<native_cpu::WGSize_t> ReqdWGSize = std::nullopt;
+  std::optional<native_cpu::WGSize_t> MaxWGSize = std::nullopt;
+  std::optional<uint64_t> MaxLinearWGSize = std::nullopt;
 };

@@ -18,7 +18,7 @@
 #include <map>
 
 namespace native_cpu {
-using ReqdWGSize_t = std::array<uint32_t, 3>;
+using WGSize_t = std::array<uint32_t, 3>;
 }
 
 struct ur_program_handle_t_ : RefCounted {
@@ -36,8 +36,11 @@ struct ur_program_handle_t_ : RefCounted {
   };
 
   std::map<const char *, const unsigned char *, _compare> _kernels;
-  std::unordered_map<std::string, native_cpu::ReqdWGSize_t>
+  std::unordered_map<std::string, native_cpu::WGSize_t>
       KernelReqdWorkGroupSizeMD;
+  std::unordered_map<std::string, native_cpu::WGSize_t>
+      KernelMaxWorkGroupSizeMD;
+  std::unordered_map<std::string, uint64_t> KernelMaxLinearWorkGroupSizeMD;
 };
 
 // The nativecpu_entry struct is also defined as LLVM-IR in the
