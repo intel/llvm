@@ -9,7 +9,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t2.o %t1.a -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=native_cpu:cpu %t.out
 
-
 /*
     test performs a lattice reduction.
     sycl::vec<float> is sensitive to .get_size() vs .size() in SYCL headers
@@ -28,8 +27,8 @@ using namespace sycl;
 using vecn = sycl::vec<float, NV>; // 8 floats
 #ifdef FILE1
 
-SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k, sycl::group<2> &grp,
-              const int i) {
+SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
+                            sycl::group<2> &grp, const int i) {
 
   vecn tin = (i == k ? in : vecn(0));
   auto out = reduce_over_group(grp, tin, sycl::plus<>());
@@ -39,8 +38,8 @@ SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k, sycl::group<2>
 #endif
 
 #ifdef FILE2
-SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k, sycl::group<2> &grp,
-              const int i);
+SYCL_EXTERNAL void groupSum(vecn *r, const vecn &in, const int k,
+                            sycl::group<2> &grp, const int i);
 void test(queue q, float *r, float *x,
           int n) { // r is 16 floats, x is 256 floats. n is 256
 
@@ -65,7 +64,6 @@ void test(queue q, float *r, float *x,
   });
   q.wait();
 }
-
 
 int main() {
 
