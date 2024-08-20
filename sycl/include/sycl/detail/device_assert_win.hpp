@@ -8,6 +8,16 @@
 
 #pragma once
 
+// Normal workflow for device assertions on Windows GPU does not work as
+// expected, most likely because the SPV_EXT_relaxed_printf_string_address_space
+// extension is not supported by IGC More specifically, the _wassert function
+// seems to allocate the file and expression buffers on private memory and not
+// constant memory which catches IGC by surprise. Therefore, we define this
+// header file to explicitly redefine assert on Windows so that it directly
+// calls __devicelib_assert_fail and not _wassert.
+// TODO: Delete this header file and its inclusion in <sycl/sycl.hpp> once the
+// extension is supported by IGC.
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
 #include <cassert>
