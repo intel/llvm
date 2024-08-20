@@ -1,5 +1,3 @@
-// https://github.com/intel/llvm/issues/12797
-// UNSUPPORTED: windows
 // REQUIRES: windows
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
