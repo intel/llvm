@@ -470,7 +470,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             getContext()->interceptor->getContextInfo(hContext);
         for (const auto &hDevice : CtxInfo->DeviceList) {
             ManagedQueue InternalQueue(hContext, hDevice);
-            char *Handle;
+            char *Handle = nullptr;
             UR_CALL(pMemBuffer->getHandle(hDevice, Handle));
             UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
                 InternalQueue, true, Handle, Host, size, 0, nullptr, nullptr));
