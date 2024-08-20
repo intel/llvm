@@ -41,6 +41,7 @@ Lukas Sommer, Codeplay +
 Victor Lomüller, Codeplay +
 Victor Perez, Codeplay +
 Julian Oppermann, Codeplay +
+Maxime France-Pillois, Codeplay +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 John Pennycook, Intel +
@@ -48,7 +49,7 @@ Greg Lueck, Intel +
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -61,6 +62,8 @@ In addition, this extension also depends on the following other SYCL extensions:
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
 extension.
 * link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+extension.
+* link:../proposed/sycl_ext_oneapi_usm_malloc_properties.asciidoc[sycl_ext_oneapi_usm_malloc_properties]
 extension.
 
 == Status
@@ -211,18 +214,20 @@ this buffer will inherit this property (unless overridden).
 USM pointer.
 
 ```c++
-namespace sycl::ext::oneapi::experimental::property{
+namespace sycl::ext::oneapi::experimental {
+namespace property {
 
-  template<sycl::memory_scope Scope>
-  struct access_scope {};
+template<sycl::memory_scope Scope>
+struct access_scope {};
 
-  inline constexpr auto access_scope_work_group = 
-                                    access_scope<memory_scope_work_group>;
+} // namespace property
 
-  inline constexpr auto access_scope_work_item = 
-                                    access_scope<memory_scope_work_item>;
+inline constexpr property::access_scope<memory_scope::work_item>
+    access_scope_work_item;
+inline constexpr property::access_scope<memory_scope::work_group>
+    access_scope_work_group;
 
-} // namespace sycl::ext::oneapi::experimental::property
+} // namespace sycl::ext::oneapi::experimental
 ```
 
 Specializations of the `access_scope` property template can be used to express
@@ -277,6 +282,17 @@ USM pointer.
 
 ```c++ 
 sycl::ext::oneapi::experimental::property::fusion_internal_memory 
+namespace sycl::ext::oneapi::experimental {
+namespace property {
+
+struct fusion_internal_memory {};
+
+} // namespace property
+
+inline constexpr property::fusion_internal_memory fusion_internal_memory;
+
+} // namespace sycl::ext::oneapi::experimental
+
 ```
 
 By applying this property, the application asserts that the updates made to the
@@ -299,6 +315,33 @@ the properties should be inspected by an implementation when the
 argument to a kernel function. Implementations are not required to track
 internalization-related information from other USM pointers that may be used by
 a kernel, such as those stored inside of structs or other data structures.
+
+
+===== Fusion no initialization property
+
+The following property can be passed to the property list parameter of
+`annotated_ptr`, to apply the property to a USM pointer.
+
+```c++ 
+sycl::ext::oneapi::experimental::property::fusion_internal_memory 
+namespace sycl::ext::oneapi::experimental {
+namespace property {
+
+struct fusion_no_init {};
+
+} // namespace property
+
+inline constexpr property::fusion_no_init fusion_no_init;
+
+} // namespace sycl::ext::oneapi::experimental
+
+```
+
+In the context of graph fusion, this property has the same semantics as the
+`no_init` property defined by
+link:https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_properties_2[§4.7.6.4]
+of the SYCL 2020 specification. The exact semantics of the property for
+internalization are described in the section on internalization below.
 
 
 ==== Device aspect 
@@ -438,12 +481,14 @@ being read by a kernel must have been written before (either in the same kernel
 or in a previous one in the same graph). This behavior can be asserted by the
 application by applying the `no_init` property (see
 https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_properties_2[section
-4.7.6.4] of the SYCL specification) to the buffer or allocated device memory.
+4.7.6.4] of the SYCL specification) to the buffer or by applying the 
+`fusion_no_init` property to allocated device memory.
 
 To this end, this extension allows the use of the property in more places than
 defined in Table 52 in the SYCL specification. More concretely, this extension
-allows to use the property in the buffer constructor or the property list
-parameter of `annotated_ptr<...>`. In case the `no_init` property is attached to 
+allows to use the property in the buffer constructor. For USM allocations, the 
+`fusion_no_init` property can be attached to the property list parameter of 
+`annotated_ptr`. In case the `fusion_no_init` property is attached to
 `annotated_ptr`, the properties should be inspected by an implementation when
 the `annotated_ptr` is captured by a kernel lambda or otherwise passed as an
 argument to a kernel function. Implementations are not required to track
@@ -496,9 +541,10 @@ sufficient to perform internalization, but are not required to do so.
 
 [NOTE]
 ====
-The current implementation in DPC++ requires the addition of the `no_init`,
-`fusion_internal_memory` and one specialization of the `access_scope` property
-to buffers or allocated device memory to enable internalization.
+The current implementation in DPC++ requires the addition of the `no_init` or 
+`fusion_no_init`, `fusion_internal_memory` and one specialization of the
+`access_scope` property to buffers or allocated device memory to enable
+internalization.
 ====
 
 ==== Buffer internalization
@@ -581,6 +627,8 @@ internalization is performed.
 ```c++
 #include <sycl/sycl.hpp>
 
+using namespace sycl;
+
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
 struct AddKernel {
@@ -598,6 +646,9 @@ int main() {
   sycl::queue q{default_selector_v};
 
   {
+    sycl::property_list internProps{sycl_ext::access_scope_work_item,
+                                    sycl_ext::fusion_internal_memory,
+                                    sycl::no_init};
     sycl::buffer<int> bIn1{in1, sycl::range{dataSize}};
     bIn1.set_write_back(false);
     sycl::buffer<int> bIn2{in2, sycl::range{dataSize}};
@@ -606,17 +657,9 @@ int main() {
     bIn3.set_write_back(false);
     buffer<int> bTmp1{range{dataSize}};
     // Internalization specified on the buffer
-    sycl::buffer<int> bTmp2{
-        sycl::range{dataSize},
-        {sycl_ext::property::access_scope_work_item{},
-          sycl_ext::property::fusion_internal_memory{},
-          sycl::no_init}};
+    sycl::buffer<int> bTmp2{sycl::range{dataSize}, internProps};
     // Internalization specified on the buffer
-    sycl::buffer<int> bTmp3{
-        sycl::range{dataSize},
-        {sycl_ext::property::access_scope_work_item{},
-          sycl_ext::property::fusion_internal_memory{},
-          sycl::no_init}};
+    sycl::buffer<int> bTmp3{sycl::range{dataSize}, internProps};
     sycl::buffer<int> bOut{out, sycl::range{dataSize}};
     bOut.set_write_back(false);
 
@@ -630,31 +673,23 @@ int main() {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(cgh,
-            sycl_ext::property::access_scope_work_item{}
-            sycl_ext::property::fusion_internal_memory{},
-            sycl::no_init);
+      auto accTmp1 = bTmp1.get_access(cgh, internProps);
       cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
     });
 
     q.submit([&](sycl::handler &cgh) {
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(cgh,
-            sycl_ext::property::access_scope_work_item{}
-            sycl_ext::property::fusion_internal_memory{},
-            sycl::no_init);
+      auto accTmp1 = bTmp1.get_access(cgh, internProps);
       auto accIn3 = bIn3.get_access(cgh);
       auto accTmp2 = bTmp2.get_access(cgh);
-      cgh.parallel_for<class KernelOne>(
-          dataSize, [=](sycl::id<1> i) { accTmp2[i] = accTmp1[i] * accIn3[i]; });
+      cgh.parallel_for<class KernelOne>(dataSize, [=](sycl::id<1> i) {
+        accTmp2[i] = accTmp1[i] * accIn3[i];
+      });
     });
 
     q.submit([&](sycl::handler &cgh) {
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(cgh,
-            sycl_ext::property::access_scope_work_item{}
-            sycl_ext::property::fusion_internal_memory{},
-            sycl::no_init);
+      auto accTmp1 = bTmp1.get_access(cgh, internProps);
       auto accTmp3 = bTmp3.get_access(cgh);
       cgh.parallel_for<class KernelTwo>(
           dataSize, [=](sycl::id<1> i) { accTmp3[i] = accTmp1[i] * 5; });
@@ -687,6 +722,8 @@ int main() {
 ```c++
 #include <sycl/sycl.hpp>
 
+using namespace sycl;
+
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
 int main() {
@@ -699,18 +736,18 @@ int main() {
 
   sycl_ext::command_graph graph{q.get_context(), q.get_device()};
 
-  int *dIn1, dIn2, dIn3, dTmp, dOut;
+  int *dIn1, *dIn2, *dIn3, *dTmp, *dOut;
 
-  dIn1 = sycl::malloc_device<int>(q, dataSize);
-  dIn2 = sycl::malloc_device<int>(q, dataSize);
-  dIn3 = sycl::malloc_device<int>(q, dataSize);
-  dOut = sycl::malloc_device<int>(q, dataSize);
+  dIn1 = sycl::malloc_device<int>(dataSize, q);
+  dIn2 = sycl::malloc_device<int>(dataSize, q);
+  dIn3 = sycl::malloc_device<int>(dataSize, q);
+  dOut = sycl::malloc_device<int>(dataSize, q);
 
-  // Specify internalization to local memory for an USM pointer
-  dTmp = sycl::malloc_device<int>(q, dataSize)
-  auto annotatedTmp = sycl_ext::annotated_ptr(
-      dTmp, sycl_ext::property::access_scope_work_group{},
-             sycl_ext::property::fusion_internal_memory{}, no_init);
+  // Specify internalization to private memory for an USM pointer
+  sycl_ext::properties P1{sycl_ext::fusion_internal_memory,
+                          sycl_ext::access_scope_work_item,
+                          sycl_ext::fusion_no_init};
+  auto annotatedTmp = sycl_ext::malloc_device_annotated<int>(dataSize, q, P1);
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
@@ -724,8 +761,9 @@ int main() {
 
   auto kernel1 = graph.add(
       [&](sycl::handler &cgh) {
-        cgh.parallel_for<class KernelOne>(
-            dataSize, [=](sycl::id<1> i) { annotatedTmp[i] = in1[i] + in2[i]; });
+        cgh.parallel_for<class KernelOne>(dataSize, [=](sycl::id<1> i) {
+          annotatedTmp[i] = in1[i] + in2[i];
+        });
       },
       {sycl_ext::property::node::depends_on(copy_in1, copy_in2)});
 
@@ -736,8 +774,9 @@ int main() {
 
   auto kernel2 = graph.add(
       [&](sycl::handler &cgh) {
-        cgh.parallel_for<class KernelTwo>(
-            dataSize, [=](sycl::id<1> i) { out[i] = annotatedTmp[i] * in3[i]; });
+        cgh.parallel_for<class KernelTwo>(dataSize, [=](sycl::id<1> i) {
+          dOut[i] = annotatedTmp[i] * in3[i];
+        });
       },
       {sycl_ext::property::node::depends_on(copy_in3, kernel1)});
 
@@ -776,4 +815,5 @@ int main() {
 |4|2023-08-17|Lukas Sommer|*Update after graph extension has been merged*
 |5|2023-09-01|Lukas Sommer|*Split internalization properties and change barrier*
 |6|2023-09-13|Lukas Sommer|*Use annotated_ptr for USM internalization*
+|7|2024-08-08|Lukas Sommer|*Use malloc with properties and add fusion_no_init*
 |========================================

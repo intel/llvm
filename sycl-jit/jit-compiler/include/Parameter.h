@@ -63,11 +63,12 @@ struct ParameterIdentity {
 /// Express how a parameter can be lowered using promotion to local or global
 /// memory.
 ///
-/// 1:1 correspondence with the enum in include/SYCL/common.h (SYCL runtime)
 enum class Internalization : unsigned {
   None = 0, /// Not used. Introduced for symmetry with the original enum
   Local = 1,
   Private = 2,
+  LocalUSM = 3,
+  PrivateUSM = 4,
 };
 
 ///

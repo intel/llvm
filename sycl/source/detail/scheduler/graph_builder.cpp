@@ -1573,9 +1573,18 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
     return LastEvent;
   }
 
+  // Convert list of ExecCGCommand to list of detail::CG
+  std::vector<sycl::detail::CG *> FusionListCG;
+  for (auto &RawCmd : CmdList) {
+    auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
+    assert(KernelCmd->isFusable());
+    FusionListCG.push_back(&KernelCmd->getCG());
+  }
+
   // Call the JIT compiler to generate a new fused kernel.
   auto FusedCG = detail::jit_compiler::get_instance().fuseKernels(
-      Queue, CmdList, PropList);
+      Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), FusionListCG,
+      PropList);
 
   if (!FusedCG) {
     // If the JIT compiler returns a nullptr, JIT compilation of the fused

@@ -35,12 +35,11 @@ void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
 }
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
+retrieveKernelBinary(const ContextImplPtr &ContextImpl,
+                     const DeviceImplPtr &DeviceImpl, const char *KernelName,
                      CGExecKernel *KernelCG) {
-  bool isNvidia =
-      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
-  bool isHIP =
-      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_hip;
+  bool isNvidia = DeviceImpl->getBackend() == backend::ext_oneapi_cuda;
+  bool isHIP = DeviceImpl->getBackend() == backend::ext_oneapi_hip;
   if (isNvidia || isHIP) {
     auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
     std::vector<kernel_id> KernelIds{KernelID};
@@ -57,9 +56,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     if (DeviceImage == DeviceImages.end()) {
       return {nullptr, nullptr};
     }
-    auto ContextImpl = Queue->getContextImplPtr();
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     ur_program_handle_t Program =
         detail::ProgramManager::getInstance().createURProgram(**DeviceImage,
@@ -84,9 +81,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
     Program = KernelCG->MSyclKernel->getDeviceImage()->get_ur_program_ref();
   } else {
-    auto ContextImpl = Queue->getContextImplPtr();
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
         KernelName, Context, Device);

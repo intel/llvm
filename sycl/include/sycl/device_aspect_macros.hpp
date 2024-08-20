@@ -390,6 +390,11 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_sample_2d_usm__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph_fusion__
+// __SYCL_ASPECT(ext_oneapi_graph_fusion, 80)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph_fusion__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -769,3 +774,9 @@
 //__SYCL_ASPECT(ext_oneapi_bindless_images_sample_2d_usm, 79)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_sample_2d_usm__ 0
 #endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph_fusion__
+// __SYCL_ASPECT(ext_oneapi_graph_fusion, 80)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph_fusion__ 0
+#endif
+

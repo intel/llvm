@@ -31,12 +31,24 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+struct ptr_info {
+
+  ptr_info(size_t E, size_t N, bool L) : ElemSize{E}, NumElems{N}, Local{L} {}
+
+  size_t ElemSize;
+  size_t NumElems;
+  // `true` means local internalization, `false` means private internalization.
+  bool Local;
+};
+
 class jit_compiler {
 
 public:
   std::unique_ptr<detail::CG>
-  fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
-              const property_list &);
+  fuseKernels(const ContextImplPtr &ContextImpl,
+              const DeviceImplPtr &DeviceImpl,
+              std::vector<detail::CG *> &InputKernels, const property_list &);
+  
   ur_kernel_handle_t
   materializeSpecConstants(QueueImplPtr Queue,
                            const RTDeviceBinaryImage *BinImage,
@@ -44,6 +56,21 @@ public:
                            const std::vector<unsigned char> &SpecConstBlob);
 
   bool isAvailable() { return Available; }
+
+  void registerPointerInfo(void *ptr, size_t ElemSize, size_t NumBytes,
+                           bool Local) {
+    WriteLock Lock(PointerInfoMutex);
+    PointerInfo.insert_or_assign(ptr, ptr_info{ElemSize, NumBytes, Local});
+  }
+
+  std::optional<ptr_info> getPointerInfo(void *ptr) {
+    ReadLock Lock(PointerInfoMutex);
+    if (!PointerInfo.count(ptr)) {
+      return {};
+    }
+
+    return PointerInfo.at(ptr);
+  }
 
   static jit_compiler &get_instance() {
     static jit_compiler instance{};
@@ -71,8 +98,18 @@ private:
   // Indicate availability of the JIT compiler
   bool Available;
 
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  std::shared_mutex PointerInfoMutex;
+
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  // TODO: With device allocations, the same pointer value could be used for
+  // different allocations on different devices, so the device/context should
+  // potentially be a part of the key to this map.
+  std::unordered_map<void *, ptr_info> PointerInfo;
 
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   // Handles to the entry points of the lazily loaded JIT library.

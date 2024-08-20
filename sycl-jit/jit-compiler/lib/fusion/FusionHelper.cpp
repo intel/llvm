@@ -13,8 +13,15 @@
 #include "kernel-fusion/SYCLKernelFusion.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/PassManagerImpl.h"
+#include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 
 using namespace llvm;
+
+using USMInternInfo = SmallVector<jit_compiler::Internalization>;
+using USMInternMap = StringMap<USMInternInfo>;
+
+// Must match the definition in CompileTimePropertiesPass.cpp
+constexpr StringLiteral SYCL_INTERNALIZATION_MD_KIND = "promotion-info";
 
 template <typename T>
 static Metadata *getConstantIntMD(llvm::LLVMContext &LLVMContext, T Val) {
@@ -32,6 +39,116 @@ static Metadata *getMDParam(LLVMContext &LLVMCtx,
   return MDNode::get(LLVMCtx,
                      {getConstantIntMD<unsigned>(LLVMCtx, Param.KernelIdx),
                       getConstantIntMD<unsigned>(LLVMCtx, Param.ParamIdx)});
+}
+
+/// If 'Param' appears either in the LHS or RHS of a parameter identity, return
+/// the other component of the identity.
+static std::optional<jit_compiler::Parameter>
+getOther(const jit_compiler::ParameterIdentity &Ident,
+         const jit_compiler::Parameter &Param) {
+  if (Ident.LHS == Param) {
+    assert(Ident.RHS != Param);
+    return Ident.RHS;
+  }
+  if (Ident.RHS == Param) {
+    assert(Ident.LHS != Param);
+    return Ident.LHS;
+  }
+  return {};
+}
+
+/// Retrieve USM information from metadata that was attached by the device
+/// compiler based on properties of 'annotated_ptr'.
+static USMInternInfo getUSMInfo(std::string KernelName, Module *LLVMMod) {
+  Function *KernelFunc = LLVMMod->getFunction(KernelName);
+  assert(KernelFunc && "Kernel function not found");
+
+  auto NumParams = KernelFunc->getFunctionType()->getNumParams();
+  SmallVector<jit_compiler::Internalization> Info;
+  if (!KernelFunc->hasMetadata(SYCL_INTERNALIZATION_MD_KIND)) {
+    Info.append(NumParams, jit_compiler::Internalization::None);
+    return Info;
+  }
+
+  // CompileTimePropertiesPass.cpp encodes the internalization properties as a
+  // single Metadata string with comma-separated binary encoded masks for the
+  // different internalization properties.
+  auto MDInfo =
+      cast<MDString>(KernelFunc->getMetadata(SYCL_INTERNALIZATION_MD_KIND)
+                         ->getOperand(0)
+                         .get())
+          ->getString();
+  SmallVector<StringRef> ParamInfo;
+  MDInfo.split(ParamInfo, ',');
+  assert(ParamInfo.size() == NumParams &&
+         "Number of parameters does not match");
+  constexpr unsigned char PRIVATE_INTERNALIZATION_PATTERN =
+      CompileTimePropertiesPass::SYCL_FUSION_INTERNAL_MEM_FLAG |
+      CompileTimePropertiesPass::SYCL_FUSION_NO_INIT_FLAG |
+      CompileTimePropertiesPass::SYCL_ACCESS_SCOPE_WI_FLAG;
+  constexpr unsigned char LOCAL_INTERNALIZATION_PATTERN =
+      CompileTimePropertiesPass::SYCL_FUSION_INTERNAL_MEM_FLAG |
+      CompileTimePropertiesPass::SYCL_FUSION_NO_INIT_FLAG |
+      CompileTimePropertiesPass::SYCL_ACCESS_SCOPE_WG_FLAG;
+  auto ParseEncoding = [=](StringRef Encoded) {
+    unsigned char ParamEnc = 0u;
+    if (!Encoded.getAsInteger(16, ParamEnc)) {
+      if (ParamEnc == PRIVATE_INTERNALIZATION_PATTERN) {
+        return jit_compiler::Internalization::PrivateUSM;
+      }
+      if (ParamEnc == LOCAL_INTERNALIZATION_PATTERN) {
+        return jit_compiler::Internalization::LocalUSM;
+      }
+    }
+    return jit_compiler::Internalization::None;
+  };
+  for (auto Param : ParamInfo) {
+    Info.push_back(ParseEncoding(Param));
+  }
+  return Info;
+}
+
+static bool hasInternalization(const jit_compiler::Parameter &Param,
+                               jit_compiler::Internalization Kind,
+                               llvm::Module *LLVMModule,
+                               llvm::ArrayRef<std::string> FusedKernels,
+                               USMInternMap &Cache) {
+  auto KernelName = FusedKernels[Param.KernelIdx];
+  if (!Cache.contains(KernelName)) {
+    Cache.insert({KernelName, getUSMInfo(KernelName, LLVMModule)});
+  }
+  const USMInternInfo &Info = Cache.at(KernelName);
+  assert(Param.ParamIdx < Info.size() && "Parameter index out of bounds");
+  return Info[Param.ParamIdx] == Kind;
+}
+
+/// Check whether the USM internalization detected by the runtime matches the
+/// properties specified at runtime. For USM internalization to happen, the
+/// parameter that is supposed to be internalized as well as all identical
+/// parameters (i.e., other kernel parameters of the same or other kernels that
+/// use the same pointer) must have the necessary internalization properties
+/// attached to them as properties of 'annotated_ptr' at compile time.
+static bool checkUSMInternalization(
+    const jit_compiler::ParameterInternalization &Intern,
+    llvm::Module *LLVMModule, llvm::ArrayRef<std::string> FusedKernels,
+    llvm::ArrayRef<jit_compiler::ParameterIdentity> Identities,
+    USMInternMap &Cache) {
+  auto &Param = Intern.Param;
+  auto Kind = Intern.Intern;
+  if (!hasInternalization(Param, Kind, LLVMModule, FusedKernels, Cache)) {
+    return false;
+  }
+
+  for (auto &Ident : Identities) {
+    auto Other = getOther(Ident, Param);
+    if (Other.has_value()) {
+      if (!hasInternalization(Other.value(), Kind, LLVMModule, FusedKernels,
+                              Cache)) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
@@ -150,6 +267,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     // internalized.
     {
       const auto &Internalization = FF.ParameterInternalization;
+      USMInternMap Cache;
       if (!Internalization.empty()) {
         SmallVector<Metadata *> MDInternalizationKind;
         SmallVector<Metadata *> MDInternalizationLocalSize;
@@ -167,6 +285,16 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
         for (const auto &Info : Internalization) {
           constexpr StringLiteral LocalInternalizationStr{"local"};
           constexpr StringLiteral PrivateInternalizationStr{"private"};
+          constexpr StringLiteral LocalUSMInternalizationStr{"local_usm"};
+          constexpr StringLiteral PrivateUSMInternalizationStr{"private_usm"};
+
+          if (Info.Intern == jit_compiler::Internalization::PrivateUSM ||
+              Info.Intern == jit_compiler::Internalization::LocalUSM) {
+            if (!checkUSMInternalization(Info, LLVMModule, FF.FusedKernels,
+                                         FF.ParameterIdentities, Cache)) {
+              continue;
+            }
+          }
 
           const auto S = [&]() -> StringRef {
             switch (Info.Intern) {
@@ -174,6 +302,10 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
               return LocalInternalizationStr;
             case jit_compiler::Internalization::Private:
               return PrivateInternalizationStr;
+            case jit_compiler::Internalization::LocalUSM:
+              return LocalUSMInternalizationStr;
+            case jit_compiler::Internalization::PrivateUSM:
+              return PrivateUSMInternalizationStr;
             default:
               llvm_unreachable(
                   "Only a valid internalization kind should be used");

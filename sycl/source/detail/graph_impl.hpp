@@ -1329,6 +1329,9 @@ public:
   /// host_task.
   void makePartitions();
 
+  /// Proceeds to graph fusion
+  void fuseGraph();
+
   /// Called by handler::ext_oneapi_command_graph() to schedule graph for
   /// execution.
   /// @param Queue Command-queue to schedule execution on.
@@ -1460,6 +1463,17 @@ private:
     Stream.close();
   }
 
+  /// Checks the number of device partitions
+  /// @return true if the graph is composed of a single device partition
+  bool singleDevicePartitions() {
+    int numDevicePartitions = 0;
+    for (auto &Partition : MPartitions) {
+      if (!Partition->isHostTask())
+        numDevicePartitions++;
+    }
+    return (numDevicePartitions == 1);
+  }
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
@@ -1501,6 +1515,12 @@ private:
   bool MIsUpdatable;
   /// If true, the graph profiling is enabled.
   bool MEnableProfiling;
+  /// If true, the graph fusion is enabled.
+  bool MEnableFusion;
+  /// If true, the graph fusion is required.
+  bool MRequireFusion;
+  /// Property list passed to the graph Finalize call.
+  const property_list MFinalizePropList;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.

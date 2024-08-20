@@ -15,6 +15,9 @@
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <detail/jit_compiler.hpp>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -295,6 +298,183 @@ void exec_graph_impl::makePartitions() {
     Node->MPartitionNum = -1;
   }
 }
+
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+void exec_graph_impl::fuseGraph() {
+  if (!MEnableFusion && !MRequireFusion) {
+    return;
+  }
+
+  bool SupportGraphFusion =
+      MGraphImpl->getDevice().has(aspect::ext_oneapi_graph_fusion);
+
+  if (!SupportGraphFusion || MIsUpdatable || !singleDevicePartitions()) {
+    if (MRequireFusion) {
+      std::string Cause;
+      if (!SupportGraphFusion) {
+        Cause = "Graph Fusion not supported.";
+      } else if (MIsUpdatable) {
+        Cause = "Updatable Graph cannot be fused.";
+      } else if (!singleDevicePartitions()) {
+        Cause = "Graph with multiple partitions cannot be fused.";
+      }
+      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                            "The graph cannot be fused : " + Cause);
+    }
+    return;
+  }
+
+  // Retrieve the Schedule of the device partition.
+  std::shared_ptr<partition> DevicePartition = nullptr;
+  for (auto &Partition : MPartitions) {
+    if (!Partition->isHostTask()) {
+      DevicePartition = Partition;
+      break;
+    }
+  }
+  assert(DevicePartition != nullptr);
+
+  // Translate the Schedule into a FusionList.
+  auto ContextImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getContext());
+  auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
+  std::vector<sycl::detail::CG *> FusionList;
+  std::vector<std::shared_ptr<node_impl>> NodesToBeFused;
+  bool CanAddNewKernels = true;
+  std::list<std::shared_ptr<node_impl>> HeadNonFusableNodes;
+  std::list<std::shared_ptr<node_impl>> RemainingNonFusableNodes;
+  for (auto &NodeImpl : DevicePartition->MSchedule) {
+    sycl::detail::CG *RawCG = NodeImpl->MCommandGroup.get();
+    // We check whether the graph is fusable when we create the FusionList.
+    // A graph is not fusable if a non-fusable CG is found in the middle of
+    // the serialized graph (i.e. MSchedule).
+    if (RawCG->getType() == sycl::detail::CGType::Kernel) {
+      if (!CanAddNewKernels) {
+        if (MRequireFusion) {
+          throw sycl::exception(
+              sycl::make_error_code(errc::feature_not_supported),
+              "The graph cannot be fused : Non-fusable nodes are in the middle "
+              "of the serialized graph.");
+        }
+        return;
+      }
+      FusionList.push_back(RawCG);
+      NodesToBeFused.push_back(NodeImpl);
+    } else if (FusionList.size() == 0) {
+      // Non fusable CG must be kept in the post fusion Schedule.
+      HeadNonFusableNodes.push_back(NodeImpl);
+
+    } else if (FusionList.size() > 0) {
+      // Non-fusable CG can be at the begining or the end of the graph.
+      // If a non fusable CG is found while CGs have been added to the
+      // FusionList, we set a flag to check that no other CG are added to
+      // FusionList after encountering this non-fusable CG.
+      CanAddNewKernels = false;
+      RemainingNonFusableNodes.push_back(NodeImpl);
+    }
+  }
+
+  // Call the JIT compiler to generate a new fused kernel.
+  auto FusedCG = sycl::detail::jit_compiler::get_instance().fuseKernels(
+      ContextImpl, DeviceImpl, FusionList, MFinalizePropList);
+
+  if (FusedCG == nullptr) {
+    if (MRequireFusion) {
+      throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                            "The graph cannot be fused.");
+    }
+    return;
+  }
+
+  // Re-create schedule with the new fused kernel
+  std::list<std::shared_ptr<node_impl>> FusedSchedule;
+  auto FusedNode =
+      std::make_shared<node_impl>(node_type::kernel, std::move(FusedCG));
+  // Add the dependencies of initial nodes to fused nodes
+  for (auto &Node : NodesToBeFused) {
+    constexpr auto CopyIfNotKernelAndNotPresent = [](const auto &NewNodes,
+                                                     auto &Nodes) {
+      std::copy_if(
+          NewNodes.begin(), NewNodes.end(), std::back_inserter(Nodes),
+          [&Nodes](auto &Node) {
+            return Node.lock()->MNodeType != node_type::kernel &&
+                   std::none_of(
+                       Nodes.begin(), Nodes.end(),
+                       [&Node](const std::weak_ptr<node_impl> &WeakNode) {
+                         return WeakNode.lock() == Node.lock();
+                       });
+          });
+    };
+    // if node is not a kernel and is not already in the list, we add
+    // the dependency
+    CopyIfNotKernelAndNotPresent(Node->MPredecessors, FusedNode->MPredecessors);
+    CopyIfNotKernelAndNotPresent(Node->MSuccessors, FusedNode->MSuccessors);
+  }
+
+  // Remove the original nodes that have been fused from the nodes storage (i.e.
+  // the graph).
+  MNodeStorage.erase(std::remove_if(MNodeStorage.begin(), MNodeStorage.end(),
+                                    [&](auto &Node) {
+                                      return (std::find(NodesToBeFused.begin(),
+                                                        NodesToBeFused.end(),
+                                                        (Node)) !=
+                                              NodesToBeFused.end());
+                                    }),
+                     MNodeStorage.end());
+
+  // Update the dependencies of the remaining nodes (typically non-kernel nodes)
+  // which must be connected to the fused node instead of the original nodes.
+  for (auto &Node : MNodeStorage) {
+    constexpr auto UpdateDependencies = [](auto &Dependencies,
+                                           const auto &ListFusedNodes,
+                                           auto &Fused) {
+      bool AddFusedNode = false;
+      Dependencies.erase(
+          std::remove_if(Dependencies.begin(), Dependencies.end(),
+                         [&](auto &Pred) {
+                           if (std::find(ListFusedNodes.begin(),
+                                         ListFusedNodes.end(), (Pred).lock()) !=
+                               ListFusedNodes.end()) {
+                             AddFusedNode = true;
+                             return true;
+                           }
+                           return false;
+                         }),
+          Dependencies.end());
+      if (AddFusedNode) {
+        Dependencies.push_back(Fused);
+      }
+    };
+
+    UpdateDependencies(Node->MPredecessors, NodesToBeFused, FusedNode);
+    UpdateDependencies(Node->MSuccessors, NodesToBeFused, FusedNode);
+  }
+
+  // Add the fused node
+  MNodeStorage.push_back(FusedNode);
+  MPartitionNodes[FusedNode] = MPartitionNodes[NodesToBeFused[0]];
+
+  // Update the schedule
+  for (auto &NodeImpl : HeadNonFusableNodes) {
+    FusedSchedule.push_back(NodeImpl);
+  }
+
+  FusedSchedule.push_back(FusedNode);
+
+  // We add the non-fusable which are at the end of the previous Schedule.
+  for (auto &NodeImpl : RemainingNonFusableNodes) {
+    FusedSchedule.push_back(NodeImpl);
+  }
+
+  DevicePartition->MSchedule = FusedSchedule;
+}
+#else
+void exec_graph_impl::fuseGraph() {
+  if (MRequireFusion) {
+    throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
+                          "The graph cannot be fused");
+  }
+}
+#endif
 
 graph_impl::~graph_impl() {
   try {
@@ -771,7 +951,10 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()),
       MEnableProfiling(
-          PropList.has_property<property::graph::enable_profiling>()) {
+          PropList.has_property<property::graph::enable_profiling>()),
+      MEnableFusion(PropList.has_property<property::graph::enable_fusion>()),
+      MRequireFusion(PropList.has_property<property::graph::require_fusion>()),
+      MFinalizePropList(PropList) {
 
   // If the graph has been marked as updatable then check if the backend
   // actually supports that. Devices supporting aspect::ext_oneapi_graph must
@@ -1669,6 +1852,8 @@ executable_command_graph::executable_command_graph(
 
 void executable_command_graph::finalizeImpl() {
   impl->makePartitions();
+
+  impl->fuseGraph();
 
   auto Device = impl->getGraphImpl()->getDevice();
   for (auto Partition : impl->getPartitions()) {

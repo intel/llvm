@@ -16,10 +16,29 @@
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_util.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+namespace detail {
+
+void registerPointer(void *Ptr, size_t ElemSize, size_t NumElems, bool Local) {
+  if (sycl::detail::jit_compiler::get_instance().isAvailable()) {
+    sycl::detail::jit_compiler::get_instance().registerPointerInfo(
+        Ptr, ElemSize, NumElems, Local);
+  }
+}
+
+} // namespace detail
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+
 namespace detail {
 
 static inline void printPerformanceWarning(const std::string &Message) {
@@ -92,8 +111,8 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::BinaryFormat getTargetFormat(QueueImplPtr &Queue) {
-  auto Backend = Queue->getDeviceImplPtr()->getBackend();
+::jit_compiler::BinaryFormat getTargetFormat(const DeviceImplPtr &DeviceImpl) {
+  auto Backend = DeviceImpl->getBackend();
   switch (Backend) {
   case backend::ext_oneapi_level_zero:
   case backend::opencl:
@@ -109,11 +128,11 @@ translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   }
 }
 
-::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
-  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+::jit_compiler::TargetInfo getTargetInfo(const DeviceImplPtr &DeviceImpl) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(DeviceImpl);
   return ::jit_compiler::TargetInfo::get(
       Format, static_cast<::jit_compiler::DeviceArchitecture>(
-                  Queue->getDeviceImplPtr()->getDeviceArch()));
+                  DeviceImpl->getDeviceArch()));
 }
 
 static ::jit_compiler::ParameterKind
@@ -145,14 +164,22 @@ struct PromotionInformation {
   Promotion PromotionTarget;
   unsigned KernelIndex;
   unsigned ArgIndex;
-  Requirement *Definition;
   NDRDescT NDRange;
   size_t LocalSize;
   size_t ElemSize;
+};
+
+struct PromotionInformationAcc : public PromotionInformation {
+  Requirement *Definition;
   std::vector<bool> UsedParams;
 };
 
-using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
+struct PromotionInformationUSM : public PromotionInformation {
+  void *Definition;
+};
+
+using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformationAcc>;
+using PromotionMapUSM = std::unordered_map<void *, PromotionInformationUSM>;
 
 template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
   auto Result = Promotion::None;
@@ -162,6 +189,30 @@ template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
   }
   if (obj.template has_property<
           ext::codeplay::experimental::property::promote_local>()) {
+    if (Result != Promotion::None) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Two contradicting promotion properties on the "
+                            "same buffer/accessor are not allowed.");
+    }
+    Result = Promotion::Local;
+  }
+  if (obj.template has_property<
+          ext::oneapi::experimental::property::fusion_internal_memory>() &&
+      obj.template has_property<
+          ext::oneapi::experimental::property::access_scope<
+              sycl::memory_scope::work_item>>()) {
+    if (Result != Promotion::None) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Two contradicting promotion properties on the "
+                            "same buffer/accessor are not allowed.");
+    }
+    Result = Promotion::Private;
+  }
+  if (obj.template has_property<
+          ext::oneapi::experimental::property::fusion_internal_memory>() &&
+      obj.template has_property<
+          ext::oneapi::experimental::property::access_scope<
+              sycl::memory_scope::work_group>>()) {
     if (Result != Promotion::None) {
       throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                             "Two contradicting promotion properties on the "
@@ -193,10 +244,10 @@ static Promotion getInternalizationInfo(Requirement *Req) {
 
 static std::optional<size_t> getLocalSize(NDRDescT NDRange,
                                           std::optional<size_t> UserGlobalSize,
-                                          Requirement *Req, Promotion Target) {
+                                          size_t NumElementsMem,
+                                          Promotion Target) {
   assert((!UserGlobalSize.has_value() || Target != Promotion::Local) &&
          "Unexpected range rounding");
-  auto NumElementsMem = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size();
   if (Target == Promotion::Private) {
     if (UserGlobalSize.has_value()) {
       // Only the first dimension is affected by range rounding.
@@ -240,7 +291,9 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
 
   auto ThisPromotionTarget = getInternalizationInfo(Req);
   auto ThisLocalSize =
-      getLocalSize(NDRange, UserGlobalSize, Req, ThisPromotionTarget);
+      getLocalSize(NDRange, UserGlobalSize,
+                   static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size(),
+                   ThisPromotionTarget);
 
   if (Promotions.count(Req->MSYCLMemObj)) {
     // We previously encountered an accessor for the same buffer.
@@ -276,7 +329,10 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
         // promotion target.
         auto NewPrevLocalSize =
             getLocalSize(PreviousDefinition.NDRange, std::nullopt,
-                         PreviousDefinition.Definition, Promotion::Local);
+                         static_cast<SYCLMemObjT *>(
+                             PreviousDefinition.Definition->MSYCLMemObj)
+                             ->size(),
+                         Promotion::Local);
 
         if (!NewPrevLocalSize.has_value()) {
           printPerformanceWarning(
@@ -314,7 +370,9 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       if (PreviousDefinition.PromotionTarget == Promotion::Local) {
         // Recompute the local size with adapted promotion target.
         auto ThisLocalSize =
-            getLocalSize(NDRange, std::nullopt, Req, Promotion::Local);
+            getLocalSize(NDRange, std::nullopt,
+                         static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size(),
+                         Promotion::Local);
         if (!ThisLocalSize.has_value()) {
           printPerformanceWarning("Work-group size for local promotion not "
                                   "specified, not performing internalization");
@@ -368,12 +426,41 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       ThisLocalSize = 0;
     }
     assert(ThisLocalSize.has_value());
-    Promotions.emplace(
-        Req->MSYCLMemObj,
-        PromotionInformation{ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
-                             Req, NDRange, ThisLocalSize.value(),
-                             Req->MElemSize, std::vector<bool>()});
+    Promotions.emplace(Req->MSYCLMemObj,
+                       PromotionInformationAcc{
+                           {ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                            NDRange, ThisLocalSize.value(), Req->MElemSize},
+                           Req,
+                           std::vector<bool>()});
   }
+}
+
+static void resolveInternalizationUSM(void *Ptr, ptr_info PointerInfo,
+                                      ArgDesc &Arg, unsigned KernelIndex,
+                                      unsigned ArgFunctionIndex,
+                                      NDRDescT NDRange,
+                                      std::optional<size_t> UserGlobalSize,
+                                      PromotionMapUSM &Promotions) {
+  assert(Arg.MType == kernel_param_kind_t::kind_pointer);
+
+  auto ThisPromotionTarget =
+      (PointerInfo.Local) ? Promotion::Local : Promotion::Private;
+  auto ThisLocalSize = getLocalSize(NDRange, UserGlobalSize,
+                                    PointerInfo.NumElems, ThisPromotionTarget);
+
+  if (PointerInfo.Local && !ThisLocalSize.has_value()) {
+    printPerformanceWarning("Work-group size for local promotion not "
+                            "specified, not performing internalization");
+    ThisPromotionTarget = Promotion::None;
+    ThisLocalSize = 0;
+  }
+
+  assert(ThisLocalSize.has_value());
+  Promotions.emplace(Ptr,
+                     PromotionInformationUSM{
+                         {ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                          NDRange, ThisLocalSize.value(), PointerInfo.ElemSize},
+                         Ptr});
 }
 
 // Identify a parameter by the argument description, the kernel index and the
@@ -430,7 +517,7 @@ void *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
 
 static ParamIterator preProcessArguments(
     std::vector<std::vector<char>> &ArgStorage, ParamIterator Arg,
-    PromotionMap &PromotedAccs,
+    PromotionMap &PromotedAccs, PromotionMapUSM &PromotedUSM,
     std::vector<::jit_compiler::ParameterInternalization> &InternalizeParams,
     std::vector<::jit_compiler::JITConstant> &JITConstants,
     ParamList &NonIdenticalParams,
@@ -553,6 +640,22 @@ static ParamIterator preProcessArguments(
       return ++Arg;
     }
   } else if (Arg->Arg.MType == kernel_param_kind_t::kind_pointer) {
+    auto Ptr = *static_cast<void **>(Arg->Arg.MPtr);
+    if (PromotedUSM.count(Ptr)) {
+      auto &Internalization = PromotedUSM.at(Ptr);
+      // Make sure this is the first time we encounter this internalized
+      // pointer.
+      assert(Internalization.KernelIndex == Arg->KernelIndex &&
+             Internalization.ArgIndex == Arg->ArgIndex);
+
+      InternalizeParams.emplace_back(
+          ::jit_compiler::Parameter{Arg->KernelIndex, Arg->ArgIndex},
+          (Internalization.PromotionTarget == Promotion::Private)
+              ? ::jit_compiler::Internalization::PrivateUSM
+              : ::jit_compiler::Internalization::LocalUSM,
+          Internalization.LocalSize, Internalization.ElemSize);
+    }
+
     // No identical parameter exists, so add this to the list.
     NonIdenticalParams.emplace_back(Arg->Arg, Arg->KernelIndex, Arg->ArgIndex,
                                     true);
@@ -568,11 +671,15 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
   auto &ArgUsageInfo = FusedKernelInfo.Args.UsageMask;
   assert(ArgUsageInfo.size() == FusedArgs.size());
   for (size_t ArgIndex = 0; ArgIndex < ArgUsageInfo.size();) {
-    bool PromotedToPrivate =
+    bool PromotedAccToPrivate =
         (ArgUsageInfo[ArgIndex] & ::jit_compiler::ArgUsage::PromotedPrivate);
-    bool PromotedToLocal =
+    bool PromotedAccToLocal =
         (ArgUsageInfo[ArgIndex] & ::jit_compiler::ArgUsage::PromotedLocal);
-    if (PromotedToLocal || PromotedToPrivate) {
+    bool PromotedUSMToPrivate =
+        (ArgUsageInfo[ArgIndex] & ::jit_compiler::ArgUsage::PromotedPrivateUSM);
+    bool PromotedUSMToLocal =
+        (ArgUsageInfo[ArgIndex] & ::jit_compiler::ArgUsage::PromotedLocalUSM);
+    if (PromotedAccToLocal || PromotedAccToPrivate) {
       // For each internalized accessor, we need to override four arguments
       // (see 'addArgsForGlobalAccessor' in handler.cpp for reference), i.e.,
       // the pointer itself, plus twice the range and the offset.
@@ -587,9 +694,13 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
           sizeof(size_t) * (Req->MDims == 0 ? 1 : Req->MDims);
       // Compute the local size and use it for the range parameters (only
       // relevant for local promotion).
-      size_t LocalSize = PromotedToLocal ? *getLocalSize(NDRange, std::nullopt,
-                                                         Req, Promotion::Local)
-                                         : 0;
+      size_t LocalSize =
+          PromotedAccToLocal
+              ? *getLocalSize(
+                    NDRange, std::nullopt,
+                    static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size(),
+                    Promotion::Local)
+              : 0;
       range<3> AccessRange{1, 1, LocalSize};
       void *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
       // Use all-zero as the offset
@@ -618,6 +729,24 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
       FusedArgs[ArgIndex] =
           ArgDesc{kernel_param_kind_t::kind_std_layout, OffsetArg,
                   static_cast<int>(SizeAccField), static_cast<int>(ArgIndex)};
+      ++ArgIndex;
+    } else if (PromotedUSMToPrivate || PromotedUSMToLocal) {
+      auto &OldArgDesc = FusedArgs[ArgIndex];
+      assert(OldArgDesc.MType == kernel_param_kind_t::kind_pointer);
+      void *Ptr = *static_cast<void **>(OldArgDesc.MPtr);
+      auto PtrInfo = jit_compiler::get_instance().getPointerInfo(Ptr);
+      assert(PtrInfo.has_value());
+      size_t LocalSize =
+          PromotedUSMToLocal
+              ? *getLocalSize(NDRange, std::nullopt, PtrInfo.value().NumElems,
+                              Promotion::Local)
+              : 0;
+      // Similar to above, override the pointer with a std-layout argument with
+      // 'nullptr' as value, as it's done by handler.cpp.
+      int SizeInBytes = static_cast<int>(PtrInfo.value().ElemSize * LocalSize);
+      FusedArgs[ArgIndex] =
+          ArgDesc{kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
+                  static_cast<int>(ArgIndex)};
       ++ArgIndex;
     } else {
       ++ArgIndex;
@@ -656,7 +785,8 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
       BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
 
-  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::TargetInfo TargetInfo =
+      getTargetInfo(Queue->getDeviceImplPtr());
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
   bool DebugEnabled =
@@ -717,10 +847,9 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   return NewKernel;
 }
 
-std::unique_ptr<detail::CG>
-jit_compiler::fuseKernels(QueueImplPtr Queue,
-                          std::vector<ExecCGCommand *> &InputKernels,
-                          const property_list &PropList) {
+std::unique_ptr<detail::CG> jit_compiler::fuseKernels(
+    const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
+    std::vector<detail::CG *> &InputKernels, const property_list &PropList) {
   if (!isAvailable()) {
     printPerformanceWarning("JIT library not available");
     return nullptr;
@@ -746,13 +875,14 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
+  PromotionMapUSM PromotedUSM;
   // TODO: Collect information about streams and figure out how
   // to fuse them.
-  for (auto &RawCmd : InputKernels) {
-    auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
-    auto &CG = KernelCmd->getCG();
-    assert(KernelCmd->isFusable());
-    auto *KernelCG = static_cast<CGExecKernel *>(&CG);
+  for (auto &RawCG : InputKernels) {
+    // ensure CG is fusable
+    assert((RawCG->getType() == sycl::detail::CGType::Kernel) &&
+           (!static_cast<const CGExecKernel *>(RawCG)->MKernelIsCooperative));
+    auto *KernelCG = static_cast<CGExecKernel *>(RawCG);
 
     auto KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
@@ -761,8 +891,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
 
-    auto [DeviceImage, Program] =
-        retrieveKernelBinary(Queue, KernelName.c_str(), KernelCG);
+    auto [DeviceImage, Program] = retrieveKernelBinary(
+        ContextImpl, DeviceImpl, KernelName.c_str(), KernelCG);
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
@@ -831,6 +961,14 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
           resolveInternalization(Arg, KernelIndex, ArgFunctionIndex,
                                  KernelCG->MNDRDesc, UserGlobalSize,
                                  PromotedAccs);
+        }
+        if (Arg.MType == kernel_param_kind_t::kind_pointer) {
+          void *Ptr = *static_cast<void **>(Arg.MPtr);
+          if (auto PtrInfo = getPointerInfo(Ptr)) {
+            resolveInternalizationUSM(Ptr, PtrInfo.value(), Arg, KernelIndex,
+                                      ArgFunctionIndex, KernelCG->MNDRDesc,
+                                      UserGlobalSize, PromotedUSM);
+          }
         }
         FusedParams.emplace_back(Arg, KernelIndex, ArgFunctionIndex, true);
         ++ArgFunctionIndex;
@@ -911,16 +1049,16 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     ++KernelIndex;
   }
 
-  // Pre-process the arguments, to detect identical parameters or arguments that
-  // can be constant-propagated by the JIT compiler.
+  // Pre-process the arguments, to detect identical parameters or arguments
+  // that can be constant-propagated by the JIT compiler.
   std::vector<::jit_compiler::ParameterInternalization> InternalizeParams;
   std::vector<::jit_compiler::JITConstant> JITConstants;
   std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
-  for (auto UR = FusedParams.begin(); UR != FusedParams.end();) {
-    UR = preProcessArguments(ArgsStorage, UR, PromotedAccs, InternalizeParams,
-                             JITConstants, NonIdenticalParameters,
-                             ParamIdentities);
+  for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
+    PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, PromotedUSM,
+                             InternalizeParams, JITConstants,
+                             NonIdenticalParameters, ParamIdentities);
   }
 
   // Retrieve barrier flags.
@@ -929,6 +1067,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
            .has_property<ext::codeplay::experimental::property::no_barriers>())
           ? ::jit_compiler::getNoBarrierFlag()
           : ::jit_compiler::getLocalAndGlobalBarrierFlag();
+
+  // Force barriers if insert_barriers prop
+  if (PropList.has_property<sycl::ext::oneapi::experimental::property::graph::
+                                insert_barriers>()) {
+    BarrierFlags = ::jit_compiler::getLocalAndGlobalBarrierFlag();
+  }
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
@@ -940,7 +1084,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
       detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
-  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(DeviceImpl);
   ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
   AddToConfigHandle(
       ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
@@ -998,10 +1142,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
       FusedOrCachedKernelName);
 
+  auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
+  auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
     detail::getSyclObjImpl(get_kernel_bundle<bundle_state::executable>(
-        Queue->get_context(), {Queue->get_device()}, {FusedKernelId}));
+        Context, {Device}, {FusedKernelId}));
   }
 
   std::unique_ptr<detail::CG> FusedCG;

@@ -3004,7 +3004,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     const RTDeviceBinaryImage *BinImage = nullptr;
     if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
       std::tie(BinImage, std::ignore) =
-          retrieveKernelBinary(MQueue, KernelName.c_str());
+          retrieveKernelBinary(MQueue->getContextImplPtr(),
+                               MQueue->getDeviceImplPtr(), KernelName.c_str());
       assert(BinImage && "Failed to obtain a binary image.");
     }
     enqueueImpKernel(MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(),

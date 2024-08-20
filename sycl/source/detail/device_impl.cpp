@@ -530,8 +530,8 @@ bool device_impl::has(aspect Aspect) const {
     bool call_successful =
         getPlugin()->call_nocheck(
             urDeviceGetInfo, MDevice,
-            UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
-            &support, nullptr) == UR_RESULT_SUCCESS;
+            UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_external_semaphore_import: {
@@ -771,6 +771,11 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_oneapi_graph_fusion: {
+    return (
+        has(aspect::ext_oneapi_limited_graph) &&
+        get_info<ext::codeplay::experimental::info::device::supports_fusion>());
+  }
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();
   }
@@ -831,8 +836,8 @@ uint64_t device_impl::getCurrentDeviceTime() {
     // We have to remember base host timestamp right after UR call and it is
     // going to be used for calculation of the device timestamp at the next
     // getCurrentDeviceTime() call. We need to do it here because getPlugin()
-    // and urDeviceGetGlobalTimestamps calls may take significant amount of time,
-    // for example on the first call to getPlugin plugins may need to be
+    // and urDeviceGetGlobalTimestamps calls may take significant amount of
+    // time, for example on the first call to getPlugin plugins may need to be
     // initialized. If we use timestamp from the beginning of the function then
     // the difference between host timestamps of the current
     // getCurrentDeviceTime and the next getCurrentDeviceTime will be incorrect

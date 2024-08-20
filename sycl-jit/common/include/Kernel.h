@@ -116,12 +116,18 @@ enum ArgUsage : uint8_t {
   Unused = 0,
   // Used to indicate that an argument is used by the kernel
   Used = 1u,
-  // Used to indicate that the accessor/pointer argument has been promoted to
+  // Used to indicate that the accessor argument has been promoted to
   // private memory
   PromotedPrivate = 1u << 4,
-  // Used to indicate that the accessor/pointer argument has been promoted to
+  // Used to indicate that the accessor argument has been promoted to
   // local memory
   PromotedLocal = 1u << 5,
+  // Used to indicate that the USM pointer argument has been promoted to private
+  // memory
+  PromotedPrivateUSM = 1u << 6,
+  // Used to indicate that the USM pointer argument has been promoted to local
+  // memory
+  PromotedLocalUSM = 1u << 7,
 };
 
 ///

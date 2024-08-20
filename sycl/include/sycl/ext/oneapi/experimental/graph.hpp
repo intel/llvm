@@ -181,6 +181,32 @@ class enable_profiling : public ::sycl::detail::DataLessProperty<
 public:
   enable_profiling() = default;
 };
+
+/// Property used to enable executable graph fusion. This property is only
+/// descriptive, not prescriptive. Implementations are free to not perform
+/// fusion if it is not possible
+class enable_fusion : public ::sycl::detail::DataLessProperty<
+                          ::sycl::detail::GraphEnableFusion> {
+public:
+  enable_fusion() = default;
+};
+
+/// Property used to require executable graph fusion. This property is
+/// prescriptive. if the implementation is unable to perform fusion for this
+/// graph, the implementation must raise an error with error code.
+class require_fusion : public ::sycl::detail::DataLessProperty<
+                           ::sycl::detail::GraphRequireFusion> {
+public:
+  require_fusion() = default;
+};
+
+/// Property used to add work-group barriers between kernels in the fused
+/// kernel.
+class insert_barriers : public ::sycl::detail::DataLessProperty<
+                            ::sycl::detail::GraphInsertBarriers> {
+public:
+  insert_barriers() = default;
+};
 } // namespace graph
 
 namespace node {
