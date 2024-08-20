@@ -146,8 +146,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/frasercrmck/unified-runtime.git
+    52918b62251fa9b61b959a6af705a57b36eb86aa
   )
 
   fetch_adapter_source(hip
