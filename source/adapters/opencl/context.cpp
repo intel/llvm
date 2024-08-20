@@ -126,7 +126,9 @@ urContextRelease(ur_context_handle_t hContext) {
     CL_RETURN_ON_FAILURE(clGetContextInfo(clContext, CL_CONTEXT_REFERENCE_COUNT,
                                           sizeof(size_t), &refCount, nullptr));
 
-    if (refCount == 1) {
+    // ExtFuncPtrCache is destroyed in an atexit() callback, so it doesn't
+    // necessarily outlive the adapter (or all the contexts).
+    if (refCount == 1 && cl_ext::ExtFuncPtrCache) {
       cl_ext::ExtFuncPtrCache->clearCache(clContext);
     }
   }
