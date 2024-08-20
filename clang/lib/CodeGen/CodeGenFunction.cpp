@@ -1259,8 +1259,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   }
 
   if (FD && (getLangOpts().OpenCL ||
-             (getLangOpts().HIP && getLangOpts().CUDAIsDevice) ||
-             getLangOpts().SYCLIsDevice)) {
+             ((getLangOpts().HIP || getLangOpts().OffloadViaLLVM) &&
+              getLangOpts().CUDAIsDevice) || getLangOpts().SYCLIsDevice)) {
     // Add metadata for a kernel function.
     EmitKernelMetadata(FD, Fn);
 

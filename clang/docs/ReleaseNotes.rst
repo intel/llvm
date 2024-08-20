@@ -61,9 +61,9 @@ Clang Frontend Potentially Breaking Changes
 Clang Python Bindings Potentially Breaking Changes
 --------------------------------------------------
 - Parts of the interface returning string results will now return
-  the empty string `""` when no result is available, instead of `None`.
-- Calling a property on the `CompletionChunk` or `CompletionString` class
-  statically now leads to an error, instead of returning a `CachedProperty` object
+  the empty string ``""`` when no result is available, instead of ``None``.
+- Calling a property on the ``CompletionChunk`` or ``CompletionString`` class
+  statically now leads to an error, instead of returning a ``CachedProperty`` object
   that is used internally. Properties are only available on instances.
 
 What's New in Clang |release|?
@@ -217,6 +217,8 @@ Bug Fixes to C++ Support
 - Clang now preserves the unexpanded flag in a lambda transform used for pack expansion. (#GH56852), (#GH85667),
   (#GH99877).
 - Fixed a bug when diagnosing ambiguous explicit specializations of constrained member functions.
+- Fixed an assertion failure when selecting a function from an overload set that includes a 
+  specialization of a conversion function template.
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -316,6 +318,8 @@ AST Matchers
 clang-format
 ------------
 
+- Adds ``BreakBinaryOperations`` option.
+
 libclang
 --------
 
@@ -360,8 +364,9 @@ Improvements
 ^^^^^^^^^^^^
 - Improve the handling of mapping array-section for struct containing nested structs with user defined mappers
 
-- `num_teams` now accepts multiple expressions when it is used along in ``target teams ompx_bare`` construct.
-  This allows the target region to be launched with multi-dim grid on GPUs.
+- `num_teams` and `thead_limit` now accept multiple expressions when it is used
+  along in ``target teams ompx_bare`` construct. This allows the target region
+  to be launched with multi-dim grid on GPUs.
 
 Additional Information
 ======================
