@@ -779,4 +779,3 @@
 // __SYCL_ASPECT(ext_oneapi_graph_fusion, 80)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph_fusion__ 0
 #endif
-

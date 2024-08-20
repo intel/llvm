@@ -64,10 +64,10 @@ void test_usm_internalization(PropT AccessScope) {
   auto kernel1 = graph.add(
       [&](sycl::handler &cgh) {
         cgh.parallel_for<FirstKernelT>(nd_range{{dataSize}, {wg_size}},
-                                          [=](sycl::nd_item<1> it) {
-                                            auto i = it.get_global_id(0);
-                                            annotatedTmp[i] = dIn1[i] + dIn2[i];
-                                          });
+                                       [=](sycl::nd_item<1> it) {
+                                         auto i = it.get_global_id(0);
+                                         annotatedTmp[i] = dIn1[i] + dIn2[i];
+                                       });
       },
       {sycl_ext::property::node::depends_on(copy_in1, copy_in2, fill, fill2)});
 
@@ -79,10 +79,10 @@ void test_usm_internalization(PropT AccessScope) {
   auto kernel2 = graph.add(
       [&](sycl::handler &cgh) {
         cgh.parallel_for<SecondKernelT>(nd_range{{dataSize}, {wg_size}},
-                                          [=](sycl::nd_item<1> it) {
-                                            auto i = it.get_global_id(0);
-                                            dOut[i] = tmpPtr[i] * dIn3[i];
-                                          });
+                                        [=](sycl::nd_item<1> it) {
+                                          auto i = it.get_global_id(0);
+                                          dOut[i] = tmpPtr[i] * dIn3[i];
+                                        });
       },
       {sycl_ext::property::node::depends_on(copy_in3, kernel1)});
 

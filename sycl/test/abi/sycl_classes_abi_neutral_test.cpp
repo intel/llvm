@@ -17,7 +17,7 @@
 
 // CHECK: 0 | struct sycl::ext::oneapi::experimental::build_options
 // CHECK-NEXT:         0 |   struct sycl::ext::oneapi::experimental::detail::run_time_property_key<sycl::ext::oneapi::experimental::detail::BuildOptions> (base) (empty)
-// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty) 
+// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |       struct sycl::ext::oneapi::experimental::detail::property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |   class std::vector<class std::basic_string<char> > opts
 // CHECK-NEXT:         0 |     struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > > (base)
@@ -28,7 +28,7 @@
 
 // CHECK: 0 | struct sycl::ext::oneapi::experimental::include_files
 // CHECK-NEXT:         0 |   struct sycl::ext::oneapi::experimental::detail::run_time_property_key<sycl::ext::oneapi::experimental::detail::IncludeFiles> (base) (empty)
-// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty) 
+// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |       struct sycl::ext::oneapi::experimental::detail::property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |   class std::vector<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > record
 // CHECK-NEXT:         0 |     struct std::_Vector_base<struct std::pair<class std::basic_string<char>, class std::basic_string<char> >, class std::allocator<struct std::pair<class std::basic_string<char>, class std::basic_string<char> > > > (base)
@@ -39,7 +39,7 @@
 
 // CHECK: 0 | struct sycl::ext::oneapi::experimental::registered_kernel_names
 // CHECK-NEXT:         0 |   struct sycl::ext::oneapi::experimental::detail::run_time_property_key<sycl::ext::oneapi::experimental::detail::RegisteredKernelNames> (base) (empty)
-// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty) 
+// CHECK-NEXT:         0 |     struct sycl::ext::oneapi::experimental::detail::runtime_property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |       struct sycl::ext::oneapi::experimental::detail::property_key_base_tag (base) (empty)
 // CHECK-NEXT:         0 |   class std::vector<class std::basic_string<char> > kernel_names
 // CHECK-NEXT:         0 |     struct std::_Vector_base<class std::basic_string<char>, class std::allocator<class std::basic_string<char> > > (base)

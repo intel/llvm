@@ -48,7 +48,7 @@ public:
   fuseKernels(const ContextImplPtr &ContextImpl,
               const DeviceImplPtr &DeviceImpl,
               std::vector<detail::CG *> &InputKernels, const property_list &);
-  
+
   ur_kernel_handle_t
   materializeSpecConstants(QueueImplPtr Queue,
                            const RTDeviceBinaryImage *BinImage,
