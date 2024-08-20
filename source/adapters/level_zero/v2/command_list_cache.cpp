@@ -9,8 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_list_cache.hpp"
+#include "context.hpp"
 
-#include "../context.hpp"
 #include "../device.hpp"
 
 bool v2::immediate_command_list_descriptor_t::operator==(

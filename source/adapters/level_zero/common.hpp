@@ -25,6 +25,8 @@
 
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "logger/ur_logger.hpp"
+
 struct _ur_platform_handle_t;
 
 static auto getUrResultString = [](ur_result_t Result) {
@@ -168,7 +170,7 @@ static auto getUrResultString = [](ur_result_t Result) {
   }
 };
 
-// Trace an internal PI call; returns in case of an error.
+// Trace an internal UR call; returns in case of an error.
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
@@ -178,6 +180,18 @@ static auto getUrResultString = [](ur_result_t Result) {
       logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
+  }
+
+// Trace an internal UR call; throw in case of an error.
+#define UR_CALL_THROWS(Call)                                                   \
+  {                                                                            \
+    if (PrintTrace)                                                            \
+      logger::always("UR ---> {}", #Call);                                     \
+    ur_result_t Result = (Call);                                               \
+    if (PrintTrace)                                                            \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+    if (Result != UR_RESULT_SUCCESS)                                           \
+      throw Result;                                                            \
   }
 
 // Controls UR L0 calls tracing.

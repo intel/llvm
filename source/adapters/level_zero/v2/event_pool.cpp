@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "event_pool.hpp"
+#include "common/latency_tracker.hpp"
 #include "ur_api.h"
 
 namespace v2 {
@@ -15,6 +16,10 @@ namespace v2 {
 static constexpr size_t EVENTS_BURST = 64;
 
 ur_event_handle_t_ *event_pool::allocate() {
+  TRACK_SCOPE_LATENCY("event_pool::allocate");
+
+  std::unique_lock<std::mutex> lock(*mutex);
+
   if (freelist.empty()) {
     auto start = events.size();
     auto end = start + EVENTS_BURST;
@@ -31,8 +36,16 @@ ur_event_handle_t_ *event_pool::allocate() {
 }
 
 void event_pool::free(ur_event_handle_t_ *event) {
+  TRACK_SCOPE_LATENCY("event_pool::free");
+
+  std::unique_lock<std::mutex> lock(*mutex);
+
   event->reset();
   freelist.push_back(event);
+
+  // The event is still in the pool, so we need to increment the refcount
+  assert(event->RefCount.load() == 0);
+  event->RefCount.increment();
 }
 
 event_provider *event_pool::getProvider() { return provider.get(); }
