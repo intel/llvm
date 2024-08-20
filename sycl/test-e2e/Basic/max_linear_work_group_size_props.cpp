@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// This property is not yet supported by all UR adapters
+// XFAIL: level_zero, opencl
+
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
@@ -10,11 +13,11 @@ using namespace sycl;
 enum class Variant { Function, Functor, FunctorAndProperty };
 
 template <Variant KernelVariant, bool IsShortcut, size_t>
-class ReqdWGSizePositiveA;
+class MaxLinearWGSizePositive;
 template <Variant KernelVariant, bool IsShortcut, size_t>
-class ReqdWGSizeNoLocalPositive;
+class MaxLinearWGSizeNoLocalPositive;
 template <Variant KernelVariant, bool IsShortcut, size_t>
-class ReqdWGSizeNegativeA;
+class MaxLinearWGSizeNegative;
 
 template <size_t Dims> range<Dims> repeatRange(size_t Val);
 template <> range<1> repeatRange<1>(size_t Val) { return range<1>{Val}; }
@@ -34,6 +37,15 @@ std::string rangeToString(range<3> Range) {
   return "{" + std::to_string(Range[0]) + ", " + std::to_string(Range[1]) +
          ", " + std::to_string(Range[2]) + "}";
 }
+std::string linearRangeToString(range<1> Range) {
+  return std::to_string(Range[0]);
+}
+std::string linearRangeToString(range<2> Range) {
+  return std::to_string(Range[0] * Range[1]);
+}
+std::string linearRangeToString(range<3> Range) {
+  return std::to_string(Range[0] * Range[1] * Range[2]);
+}
 
 template <size_t I> struct KernelFunctorWithMaxWGSizeProp {
   void operator()(nd_item<1>) const {}
@@ -50,84 +62,82 @@ template <Variant KernelVariant, size_t I, typename PropertiesT,
 int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   constexpr size_t Dims = 1;
 
-  bool IsOpenCL = (Q.get_backend() == backend::opencl);
-
   // Positive test case: Specify local size that matches required size.
   try {
     Q.submit([&](handler &CGH) {
-      CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, I>>(
+      CGH.parallel_for<MaxLinearWGSizePositive<KernelVariant, false, I>>(
           nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), Props,
           KernelFunc);
     });
     Q.wait_and_throw();
   } catch (exception &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
-              << E.what() << std::endl;
+    std::cerr
+        << "Test case MaxLinearWGSizePositive failed: unexpected exception: "
+        << E.what() << std::endl;
     return 1;
   }
 
   // Same as above but using the queue shortcuts.
   try {
-    Q.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, I>>(
+    Q.parallel_for<MaxLinearWGSizePositive<KernelVariant, true, I>>(
         nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(I)), Props,
         KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
-                 "exception: "
-              << E.what() << std::endl;
+    std::cerr
+        << "Test case MaxLinearWGSizePositive shortcut failed: unexpected "
+           "exception: "
+        << E.what() << std::endl;
     return 1;
   }
 
   // Kernel that has a required WG size, but no local size is specified.
   //
-  // TODO: This fails on OpenCL and should be investigated.
-  if (!IsOpenCL) {
-    try {
-      Q.submit([&](handler &CGH) {
-        CGH.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, false, I>>(
-            repeatRange<Dims>(16), Props, KernelFunc);
-      });
-      Q.wait_and_throw();
-    } catch (exception &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
-                   "exception: "
-                << E.what() << std::endl;
-      return 1;
-    }
-
-    try {
-      Q.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, true, I>>(
+  try {
+    Q.submit([&](handler &CGH) {
+      CGH.parallel_for<MaxLinearWGSizeNoLocalPositive<KernelVariant, false, I>>(
           repeatRange<Dims>(16), Props, KernelFunc);
-      Q.wait_and_throw();
-    } catch (exception &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut failed: "
-                   "unexpected exception: "
-                << E.what() << std::endl;
-      return 1;
-    }
+    });
+    Q.wait_and_throw();
+  } catch (exception &E) {
+    std::cerr << "Test case MaxLinearWGSizeNoLocalPositive failed: unexpected "
+                 "exception: "
+              << E.what() << std::endl;
+    return 1;
+  }
+
+  try {
+    Q.parallel_for<MaxLinearWGSizeNoLocalPositive<KernelVariant, true, I>>(
+        repeatRange<Dims>(16), Props, KernelFunc);
+    Q.wait_and_throw();
+  } catch (exception &E) {
+    std::cerr << "Test case MaxLinearWGSizeNoLocalPositive shortcut failed: "
+                 "unexpected exception: "
+              << E.what() << std::endl;
+    return 1;
   }
 
   // Negative test case: Specify local size that does not match required size.
   try {
     Q.submit([&](handler &CGH) {
-      CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, I>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(2)), Props,
+      CGH.parallel_for<MaxLinearWGSizeNegative<KernelVariant, false, I>>(
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
           KernelFunc);
     });
     Q.wait_and_throw();
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
-                 "thrown\n";
+    std::cerr
+        << "Test case MaxLinearWGSizeNegative failed: no exception has been "
+           "thrown\n";
     return 1; // We shouldn't be here, exception is expected
   } catch (exception &E) {
     if (E.code() != errc::nd_range ||
         std::string(E.what()).find(
-            "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
-            " doesn't match the required " +
-            "work-group size specified in the program source " +
-            rangeToString(range<Dims>(I))) == std::string::npos) {
+            "The total number of work-items in the work-group (" +
+            linearRangeToString(repeatRange<Dims>(8)) +
+            ") exceeds the maximum specified in the program source (" +
+            linearRangeToString(range<Dims>(I)) + ")") == std::string::npos) {
       std::cerr
-          << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
+          << "Test case MaxLinearWGSizeNegative failed: unexpected exception: "
           << E.what() << std::endl;
       return 1;
     }
@@ -135,24 +145,26 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 
   // Same as above but using the queue shortcuts.
   try {
-    Q.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, I>>(
+    Q.parallel_for<MaxLinearWGSizeNegative<KernelVariant, true, I>>(
         nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
         KernelFunc);
     Q.wait_and_throw();
-    std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: no exception "
-                 "has been "
-                 "thrown\n";
+    std::cerr
+        << "Test case MaxLinearWGSizeNegative shortcut failed: no exception "
+           "has been "
+           "thrown\n";
     return 1; // We shouldn't be here, exception is expected
   } catch (exception &E) {
     if (E.code() != errc::nd_range ||
         std::string(E.what()).find(
-            "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
-            " doesn't match the required " +
-            "work-group size specified in the program source " +
-            rangeToString(range<Dims>(I))) == std::string::npos) {
-      std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
-                   "exception: "
-                << E.what() << std::endl;
+            "The total number of work-items in the work-group (" +
+            linearRangeToString(repeatRange<Dims>(8)) +
+            ") exceeds the maximum specified in the program source (" +
+            linearRangeToString(range<Dims>(I)) + ")") == std::string::npos) {
+      std::cerr
+          << "Test case MaxLinearWGSizeNegative shortcut failed: unexpected "
+             "exception: "
+          << E.what() << std::endl;
       return 1;
     }
   }

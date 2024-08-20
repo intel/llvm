@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// This property is not yet supported by all UR adapters
+// XFAIL: level_zero, opencl
+
 #include <sycl/detail/core.hpp>
 
 #include <iostream>
@@ -10,11 +13,11 @@ using namespace sycl;
 enum class Variant { Function, Functor, FunctorAndProperty };
 
 template <Variant KernelVariant, bool IsShortcut, size_t... Is>
-class ReqdWGSizePositiveA;
+class MaxWGSizePositive;
 template <Variant KernelVariant, bool IsShortcut, size_t... Is>
-class ReqdWGSizeNoLocalPositive;
+class MaxWGSizeNoLocalPositive;
 template <Variant KernelVariant, bool IsShortcut, size_t... Is>
-class ReqdWGSizeNegativeA;
+class MaxWGSizeNegative;
 
 template <size_t Dims> range<Dims> repeatRange(size_t Val);
 template <> range<1> repeatRange<1>(size_t Val) { return range<1>{Val}; }
@@ -50,30 +53,28 @@ template <Variant KernelVariant, size_t... Is, typename PropertiesT,
 int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
   constexpr size_t Dims = sizeof...(Is);
 
-  bool IsOpenCL = (Q.get_backend() == backend::opencl);
-
   // Positive test case: Specify local size that matches required size.
   try {
     Q.submit([&](handler &CGH) {
-      CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
+      CGH.parallel_for<MaxWGSizePositive<KernelVariant, false, Is...>>(
           nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
           KernelFunc);
     });
     Q.wait_and_throw();
   } catch (exception &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA failed: unexpected exception: "
+    std::cerr << "Test case MaxWGSizePositive failed: unexpected exception: "
               << E.what() << std::endl;
     return 1;
   }
 
   // Same as above but using the queue shortcuts.
   try {
-    Q.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, Is...>>(
+    Q.parallel_for<MaxWGSizePositive<KernelVariant, true, Is...>>(
         nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
         KernelFunc);
     Q.wait_and_throw();
   } catch (exception &E) {
-    std::cerr << "Test case ReqdWGSizePositiveA shortcut failed: unexpected "
+    std::cerr << "Test case MaxWGSizePositive shortcut failed: unexpected "
                  "exception: "
               << E.what() << std::endl;
     return 1;
@@ -81,66 +82,61 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
 
   // Kernel that has a required WG size, but no local size is specified.
   //
-  // TODO: This fails on OpenCL and should be investigated.
-  if (!IsOpenCL) {
-    try {
-      Q.submit([&](handler &CGH) {
-        CGH.parallel_for<
-            ReqdWGSizeNoLocalPositive<KernelVariant, false, Is...>>(
-            repeatRange<Dims>(16), Props, KernelFunc);
-      });
-      Q.wait_and_throw();
-    } catch (exception &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive failed: unexpected "
-                   "exception: "
-                << E.what() << std::endl;
-      return 1;
-    }
-
-    try {
-      Q.parallel_for<ReqdWGSizeNoLocalPositive<KernelVariant, true, Is...>>(
+  try {
+    Q.submit([&](handler &CGH) {
+      CGH.parallel_for<MaxWGSizeNoLocalPositive<KernelVariant, false, Is...>>(
           repeatRange<Dims>(16), Props, KernelFunc);
-      Q.wait_and_throw();
-    } catch (exception &E) {
-      std::cerr << "Test case ReqdWGSizeNoLocalPositive shortcut failed: "
-                   "unexpected exception: "
-                << E.what() << std::endl;
-      return 1;
-    }
+    });
+    Q.wait_and_throw();
+  } catch (exception &E) {
+    std::cerr << "Test case MaxWGSizeNoLocalPositive failed: unexpected "
+                 "exception: "
+              << E.what() << std::endl;
+    return 1;
+  }
+
+  try {
+    Q.parallel_for<MaxWGSizeNoLocalPositive<KernelVariant, true, Is...>>(
+        repeatRange<Dims>(16), Props, KernelFunc);
+    Q.wait_and_throw();
+  } catch (exception &E) {
+    std::cerr << "Test case MaxWGSizeNoLocalPositive shortcut failed: "
+                 "unexpected exception: "
+              << E.what() << std::endl;
+    return 1;
   }
 
   // Negative test case: Specify local size that does not match required size.
   try {
     Q.submit([&](handler &CGH) {
-      CGH.parallel_for<ReqdWGSizeNegativeA<KernelVariant, false, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(2)), Props,
+      CGH.parallel_for<MaxWGSizeNegative<KernelVariant, false, Is...>>(
+          nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
           KernelFunc);
     });
     Q.wait_and_throw();
-    std::cerr << "Test case ReqdWGSizeNegativeA failed: no exception has been "
+    std::cerr << "Test case MaxWGSizeNegative failed: no exception has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
   } catch (exception &E) {
     if (E.code() != errc::nd_range ||
         std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
-            " doesn't match the required " +
-            "work-group size specified in the program source " +
+            " exceeds the maximum work-group size specified in the program "
+            "source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
-      std::cerr
-          << "Test case ReqdWGSizeNegativeA failed: unexpected exception: "
-          << E.what() << std::endl;
+      std::cerr << "Test case MaxWGSizeNegative failed: unexpected exception: "
+                << E.what() << std::endl;
       return 1;
     }
   }
 
   // Same as above but using the queue shortcuts.
   try {
-    Q.parallel_for<ReqdWGSizeNegativeA<KernelVariant, true, Is...>>(
+    Q.parallel_for<MaxWGSizeNegative<KernelVariant, true, Is...>>(
         nd_range<Dims>(repeatRange<Dims>(16), repeatRange<Dims>(8)), Props,
         KernelFunc);
     Q.wait_and_throw();
-    std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: no exception "
+    std::cerr << "Test case MaxWGSizeNegative shortcut failed: no exception "
                  "has been "
                  "thrown\n";
     return 1; // We shouldn't be here, exception is expected
@@ -148,10 +144,10 @@ int test(queue &Q, PropertiesT Props, KernelType KernelFunc) {
     if (E.code() != errc::nd_range ||
         std::string(E.what()).find(
             "The specified local size " + rangeToString(repeatRange<Dims>(8)) +
-            " doesn't match the required " +
-            "work-group size specified in the program source " +
+            " exceeds the maximum work-group size specified in the program "
+            "source " +
             rangeToString(range<Dims>(Is...))) == std::string::npos) {
-      std::cerr << "Test case ReqdWGSizeNegativeA shortcut failed: unexpected "
+      std::cerr << "Test case MaxWGSizeNegative shortcut failed: unexpected "
                    "exception: "
                 << E.what() << std::endl;
       return 1;
