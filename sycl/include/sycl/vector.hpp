@@ -886,7 +886,8 @@ inline constexpr bool is_over_const_vec =
         typename = std::enable_if_t<                                           \
             std::is_same_v<DataT, typename OtherSwizzle::element_type> &&      \
             N == OtherSwizzle::size()>>                                        \
-    friend auto operator OPASSIGN(const Self &lhs, const OtherSwizzle &rhs) {  \
+    friend const Self &operator OPASSIGN(const Self & lhs,                     \
+                                         const OtherSwizzle & rhs) {           \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
@@ -1008,7 +1009,7 @@ struct __SYCL_EBO SwizzleMixins
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Self, DataT,
                                      /* Explicit = */ false,
-                                     /* Enable = */ true>,
+                                     /* Enable = */ (N == 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
       public ConversionOperatorMixin<
           Self, typename vec<DataT, N>::vector_t,
@@ -1021,7 +1022,7 @@ struct __SYCL_EBO SwizzleMixins
       // per the SYCL 2020 specification:
       public ConversionOperatorMixin<Self, vec<DataT, N>,
                                      /* Explicit = */ false,
-                                     /* Enable = */ (N > 1)>,
+                                     /* Enable = */ true>,
       public ConversionOperatorMixin<Self, bool,
                                      /* Explicit = */ true,
                                      /* Enable = */ (N > 1)>
@@ -1162,7 +1163,7 @@ private:
   template <class To> To convertOperatorImpl() const {
     if constexpr (std::is_same_v<To, DataT> && NumElements == 1) {
       return (*this)[0];
-    } else if constexpr (std::is_same_v<To, ResultVec> && NumElements > 1) {
+    } else if constexpr (std::is_same_v<To, ResultVec>) {
       return ResultVec{this->Vec[Indexes]...};
 #ifdef __SYCL_DEVICE_ONLY__
     } else if constexpr (std::is_same_v<To, vector_t>) {
