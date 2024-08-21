@@ -107,7 +107,8 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
                sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::exception(make_error_code(errc::invalid),
+    throw sycl::exception(
+        make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
@@ -175,7 +176,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr & Context,
+void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
                                    bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
