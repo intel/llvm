@@ -467,17 +467,25 @@ namespace detail {
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-template <typename Self, typename To, bool Explicit, bool Enable>
+enum class ConversionOpType { conv_regular, conv_explicit, conv_template };
+template <typename Self, typename To, ConversionOpType ConvType, bool Enable>
 struct ConversionOperatorMixin {};
 template <typename Self, typename To>
-struct ConversionOperatorMixin<Self, To, false, true> {
+struct ConversionOperatorMixin<Self, To, ConversionOpType::conv_regular, true> {
   operator To() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
   }
 };
 template <typename Self, typename To>
-struct ConversionOperatorMixin<Self, To, true, true> {
+struct ConversionOperatorMixin<Self, To, ConversionOpType::conv_explicit, true> {
   explicit operator To() const {
+    return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
+  }
+};
+template <typename Self, typename To>
+struct ConversionOperatorMixin<Self, To, ConversionOpType::conv_template, true> {
+  template <class T, typename = std::enable_if_t<std::is_same_v<T, To>>>
+  operator T() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
   }
 };
@@ -1008,12 +1016,12 @@ struct __SYCL_EBO SwizzleMixins
       public ByteShiftsNonAssignMixin<Self, DataT, N>,
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Self, DataT,
-                                     /* Explicit = */ false,
+                                     ConversionOpType::conv_regular,
                                      /* Enable = */ (N == 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
       public ConversionOperatorMixin<
           Self, typename vec<DataT, N>::vector_t,
-          /* Explicit = */ true,
+          ConversionOpType::conv_template,
           // if `vector_t` and `DataT` are the same, then the `operator DataT`
           // from the above is enough.
           !std::is_same_v<DataT, typename vec<DataT, N>::vector_t>>,
@@ -1021,10 +1029,10 @@ struct __SYCL_EBO SwizzleMixins
       // Conversion to sycl::vec, must be available only when `NumElements > 1`
       // per the SYCL 2020 specification:
       public ConversionOperatorMixin<Self, vec<DataT, N>,
-                                     /* Explicit = */ false,
+                                     ConversionOpType::conv_regular,
                                      /* Enable = */ true>,
       public ConversionOperatorMixin<Self, bool,
-                                     /* Explicit = */ true,
+                                     ConversionOpType::conv_explicit,
                                      /* Enable = */ (N > 1)>
 
 {
@@ -1157,7 +1165,7 @@ private:
 #endif // __SYCL_DEVICE_ONLY__
 
   // This mixin calls `convertOperatorImpl` below so has to be a friend.
-  template <typename Self, typename To, bool Explicit, bool Enable>
+  template <typename Self, typename To, ConversionOpType ConvType, bool Enable>
   friend struct ConversionOperatorMixin;
 
   template <class To> To convertOperatorImpl() const {
@@ -1260,16 +1268,18 @@ using vector_t =
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
 class __SYCL_EBO vec
-    : public detail::ConversionOperatorMixin<vec<DataT, NumElements>, DataT,
-                                             /* Explicit = */ false,
-                                             /* Enable = */ NumElements == 1>,
-      public detail::ConversionOperatorMixin<vec<DataT, NumElements>, bool,
-                                             /* Explicit = */ true,
-                                             /* Enable = */ (NumElements > 1)>,
+    : public detail::ConversionOperatorMixin<
+          vec<DataT, NumElements>, DataT,
+          detail::ConversionOpType::conv_regular,
+          /* Enable = */ NumElements == 1>,
+      public detail::ConversionOperatorMixin<
+          vec<DataT, NumElements>, bool,
+          detail::ConversionOpType::conv_explicit,
+          /* Enable = */ (NumElements > 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
       public detail::ConversionOperatorMixin<
           vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
-          /* Explicit = */ true,
+          detail::ConversionOpType::conv_template,
           // if `vector_t` and `DataT` are the same, then the `operator DataT`
           // from the above is enough.
           !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
@@ -1304,7 +1314,8 @@ public:
 private:
 #endif // __SYCL_DEVICE_ONLY__
 
-  template <typename Self, typename To, bool Explicit, bool Enable>
+  template <typename Self, typename To, detail::ConversionOpType ConvType,
+            bool Enable>
   friend struct detail::ConversionOperatorMixin;
 
   template <class To> To convertOperatorImpl() const {
@@ -1403,7 +1414,8 @@ public:
   template <
       typename... argTN,
       typename = std::enable_if_t<
-          (NumElements > 1 && ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+          // TODO: Remove always true condition
+          (NumElements >= 1 && ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
            ((num_elements<argTN>() + ...)) == NumElements)>>
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
@@ -1427,7 +1439,7 @@ public:
    // TODO: current draft would use non-template `vector_t` as an operand,
    // causing sycl::vec<sycl::half, N>{1} to go through different paths on
    // host/device, open question in the specification.
-   explicit constexpr vec(vector_t_ openclVector)
+   constexpr vec(vector_t_ openclVector)
        // FIXME: Doesn't work when instantiated for 3-elements vectors,
        // indetermined padding can't be used to initialize constexpr std::array
        // storage.
