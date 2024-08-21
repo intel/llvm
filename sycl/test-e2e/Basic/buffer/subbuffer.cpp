@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// See https://github.com/intel/llvm/issues/15151
+// UNSUPPORTED: (opencl && gpu)
+
 //
 //==---------- subbuffer.cpp --- sub-buffer basic test ---------------------==//
 //
