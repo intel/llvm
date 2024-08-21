@@ -18,9 +18,9 @@ bool testAndOperator(const std::string &typeName) {
   q.submit([&](sycl::handler &cgh) {
      sycl::accessor acc{buffer, cgh, sycl::write_only};
      cgh.parallel_for(sycl::range<1>{1}, [=](sycl::id<1> id) {
-       auto testVec1 = sycl::vec<T, 2>(static_cast<T>(1));
-       auto testVec2 = sycl::vec<T, 2>(static_cast<T>(2));
-       sycl::vec<ResultT, 2> resVec;
+       auto testVec1 = sycl::vec<T, 1>(static_cast<T>(1));
+       auto testVec2 = sycl::vec<T, 1>(static_cast<T>(2));
+       sycl::vec<ResultT, 1> resVec;
 
        ResultT expected = static_cast<ResultT>(
            -(static_cast<ResultT>(1) && static_cast<ResultT>(2)));
@@ -41,10 +41,7 @@ bool testAndOperator(const std::string &typeName) {
        // Both swizzle
        resVec = testVec1.template swizzle<sycl::elem::s0>() &&
                 testVec2.template swizzle<sycl::elem::s0>();
-       // One-element vec/swizzles have most of hidden friend operators disabled
-       // and rely on implicit conversions to scalars. As such, the above
-       // produces `1`, instead of `-1`. Transform it for the verification:
-       acc[4] = -resVec[0];
+       acc[4] = resVec[0];
      });
    }).wait();
 
