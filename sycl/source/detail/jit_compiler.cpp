@@ -664,7 +664,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   AddToConfigHandle(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
   auto SetUpOption = [](const std::string &Value) {
-    ::jit_compiler::JITEnvVar Option(Value.size(), Value.data());
+    ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
     return Option;
   };
   ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(

@@ -23,9 +23,9 @@ public:
 
   explicit DynArray(size_t Size) { init(Size); }
 
-  explicit DynArray(size_t Size, const void *Data) {
-    init(Size);
-    memcpy(static_cast<void *>(this->begin()), Data, Size * sizeof(T));
+  template <typename InputIt> DynArray(InputIt Begin, InputIt End) {
+    init(End - Begin);
+    std::copy(Begin, End, this->begin());
   }
 
   ~DynArray() { deinit(); }
