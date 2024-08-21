@@ -175,7 +175,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(const ContextImplPtr & /*Context*/,
+void SYCLMemObjT::determineHostPtr(const ContextImplPtr & Context,
                                    bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
@@ -187,6 +187,8 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr & /*Context*/,
   // 2. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
+  if (!Context && !MOpenCLInterop && !MHostPtrReadOnly)
+    InitFromUserData = true;
 
   if (InitFromUserData) {
     assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
