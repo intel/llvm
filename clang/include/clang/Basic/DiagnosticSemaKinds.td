@@ -12327,7 +12327,9 @@ def err_bit_cast_non_trivially_copyable : Error<
 def err_bit_cast_type_size_mismatch : Error<
   "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
 
-// SYCL-specific diagnostics
+// SYCL-specific DiagnosticSemaKinds
+def warn_sycl_incorrect_use_attribute_non_kernel_function : Warning<
+  "%0 attribute can only be applied to a SYCL kernel function">, InGroup<SyclStrict>;
 def warn_sycl_kernel_num_of_template_params : Warning<
   "'sycl_kernel' attribute only applies to a function template with at least"
   " two template parameters">, InGroup<IgnoredAttributes>;
@@ -12808,4 +12810,5 @@ def err_acc_loop_spec_conflict
 // AMDGCN builtins diagnostics
 def err_amdgcn_global_load_lds_size_invalid_value : Error<"invalid size value">;
 def note_amdgcn_global_load_lds_size_valid_value : Note<"size must be 1, 2, or 4">;
+
 } // end of sema component.
