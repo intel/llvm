@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d8f1c98e48e98ea2f6a227af82366734fcde977e
-  # Merge: 6e8efa3d 9e824480
+  # commit d0a50523006fa6f283da6a36811081add3bb22fc
+  # Merge: 804851e4 04deb8b3
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 14 11:46:59 2024 +0100
-  #     Merge pull request #1946 from callumfare/callum/update_ur_trace_env_var
-  #     Update expected values of SYCL_UR_TRACE environment variable
-  set(UNIFIED_RUNTIME_TAG d8f1c98e48e98ea2f6a227af82366734fcde977e)
+  # Date:   Tue Aug 20 16:28:30 2024 +0100
+  #    Merge pull request #1940 from RossBrunton/ross/urcall
+  #    [XPTI] Use `ur.call` rather than `ur` in XPTI
+  set(UNIFIED_RUNTIME_TAG d0a50523006fa6f283da6a36811081add3bb22fc)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
