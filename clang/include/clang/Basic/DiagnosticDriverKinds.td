@@ -390,8 +390,6 @@ def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def err_drv_fsycl_with_pch : Error<
   "precompiled header generation is not supported with '-fsycl'">;
-def err_drv_fsycl_unsupported_with_opt
-  : Error<"'%0' is not supported with '-fsycl'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<

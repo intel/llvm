@@ -1118,7 +1118,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!HasValidSYCLRuntime)
       return;
     if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
-      Diag(clang::diag::err_drv_fsycl_unsupported_with_opt)
+      Diag(clang::diag::err_drv_unsupported_opt_sycl)
           << IncompatArg->getSpelling();
   };
   // -static-libstdc++ is not compatible with -fsycl.
