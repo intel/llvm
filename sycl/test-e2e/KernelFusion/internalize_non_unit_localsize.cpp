@@ -92,7 +92,7 @@ int main() {
   for (int i = 0; i < dataSize; ++i) {
     assert(out[i] == (i * i + static_cast<char>(i ^ 0xAA)) &&
            "Computation error");
-    assert(tmp[i].v[1] == -1 && tmp2[i] == -1 && "Not internalized");
+    assert(tmp[i].v.y() == -1 && tmp2[i] == -1 && "Not internalized");
   }
 
   return 0;
