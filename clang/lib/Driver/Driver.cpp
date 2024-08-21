@@ -2755,8 +2755,7 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
     return false;
   }
 
-  if (C.getArgs().hasArg(options::OPT_print_libgcc_file_name)) {
-    ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(C.getArgs());
+  auto initializeTargets = [&]() {
     const llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
     // The 'Darwin' toolchain is initialized only when its arguments are
     // computed. Get the default arguments for OFK_None to ensure that
@@ -2766,6 +2765,12 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
     // FIXME: For some more esoteric targets the default toolchain is not the
     //        correct one.
     C.getArgsForToolChain(&TC, Triple.getArchName(), Action::OFK_None);
+    return Triple;
+  };
+
+  if (C.getArgs().hasArg(options::OPT_print_libgcc_file_name)) {
+    ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(C.getArgs());
+    const llvm::Triple Triple = initializeTargets();
     RegisterEffectiveTriple TripleRAII(TC, Triple);
     switch (RLT) {
     case ToolChain::RLT_CompilerRT:
@@ -2809,7 +2814,9 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
   }
 
   if (C.getArgs().hasArg(options::OPT_print_target_triple)) {
-    llvm::outs() << TC.getTripleString() << "\n";
+    initializeTargets();
+    llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
+    llvm::outs() << Triple.getTriple() << "\n";
     return false;
   }
 
