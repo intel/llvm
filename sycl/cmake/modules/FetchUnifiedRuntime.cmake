@@ -124,7 +124,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Mon Aug 19 16:20:45 2024 +0100
   #     Merge pull request #1984 from rafbiels/rafbiels/cuda-stream-race-cond
   #     Fix race condition in CUDA stream creation
-  set(UNIFIED_RUNTIME_TAG 52918b62251fa9b61b959a6af705a57b36eb86aa)
+  set(UNIFIED_RUNTIME_TAG 8165d6d94a46a395d966be08faa014bd09802009)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

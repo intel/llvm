@@ -104,14 +104,22 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                CompileWGSize, nullptr);
 
   size_t CompileMaxWGSize[3] = {0};
-  Plugin->call(urKernelGetGroupInfo, Kernel, Device,
-               UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
-               sizeof(size_t) * 3, CompileMaxWGSize, nullptr);
+  ur_result_t URRes =
+      Plugin->call_nocheck(urKernelGetGroupInfo, Kernel, Device,
+                           UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+                           sizeof(size_t) * 3, CompileMaxWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Plugin->checkUrResult(URRes);
+  }
 
   size_t CompileMaxLinearWGSize = 0;
-  Plugin->call(urKernelGetGroupInfo, Kernel, Device,
-               UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE,
-               sizeof(size_t), &CompileMaxLinearWGSize, nullptr);
+  URRes = Plugin->call_nocheck(
+      urKernelGetGroupInfo, Kernel, Device,
+      UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE, sizeof(size_t),
+      &CompileMaxLinearWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Plugin->checkUrResult(URRes);
+  }
 
   size_t MaxWGSize = 0;
   Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
