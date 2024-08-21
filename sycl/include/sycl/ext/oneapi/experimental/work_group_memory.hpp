@@ -69,13 +69,9 @@ public:
     return sycl::address_space_cast<access::address_space::local_space,
                                     IsDecorated, value_type>(ptr);
   }
-  pointer_type operator&() const { return reinterpret_cast<pointer_type>(ptr); }
-  operator reference_type() const {
-    if constexpr (!sycl::detail::is_unbounded_array_v<DataT>) {
+  DataT * operator&() const { return reinterpret_cast<DataT *>(ptr); }
+  operator DataT &() const {
       return *(this->operator&());
-    } else {
-      return std::reference_wrapper<pointer_type>(this->operator&());
-    }
   }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
@@ -89,6 +85,12 @@ public:
 private:
   decoratedPtr ptr;
 };
+
+template <typename DataT>
+inline DataT * work_group_memory<DataT[]>::operator&() const {return reinterpret_cast<DataT *>(ptr); }
+
+template <typename DataT>
+inline work_group_memory<DataT[]>::operator DataT*() const {return operator&();}
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 
