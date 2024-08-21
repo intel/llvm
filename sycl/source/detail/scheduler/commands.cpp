@@ -2032,6 +2032,7 @@ void instrumentationAddExtraKernelMetadata(
 }
 
 void instrumentationFillCommonData(const std::string &KernelName,
+                                   const std::string &FuncName,
                                    const std::string &FileName, uint64_t Line,
                                    uint64_t Column, const void *const Address,
                                    const QueueImplPtr &Queue,
@@ -2048,8 +2049,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti::payload_t Payload;
   if (!FileName.empty()) {
     // File name has a valid string
-    Payload = xpti::payload_t(KernelName.c_str(), FileName.c_str(), Line,
-                              Column, Address);
+    Payload = xpti::payload_t(FuncName.empty() ? KernelName.c_str()
+                                               : FuncName.c_str(),
+                              FileName.c_str(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
@@ -2097,8 +2099,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
@@ -2117,9 +2120,17 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
-  instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
-                                CodeLoc.columnNumber(), Address, Queue,
-                                FromSource, InstanceID, CmdTraceEvent);
+
+  // If code location is above sycl layer, use function name from code
+  // location instead of kernel name in event payload
+  std::string FuncName = (!IsTopCodeLoc && CodeLoc.functionName())
+                             ? CodeLoc.functionName()
+                             : std::string();
+
+  instrumentationFillCommonData(KernelName, FuncName, FileName,
+                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
+                                Address, Queue, FromSource, InstanceID,
+                                CmdTraceEvent);
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS
@@ -2146,6 +2157,7 @@ void ExecCGCommand::emitInstrumentationData() {
     return;
 
   std::string KernelName;
+  std::string FuncName;
   std::optional<bool> FromSource;
   switch (MCommandGroup->getType()) {
   case detail::CGType::Kernel: {
@@ -2160,8 +2172,13 @@ void ExecCGCommand::emitInstrumentationData() {
     break;
   }
 
+  // If code location is above sycl layer, use function name from code
+  // location instead of kernel name in event payload
+  if (!MCommandGroup->MIsTopCodeLoc)
+    FuncName = MCommandGroup->MFunctionName;
+
   xpti_td *CmdTraceEvent = nullptr;
-  instrumentationFillCommonData(KernelName, MCommandGroup->MFileName,
+  instrumentationFillCommonData(KernelName, FuncName, MCommandGroup->MFileName,
                                 MCommandGroup->MLine, MCommandGroup->MColumn,
                                 MAddress, MQueue, FromSource, MInstanceID,
                                 CmdTraceEvent);

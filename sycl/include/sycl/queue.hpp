@@ -356,9 +356,11 @@ public:
     };
 
     return submit_impl_and_postprocess(CGF, TlsCodeLocCapture.query(),
-                                       PostProcess);
+                                       PostProcess,
+                                       TlsCodeLocCapture.isToplevel());
 #else
-    return submit_impl(CGF, TlsCodeLocCapture.query());
+    return submit_impl(CGF, TlsCodeLocCapture.query(),
+                       TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -395,9 +397,11 @@ public:
     };
 
     return submit_impl_and_postprocess(CGF, SecondaryQueue,
-                                       TlsCodeLocCapture.query(), PostProcess);
+                                       TlsCodeLocCapture.query(), PostProcess,
+                                       TlsCodeLocCapture.isToplevel());
 #else
-    return submit_impl(CGF, SecondaryQueue, TlsCodeLocCapture.query());
+    return submit_impl(CGF, SecondaryQueue, TlsCodeLocCapture.query(),
+                       TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -2690,13 +2694,20 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
+  event submit_impl(std::function<void(handler &)> CGH,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// A template-free version of submit_without_event.
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc);
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -2712,7 +2723,8 @@ private:
     // TODO: Revisit whether we can avoid this.
     submit(CGF, TlsCodeLocCapture.query());
 #else
-    submit_without_event_impl(CGF, TlsCodeLocCapture.query());
+    submit_without_event_impl(CGF, TlsCodeLocCapture.query(),
+                              TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -2732,6 +2744,10 @@ private:
   event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess,
+                                    bool IsTopCodeLoc);
   /// A template-free version of submit.
   /// \param CGH command group function/handler
   /// \param secondQueue fallback queue
@@ -2742,6 +2758,11 @@ private:
                                     queue secondQueue,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    queue secondQueue,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess,
+                                    bool IsTopCodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.

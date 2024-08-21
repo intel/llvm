@@ -188,7 +188,8 @@ public:
     std::vector<detail::EventImplPtr> MEvents;
   };
 
-  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {})
+  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
+     bool IsTopCodeLoc = true)
       : MType(Type), MData(std::move(D)) {
     // Capture the user code-location from Q.submit(), Q.parallel_for()
     // etc for later use; if code location information is not available,
@@ -199,6 +200,7 @@ public:
       MFileName = loc.fileName();
     MLine = loc.lineNumber();
     MColumn = loc.columnNumber();
+    MIsTopCodeLoc = IsTopCodeLoc;
   }
 
   CG(CG &&CommandGroup) = default;
@@ -240,6 +242,7 @@ public:
   std::string MFunctionName, MFileName;
   // Storage for line and column of code location
   int32_t MLine, MColumn;
+  bool MIsTopCodeLoc;
 };
 
 /// "Execute kernel" command group class.
