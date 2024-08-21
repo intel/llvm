@@ -6181,6 +6181,9 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
   if (getLangOpts().SYCLIsDevice)
     addGlobalIntelFPGAAnnotation(D, GV);
 
+  // Set the llvm linkage type as appropriate.
+  llvm::GlobalValue::LinkageTypes Linkage = getLLVMLinkageVarDefinition(D);
+
   if (getLangOpts().SYCLIsDevice) {
     const RecordDecl *RD = D->getType()->getAsRecordDecl();
 
@@ -6191,8 +6194,27 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
         AddGlobalSYCLIRAttributes(GV, RD);
       // If VarDecl has a type decorated with SYCL device_global attribute 
       // emit IR attribute 'sycl-unique-id'.
-      if (RD->hasAttr<SYCLDeviceGlobalAttr>())
+      if (RD->hasAttr<SYCLDeviceGlobalAttr>()) {
         addSYCLUniqueID(GV, D, Context);
+        // SYCL device globals are initialized externally
+        GV->setExternallyInitialized(true);
+        if (Linkage == llvm::GlobalValue::InternalLinkage) {
+          // Despite being `static`, static device globals need to be linked
+          // externally as symbols must persist across the host-device boundary
+          // and not removed or tampered with in later optimizations. Since we
+          // are linking these symbols externally we need a way to 'hide' the
+          // static device global symbols from other TUs that may have the same
+          // static symbols. We can 'hide' the symbols from other TUs despite
+          // being linked externally by prefixing the symbol with a UID string.
+          //
+          // Also prefix the symbol with __ so the symbol is not in user space.
+          auto builtinString =
+              "__" + SYCLUniqueStableIdExpr::ComputeName(Context, D);
+          GV->setName(builtinString);
+          Linkage = llvm::GlobalValue::ExternalLinkage;
+        }
+      }
+
       // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
       // 'sycl-unique-id'.
       if (const auto *Attr = RD->getAttr<SYCLTypeAttr>())
@@ -6212,9 +6234,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
     GlobalsRestrict->addOperand(Node);
   }
 
-  // Set the llvm linkage type as appropriate.
-  llvm::GlobalValue::LinkageTypes Linkage = getLLVMLinkageVarDefinition(D);
-
   // CUDA B.2.1 "The __device__ qualifier declares a variable that resides on
   // the device. [...]"
   // CUDA B.2.2 "The __constant__ qualifier, optionally used together with
@@ -6233,20 +6252,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       getCUDARuntime().internalizeDeviceSideVar(D, Linkage);
     }
     getCUDARuntime().handleVarRegistration(D, *GV);
-  }
-
-  if (LangOpts.SYCLIsDevice) {
-    const RecordDecl *RD = D->getType()->getAsRecordDecl();
-    if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>()) {
-      // SYCL device globals are initialized externally
-      GV->setExternallyInitialized(true);
-      // Since static device global symbols need to cross host device boundary,
-      // don't allow internal linkage as it might tamper with the device global
-      // symbol
-      if (Linkage == llvm::GlobalValue::InternalLinkage &&
-          (getTriple().isAMDGCN() || getTriple().isNVPTX()))
-        Linkage = llvm::GlobalValue::ExternalLinkage;
-    }
   }
 
   GV->setInitializer(Init);
