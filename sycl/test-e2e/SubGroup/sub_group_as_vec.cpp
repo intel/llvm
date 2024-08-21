@@ -3,8 +3,6 @@
 //
 // RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: ze_debug
 
 #include "helper.hpp"
 #include <cassert>

@@ -355,13 +355,6 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  // TODO: Remove from public header files and implementation during the next
-  // ABI Breaking window.
-  if (std::getenv("SYCL_PI_TRACE")) {
-    std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
-    std::exit(1);
-  }
-
   bool PrintUrTrace =
       sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
 
