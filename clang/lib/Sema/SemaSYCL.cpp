@@ -16,6 +16,7 @@
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/TemplateArgumentVisitor.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Analysis/CallGraph.h"
 #include "clang/Basic/Attributes.h"

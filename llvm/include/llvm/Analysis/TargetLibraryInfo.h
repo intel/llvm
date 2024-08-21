@@ -21,9 +21,6 @@
 namespace llvm {
 
 template <typename T> class ArrayRef;
-class Function;
-class Module;
-class Triple;
 
 /// Describes a possible implementation of a floating point builtin operation.
 struct AltMathDesc {
