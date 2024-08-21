@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda, hip
+// UNSUPPORTED: cuda
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -12,7 +12,6 @@
 
 using namespace sycl;
 
-SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_2(int *ptr, int start) {
@@ -25,8 +24,9 @@ void ff_2(int *ptr, int start) {
 
 // Templated free function definition.
 template <typename T>
-SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
-    ext::oneapi::experimental::single_task_kernel)) void ff_3(T *ptr, T start) {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void ff_3(T *ptr, T start) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
   nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();

@@ -16,6 +16,7 @@
 
 #include <cstring> // strlen
 #include <numeric> // for std::accumulate
+#include <regex>
 #include <sstream>
 
 namespace sycl {
@@ -130,6 +131,64 @@ std::string IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
   return ss.str();
 }
 
+std::string InvokeOclocQuery(const std::vector<uint32_t> &IPVersionVec,
+                             const char *identifier) {
+
+  std::string QueryLog = "";
+
+  // handles into ocloc shared lib
+  static void *oclocInvokeHandle = nullptr;
+  static void *oclocFreeOutputHandle = nullptr;
+  std::error_code the_errc = make_error_code(errc::runtime);
+
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc);
+
+  uint32_t NumOutputs = 0;
+  uint8_t **Outputs = nullptr;
+  uint64_t *OutputLengths = nullptr;
+  char **OutputNames = nullptr;
+
+  std::vector<const char *> Args = {"ocloc", "query"};
+  std::string IPVersionsStr = IPVersionsToString(IPVersionVec);
+  if (!IPVersionsStr.empty()) {
+    Args.push_back("-device");
+    Args.push_back(IPVersionsStr.c_str());
+  }
+  Args.push_back(identifier);
+
+  decltype(::oclocInvoke) *OclocInvokeFunc =
+      reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
+
+  int InvokeError = OclocInvokeFunc(
+      Args.size(), Args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+      nullptr, &NumOutputs, &Outputs, &OutputLengths, &OutputNames);
+
+  // Gather the results.
+  for (uint32_t i = 0; i < NumOutputs; i++) {
+    if (!strcmp(OutputNames[i], "stdout.log")) {
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        QueryLog.append(LogText, OutputLengths[i]);
+      }
+    }
+  }
+
+  // Try to free memory before reporting possible error.
+  decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
+      reinterpret_cast<decltype(::oclocFreeOutput) *>(oclocFreeOutputHandle);
+  int MemFreeError =
+      OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
+
+  if (InvokeError)
+    throw sycl::exception(the_errc,
+                          "ocloc reported errors: {\n" + QueryLog + "\n}");
+
+  if (MemFreeError)
+    throw sycl::exception(the_errc, "ocloc cannot safely free resources");
+
+  return QueryLog;
+}
+
 spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
                              const std::vector<uint32_t> &IPVersionVec,
                              const std::vector<std::string> &UserArgs,
@@ -167,13 +226,85 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   Args.push_back("-file");
   Args.push_back(SourceName);
 
-  // device
-  std::string IPVersionsStr = IPVersionsToString(IPVersionVec);
-  if (!IPVersionsStr.empty()) {
-    Args.push_back("-device");
-    Args.push_back(IPVersionsStr.c_str());
-  }
+  std::string IPVersionsStr;
+  std::string OpenCLCFeaturesOption;
+  std::string ExtensionsOption;
+  std::string VersionOption;
+  auto hasSingleDeviceOrSameDevices = [](auto &IPVersionVec) -> bool {
+    auto IPVersion = IPVersionVec.begin();
+    for (auto IPVersionItem = ++std::begin(IPVersionVec);
+         IPVersionItem != std::end(IPVersionVec); IPVersionItem++)
+      if (*IPVersionItem != *IPVersion)
+        return false;
 
+    return true;
+  };
+
+  assert(IPVersionVec.size() >= 1 &&
+         "At least one device must be provided to build_from_source(...).");
+  if (hasSingleDeviceOrSameDevices(IPVersionVec)) {
+    // If we have a single device (or all devices are the same) then pass it
+    // through -device option to enable all extensions supported by that device.
+    IPVersionsStr = IPVersionsToString({IPVersionVec.at(0)});
+    if (!IPVersionsStr.empty()) {
+      Args.push_back("-device");
+      Args.push_back(IPVersionsStr.c_str());
+    }
+  } else {
+    // Currently ocloc -spv_only doesn't produce spirv file when multiple
+    // devices are provided via -device option. That's why in this case we have
+    // to enable common extensions supported by all devices manually.
+
+    // Find maximum opencl version supported by all devices in IPVersionVec.
+    auto OpenCLVersions =
+        InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+    const std::regex VersionRegEx("[0-9].[0-9].[0-9]");
+    std::string const &(*max)(std::string const &, std::string const &) =
+        std::max<std::string>;
+    auto MaxVersion = std::accumulate(
+        std::sregex_token_iterator(OpenCLVersions.begin(), OpenCLVersions.end(),
+                                   VersionRegEx),
+        std::sregex_token_iterator(), std::string("0.0.0"), max);
+
+    // Find common extensions supported by all devices in IPVersionVec.
+    // Lambda to accumulate extensions in the format +extension1,+extension2...
+    // to pass to ocloc as an option.
+    auto Accum = [](const std::string &acc, const std::string &s) {
+      return acc + (acc.empty() ? "+" : ",+") + s;
+    };
+
+    // If OpenCL version is higher that 3.0.0 then we need to enable OpenCL C
+    // features as well in addition to CL extensions.
+    if (MaxVersion >= "3.0.0") {
+      // construct a string which enables common extensions supported by
+      // devices.
+      auto OpenCLCFeatures =
+          InvokeOclocQuery(IPVersionVec, "CL_DEVICE_OPENCL_C_FEATURES");
+      const std::regex OpenCLCRegEx("__opencl_c_[^:]+");
+      auto OpenCLCFeaturesValue = std::accumulate(
+          std::sregex_token_iterator(OpenCLCFeatures.begin(),
+                                     OpenCLCFeatures.end(), OpenCLCRegEx),
+          std::sregex_token_iterator(), std::string(""), Accum);
+      if (OpenCLCFeaturesValue.size()) {
+        OpenCLCFeaturesOption = "-cl-ext=" + OpenCLCFeaturesValue;
+        Args.push_back("-internal_options");
+        Args.push_back(OpenCLCFeaturesOption.c_str());
+      }
+    }
+
+    // Accumulate CL extensions into an option.
+    auto Extensions = InvokeOclocQuery(IPVersionVec, "CL_DEVICE_EXTENSIONS");
+    const std::regex CLRegEx("cl_[^\\s]+");
+    auto ExtensionsValue =
+        std::accumulate(std::sregex_token_iterator(Extensions.begin(),
+                                                   Extensions.end(), CLRegEx),
+                        std::sregex_token_iterator(), std::string(""), Accum);
+    if (ExtensionsValue.size()) {
+      ExtensionsOption = "-cl-ext=" + ExtensionsValue;
+      Args.push_back("-internal_options");
+      Args.push_back(ExtensionsOption.c_str());
+    }
+  }
   // invoke
   decltype(::oclocInvoke) *OclocInvokeFunc =
       reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
@@ -221,69 +352,11 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   return SpirV;
 }
 
-std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
-
-  std::string QueryLog = "";
-
-  // handles into ocloc shared lib
-  static void *oclocInvokeHandle = nullptr;
-  static void *oclocFreeOutputHandle = nullptr;
-  std::error_code the_errc = make_error_code(errc::runtime);
-
-  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc);
-
-  uint32_t NumOutputs = 0;
-  uint8_t **Outputs = nullptr;
-  uint64_t *OutputLengths = nullptr;
-  char **OutputNames = nullptr;
-
-  std::vector<const char *> Args = {"ocloc", "query"};
-  std::vector<uint32_t> IPVersionVec{IPVersion};
-  std::string IPVersionsStr = IPVersionsToString(IPVersionVec);
-  if (!IPVersionsStr.empty()) {
-    Args.push_back("-device");
-    Args.push_back(IPVersionsStr.c_str());
-  }
-  Args.push_back(identifier);
-
-  decltype(::oclocInvoke) *OclocInvokeFunc =
-      reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
-
-  int InvokeError = OclocInvokeFunc(
-      Args.size(), Args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-      nullptr, &NumOutputs, &Outputs, &OutputLengths, &OutputNames);
-
-  // Gather the results.
-  for (uint32_t i = 0; i < NumOutputs; i++) {
-    if (!strcmp(OutputNames[i], "stdout.log")) {
-      if (OutputLengths[i] > 0) {
-        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-        QueryLog.append(LogText, OutputLengths[i]);
-      }
-    }
-  }
-
-  // Try to free memory before reporting possible error.
-  decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
-      reinterpret_cast<decltype(::oclocFreeOutput) *>(oclocFreeOutputHandle);
-  int MemFreeError =
-      OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
-
-  if (InvokeError)
-    throw sycl::exception(the_errc,
-                          "ocloc reported errors: {\n" + QueryLog + "\n}");
-
-  if (MemFreeError)
-    throw sycl::exception(the_errc, "ocloc cannot safely free resources");
-
-  return QueryLog;
-}
-
 bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
   static std::string FeatureLog = "";
   if (FeatureLog.empty()) {
     try {
-      FeatureLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_FEATURES");
+      FeatureLog = InvokeOclocQuery({IPVersion}, "CL_DEVICE_OPENCL_C_FEATURES");
     } catch (sycl::exception &) {
       return false;
     }
@@ -299,7 +372,7 @@ bool OpenCLC_Supports_Version(
   if (VersionLog.empty()) {
     try {
       VersionLog =
-          InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+          InvokeOclocQuery({IPVersion}, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
     } catch (sycl::exception &) {
       return false;
     }
@@ -320,7 +393,7 @@ bool OpenCLC_Supports_Extension(
   if (ExtensionByVersionLog.empty()) {
     try {
       ExtensionByVersionLog =
-          InvokeOclocQuery(IPVersion, "CL_DEVICE_EXTENSIONS_WITH_VERSION");
+          InvokeOclocQuery({IPVersion}, "CL_DEVICE_EXTENSIONS_WITH_VERSION");
     } catch (sycl::exception &) {
       return false;
     }
@@ -371,7 +444,7 @@ bool OpenCLC_Supports_Extension(
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {
   try {
-    std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
+    std::string result = InvokeOclocQuery({IPVersion}, "CL_DEVICE_PROFILE");
     // NOTE: result has \n\n amended. Clean it up.
     // TODO: remove this once the ocloc query is fixed.
     result.erase(std::remove_if(result.begin(), result.end(),

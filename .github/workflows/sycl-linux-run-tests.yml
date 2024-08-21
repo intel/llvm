@@ -62,7 +62,7 @@ on:
         default: ''
         required: False
 
-      reset_gpu:
+      reset_intel_gpu:
         type: string
         required: False
       install_drivers:
@@ -153,8 +153,8 @@ jobs:
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Reset GPU
-      if: inputs.reset_gpu == 'true'
+    - name: Reset Intel GPU
+      if: inputs.reset_intel_gpu == 'true'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
