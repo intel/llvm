@@ -157,7 +157,7 @@ jobs:
     - name: Setup SYCL variables
       run: |
         which clang++ sycl-ls
-        SYCL_PI_TRACE=-1 sycl-ls
+        SYCL_UR_TRACE=-1 sycl-ls
 
     - name: Build e2e tests
       run: >
