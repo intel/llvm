@@ -3291,7 +3291,7 @@ static void encodeTypeForFunctionPointerAuth(const ASTContext &Ctx,
 
   case Type::MemberPointer: {
     OS << "M";
-    const auto *MPT = T->getAs<MemberPointerType>();
+    const auto *MPT = T->castAs<MemberPointerType>();
     encodeTypeForFunctionPointerAuth(Ctx, OS, QualType(MPT->getClass(), 0));
     encodeTypeForFunctionPointerAuth(Ctx, OS, MPT->getPointeeType());
     return;
