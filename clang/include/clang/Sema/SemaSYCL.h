@@ -259,6 +259,8 @@ private:
   // useful notes that shows where the kernel was called.
   bool DiagnosingSYCLKernel = false;
 
+  llvm::DenseSet<const FunctionDecl*> UserProvidedSYCLKernelFunctions;
+
 public:
   SemaSYCL(Sema &S);
 
@@ -299,6 +301,8 @@ public:
 
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
+
+  void addUserProvidedSYCLKernelFunction(const FunctionDecl *fd) { UserProvidedSYCLKernelFunctions.insert(fd); }
 
   /// Lazily creates and returns SYCL integration header instance.
   SYCLIntegrationHeader &getSyclIntegrationHeader() {
@@ -374,6 +378,8 @@ public:
                                    const FunctionDecl *Callee,
                                    SourceLocation Loc,
                                    DeviceDiagnosticReason Reason);
+
+  void performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD);
 
   /// Tells whether given variable is a SYCL explicit SIMD extension's "private
   /// global" variable - global variable in the private address space.
