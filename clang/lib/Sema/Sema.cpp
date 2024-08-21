@@ -1863,7 +1863,7 @@ public:
 
     if (!Caller)
       S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
-    
+
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
       return;

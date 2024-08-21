@@ -6812,54 +6812,68 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
   return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
 }
 
-void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD){
-  
-  if(UserProvidedSYCLKernelFunctions.contains(FD))
+void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
+
+  if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
-  
-  if (const SYCLReqdWorkGroupSizeAttr *Attr = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      bool IsDependent = false; 
-      for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()), 
-                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()), 
-                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
-        IsDependent = IsDependent || (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-      if (!IsDependent)
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;
-  }
- 
- if (const IntelReqdSubGroupSizeAttr *Attr = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-     bool IsDependent = false;
-     if(const auto *CE = dyn_cast<ConstantExpr>(Attr->getValue()))
-        IsDependent = (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-     
-     if (!IsDependent)
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;    
+
+  if (const SYCLReqdWorkGroupSizeAttr *Attr =
+          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+    bool IsDependent = false;
+    for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
+      IsDependent = IsDependent ||
+                    (CE && (CE->isValueDependent() || CE->isTypeDependent()));
+    if (!IsDependent)
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
   }
 
-  if (const SYCLWorkGroupSizeHintAttr *Attr = FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-      bool IsDependent = false; 
-      for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()), 
-                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()), 
-                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
-        IsDependent = IsDependent || (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-      if (!IsDependent)
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;
+  if (const IntelReqdSubGroupSizeAttr *Attr =
+          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    bool IsDependent = false;
+    if (const auto *CE = dyn_cast<ConstantExpr>(Attr->getValue()))
+      IsDependent = (CE && (CE->isValueDependent() || CE->isTypeDependent()));
+
+    if (!IsDependent)
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
   }
-  
+
+  if (const SYCLWorkGroupSizeHintAttr *Attr =
+          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+    bool IsDependent = false;
+    for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
+      IsDependent = IsDependent ||
+                    (CE && (CE->isValueDependent() || CE->isTypeDependent()));
+    if (!IsDependent)
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
+  }
 
   if (const SYCLDeviceHasAttr *Attr = FD->getAttr<SYCLDeviceHasAttr>()) {
-      bool IsDependent = false;
-      for(auto *EA : Attr->aspects())
-         IsDependent = IsDependent|| (EA && (EA->isValueDependent() || EA->isTypeDependent()));
-      
+    bool IsDependent = false;
+    for (auto *EA : Attr->aspects())
+      IsDependent = IsDependent ||
+                    (EA && (EA->isValueDependent() || EA->isTypeDependent()));
 
-      if (!IsDependent)
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;    
+    if (!IsDependent)
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
   }
 
-  if (const VecTypeHintAttr*Attr = FD->getAttr<VecTypeHintAttr>()) {
-     const QualType QT = Attr->getTypeHint();
-     if (!QT->isDependentType())
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;    
+  if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
+    const QualType QT = Attr->getTypeHint();
+    if (!QT->isDependentType())
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
   }
 }
