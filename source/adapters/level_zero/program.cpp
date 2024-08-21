@@ -13,9 +13,9 @@
 #include "logger/ur_logger.hpp"
 
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "context.hpp"
-#else
 #include "v2/context.hpp"
+#else
+#include "context.hpp"
 #endif
 
 extern "C" {
