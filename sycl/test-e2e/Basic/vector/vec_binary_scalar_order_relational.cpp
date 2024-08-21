@@ -1,3 +1,4 @@
+// REQUIRES: preview-breaking-changes-supported
 // RUN: %{build} -fpreview-breaking-changes -o %t.out
 // RUN: %{run} %t.out
 
