@@ -36,7 +36,6 @@
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/detail/vector_convert.hpp>      // for convertImpl
 #include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
 
@@ -54,6 +53,10 @@
 #include <utility>     // for index_sequence, make_...
 
 namespace sycl {
+
+// TODO: Fix in the next ABI breaking windows.
+enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
+
 inline namespace _V1 {
 
 struct elem {
@@ -407,18 +410,6 @@ public:
   static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
 private:
-  // We interpret bool as int8_t, std::byte as uint8_t for conversion to other
-  // types.
-  template <typename T>
-  using ConvertBoolAndByteT =
-      typename detail::map_type<T,
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                                std::byte, /*->*/ std::uint8_t, //
-#endif
-                                bool, /*->*/ std::uint8_t, //
-                                T, /*->*/ T                //
-                                >::type;
-
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
@@ -440,88 +431,10 @@ private:
   }
 
 public:
+  // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
-  vec<convertT, NumElements> convert() const {
-
-    using T = ConvertBoolAndByteT<DataT>;
-    using R = ConvertBoolAndByteT<convertT>;
-    using bfloat16 = sycl::ext::oneapi::bfloat16;
-    static_assert(std::is_integral_v<R> ||
-                      detail::is_floating_point<R>::value ||
-                      std::is_same_v<R, bfloat16>,
-                  "Unsupported convertT");
-
-    using OpenCLT = detail::ConvertToOpenCLType_t<T>;
-    using OpenCLR = detail::ConvertToOpenCLType_t<R>;
-    vec<convertT, NumElements> Result;
-
-    // convertImpl can't be called with the same From and To types and therefore
-    // we need some special processing in a few cases.
-    if constexpr (std::is_same_v<DataT, convertT>) {
-      return *this;
-    } else if constexpr (std::is_same_v<OpenCLT, OpenCLR> ||
-                         std::is_same_v<T, R>) {
-      for (size_t I = 0; I < NumElements; ++I)
-        Result[I] = static_cast<convertT>(getValue(I));
-      return Result;
-    } else {
-
-#ifdef __SYCL_DEVICE_ONLY__
-      using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
-      using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
-
-      auto NativeVector = sycl::bit_cast<vector_t>(*this);
-      using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
-
-      // Whole vector conversion can only be done, if:
-      constexpr bool canUseNativeVectorConvert =
-#ifdef __NVPTX__
-          //  TODO: Likely unnecessary as
-          //  https://github.com/intel/llvm/issues/11840 has been closed
-          //  already.
-          false &&
-#endif
-          NumElements > 1 &&
-          // - vec storage has an equivalent OpenCL native vector it is
-          //   implicitly convertible to. There are some corner cases where it
-          //   is not the case with char, long and long long types.
-          std::is_convertible_v<vector_t, OpenCLVecT> &&
-          std::is_convertible_v<ConvertTVecType, OpenCLVecR> &&
-          // - it is not a signed to unsigned (or vice versa) conversion
-          //   see comments within 'convertImpl' for more details;
-          !detail::is_sint_to_from_uint<T, R>::value &&
-          // - destination type is not bool. bool is stored as integer under the
-          //   hood and therefore conversion to bool looks like conversion
-          //   between two integer types. Since bit pattern for true and false
-          //   is not defined, there is no guarantee that integer conversion
-          //   yields right results here;
-          !std::is_same_v<convertT, bool>;
-
-      if constexpr (canUseNativeVectorConvert) {
-        auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                                OpenCLVecR>(NativeVector);
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
-      } else
-#endif // __SYCL_DEVICE_ONLY__
-      {
-        // Otherwise, we fallback to per-element conversion:
-        for (size_t I = 0; I < NumElements; ++I) {
-          auto val =
-              detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                  getValue(I));
-#ifdef __SYCL_DEVICE_ONLY__
-          // On device, we interpret BF16 as uint16.
-          if constexpr (std::is_same_v<convertT, bfloat16>)
-            Result[I] = sycl::bit_cast<convertT>(val);
-          else
-#endif
-            Result[I] = static_cast<convertT>(val);
-        }
-      }
-    }
-    return Result;
-  }
+  vec<convertT, NumElements> convert() const;
 
   template <typename asT> asT as() const { return sycl::bit_cast<asT>(*this); }
 
