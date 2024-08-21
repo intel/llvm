@@ -50,13 +50,14 @@ UnnormalizeCoordinates(const T &Coords, const range<3> &Range) {
 template <typename T>
 std::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
 UnnormalizeCoordinates(const vec<T, 2> &Coords, const range<3> &Range) {
-  return {Coords[0] * Range[0], Coords[1] * Range[1]};
+  return {Coords.x() * Range[0], Coords.y() * Range[1]};
 }
 
 template <typename T>
 std::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
 UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
-  return {Coords[0] * Range[0], Coords[1] * Range[1], Coords[2] * Range[2], 0};
+  return {Coords.x() * Range[0], Coords.y() * Range[1], Coords.z() * Range[2],
+          0};
 }
 
 // Converts the Coordinates from any dimensions into float4.
@@ -95,15 +96,15 @@ template <typename T>
 std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 2> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
-  return Coords[0] * ElementSize + Coords[1] * ImgPitch[0];
+  return Coords.x() * ElementSize + Coords.y() * ImgPitch[0];
 }
 
 template <typename T>
 std::enable_if_t<std::is_integral_v<T>, size_t>
 getImageOffset(const vec<T, 4> &Coords, const id<3> ImgPitch,
                const uint8_t ElementSize) {
-  return Coords[0] * ElementSize + Coords[1] * ImgPitch[0] +
-         Coords[2] * ImgPitch[1];
+  return Coords.x() * ElementSize + Coords.y() * ImgPitch[0] +
+         Coords.z() * ImgPitch[1];
 }
 
 // Process float4 Coordinates and return the appropriate Pixel
@@ -141,7 +142,7 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
   case image_channel_order::r:
   case image_channel_order::rx:
     Pixel.x() = Ptr[0];
-    Pixel.w() = T{1};
+    Pixel.w() = 1;
     break;
   case image_channel_order::intensity:
     Pixel.x() = Ptr[0];
@@ -153,13 +154,13 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
     Pixel.x() = Ptr[0];
     Pixel.y() = Ptr[0];
     Pixel.z() = Ptr[0];
-    Pixel.w() = T{1};
+    Pixel.w() = 1.0;
     break;
   case image_channel_order::rg:
   case image_channel_order::rgx:
     Pixel.x() = Ptr[0];
     Pixel.y() = Ptr[1];
-    Pixel.w() = T{1};
+    Pixel.w() = 1.0;
     break;
   case image_channel_order::ra:
     Pixel.x() = Ptr[0];
@@ -175,7 +176,7 @@ vec<T, 4> readPixel(T *Ptr, const image_channel_order ChannelOrder,
       Pixel.x() = Ptr[0];
       Pixel.y() = Ptr[1];
       Pixel.z() = Ptr[2];
-      Pixel.w() = T{1};
+      Pixel.w() = 1.0;
     }
     break;
   case image_channel_order::rgba:
@@ -355,7 +356,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // Assuming: (float)c / 31.0f; c represents the 5-bit integer.
     //           (float)c / 63.0f; c represents the 6-bit integer.
     // PixelData.x will be of type std::uint16_t.
-    ushort4 Temp(static_cast<ChannelType>(PixelData.x()));
+    ushort4 Temp(PixelData[0]);
     ushort4 MaskBits(0xF800 /*r:bits 11-15*/, 0x07E0 /*g:bits 5-10*/,
                      0x001F /*b:bits 0-4*/, 0x0000);
     ushort4 ShiftBits(11, 5, 0, 0);
@@ -371,7 +372,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 
     // Extracting each 5-bit channel data.
     // PixelData.x will be of type std::uint16_t.
-    ushort4 Temp(static_cast<ChannelType>(PixelData.x()));
+    ushort4 Temp(PixelData[0]);
     ushort4 MaskBits(0x7C00 /*r:bits 10-14*/, 0x03E0 /*g:bits 5-9*/,
                      0x001F /*b:bits 0-4*/, 0x0000);
     ushort4 ShiftBits(10, 5, 0, 0);
@@ -382,7 +383,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::unorm_int_101010: {
     // Extracting each 10-bit channel data.
     // PixelData.x will be of type std::uint32_t.
-    uint4 Temp(static_cast<ChannelType>(PixelData.x()));
+    uint4 Temp(PixelData[0]);
     uint4 MaskBits(0x3FF00000 /*r:bits 20-29*/, 0x000FFC00 /*g:bits 10-19*/,
                    0x000003FF /*b:bits 0-9*/, 0x00000000);
     uint4 ShiftBits(20, 10, 0, 0);
@@ -586,9 +587,8 @@ convertWriteData(const float4 WriteData,
       // location from the first element.
       // For CL_UNORM_SHORT_555, bit 15 is undefined, R is in bits 14:10, G
       // in bits 9:5 and B in bits 4:0
-      PixelData.x() = (PixelData.x() << static_cast<std::uint16_t>(10)) |
-                      (PixelData.y() << static_cast<std::uint16_t>(5)) |
-                      PixelData.z();
+      PixelData.x() =
+          (PixelData.x() << 10) | (PixelData.y() << 5) | PixelData.z();
       return PixelData.convert<ChannelType>();
     }
   case image_channel_type::unorm_int_101010:
@@ -600,7 +600,7 @@ convertWriteData(const float4 WriteData,
           processFloatDataToPixel<std::uint32_t>(WriteData, 1023.0f);
       PixelData = sycl::min(PixelData, static_cast<ChannelType>(0x3ff));
       PixelData.x() =
-          (PixelData.x() << 20u) | (PixelData.y() << 10u) | PixelData.z();
+          (PixelData.x() << 20) | (PixelData.y() << 10) | PixelData.z();
       return PixelData.convert<ChannelType>();
     }
   case image_channel_type::signed_int8:
