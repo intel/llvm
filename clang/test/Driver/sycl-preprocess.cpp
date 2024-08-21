@@ -8,6 +8,16 @@
 // PREPROC_ONLY: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\.h]]"{{.*}} "-E"
 // PREPROC_ONLY: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-include-footer" "[[INTFOOTER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OUT:.+\.ii]]"
 
+/// Creating a preprocessed file is expected to do an integration header
+/// creation step unless -fno-sycl-use-integration-headers is specified.
+// RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-use-integration-headers -E -o %t_output.ii %s -### 2>&1 \
+// RUN:  | FileCheck -check-prefix PREPROC_ONLY2 %s
+// RUN: %clang_cl -fsycl --offload-new-driver -fno-sycl-use-integration-headers -P -Fi%t_output.ii %s -### 2>&1 \
+// RUN:  | FileCheck -check-prefix PREPROC_ONLY2 %s
+// PREPROC_ONLY2-NOT: "-fsycl-int-header=" 
+// PREPROC_ONLY2-NOT: "-fsycl-int-footer="
+// PREPROC_ONLY2-NOT: "-include-footer"
+
 /// When compiling from preprocessed file, no integration header is expected
 // RUN: touch %t.ii
 // RUN: %clangxx -fsycl --offload-new-driver %t.ii -### 2>&1 | FileCheck -check-prefix PREPROC_IN %s
