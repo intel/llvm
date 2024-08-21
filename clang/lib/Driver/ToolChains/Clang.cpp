@@ -5040,9 +5040,8 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   Arg *UIHArg =
       TCArgs.getLastArg(options::OPT_fsycl_use_integration_headers,
                         options::OPT_fno_sycl_use_integration_headers, false);
-  bool NoUIH = UIHArg &&
-               UIHArg->getOption().matches(
-                   options::OPT_fno_sycl_use_integration_headers);
+  bool NoUIH = UIHArg && UIHArg->getOption().matches(
+                             options::OPT_fno_sycl_use_integration_headers);
 
   bool OutputAdded = false;
   StringRef CompilerName =
@@ -5492,9 +5491,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Arg *UIHArg =
       Args.getLastArg(options::OPT_fsycl_use_integration_headers,
                       options::OPT_fno_sycl_use_integration_headers, false);
-  bool NoUIH = UIHArg &&
-               UIHArg->getOption().matches(
-                   options::OPT_fno_sycl_use_integration_headers);
+  bool NoUIH = UIHArg && UIHArg->getOption().matches(
+                             options::OPT_fno_sycl_use_integration_headers);
 
   if (IsSYCLDevice) {
     if (Triple.isNVPTX()) {

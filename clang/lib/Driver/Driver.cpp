@@ -1083,11 +1083,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // We need to generate a SYCL toolchain if the user specified -fsycl.
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
-  bool HasSYCL =
-      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
-                               false);
-  bool HasValidSYCLRuntime = HasSYCL ||
-      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
+  bool HasSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
+                                          options::OPT_fno_sycl, false);
+  bool HasValidSYCLRuntime = 
+      HasSYCL || C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -1127,9 +1126,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         << SYCLHostCompilerOptions->getSpelling().split('=').first
         << "-fsycl-host-compiler";
 
-  Arg *SYCLUIHArg =
-     C.getInputArgs().getLastArg(options::OPT_fsycl_use_integration_headers,
-                                 options::OPT_fno_sycl_use_integration_headers);
+  Arg *SYCLUIHArg = C.getInputArgs().getLastArg(
+      options::OPT_fsycl_use_integration_headers,
+      options::OPT_fno_sycl_use_integration_headers);
   if (SYCLUIHArg) {
     // -f[no-]sycl-use-integration-headers cannot be used without
     // -fsycl.  (-fintelfpga implies -fsycl).
@@ -1138,9 +1137,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           << "-f[no-]sycl-use-integration-headers";
     // -fno-sycl-use-integration-headers cannot be used with
     // -fsycl-host-compiler.
-    if (SYCLHostCompiler &&
-        SYCLUIHArg->getOption().matches(
-            options::OPT_fno_sycl_use_integration_headers))
+    if (SYCLHostCompiler && SYCLUIHArg->getOption().matches(
+                                options::OPT_fno_sycl_use_integration_headers))
       Diag(clang::diag::err_drv_option_conflict)
           << SYCLHostCompiler->getSpelling().split('=').first
           << "-fno-sycl-use-integration-headers";
@@ -7278,12 +7276,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   if (SYCLFpgaArg &&
       !Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
-  Arg *UIHArg =
-          Args.getLastArg(options::OPT_fsycl_use_integration_headers,
-                          options::OPT_fno_sycl_use_integration_headers);
-  bool NoUseIntHeaders = UIHArg &&
-                         UIHArg->getOption().matches(
-                             options::OPT_fno_sycl_use_integration_headers);
+  Arg *UIHArg = Args.getLastArg(options::OPT_fsycl_use_integration_headers,
+                                options::OPT_fno_sycl_use_integration_headers);
+  bool NoUseIntHeaders = 
+      UIHArg && UIHArg->getOption().matches(
+                    options::OPT_fno_sycl_use_integration_headers);
 
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
