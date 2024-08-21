@@ -327,7 +327,7 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                               void *HostPtr,
                               ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
   ur_image_desc_t Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&
