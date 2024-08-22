@@ -35,7 +35,6 @@
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
-#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -161,7 +160,11 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
+
 namespace ext ::oneapi ::experimental {
+template <typename, typename>
+class work_group_memory;
+
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -169,7 +172,9 @@ namespace ext::oneapi::experimental::detail {
 class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
-
+class work_group_memory_impl;
+size_t getWorkGroupMemoryOwnSize(work_group_memory_impl *);
+size_t getWorkGroupMemoryBufferSize(work_group_memory_impl *);
 class handler_impl;
 class kernel_impl;
 class queue_impl;
@@ -688,9 +693,9 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
-  template <typename DataT>
-  void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> &&Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, sizeof(Arg), ArgIndex);
+  template <typename DataT, typename PropertyListT>
+  void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &&Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, detail::getWorkGroupMemoryOwnSize(static_cast<detail::work_group_memory_impl *>(Arg)), ArgIndex);
 }
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -913,8 +918,6 @@ private:
 
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
-std::cout << sizeof(KernelFunc) << std::endl;
-std::cout << KI::getKernelSize() << std::endl;
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
@@ -2026,8 +2029,8 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
-  template<typename DataT>
-  void set_arg(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT> &&Arg) {
+  template<typename DataT, typename PropertyListT = ext::oneapi::experimental::empty_properties_t>
+  void set_arg(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &&Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
 }
   // set_arg for graph dynamic_parameters

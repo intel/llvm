@@ -26,33 +26,28 @@ public:
   work_group_memory_impl(const work_group_memory_impl &rhs) = default;
   work_group_memory_impl &
   operator=(const work_group_memory_impl &rhs) = default;
-  work_group_memory_impl(size_t sz) : size{sz} {}
-  size_t size;
+  work_group_memory_impl(size_t wgm_size, size_t buffer_size) : wgm_size{ wgm_size }, buffer_size{ buffer_size }  {}
+  size_t wgm_size;
+  size_t buffer_size;
 };
 
+inline size_t getWorkGroupMemoryOwnSize(detail::work_group_memory_impl * wgm) {
+        return wgm->wgm_size;
+}
+inline size_t getWorkGroupMemoryBufferSize(detail::work_group_memory_impl * wgm) {
+        return wgm->buffer_size;
+}
 } // namespace detail
 
 namespace ext::oneapi::experimental {
-
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
 public:
   using value_type = std::remove_all_extents_t<DataT>;
-
 private:
-  // if DataT is an unbounded array, use as reference_type and
-  // pointer_type the decayed type of DataT. This is because
-  // unbounded arrays do not work well with the IR<->SPIRV translator
-  using reference_type =
-      std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
-                         std::decay_t<DataT>, DataT &>;
-  using pointer_type =
-      std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
-                         std::decay_t<DataT>, DataT *>;
   using decoratedPtr = typename sycl::detail::DecoratedType<
-      value_type, access::address_space::local_space>::type *;
-
+      DataT, access::address_space::local_space>::type *;
 public:
   work_group_memory() = default;
   work_group_memory(const work_group_memory &rhs) = default;
@@ -60,11 +55,11 @@ public:
   template <typename T = DataT,
             typename = std::enable_if_t<!sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(handler &)
-      : sycl::detail::work_group_memory_impl(sizeof(DataT)) {}
+      : sycl::detail::work_group_memory_impl(sizeof(work_group_memory), sizeof(DataT)) {}
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(size_t num, handler &cgh)
-      : sycl::detail::work_group_memory_impl(
+      : sycl::detail::work_group_memory_impl(sizeof(work_group_memory),
             num * sizeof(std::remove_extent_t<DataT>)) {}
   template <access::decorated IsDecorated = access::decorated::no>
   multi_ptr<value_type, access::address_space::local_space, IsDecorated>
@@ -72,13 +67,9 @@ public:
     return sycl::address_space_cast<access::address_space::local_space,
                                     IsDecorated, value_type>(ptr);
   }
-  pointer_type operator&() const { return reinterpret_cast<pointer_type>(ptr); }
-  operator reference_type() const {
-    if constexpr (!sycl::detail::is_unbounded_array_v<DataT>) {
-      return *(this->operator&());
-    } else {
-      return this->operator&();
-    }
+  DataT * operator&() const { return ptr; }
+  operator DataT&() const {
+    return *(this->operator&());
   }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
