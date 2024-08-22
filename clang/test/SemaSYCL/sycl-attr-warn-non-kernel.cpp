@@ -7,9 +7,6 @@
 [[sycl::reqd_work_group_size(16)]] void f1(){ // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 }
 
-[[sycl::device_has(sycl::aspect::cpu)]] void f2(){ // expected-warning {{'device_has' attribute can only be applied to a SYCL kernel function}}
-}
-
 [[intel::reqd_sub_group_size(12)]] void f3(){ // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 }
 

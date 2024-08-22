@@ -6857,18 +6857,6 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
           << Attr;
   }
 
-  if (const SYCLDeviceHasAttr *Attr = FD->getAttr<SYCLDeviceHasAttr>()) {
-    bool IsDependent = false;
-    for (auto *EA : Attr->aspects())
-      IsDependent = IsDependent ||
-                    (EA && (EA->isValueDependent() || EA->isTypeDependent()));
-
-    if (!IsDependent)
-      Diag(Attr->getLoc(),
-           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
-  }
-
   if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
     const QualType QT = Attr->getTypeHint();
     if (!QT->isDependentType())
