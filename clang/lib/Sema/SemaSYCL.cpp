@@ -23,8 +23,8 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/Version.h"
-#include "clang/Sema/Initialization.h"
 #include "clang/Sema/Attr.h"
+#include "clang/Sema/Initialization.h"
 #include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Sema.h"
 #include "llvm/ADT/APSInt.h"
@@ -539,11 +539,9 @@ static void collectSYCLAttributes(SemaSYCL &S, FunctionDecl *FD,
   if (!FD->hasAttrs())
     return;
 
-  // In SYCL 1.2.1 mode, the attributes are propagated from the function they
-  // are applied to onto the kernel which calls the function.
-  // In SYCL 2020 mode, the attributes are not propagated to the kernel.
-  if (DirectlyCalled || S.getASTContext().getLangOpts().getSYCLVersion() <
-                            LangOptions::SYCL_2020) {
+  // In SYCL 2020 mode, the attributes aren't propagated from the function they
+  // are applied on to the kernel which calls the function.
+  if (DirectlyCalled) {
     llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
       // FIXME: Make this list self-adapt as new SYCL attributes are added.
       return isa<IntelReqdSubGroupSizeAttr, IntelNamedSubGroupSizeAttr,
@@ -553,14 +551,8 @@ static void collectSYCLAttributes(SemaSYCL &S, FunctionDecl *FD,
                  SYCLIntelMaxWorkGroupSizeAttr, SYCLIntelMaxGlobalWorkDimAttr,
                  SYCLIntelMinWorkGroupsPerComputeUnitAttr,
                  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr,
-                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr>(A);
-    });
-  }
-
-  // Attributes that should not be propagated from device functions to a kernel.
-  if (DirectlyCalled) {
-    llvm::copy_if(FD->getAttrs(), std::back_inserter(Attrs), [](Attr *A) {
-      return isa<SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
+                 SYCLIntelNoGlobalWorkOffsetAttr, SYCLSimdAttr,
+                 SYCLIntelLoopFuseAttr, SYCLIntelMaxConcurrencyAttr,
                  SYCLIntelDisableLoopPipeliningAttr,
                  SYCLIntelInitiationIntervalAttr,
                  SYCLIntelUseStallEnableClustersAttr, SYCLDeviceHasAttr,
@@ -598,18 +590,6 @@ public:
             << SemaSYCL::KernelCallRecursiveFunction;
       }
 
-      if (auto const *FD = dyn_cast<FunctionDecl>(Callee)) {
-        // FIXME: We need check all target specified attributes for error if
-        // that function with attribute can not be called from sycl kernel.  The
-        // info is in ParsedAttr. We don't have to map from Attr to ParsedAttr
-        // currently. Erich is currently working on that in LLVM, once that is
-        // committed we need to change this".
-        if (FD->hasAttr<DLLImportAttr>()) {
-          SemaSYCLRef.Diag(e->getExprLoc(), diag::err_sycl_restrict)
-              << SemaSYCL::KernelCallDllimportFunction;
-          SemaSYCLRef.Diag(FD->getLocation(), diag::note_callee_decl) << FD;
-        }
-      }
       // Specifically check if the math library function corresponding to this
       // builtin is supported for SYCL
       unsigned BuiltinID = Callee->getBuiltinID();
@@ -1085,10 +1065,8 @@ static target getAccessTarget(QualType FieldTy,
       AccTy->getTemplateArgs()[3].getAsIntegral().getExtValue());
 }
 
-// FIXME: Free functions must have void return type, be declared at file scope,
-// outside any namespaces, and with the SYCL_DEVICE attribute. If the
-// SYCL_DEVICE attribute is not specified this function is not entered since the
-// possibility of the function being a free function is ruled out already.
+// FIXME: Free functions must have void return type and be declared at file
+// scope, outside any namespaces.
 static bool isFreeFunction(SemaSYCL &SemaSYCLRef, const FunctionDecl *FD) {
   for (auto *IRAttr : FD->specific_attrs<SYCLAddIRAttributesFunctionAttr>()) {
     SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
@@ -4868,10 +4846,6 @@ public:
                       scope */
                 0 << KernelNameType;
             IsInvalid = true;
-          } else {
-            S.Diag(KernelInvocationFuncLoc, diag::warn_sycl_implicit_decl);
-            S.Diag(DeclNamed->getLocation(), diag::note_previous_decl)
-                << DeclNamed->getName();
           }
         }
       }
@@ -4942,13 +4916,9 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
-  if (KernelParamTy->isReferenceType()) {
-    // passing by reference, so emit warning if not using SYCL 2020
-    if (SemaRef.LangOpts.getSYCLVersion() < LangOptions::SYCL_2020)
-      Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_reference_future);
-  } else {
+  if (not KernelParamTy->isReferenceType()) {
     // passing by value.  emit warning if using SYCL 2020 or greater
-    if (SemaRef.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017)
+    if (SemaRef.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020)
       Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
   }
 
@@ -5338,9 +5308,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLReqdWorkGroupSize: {
     auto *RWGSA = cast<SYCLReqdWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      if (S.SemaRef.AnyWorkGroupSizesDiffer(
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
-              RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim())) {
+      if (S.anyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), RWGSA->getXDim(),
+                                    RWGSA->getYDim(), RWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -5349,7 +5319,7 @@ static void PropagateAndDiagnoseDeviceAttr(
       }
     } else if (auto *Existing =
                    SYCLKernel->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      if (S.SemaRef.CheckMaxAllowedWorkGroupSize(
+      if (S.checkMaxAllowedWorkGroupSize(
               RWGSA->getXDim(), RWGSA->getYDim(), RWGSA->getZDim(),
               Existing->getXDim(), Existing->getYDim(), Existing->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
@@ -5368,9 +5338,9 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLWorkGroupSizeHint: {
     auto *WGSH = cast<SYCLWorkGroupSizeHintAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-      if (S.SemaRef.AnyWorkGroupSizesDiffer(
-              Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
-              WGSH->getXDim(), WGSH->getYDim(), WGSH->getZDim())) {
+      if (S.anyWorkGroupSizesDiffer(Existing->getXDim(), Existing->getYDim(),
+                                    Existing->getZDim(), WGSH->getXDim(),
+                                    WGSH->getYDim(), WGSH->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
                diag::err_conflicting_sycl_kernel_attributes);
         S.Diag(Existing->getLocation(), diag::note_conflicting_attribute);
@@ -5384,7 +5354,7 @@ static void PropagateAndDiagnoseDeviceAttr(
   case attr::Kind::SYCLIntelMaxWorkGroupSize: {
     auto *SIMWGSA = cast<SYCLIntelMaxWorkGroupSizeAttr>(A);
     if (auto *Existing = SYCLKernel->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      if (S.SemaRef.CheckMaxAllowedWorkGroupSize(
+      if (S.checkMaxAllowedWorkGroupSize(
               Existing->getXDim(), Existing->getYDim(), Existing->getZDim(),
               SIMWGSA->getXDim(), SIMWGSA->getYDim(), SIMWGSA->getZDim())) {
         S.Diag(SYCLKernel->getLocation(),
@@ -5458,7 +5428,7 @@ void SemaSYCL::MarkDevices() {
     for (auto *A : T.GetCollectedAttributes())
       PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
-    SemaRef.CheckSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
+    checkSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
   }
 }
 
@@ -6356,7 +6326,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ArrayRef<TemplateArgument> A = TAL->asArray();
       bool FirstParam = true;
       O << "<";
-      for (auto X : A) {
+      for (const auto &X : A) {
         if (FirstParam)
           FirstParam = false;
         else
@@ -6838,44 +6808,4 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
     TSI = getASTContext().getTrivialTypeSourceInfo(Ty, LParen);
 
   return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
-}
-
-void SemaSYCL::handleKernelAttr(Decl *D, const ParsedAttr &AL) {
-  // The 'sycl_kernel' attribute applies only to function templates.
-  const auto *FD = cast<FunctionDecl>(D);
-  const FunctionTemplateDecl *FT = FD->getDescribedFunctionTemplate();
-  assert(FT && "Function template is expected");
-
-  // Function template must have at least two template parameters so it
-  // can be used in OpenCL kernel generation.
-  const TemplateParameterList *TL = FT->getTemplateParameters();
-  if (TL->size() < 2) {
-    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_template_params);
-    return;
-  }
-
-  // The first two template parameters must be typenames.
-  for (unsigned I = 0; I < 2 && I < TL->size(); ++I) {
-    const NamedDecl *TParam = TL->getParam(I);
-    if (isa<NonTypeTemplateParmDecl>(TParam)) {
-      Diag(FT->getLocation(),
-           diag::warn_sycl_kernel_invalid_template_param_type);
-      return;
-    }
-  }
-
-  // Function must have at least one parameter.
-  if (getFunctionOrMethodNumParams(D) < 1) {
-    Diag(FT->getLocation(), diag::warn_sycl_kernel_num_of_function_params);
-    return;
-  }
-
-  // Function must return void.
-  QualType RetTy = getFunctionOrMethodResultType(D);
-  if (!RetTy->isVoidType()) {
-    Diag(FT->getLocation(), diag::warn_sycl_kernel_return_type);
-    return;
-  }
-
-  handleSimpleAttribute<SYCLKernelAttr>(*this, D, AL);
 }
