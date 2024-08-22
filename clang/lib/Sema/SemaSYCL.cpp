@@ -6053,6 +6053,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
+
   O << "\n";
 
   LangOptions LO;
@@ -6143,8 +6144,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // main() function.
 
   if (NeedToEmitDeviceGlobalRegistration) {
+    // Supress the reserved identifier diagnostic that clang generates
+    // for the construct below.
     EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
-
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -6156,7 +6158,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
 
     O << "\n";
-
     EmitPragmaDiagnosticPop(O);
   }
 
@@ -6164,6 +6165,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // whose sole purpose is to run its constructor before the application's
   // main() function.
   if (NeedToEmitHostPipeRegistration) {
+    // Supress the reserved identifier diagnostic that clang generates
+    // for the construct below.
     EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
     O << "namespace {\n";
 
@@ -6742,6 +6745,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
+    // Supress the old-style case diagnostic that clang generates
+    // for the construct below in DeviceGlobalsBuf.
     EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_device_global_registration::__sycl_device_global_"
@@ -6759,6 +6764,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/host_pipe_map.hpp>\n";
     HostPipesOS.flush();
     OS << "namespace sycl::detail {\n";
+    // Supress the old-style case diagnostic that clang generates
+    // for the construct below in HostPipesBuf.
     EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_host_pipe_registration::__sycl_host_pipe_"
