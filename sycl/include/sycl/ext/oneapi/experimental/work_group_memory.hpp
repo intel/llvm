@@ -41,9 +41,12 @@ public:
   using value_type = std::remove_all_extents_t<DataT>;
 
 private:
+  // if DataT is an unbounded array, use as reference_type and
+  // pointer_type the decayed type of DataT. This is because
+  // unbounded arrays do not work well with the IR<->SPIRV translator
   using reference_type =
       std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
-                         std::decay_t<DataT> &, DataT &>;
+                         std::decay_t<DataT>, DataT &>;
   using pointer_type =
       std::conditional_t<sycl::detail::is_unbounded_array_v<DataT>,
                          std::decay_t<DataT>, DataT *>;
@@ -74,7 +77,7 @@ public:
     if constexpr (!sycl::detail::is_unbounded_array_v<DataT>) {
       return *(this->operator&());
     } else {
-      return std::reference_wrapper<pointer_type>(this->operator&());
+      return this->operator&();
     }
   }
   template <typename T = DataT,
