@@ -11182,13 +11182,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 }
 
 ur_result_t context_t::tearDown() {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
     if (enableLeakChecking) {
         getContext()->refCountContext->logInvalidReferences();
-        getContext()->refCountContext->clear();
     }
-    return result;
+
+    return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur_validation_layer
