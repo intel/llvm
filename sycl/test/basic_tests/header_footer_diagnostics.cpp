@@ -5,7 +5,4 @@
 
 #include <sycl/sycl.hpp>
 sycl::ext::oneapi::experimental::device_global<int> devGlobVar;
-int main(int argc, char** argv)
-{
-  return 0;
-}
+int main(int argc, char** argv) { return 0; }
