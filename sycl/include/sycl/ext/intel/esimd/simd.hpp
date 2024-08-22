@@ -85,6 +85,7 @@ public:
   simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
       : simd(static_cast<raw_vector_type>(v)) {}
 
+  // Implicit conversion constructor from simd_view
   template <typename BaseTy>
   simd(simd_view<BaseTy, region1d_t<Ty, N, 1>> &v) : simd(v.read()) {}
 
