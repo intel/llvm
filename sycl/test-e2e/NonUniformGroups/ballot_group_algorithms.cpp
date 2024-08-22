@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_ballot_group
 
