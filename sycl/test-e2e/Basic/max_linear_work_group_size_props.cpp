@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 // This property is not yet supported by all UR adapters
-// XFAIL: level_zero, opencl
+// XFAIL: level_zero, opencl, hip
 
 #include <sycl/detail/core.hpp>
 
