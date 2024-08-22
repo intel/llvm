@@ -275,7 +275,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     KernelMaxWorkGroupSize);
       }
 
-      if (auto MaxLinearWGSize = getKernelSingleEltMetadata<uint32_t>(
+      if (auto MaxLinearWGSize = getKernelSingleEltMetadata<uint64_t>(
               Func, "max_linear_work_group_size")) {
         MetadataNames.push_back(Func.getName().str() +
                                 "@max_linear_work_group_size");
