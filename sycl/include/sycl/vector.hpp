@@ -421,10 +421,10 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
 #endif
 
 namespace sycl {
-inline namespace _V1 {
-
+// TODO: Fix in the next ABI breaking windows.
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
+inline namespace _V1 {
 struct elem {
   static constexpr int x = 0;
   static constexpr int y = 1;
