@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2184e803c2f34b35ef66b2a9d28529a17b1e5853
-  # Merge: 320f633e 85c2c04f
+  # commit 40a790fa5edaa635f49ce2e7342bfa5e5b359694
+  # Merge: 2f67b38d 5e240cf8
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 21 16:35:37 2024 +0100
-  #    Merge pull request #1873 from PietroGhg/pietro/max_alloc
-  #    [NATIVECPU] Support UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE
-  set(UNIFIED_RUNTIME_TAG 2184e803c2f34b35ef66b2a9d28529a17b1e5853)
+  # Date:   Thu Aug 22 14:04:32 2024 +0100
+  #    Merge pull request #1995 from kswiecicki/refcount-clear
+  #    Coverity fixes
+  set(UNIFIED_RUNTIME_TAG 40a790fa5edaa635f49ce2e7342bfa5e5b359694)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
