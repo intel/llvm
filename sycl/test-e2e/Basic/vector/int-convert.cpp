@@ -42,12 +42,12 @@ bool check_vectors_equal(sycl::vec<T, 4> a, sycl::vec<T, 4> b,
       a.x() == b.x() && a.y() == b.y() && a.z() == b.z() && a.w() == b.w();
   if (!result) {
     std::cout << fail_message << std::endl;
-    std::cout << "\t{" << static_cast<int>(a[0]) << ", "
-              << static_cast<int>(a[1]) << ", " << static_cast<int>(a[2])
-              << ", " << static_cast<int>(a[3]) << "} vs {"
-              << static_cast<int>(b[0]) << ", " << static_cast<int>(b[1])
-              << ", " << static_cast<int>(b[2]) << ", "
-              << static_cast<int>(b[3]) << "}" << std::endl;
+    std::cout << "\t{" << static_cast<int>(a.x()) << ", "
+              << static_cast<int>(a.y()) << ", " << static_cast<int>(a.z())
+              << ", " << static_cast<int>(a.w()) << "} vs {"
+              << static_cast<int>(b.x()) << ", " << static_cast<int>(b.y())
+              << ", " << static_cast<int>(b.z()) << ", "
+              << static_cast<int>(b.w()) << "}" << std::endl;
   }
 
   return result;
@@ -87,8 +87,8 @@ template <typename From, typename To> bool check_convert(sycl::queue q) {
   // it here for now as well.
   // See https://github.com/KhronosGroup/SYCL-Docs/issues/492
   sycl::vec<To, 4> reference{
-      static_cast<To>(input[0]), static_cast<To>(input[1]),
-      static_cast<To>(input[2]), static_cast<To>(input[3])};
+      static_cast<To>(input.x()), static_cast<To>(input.y()),
+      static_cast<To>(input.z()), static_cast<To>(input.w())};
   bool device_matches_reference = check_vectors_equal(
       deviceResult, reference, "device results don't match reference " + test);
   bool host_matches_reference = check_vectors_equal(

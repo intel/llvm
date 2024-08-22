@@ -453,6 +453,32 @@ struct elem {
 };
 
 namespace detail {
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename DataT>
+using element_type_for_vector_t = typename detail::map_type<
+    DataT,
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::byte, /*->*/ std::uint8_t, //
+#endif
+    bool, /*->*/ std::uint8_t,                            //
+    sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
+    sycl::ext::oneapi::bfloat16,
+    /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
+    char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
+    DataT, /*->*/ DataT                                 //
+    >::type;
+
+// Type used for passing sycl::vec to SPIRV builtins.
+// We can not use ext_vector_type(1) as it's not supported by SPIRV
+// plugins (CTS fails).
+template <typename DataT, int NumElements>
+using vector_t =
+    typename std::conditional_t<NumElements == 1,
+                                element_type_for_vector_t<DataT>,
+                                element_type_for_vector_t<DataT> __attribute__((
+                                    ext_vector_type(NumElements)))>;
+#endif // __SYCL_DEVICE_ONLY__
+
 // Templated vs. non-templated conversion operator behaves differently when two
 // conversions are needed as in the case below:
 //
@@ -467,7 +493,12 @@ namespace detail {
 //
 // must go throw `v.x()` returning a swizzle, then its `operator==` returning
 // vec<int, 1> and we want that code to compile.
-enum class ConversionOpType { conv_regular, conv_explicit, conv_template };
+enum class ConversionOpType {
+  conv_regular,
+  conv_explicit,
+  conv_template,
+  conv_explicit_template_convert
+};
 template <typename Self, typename To, ConversionOpType ConvType, bool Enable>
 struct ConversionOperatorMixin {};
 template <typename Self, typename To>
@@ -487,6 +518,30 @@ struct ConversionOperatorMixin<Self, To, ConversionOpType::conv_template, true> 
   template <class T, typename = std::enable_if_t<std::is_same_v<T, To>>>
   operator T() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<To>();
+  }
+};
+
+// Only for vec/swizzle<DataT, 1>:
+template <typename Self, typename To /* must be DataT */>
+struct ConversionOperatorMixin<
+    Self, To, ConversionOpType::conv_explicit_template_convert, true> {
+  // FIXME: guard against byte and check the other is integral
+  // TODO: probable remove swizzle/vec from T as well.
+  template <class T, typename = std::enable_if_t<
+                         (std::is_convertible_v<To, T>
+#if 1
+                          || std::is_same_v<std::byte, To> ||
+                          std::is_same_v<std::byte, T>
+#endif
+                          ) &&
+                         !std::is_same_v<T, To> && !std::is_same_v<T, bool>
+
+#ifdef __SYCL_DEVICE_ONLY__
+                         && !std::is_same_v<T, vector_t<To, 1>>
+#endif
+                         >>
+  explicit operator T() const {
+    return static_cast<const Self *>(this)->template convertOperatorImpl<T>();
   }
 };
 
@@ -1018,6 +1073,9 @@ struct __SYCL_EBO SwizzleMixins
       public ConversionOperatorMixin<Self, DataT,
                                      ConversionOpType::conv_regular,
                                      /* Enable = */ (N == 1)>,
+      public detail::ConversionOperatorMixin<
+          Self, DataT, detail::ConversionOpType::conv_explicit_template_convert,
+          /* Enable = */ (N == 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
       public ConversionOperatorMixin<
           Self, typename vec<DataT, N>::vector_t,
@@ -1031,9 +1089,9 @@ struct __SYCL_EBO SwizzleMixins
       public ConversionOperatorMixin<Self, vec<DataT, N>,
                                      ConversionOpType::conv_regular,
                                      /* Enable = */ true>,
-      public ConversionOperatorMixin<Self, bool,
-                                     ConversionOpType::conv_explicit,
-                                     /* Enable = */ (N > 1)>
+      public ConversionOperatorMixin<
+          Self, bool, ConversionOpType::conv_explicit,
+          /* Enable = */ (N == 1 && !std::is_same_v<DataT, bool>)>
 
 {
 };
@@ -1180,10 +1238,11 @@ private:
       return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
 #endif
     } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
-      return (*this)[0] != 0;
+      return (*this)[0] != DataT{0};
     } else {
-      static_assert(!std::is_same_v<To, To>,
-                    "Must not be instantiated like this!");
+      // FIXME: extend static_assert for std::byte.
+      // static_assert(std::is_convertible_v<DataT, To> && NumElements == 1);
+      return static_cast<To>((*this)[0]);
     }
   }
 
@@ -1235,32 +1294,6 @@ public:
 
   auto &operator[](int index) const { return this->Vec[get_vec_idx(index)]; }
 };
-
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename DataT>
-using element_type_for_vector_t = typename detail::map_type<
-    DataT,
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    std::byte, /*->*/ std::uint8_t, //
-#endif
-    bool, /*->*/ std::uint8_t,                            //
-    sycl::half, /*->*/ sycl::detail::half_impl::StorageT, //
-    sycl::ext::oneapi::bfloat16,
-    /*->*/ sycl::ext::oneapi::detail::Bfloat16StorageT, //
-    char, /*->*/ detail::ConvertToOpenCLType_t<char>,   //
-    DataT, /*->*/ DataT                                 //
-    >::type;
-
-// Type used for passing sycl::vec to SPIRV builtins.
-// We can not use ext_vector_type(1) as it's not supported by SPIRV
-// plugins (CTS fails).
-template <typename DataT, int NumElements>
-using vector_t =
-    typename std::conditional_t<NumElements == 1,
-                                element_type_for_vector_t<DataT>,
-                                element_type_for_vector_t<DataT> __attribute__((
-                                    ext_vector_type(NumElements)))>;
-#endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -1275,7 +1308,11 @@ class __SYCL_EBO vec
       public detail::ConversionOperatorMixin<
           vec<DataT, NumElements>, bool,
           detail::ConversionOpType::conv_explicit,
-          /* Enable = */ (NumElements > 1)>,
+          /* Enable = */ (NumElements == 1 && !std::is_same_v<DataT, bool>)>,
+      public detail::ConversionOperatorMixin<
+          vec<DataT, NumElements>, DataT,
+          detail::ConversionOpType::conv_explicit_template_convert,
+          /* Enable = */ (NumElements == 1)>,
 #ifdef __SYCL_DEVICE_ONLY__
       public detail::ConversionOperatorMixin<
           vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
@@ -1331,10 +1368,10 @@ private:
       return sycl::bit_cast<vector_t>(m_Data);
 #endif
     } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
-      return m_Data[0] != 0;
+      return m_Data[0] != DataT{0};
     } else {
-      static_assert(!std::is_same_v<To, To>,
-                    "Must not be instantiated like this!");
+      static_assert(std::is_convertible_v<DataT, To> && NumElements == 1);
+      return static_cast<To>((*this)[0]);
     }
   }
 
