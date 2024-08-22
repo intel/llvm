@@ -154,7 +154,7 @@ XPTI_CALLBACK_API void graphCallback(uint16_t trace_type,
                                      xpti::trace_event_data_t *parent,
                                      xpti::trace_event_data_t *event,
                                      uint64_t instance, const void *user_data);
-XPTI_CALLBACK_API void syclPiCallback(uint16_t trace_type,
+XPTI_CALLBACK_API void syclURCallback(uint16_t trace_type,
                                       xpti::trace_event_data_t *parent,
                                       xpti::trace_event_data_t *event,
                                       uint64_t instance, const void *user_data);
@@ -464,10 +464,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
-                         syclPiCallback);
+                         syclURCallback);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
-                         syclPiCallback);
+                         syclURCallback);
   } else if (std::string(GStreamL0) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -909,7 +909,7 @@ XPTI_CALLBACK_API void graphMemCallback(uint16_t TraceType,
   // Need to add DOT writer here
 }
 
-XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
+XPTI_CALLBACK_API void syclURCallback(uint16_t TraceType,
                                       xpti::trace_event_data_t *Parent,
                                       xpti::trace_event_data_t *Event,
                                       uint64_t Instance, const void *UserData) {
