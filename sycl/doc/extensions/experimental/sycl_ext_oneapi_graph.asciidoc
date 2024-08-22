@@ -232,7 +232,7 @@ Table {counter: tableNumber}. Terminology.
 For the purposes of clarity when talking about events in this specification we
 will split events into two categories:
 
-- *Limited graph events*: These are events returned from a queue submission
+- *Graph-limited events*: These are events returned from a queue submission
 which is recorded to a `command_graph`. These events are only valid for defining
 dependencies for other nodes inside a `command_graph`. These events cannot be
 waited on or used as dependencies for normal SYCL operations. They also cannot
@@ -249,7 +249,7 @@ executable `command_graph` for execution and events obtained via
 Please note that these definitions are only for clarity within this
 specification. There are no distinct event object types, and all events
 referenced in this specification are of the type `sycl::event`. Errors will be
-thrown on invalid usage of limited graph events.
+thrown on invalid usage of graph-limited events.
 
 ==== Explicit Graph Building API
 
@@ -271,9 +271,8 @@ represents either a command-group or an empty operation.
 through newly added interfaces. This is either using the `make_edge()` function
 to define an edge between existing nodes, or using a
 `property::node::depends_on` property list when adding a new node to the graph.
-Nodes passed to this property may be from the same graph (creating internal
-edges) or other graphs (see <<inter-graph-dependencies, this section>> on
-creating dependencies between graphs).
+Nodes passed to this property that are from the same graph will create edges
+within the graph.
 
 Edges can also be created when explicitly adding nodes to the graph through
 existing SYCL mechanisms for expressing dependencies. Data dependencies from
@@ -282,18 +281,24 @@ accessors to existing nodes in the graph are captured as an edge.
 Using `handler::depends_on()` inside the node's command-group function can also
 be used for defining graph edges. However, for an event passed to
 `handler::depends_on()` to create an edge, it must be an event returned from a
-queue submission captured by a graph (a <<event-terminology, limited graph
-event>>). Limited graph events from the same graph will create internal edges,
-and those from another graph will create an <<inter-graph-dependencies, external
-dependency>>. Passing events from other sources (<<event-terminology, regular
-SYCL events>>) will not create edges in the graph, but will create runtime
-dependencies for a graph node on those other events.
+queue submission captured by a graph (a <<event-terminology, graph-limited
+event>>). 
+
+| External Dependencies | Graph nodes may have dependencies on operations
+outside of the graph they belong to. These can be dependencies on nodes from
+<<inter-graph-dependencies, another graph>> or on eager SYCL operations. Passing
+<<event-terminology, graph-limited events>> from another graph or
+<<event-terminology, regular SYCL events>> to `handler::depends_on()`, as well
+as passing nodes from another graph to the `property::node::depends_on`
+property, will create external dependencies for graph nodes that will be
+respected when the graph is executed.
+
 |===
 
 ===== Explicit API Example
 
 Simple example that shows using the explicit API to add two nodes to a graph
-with the <<depends-on-property, depends_on property>> used to define
+with the <<depends-on-property, depends_on node property>> used to define
 dependencies between them.
 
 [source, c++]
@@ -346,15 +351,18 @@ dependencies in one of three ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
-create an edge, it must be an event returned from a queue submission captured by
-a graph (a <<event-terminology, limited graph event>>). Limited graph events
-from the same graph will create internal edges, and those from another graph
-will create an <<inter-graph-dependencies, external dependency>>. Passing events
-from other sources (<<event-terminology, regular SYCL events>>) will not create
-edges in the graph, but will create runtime dependencies for a graph node on
-those other events. Thirdly, for a graph recorded with an in-order queue, an
-edge is added automatically between two sequential command groups submitted to
-the in-order queue. 
+create an edge, it must be an event returned from a queue submission captured to
+the same graph (a <<event-terminology, graph-limited event>>). For a graph
+recorded with an in-order queue, an edge is added automatically between two
+sequential command groups submitted to the in-order queue.
+
+| External Dependencies
+| Graph nodes may have dependencies on operations outside of the graph they
+belong to. These can be dependencies on nodes from <<inter-graph-dependencies,
+another graph>> or on eager SYCL operations. Passing <<event-terminology,
+graph-limited events>> from another graph or <<event-terminology, regular SYCL
+events>> to `handler::depends_on()` will create external dependencies for
+graph nodes that will be respected when the graph is executed.
 
 |===
 
@@ -509,12 +517,12 @@ std::vector<node> get_successors() const;
 ----
 static node get_node_from_event(event nodeEvent);
 ----
-|Finds the node associated with a <<event-terminology, limited graph event>>
+|Finds the node associated with a <<event-terminology, graph-limited event>>
 created from a submission to a queue in the recording state.
 
 Parameters:
 
-* `nodeEvent` - A limited graph event from a recorded submission to this graph.
+* `nodeEvent` - A graph-limited event from a recorded submission to this graph.
 
 Returns: Graph node that was created when the command that returned
 `nodeEvent` was submitted.
@@ -685,9 +693,9 @@ be passed here. `depends_on` may be used in two ways:
 graph edges between those nodes and the node being added. 
 
 * Passing SYCL events, including <<dynamic-event, Dynamic Events>>. If an event
-is a <<event-terminology, limited graph event>>, then a graph edge is created
+is a <<event-terminology, graph-limited event>>, then a graph edge is created
 between this node and the other node. For dynamic events, or
-<<event-terminology, regular SYCL events>>, a runtime dependency is created
+<<event-terminology, regular SYCL events>>, an external dependency is created
 between this node and the command that is associated with the event. Passing a
 default constructed `dynamic_event` with no associated SYCL event will result in
 a synchronous error being thrown.
@@ -827,7 +835,7 @@ It may be desirable in an application to create multiple distinct graphs with
 runtime dependencies between specific nodes in each graph rather than creating
 one single graph. This can be accomplished in the following ways:
 
-* Passing <<event-terminology, limited graph events>> from a recorded submission
+* Passing <<event-terminology, graph-limited events>> from a recorded submission
 to one graph as a dependency in another graph node, via `handler::depends_on()`
 or the <<depends-on-property, `depends_on` property>>.
 
@@ -868,7 +876,7 @@ namespace sycl_ext = sycl::ext::oneapi::experimental;
 ...
 // Define a dependency between the last node in GraphA and the last node in GraphB
 sycl_ext::node NodeC = GraphA.add(...);
-// depends_on here creates a runtime dependency, not a graph edge (since these
+// depends_on here creates an external dependency, not a graph edge (since these
 // are different graphs)
 sycl_ext::node NodeC2 = GraphB.add(..., {sycl_ext::property::depends_on{NodeC}});
 ...
@@ -981,7 +989,7 @@ conditions:
   topologically identical when:
 
 ** Both graphs must have the same number of nodes and edges.
-** Internal edges must be between corresponding nodes in each graph.
+** Edges must be between corresponding nodes in each graph.
 ** Nodes must be added in the same order in the two graphs. Nodes may be added
    via `command_graph::add`, or for a recorded queue via `queue::submit` or
    queue shortcut functions.
@@ -1011,8 +1019,9 @@ in the new graph.
 
 ===== Node Event Dependency Update
 
-Event dependencies for nodes can be updated using <<dynamic-events, Dynamic
-Events>> in a similar usage to <<dynamic-parameters, Dynamic Parameters>>.
+External event dependencies for nodes can be updated using <<dynamic-events,
+Dynamic Events>> in a similar usage to <<dynamic-parameters, Dynamic
+Parameters>>.
 
 Event updates are performed using a `dynamic_event` instance and calling
 `dynamic_event::update()` to update all the associated event dependencies of
@@ -1033,7 +1042,7 @@ class no_cycle_check {
 ----
 
 The `property::graph::no_cycle_check` property disables any checks if a newly
-added dependency will lead to a cycle in a specific `command_graph` and can be
+added graph edge will lead to a cycle in a specific `command_graph` and can be
 passed to a `command_graph` on construction via the property list parameter.
 As a result, no errors are reported when a function tries to create a cyclic
 dependency. Thus, it's the user's responsibility to create an acyclic graph
@@ -1578,7 +1587,7 @@ begin_recording(queue& recordingQueue,
 `queue_state::recording` state. If `recordingQueue` is already in the
 `queue_state::recording` state calling this function will not change the state,
 but will reflect any changes in the properties passed via `propList`. Queues
-which are in the recording state will return <<event-terminology, limited graph
+which are in the recording state will return <<event-terminology, graph-limited
 events>> from submissions to that queue.
 
 Parameters:
@@ -1614,7 +1623,7 @@ begin_recording(const std::vector<queue>& recordingQueues,
 `queue_state::recording` state. If any of `recordingQueues` is already in the
 `queue_state::recording` state calling this function will not change the state,
 but will reflect any changes in the properties passed via `propList`. Queues
-which are in the recording state will return <<event-terminology, limited graph
+which are in the recording state will return <<event-terminology, graph-limited
 events>> from submissions to that queue.
 
 Parameters:
@@ -1748,7 +1757,7 @@ submitted command-groups being immediately scheduled for asynchronous execution.
 The alternative `queue_state::recording` state is used for graph construction.
 Instead of being scheduled for execution, command-groups submitted to the queue
 are recorded to a graph object as new nodes for each submission. Queues which
-are in the recording state will return <<event-terminology, limited graph
+are in the recording state will return <<event-terminology, graph-limited
 events>> from submissions to that queue. After recording has finished and the
 queue returns to the executing state, the recorded commands are not executed,
 they are transparent to any following queue operations. The state of a queue can
@@ -2301,7 +2310,7 @@ graph any of the `node` objects associated with this `dynamic_event` are from.
 returned from enqueuing a `host_task`.
 
 * Throws synchronously with error code `invalid` if `syclEvent` is a
-<<event-terminology, limited graph event>>.
+<<event-terminology, graph-limited event>>.
 
 
 |===
@@ -2381,7 +2390,7 @@ they do in non-recording mode.
 
 ==== Event Limitations [[event-limitations]]
 
-The limitations on the <<event-terminology, limited graph events>> returned
+The limitations on the <<event-terminology, graph-limited events>> returned
 from a submission to a queue in the recording state are:
 
 - Calling `event::get_info<info::event::command_execution_status>()` or
