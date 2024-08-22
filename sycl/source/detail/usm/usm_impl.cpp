@@ -35,10 +35,10 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
                        const sycl::detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
-  detail::tls_code_loc_t CL(CodeLoc);
-  XPTIScope PrepareNotify((void *)alignedAllocHost,
-                          (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
+  sycl::detail::tls_code_loc_t CL(CodeLoc);
+  sycl::detail::XPTIScope PrepareNotify(
+      (void *)alignedAllocHost, (uint16_t)xpti::trace_point_type_t::node_create,
+      sycl::detail::SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
     xpti::addMetadata(TEvent, "sycl_device", 0);
