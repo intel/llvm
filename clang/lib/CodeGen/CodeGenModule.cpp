@@ -6183,8 +6183,6 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
       // emit IR attribute 'sycl-unique-id'.
       if (RD->hasAttr<SYCLDeviceGlobalAttr>()) {
         addSYCLUniqueID(GV, D, Context);
-        // SYCL device globals are initialized externally
-        GV->setExternallyInitialized(true);
         if (Linkage == llvm::GlobalValue::InternalLinkage) {
           // Despite being `static`, static device globals need to be linked
           // externally as symbols must persist across the host-device boundary
@@ -6198,8 +6196,11 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
           auto builtinString =
               "__" + SYCLUniqueStableIdExpr::ComputeName(Context, D);
           GV->setName(builtinString);
+
           Linkage = llvm::GlobalValue::ExternalLinkage;
         }
+        // SYCL device globals are initialized externally
+        GV->setExternallyInitialized(true);
       }
 
       // If VarDecl type is SYCLTypeAttr::host_pipe, emit the IR attribute 
