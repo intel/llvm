@@ -12,7 +12,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -127,8 +127,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_PI_TRACE> {
-  using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
+template <> class SYCLConfig<SYCL_UR_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
 
 public:
   static int get() {
@@ -593,6 +593,7 @@ public:
   static constexpr bool Default = true; // default is true
   static bool get() { return getCachedValue(); }
   static const char *getName() { return BaseT::MConfigName; }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
 private:
   static bool parseValue() {
@@ -608,9 +609,92 @@ private:
     return ValStr[0] == '1';
   }
 
-  static bool getCachedValue() {
+  static bool getCachedValue(bool ResetCache = false) {
     static bool Val = parseValue();
+    if (ResetCache) {
+      Val = BaseT::getRawValue();
+    }
     return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_CPU>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
   }
 };
 

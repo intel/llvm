@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Add "-options -vc-codegen" explicitly to workaround bug in dev igc package.
-// REQUIRES: ocloc
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -Xs "-options -vc-codegen" -o %t.out
+// XFAIL: igc-dev
+// REQUIRES: ocloc && arch-intel_gpu_tgllp
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
 // RUN: %t.out
 
 // This is basic test to test hardware dispatch functionality with ESIMD.

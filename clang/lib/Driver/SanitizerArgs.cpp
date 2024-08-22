@@ -285,8 +285,8 @@ bool SanitizerArgs::needsFuzzerInterceptors() const {
 
 bool SanitizerArgs::needsUbsanRt() const {
   // All of these include ubsan.
-  if (needsAsanRt() || needsMsanRt() || needsHwasanRt() || needsTsanRt() ||
-      needsDfsanRt() || needsLsanRt() || needsCfiDiagRt() ||
+  if (needsAsanRt() || needsMsanRt() || needsNsanRt() || needsHwasanRt() ||
+      needsTsanRt() || needsDfsanRt() || needsLsanRt() || needsCfiDiagRt() ||
       (needsScudoRt() && !requiresMinimalRuntime()))
     return false;
 
@@ -1163,6 +1163,10 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-globals=0");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-stack-dynamic-alloca=0");
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-asan-use-after-return=never");
 
       if (!RecoverableSanitizers.empty())
         CmdArgs.push_back(Args.MakeArgString("-fsanitize-recover=" +
