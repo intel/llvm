@@ -5,7 +5,7 @@ import lit.formats
 import os
 import re
 
-SUFFIXES = {".hpp"}
+SUFFIXES = {'.hpp'}
 
 
 class SYCLHeadersTest(lit.formats.TestFormat):
