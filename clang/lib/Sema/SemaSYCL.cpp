@@ -4476,7 +4476,6 @@ class SyclKernelIntHeaderCreator : public SyclKernelFieldHandler {
     uint64_t Size;
     Size =
         SemaSYCLRef.getASTContext().getTypeSizeInChars(ParamTy).getQuantity();
-    ParamTy->dump();
     Header.addParamDesc(Kind, static_cast<unsigned>(Size),
                         static_cast<unsigned>(CurOffset + OffsetAdj));
   }
