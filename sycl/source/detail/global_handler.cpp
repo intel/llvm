@@ -352,8 +352,9 @@ void shutdown_late() {
 #endif
 
 #ifdef _WIN32
-extern "C" __SYCL_EXPORT BOOL WINAPI
-DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
+                                             DWORD fdwReason,
+                                             LPVOID lpReserved) {
   try {
     bool PrintUrTrace =
         sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
