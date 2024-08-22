@@ -1441,8 +1441,21 @@ private:
   constexpr vec(const Container &Arr, std::index_sequence<Is...>)
       : m_Data{Arr[Is]...} {}
 
+  template <class T> struct type_identity {
+    using type = T;
+  };
+
 public:
+  // Explicit because replication isn't an obvious conversion.
+  template <int N = NumElements, typename = std::enable_if_t<(N > 1)>>
   explicit constexpr vec(const DataT &arg)
+      : vec{detail::RepeatValue<NumElements>(arg),
+            std::make_index_sequence<NumElements>()} {}
+
+  // Extra `void` to make this really different from the previous for the C++
+  // compiler.
+  template <int N = NumElements, typename = std::enable_if_t<(N == 1)>, typename = void>
+  constexpr vec(const DataT &arg)
       : vec{detail::RepeatValue<NumElements>(arg),
             std::make_index_sequence<NumElements>()} {}
 
@@ -1451,8 +1464,7 @@ public:
   template <
       typename... argTN,
       typename = std::enable_if_t<
-          // TODO: Remove always true condition
-          (NumElements >= 1 && ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+          (NumElements > 1 && ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
            ((num_elements<argTN>() + ...)) == NumElements)>>
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
