@@ -319,45 +319,33 @@ cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer,
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
   std::mutex Mutex;
+
+  void clear(cl_context context) {
+    std::lock_guard<std::mutex> CacheLock{Mutex};
+    Map.erase(context);
+  }
 };
 
-// FIXME: There's currently no mechanism for cleaning up this cache, meaning
-// that it is invalidated whenever a context is destroyed. This could lead to
-// reusing an invalid function pointer if another context happens to have the
-// same native handle.
 struct ExtFuncPtrCacheT {
-  FuncPtrCache<clHostMemAllocINTEL_fn> clHostMemAllocINTELCache;
-  FuncPtrCache<clDeviceMemAllocINTEL_fn> clDeviceMemAllocINTELCache;
-  FuncPtrCache<clSharedMemAllocINTEL_fn> clSharedMemAllocINTELCache;
-  FuncPtrCache<clGetDeviceFunctionPointer_fn> clGetDeviceFunctionPointerCache;
-  FuncPtrCache<clGetDeviceGlobalVariablePointer_fn>
-      clGetDeviceGlobalVariablePointerCache;
-  FuncPtrCache<clCreateBufferWithPropertiesINTEL_fn>
-      clCreateBufferWithPropertiesINTELCache;
-  FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
-  FuncPtrCache<clSetKernelArgMemPointerINTEL_fn>
-      clSetKernelArgMemPointerINTELCache;
-  FuncPtrCache<clEnqueueMemFillINTEL_fn> clEnqueueMemFillINTELCache;
-  FuncPtrCache<clEnqueueMemcpyINTEL_fn> clEnqueueMemcpyINTELCache;
-  FuncPtrCache<clGetMemAllocInfoINTEL_fn> clGetMemAllocInfoINTELCache;
-  FuncPtrCache<clEnqueueWriteGlobalVariable_fn>
-      clEnqueueWriteGlobalVariableCache;
-  FuncPtrCache<clEnqueueReadGlobalVariable_fn> clEnqueueReadGlobalVariableCache;
-  FuncPtrCache<clEnqueueReadHostPipeINTEL_fn> clEnqueueReadHostPipeINTELCache;
-  FuncPtrCache<clEnqueueWriteHostPipeINTEL_fn> clEnqueueWriteHostPipeINTELCache;
-  FuncPtrCache<clSetProgramSpecializationConstant_fn>
-      clSetProgramSpecializationConstantCache;
-  FuncPtrCache<clCreateCommandBufferKHR_fn> clCreateCommandBufferKHRCache;
-  FuncPtrCache<clRetainCommandBufferKHR_fn> clRetainCommandBufferKHRCache;
-  FuncPtrCache<clReleaseCommandBufferKHR_fn> clReleaseCommandBufferKHRCache;
-  FuncPtrCache<clFinalizeCommandBufferKHR_fn> clFinalizeCommandBufferKHRCache;
-  FuncPtrCache<clCommandNDRangeKernelKHR_fn> clCommandNDRangeKernelKHRCache;
-  FuncPtrCache<clCommandCopyBufferKHR_fn> clCommandCopyBufferKHRCache;
-  FuncPtrCache<clCommandCopyBufferRectKHR_fn> clCommandCopyBufferRectKHRCache;
-  FuncPtrCache<clCommandFillBufferKHR_fn> clCommandFillBufferKHRCache;
-  FuncPtrCache<clEnqueueCommandBufferKHR_fn> clEnqueueCommandBufferKHRCache;
-  FuncPtrCache<clGetCommandBufferInfoKHR_fn> clGetCommandBufferInfoKHRCache;
-  FuncPtrCache<clUpdateMutableCommandsKHR_fn> clUpdateMutableCommandsKHRCache;
+#define CL_EXTENSION_FUNC(func) FuncPtrCache<func##_fn> func##Cache;
+
+#include "extension_functions.def"
+
+#undef CL_EXTENSION_FUNC
+
+  // If a context stored in the current caching mechanism is destroyed by the
+  // CL driver all of its function pointers are invalidated. This can lead to a
+  // pathological case where a subsequently created context gets returned with
+  // a coincidentally identical handle to the destroyed one and ends up being
+  // used to retrieve bad function pointers. To avoid this we clear the cache
+  // when contexts are released.
+  void clearCache(cl_context context) {
+#define CL_EXTENSION_FUNC(func) func##Cache.clear(context);
+
+#include "extension_functions.def"
+
+#undef CL_EXTENSION_FUNC
+  }
 };
 // A raw pointer is used here since the lifetime of this map has to be tied to
 // piTeardown to avoid issues with static destruction order (a user application

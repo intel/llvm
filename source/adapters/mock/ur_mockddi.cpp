@@ -921,7 +921,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -930,7 +931,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_device_create_with_native_handle_params_t params = {
-        &hNativeDevice, &hPlatform, &pProperties, &phDevice};
+        &hNativeDevice, &hAdapter, &pProperties, &phDevice};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -3864,6 +3865,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
+    ///< The data pointed to will be copied and therefore can be reused on return.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7806,6 +7808,58 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    uint64_t offset,              ///< [in] offset into memory region to map
+    uint64_t size,                ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_bindless_images_map_external_linear_memory_exp_params_t params = {
+        &hContext, &hDevice, &offset, &size, &hExternalMem, &ppRetMem};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urBindlessImagesMapExternalLinearMemoryExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urBindlessImagesMapExternalLinearMemoryExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urBindlessImagesMapExternalLinearMemoryExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -10271,6 +10325,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
     pDdiTable->pfnMapExternalArrayExp =
         driver::urBindlessImagesMapExternalArrayExp;
+
+    pDdiTable->pfnMapExternalLinearMemoryExp =
+        driver::urBindlessImagesMapExternalLinearMemoryExp;
 
     pDdiTable->pfnReleaseExternalMemoryExp =
         driver::urBindlessImagesReleaseExternalMemoryExp;

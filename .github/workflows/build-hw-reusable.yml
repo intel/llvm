@@ -4,7 +4,10 @@ name: Build - Adapters on HW - Reusable
 on:
   workflow_call:
     inputs:
-      name:
+      adapter_name:
+        required: true
+        type: string
+      runner_name:
         required: true
         type: string
       platform:
@@ -33,7 +36,7 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: "${{inputs.name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}"},
+          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}"},
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -47,7 +50,7 @@ jobs:
          - adapter: {static_Loader: ON}
            compiler: {c: clang, cxx: clang++}
 
-    runs-on: ${{matrix.adapter.name}}
+    runs-on: ${{inputs.runner_name}}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1

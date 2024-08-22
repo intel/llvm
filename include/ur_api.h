@@ -227,6 +227,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,        ///< Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 231,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2061,7 +2062,7 @@ typedef struct ur_device_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -2069,7 +2070,7 @@ typedef struct ur_device_native_properties_t {
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice,                 ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform,                   ///< [in] handle of the platform instance
+    ur_adapter_handle_t hAdapter,                     ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t *phDevice                      ///< [out] pointer to the handle of the device object created.
 );
@@ -3796,7 +3797,7 @@ urUSMPoolGetInfo(
 #endif
 // Intel 'oneAPI' Unified Runtime APIs
 #if !defined(__GNUC__)
-#pragma region virtual memory
+#pragma region virtual_memory
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Virtual memory granularity info
@@ -4784,6 +4785,7 @@ urKernelSetArgValue(
     size_t argSize,                                      ///< [in] size of argument type
     const ur_kernel_arg_value_properties_t *pProperties, ///< [in][optional] pointer to value properties.
     const void *pArgValue                                ///< [in] argument value represented as matching arg type.
+                                                         ///< The data pointed to will be copied and therefore can be reused on return.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7353,7 +7355,7 @@ urEnqueueWriteHostPipe(
 #endif
 // Bindless Images Extension APIs
 #if !defined(__GNUC__)
-#pragma region bindless images(experimental)
+#pragma region bindless_images_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of bindless image
@@ -7963,6 +7965,36 @@ urBindlessImagesMapExternalArrayExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Map an external memory handle to a device memory region described by
+///        void*
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hExternalMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppRetMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext,              ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                ///< [in] handle of the device object
+    uint64_t offset,                           ///< [in] offset into memory region to map
+    uint64_t size,                             ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem                            ///< [out] pointer of the externally allocated memory
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Release external memory
 ///
 /// @remarks
@@ -8121,7 +8153,7 @@ urBindlessImagesSignalExternalSemaphoreExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for Command-Buffers
 #if !defined(__GNUC__)
-#pragma region command buffer(experimental)
+#pragma region command_buffer_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-buffer query information type
@@ -8974,7 +9006,7 @@ urCommandBufferCommandGetInfoExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for Cooperative Kernels
 #if !defined(__GNUC__)
-#pragma region cooperative kernels(experimental)
+#pragma region cooperative_kernels_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
@@ -9062,7 +9094,7 @@ urKernelSuggestMaxCooperativeGroupCountExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for enqueuing timestamp recordings
 #if !defined(__GNUC__)
-#pragma region enqueue timestamp recording(experimental)
+#pragma region enqueue_timestamp_recording_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Enqueue a command for recording the device timestamp
@@ -9104,7 +9136,7 @@ urEnqueueTimestampRecordingExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for (kernel) Launch Properties
 #if !defined(__GNUC__)
-#pragma region launch properties(experimental)
+#pragma region launch_properties_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_LAUNCH_PROPERTIES_EXTENSION_STRING_EXP
@@ -9231,7 +9263,7 @@ urEnqueueKernelLaunchCustomExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for multi-device compile
 #if !defined(__GNUC__)
-#pragma region multi device compile(experimental)
+#pragma region multi_device_compile_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
@@ -9361,7 +9393,7 @@ urProgramLinkExp(
 #endif
 // Intel 'oneAPI' USM Import/Release Extension APIs
 #if !defined(__GNUC__)
-#pragma region usm import release(experimental)
+#pragma region usm_import_release_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Import memory into USM
@@ -9414,7 +9446,7 @@ urUSMReleaseExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental APIs for USM P2P
 #if !defined(__GNUC__)
-#pragma region usm p2p(experimental)
+#pragma region usm_p2p_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_USM_P2P_EXTENSION_STRING_EXP
@@ -9570,7 +9602,7 @@ urUsmP2PPeerAccessGetInfoExp(
 #endif
 // Intel 'oneAPI' Unified Runtime Experimental API for enqueuing work through native APIs
 #if !defined(__GNUC__)
-#pragma region native enqueue(experimental)
+#pragma region native_enqueue_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Native enqueue properties
@@ -11232,6 +11264,19 @@ typedef struct ur_bindless_images_map_external_array_exp_params_t {
 } ur_bindless_images_map_external_array_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urBindlessImagesMapExternalLinearMemoryExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_bindless_images_map_external_linear_memory_exp_params_t {
+    ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
+    uint64_t *poffset;
+    uint64_t *psize;
+    ur_exp_external_mem_handle_t *phExternalMem;
+    void ***pppRetMem;
+} ur_bindless_images_map_external_linear_memory_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urBindlessImagesReleaseExternalMemoryExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -11928,7 +11973,7 @@ typedef struct ur_device_get_native_handle_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_device_create_with_native_handle_params_t {
     ur_native_handle_t *phNativeDevice;
-    ur_platform_handle_t *phPlatform;
+    ur_adapter_handle_t *phAdapter;
     const ur_device_native_properties_t **ppProperties;
     ur_device_handle_t **pphDevice;
 } ur_device_create_with_native_handle_params_t;

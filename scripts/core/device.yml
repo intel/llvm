@@ -820,9 +820,9 @@ params:
     - type: $x_native_handle_t
       name: hNativeDevice
       desc: "[in][nocheck] the native handle of the device."
-    - type: $x_platform_handle_t
-      name: hPlatform
-      desc: "[in] handle of the platform instance"
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter to which `hNativeDevice` belongs"
     - type: const $x_device_native_properties_t*
       name: pProperties
       desc: "[in][optional] pointer to native device properties struct."

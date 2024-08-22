@@ -61,7 +61,7 @@ struct ur_device_handle_t_ : _ur_object {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{}, Id(std::nullopt) {
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
   }
@@ -189,6 +189,9 @@ struct ur_device_handle_t_ : _ur_object {
            (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
   }
 
+  // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
+  bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
+
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
   }
@@ -221,6 +224,10 @@ struct ur_device_handle_t_ : _ur_object {
   ZeCache<ZeStruct<ze_mutable_command_list_exp_properties_t>>
       ZeDeviceMutableCmdListsProperties;
 
+  // Map device bindless image offset to corresponding host image handle.
+  std::unordered_map<ur_exp_image_native_handle_t, ze_image_handle_t>
+      ZeOffsetToImageHandleMap;
+
   // unique ephemeral identifer of the device in the adapter
-  DeviceId Id;
+  std::optional<DeviceId> Id;
 };

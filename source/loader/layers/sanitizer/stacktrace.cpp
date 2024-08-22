@@ -99,7 +99,7 @@ void StackTrace::print() const {
             uptr Offset;
             ParseBacktraceInfo(BI, ModuleName, Offset);
             if (SymbolizeCode(ModuleName, Offset, Result)) {
-                SourceInfo SrcInfo = ParseSymbolizerOutput(Result);
+                SourceInfo SrcInfo = ParseSymbolizerOutput(std::move(Result));
                 if (SrcInfo.file != "??") {
                     getContext()->logger.always(" #{} in {} {}:{}:{}", index,
                                                 SrcInfo.function, SrcInfo.file,

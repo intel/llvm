@@ -1185,26 +1185,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 /// \return TBD
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
-    const ur_device_native_properties_t *pProperties,
+    ur_native_handle_t hNativeDevice,
+    [[maybe_unused]] ur_adapter_handle_t hAdapter,
+    [[maybe_unused]] const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
-  std::ignore = pProperties;
-
   CUdevice CuDevice = static_cast<CUdevice>(hNativeDevice);
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
   };
-
-  // If a platform is provided just check if the device is in it
-  if (hPlatform) {
-    auto SearchRes = std::find_if(begin(hPlatform->Devices),
-                                  end(hPlatform->Devices), IsDevice);
-    if (SearchRes != end(hPlatform->Devices)) {
-      *phDevice = SearchRes->get();
-      return UR_RESULT_SUCCESS;
-    }
-  }
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;

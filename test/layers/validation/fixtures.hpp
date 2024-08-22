@@ -133,7 +133,7 @@ inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; };
 // This returns valid (non-null) handles that we can safely leak.
 inline ur_result_t fakeContext_urContextCreate(void *pParams) {
     static std::atomic_int handle = 42;
-    auto params = *static_cast<ur_context_create_params_t *>(pParams);
+    const auto &params = *static_cast<ur_context_create_params_t *>(pParams);
     // There are two casts because windows doesn't implicitly extend the 32 bit
     // result of atomic_int::operator++.
     **params.pphContext =

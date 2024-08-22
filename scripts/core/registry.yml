@@ -595,6 +595,9 @@ etors:
 - name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
   value: '230'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
+  value: '231'
 ---
 type: enum
 desc: Defines structure types

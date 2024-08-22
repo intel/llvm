@@ -20,3 +20,4 @@ jobs:
       prefix: "ext_oneapi_"
       config: "--cuda"
       unit: "gpu"
+      extra_lit_flags: "-sv --max-time=3600"
