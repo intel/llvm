@@ -1024,9 +1024,9 @@ private:
 
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
-                          work_group_static_size_key>()) {
+                          work_group_static_size>()) {
       auto WorkGroupMemSize = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_static_size_key>();
+          sycl::ext::oneapi::experimental::work_group_static_size>();
       setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 
