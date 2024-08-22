@@ -116,14 +116,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2184e803c2f34b35ef66b2a9d28529a17b1e5853
-  # Merge: 320f633e 85c2c04f
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 21 16:35:37 2024 +0100
-  #    Merge pull request #1873 from PietroGhg/pietro/max_alloc
-  #    [NATIVECPU] Support UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE
-  set(UNIFIED_RUNTIME_TAG 2184e803c2f34b35ef66b2a9d28529a17b1e5853)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 9b198780f4afcde32e74c3689867620689c57c62)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
