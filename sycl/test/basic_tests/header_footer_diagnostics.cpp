@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -Wreserved-identifier -Wold-style-cast -Werror %s
+// RUN: %clangxx -fsycl -Werror=reserved-identifier -Werror=old-style-cast %s
 
 // Check that the generated header and footer files do not generate
 // errors when pedantic warnings are enabled.
