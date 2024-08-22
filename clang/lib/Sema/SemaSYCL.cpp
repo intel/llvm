@@ -6029,6 +6029,23 @@ static void OutputStableNameInChars(raw_ostream &O, StringRef Name) {
   }
 }
 
+static void EmitPragmaDiagnosticPush(raw_ostream &O, StringRef DiagName) {
+  O << "\n";
+  O << "#ifdef __clang__\n";
+  O << "#pragma clang diagnostic push\n";
+  O << "#pragma clang diagnostic ignored \"" << DiagName.str() << "\"\n";
+  O << "#endif // defined(__clang__)\n";
+  O << "\n";
+}
+
+static void EmitPragmaDiagnosticPop(raw_ostream &O) {
+  O << "\n";
+  O << "#ifdef __clang__\n";
+  O << "#pragma clang diagnostic pop\n";
+  O << "#endif // defined(__clang__)\n";
+  O << "\n";
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -6036,7 +6053,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
-
   O << "\n";
 
   LangOptions LO;
@@ -6127,6 +6143,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // main() function.
 
   if (NeedToEmitDeviceGlobalRegistration) {
+    EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
+
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -6138,12 +6156,15 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
 
     O << "\n";
+
+    EmitPragmaDiagnosticPop(O);
   }
 
   // Generate declaration of variable of type __sycl_host_pipe_registration
   // whose sole purpose is to run its constructor before the application's
   // main() function.
   if (NeedToEmitHostPipeRegistration) {
+    EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
     O << "namespace {\n";
 
     O << "class __sycl_host_pipe_registration {\n";
@@ -6155,6 +6176,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
 
     O << "\n";
+    EmitPragmaDiagnosticPop(O);
   }
 
 
@@ -6720,12 +6742,14 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
+    EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_device_global_registration::__sycl_device_global_"
           "registration() noexcept {\n";
     OS << DeviceGlobalsBuf;
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
+    EmitPragmaDiagnosticPop(OS);
     OS << "} // namespace sycl::detail\n";
 
     S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
@@ -6735,12 +6759,14 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/host_pipe_map.hpp>\n";
     HostPipesOS.flush();
     OS << "namespace sycl::detail {\n";
+    EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_host_pipe_registration::__sycl_host_pipe_"
           "registration() noexcept {\n";
     OS << HostPipesBuf;
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
+    EmitPragmaDiagnosticPop(OS);
     OS << "} // namespace sycl::detail\n";
 
     S.getSyclIntegrationHeader().addHostPipeRegistration();
