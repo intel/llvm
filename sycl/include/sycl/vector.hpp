@@ -453,6 +453,22 @@ struct elem {
 };
 
 namespace detail {
+template <class T, class U, class = void>
+struct is_explicitly_convertible_to_impl : std::false_type {};
+
+template <class T, class U>
+struct is_explicitly_convertible_to_impl<
+    T, U, std::void_t<decltype(static_cast<U>(std::declval<T>()))>>
+    : std::true_type {};
+
+template <class T, class U>
+struct is_explicitly_convertible_to : is_explicitly_convertible_to_impl<T, U> {
+};
+
+template <class T, class U>
+inline constexpr bool is_explicitly_convertible_to_v =
+    is_explicitly_convertible_to<T, U>::value;
+
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename DataT>
 using element_type_for_vector_t = typename detail::map_type<
@@ -527,19 +543,13 @@ struct ConversionOperatorMixin<
     Self, To, ConversionOpType::conv_explicit_template_convert, true> {
   // FIXME: guard against byte and check the other is integral
   // TODO: probable remove swizzle/vec from T as well.
-  template <class T, typename = std::enable_if_t<
-                         (std::is_convertible_v<To, T>
-#if 1
-                          || std::is_same_v<std::byte, To> ||
-                          std::is_same_v<std::byte, T>
-#endif
-                          ) &&
-                         !std::is_same_v<T, To> && !std::is_same_v<T, bool>
-
+  template <class T,
+            typename = std::enable_if_t<is_explicitly_convertible_to_v<To, T> &&
+                                        !std::is_same_v<T, To>
 #ifdef __SYCL_DEVICE_ONLY__
-                         && !std::is_same_v<T, vector_t<To, 1>>
+                                        && !std::is_same_v<T, vector_t<To, 1>>
 #endif
-                         >>
+                                        >>
   explicit operator T() const {
     return static_cast<const Self *>(this)->template convertOperatorImpl<T>();
   }
@@ -1088,10 +1098,7 @@ struct __SYCL_EBO SwizzleMixins
       // per the SYCL 2020 specification:
       public ConversionOperatorMixin<Self, vec<DataT, N>,
                                      ConversionOpType::conv_regular,
-                                     /* Enable = */ true>,
-      public ConversionOperatorMixin<
-          Self, bool, ConversionOpType::conv_explicit,
-          /* Enable = */ (N == 1 && !std::is_same_v<DataT, bool>)>
+                                     /* Enable = */ true>
 
 {
 };
@@ -1237,11 +1244,9 @@ private:
       // sycl::vec explicitly here.
       return static_cast<vector_t>(ResultVec{this->Vec[Indexes]...});
 #endif
-    } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
-      return (*this)[0] != DataT{0};
     } else {
-      // FIXME: extend static_assert for std::byte.
-      // static_assert(std::is_convertible_v<DataT, To> && NumElements == 1);
+      static_assert(is_explicitly_convertible_to_v<DataT, To> &&
+                    NumElements == 1);
       return static_cast<To>((*this)[0]);
     }
   }
@@ -1306,10 +1311,6 @@ class __SYCL_EBO vec
           detail::ConversionOpType::conv_regular,
           /* Enable = */ NumElements == 1>,
       public detail::ConversionOperatorMixin<
-          vec<DataT, NumElements>, bool,
-          detail::ConversionOpType::conv_explicit,
-          /* Enable = */ (NumElements == 1 && !std::is_same_v<DataT, bool>)>,
-      public detail::ConversionOperatorMixin<
           vec<DataT, NumElements>, DataT,
           detail::ConversionOpType::conv_explicit_template_convert,
           /* Enable = */ (NumElements == 1)>,
@@ -1367,10 +1368,9 @@ private:
        */
       return sycl::bit_cast<vector_t>(m_Data);
 #endif
-    } else if constexpr (std::is_same_v<To, bool> && NumElements == 1) {
-      return m_Data[0] != DataT{0};
     } else {
-      static_assert(std::is_convertible_v<DataT, To> && NumElements == 1);
+      static_assert(detail::is_explicitly_convertible_to_v<DataT, To> &&
+                    NumElements == 1);
       return static_cast<To>((*this)[0]);
     }
   }
