@@ -386,6 +386,7 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
     return TRUE; // Successful DLL_PROCESS_ATTACH.
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
+    return FALSE;
   }
 }
 #else

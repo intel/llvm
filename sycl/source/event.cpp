@@ -122,6 +122,7 @@ backend event::get_backend() const noexcept {
     return getImplBackend(impl);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in get_backend", e);
+    std::abort();
   }
 }
 

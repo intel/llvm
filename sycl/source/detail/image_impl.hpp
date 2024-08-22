@@ -243,6 +243,7 @@ public:
       return MRange.size();
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in size", e);
+      std::abort();
     }
   }
 
