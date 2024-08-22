@@ -1085,7 +1085,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                           options::OPT_fno_sycl, false);
-  bool HasValidSYCLRuntime = 
+  bool HasValidSYCLRuntime =
       HasSYCL || C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
@@ -7278,7 +7278,7 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
   Arg *UIHArg = Args.getLastArg(options::OPT_fsycl_use_integration_headers,
                                 options::OPT_fno_sycl_use_integration_headers);
-  bool NoUseIntHeaders = 
+  bool NoUseIntHeaders =
       UIHArg && UIHArg->getOption().matches(
                     options::OPT_fno_sycl_use_integration_headers);
 
