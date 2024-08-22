@@ -5037,12 +5037,9 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   Arg *HostCompilerDefArg =
       TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
   assert(HostCompilerDefArg && "Expected host compiler designation.");
-  Arg *UIHArg =
-      TCArgs.getLastArg(options::OPT_fsycl_use_integration_headers,
-                        options::OPT_fno_sycl_use_integration_headers, false);
-  bool NoUIH = UIHArg && UIHArg->getOption().matches(
-                             options::OPT_fno_sycl_use_integration_headers);
-
+  bool UIH = TCArgs.hasFlag(options::OPT_fsycl_use_integration_headers,
+                            options::OPT_fno_sycl_use_integration_headers,
+                            true);
   bool OutputAdded = false;
   StringRef CompilerName =
       llvm::sys::path::stem(HostCompilerDefArg->getValue());
@@ -5122,7 +5119,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   StringRef Header =
       TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
   if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-      !Header.empty() && !NoUIH) {
+      !Header.empty() && UIH) {
     HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
     HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
   }
@@ -5488,11 +5485,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     PF->claim();
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
-  Arg *UIHArg =
-      Args.getLastArg(options::OPT_fsycl_use_integration_headers,
-                      options::OPT_fno_sycl_use_integration_headers, false);
-  bool NoUIH = UIHArg && UIHArg->getOption().matches(
-                             options::OPT_fno_sycl_use_integration_headers);
+  bool UIH = Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                          options::OPT_fno_sycl_use_integration_headers,
+                          true);
 
   if (IsSYCLDevice) {
     if (Triple.isNVPTX()) {
@@ -5582,13 +5577,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add the integration header option to generate the header.
     StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
-    if (!Header.empty() && !NoUIH) {
+    if (!Header.empty() && UIH) {
       SmallString<128> HeaderOpt("-fsycl-int-header=");
       HeaderOpt.append(Header);
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    if (!Args.hasArg(options::OPT_fno_sycl_use_footer) && !NoUIH) {
+    if (!Args.hasArg(options::OPT_fno_sycl_use_footer) && UIH) {
       // Add the integration footer option to generated the footer.
       StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
       if (!Footer.empty()) {
@@ -5709,7 +5704,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
-    if (!IsSYCLOffloadDevice && !NoUIH) {
+    if (!IsSYCLOffloadDevice && UIH) {
       // Add the -include option to add the integration header
       StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
       // Do not add the integration header if we are compiling after the

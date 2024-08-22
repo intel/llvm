@@ -4977,11 +4977,9 @@ class OffloadingActionBuilder final {
                                                    AssociatedOffloadKind);
             // No need to generate the integration header if
             // -fsycl-no-use-integration-header is specified.
-            Arg *UIHArg =
-                Args.getLastArg(options::OPT_fsycl_use_integration_headers,
-                                options::OPT_fno_sycl_use_integration_headers);
-            if (UIHArg && UIHArg->getOption().matches(
-                              options::OPT_fno_sycl_use_integration_headers))
+            if (!Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                             options::OPT_fno_sycl_use_integration_headers,
+                             true))
               continue;
             if (SYCLDeviceOnly)
               continue;
@@ -7276,11 +7274,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   if (SYCLFpgaArg &&
       !Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false))
     Args.AddFlagArg(0, Opts.getOption(options::OPT_fsycl));
-  Arg *UIHArg = Args.getLastArg(options::OPT_fsycl_use_integration_headers,
-                                options::OPT_fno_sycl_use_integration_headers);
-  bool NoUseIntHeaders =
-      UIHArg && UIHArg->getOption().matches(
-                    options::OPT_fno_sycl_use_integration_headers);
 
   // When compiling for -fsycl, generate the integration header files and the
   // Unique ID that will be used during the compilation.
@@ -7309,7 +7302,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         continue;
       // If -fno-sycl-use-integration-headers is speficified, don't generate
       // integration headers and footers.
-      if (NoUseIntHeaders)
+      if (!Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                        options::OPT_fno_sycl_use_integration_headers, true))
         continue;
 
       std::string TmpFileNameHeader;
