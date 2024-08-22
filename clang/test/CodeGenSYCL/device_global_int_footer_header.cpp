@@ -122,3 +122,6 @@ struct HasVarTemplate {
 } // namespace
 const auto x = HasVarTemplate::VarTempl<int>.get();
 // CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "THE_PREFIX____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
+// CHECK-FOOTER: #ifdef __clang__
+// CHECK-FOOTER-NEXT: #pragma clang diagnostic pop
+// CHECK-FOOTER-NEXT: #endif // defined(__clang__)
