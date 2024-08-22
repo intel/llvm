@@ -1,17 +1,17 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 //
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is `nullptr` for
 // urEnqueueKernelLaunch for USM kernel using local accessor, but
 // is not `nullptr` for kernel using buffer accessor.
 //
-// CHECK: ---> urEnqueueKernelLaunch(
-// CHECK-SAME: .phEvent = nullptr
+// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: .phEvent = nullptr
 //
 // CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
-// CHECK: ---> urEnqueueKernelLaunch(
-// CHECK-SAME: -> UR_RESULT_SUCCESS
+// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.
 

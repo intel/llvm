@@ -117,9 +117,8 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
 }
 
 // TODO replace this with a new UR API function
-static bool
-isDeviceBinaryTypeSupported(const context &C,
-                            ur::DeviceBinaryType Format) {
+static bool isDeviceBinaryTypeSupported(const context &C,
+                                        ur::DeviceBinaryType Format) {
   // All formats except SYCL_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -500,11 +499,9 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
-      auto ProgMetadata = Img->getProgramMetadata();
-      for (const auto &Prop : ProgMetadata) {
-        ProgMetadataVector.push_back(
-            ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
-      }
+      auto &ImgProgMetadata = Img->getProgramMetadataUR();
+      ProgMetadataVector.insert(ProgMetadataVector.end(),
+                                ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
     // TODO: Build for multiple devices once supported by program manager
     NativePrg = createBinaryProgram(getSyclObjImpl(Context), Device,
@@ -534,21 +531,19 @@ static const char *getUrDeviceTarget(const char *URDeviceTarget) {
     return UR_DEVICE_BINARY_TARGET_SPIRV32;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64;
-  else if (strcmp(URDeviceTarget,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) == 0)
-    return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
            0)
+    return UR_DEVICE_BINARY_TARGET_SPIRV64_X86_64;
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-  else if (strcmp(URDeviceTarget,
-                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
+           0)
     return UR_DEVICE_BINARY_TARGET_SPIRV64_FPGA;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0)
     return UR_DEVICE_BINARY_TARGET_NVPTX64;
   else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0)
     return UR_DEVICE_BINARY_TARGET_AMDGCN;
-  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) ==
-           0)
+  else if (strcmp(URDeviceTarget, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
     return "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
 
   return UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -583,6 +578,18 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   return (0 == SuitableImageID);
 }
 
+static bool checkLinkingSupport(device Dev, const RTDeviceBinaryImage &Img) {
+  const char *Target = Img.getRawData().DeviceTargetSpec;
+  // TODO replace with extension checks once implemented in UR.
+  if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+    return true;
+  }
+  if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
+    return Dev.is_gpu() && Dev.get_backend() == backend::opencl;
+  }
+  return false;
+}
+
 std::set<RTDeviceBinaryImage *>
 ProgramManager::collectDeviceImageDepsForImportedSymbols(
     const RTDeviceBinaryImage &MainImg, device Dev) {
@@ -595,9 +602,10 @@ ProgramManager::collectDeviceImageDepsForImportedSymbols(
     HandledSymbols.insert(ISProp->Name);
   }
   ur::DeviceBinaryType Format = MainImg.getFormat();
-  if (!WorkList.empty() && Format != SYCL_DEVICE_BINARY_TYPE_SPIRV)
+  if (!WorkList.empty() && !checkLinkingSupport(Dev, MainImg))
     throw exception(make_error_code(errc::feature_not_supported),
-                    "Dynamic linking is not supported for AOT compilation yet");
+                    "Cannot resolve external symbols, linking is unsupported "
+                    "for the backend");
   while (!WorkList.empty()) {
     std::string Symbol = WorkList.front();
     WorkList.pop();
@@ -833,7 +841,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
               getSyclObjImpl(Device).get()->getHandleRef(), DeviceLibReqMask,
-              ProgramsToLink);
+              ProgramsToLink, /*CreatedFromBinary*/ Img.getFormat() !=
+                                  SYCL_DEVICE_BINARY_TYPE_SPIRV);
     // Those extra programs won't be used anymore, just the final linked result
     for (ur_program_handle_t Prg : ProgramsToLink)
       Plugin->call(urProgramRelease, Prg);
@@ -1245,6 +1254,26 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   }
 }
 
+const char *getArchName(const device &Device) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  auto Arch = Device.get_info<syclex::info::device::architecture>();
+  switch (Arch) {
+#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
+  case syclex::architecture::ARCH:                                             \
+    return #ARCH;
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
+#include <sycl/ext/oneapi/experimental/architectures.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  }
+  return "unknown";
+}
+
+sycl_device_binary getRawImg(RTDeviceBinaryImage *Img) {
+  return reinterpret_cast<sycl_device_binary>(
+      const_cast<sycl_device_binary>(&Img->getRawData()));
+}
+
 template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
@@ -1253,16 +1282,51 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   if (ItBegin == ItEnd)
     return nullptr;
 
-  std::vector<sycl_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
-  auto It = ItBegin;
-  for (unsigned I = 0; It != ItEnd; ++It, ++I)
-    RawImgs[I] = reinterpret_cast<sycl_device_binary>(
-        const_cast<sycl_device_binary>(&It->second->getRawData()));
+  // Here, we aim to select all the device images from the
+  // [ItBegin, ItEnd) range that are AOT compiled for Device
+  // (checked using info::device::architecture) or  JIT compiled.
+  // This selection will then be passed to urDeviceSelectBinary
+  // for final selection.
+  std::string_view ArchName = getArchName(Device);
+  std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
+  DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
+  for (auto It = ItBegin; It != ItEnd; ++It) {
+    auto PropRange = It->second->getDeviceRequirements();
+    auto PropIt =
+        std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
+          return Prop->Name == std::string_view("compile_target");
+        });
+    auto AddImg = [&]() { DeviceFilteredImgs.push_back(It->second); };
 
-  std::vector<ur_device_binary_t> UrBinaries(RawImgs.size());
-  for (uint32_t BinaryCount = 0; BinaryCount < RawImgs.size(); BinaryCount++) {
-    UrBinaries[BinaryCount].pDeviceTargetSpec =
-        getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
+    // Device image has no compile_target property, so it is JIT compiled.
+    if (PropIt == PropRange.end()) {
+      AddImg();
+      continue;
+    }
+
+    // Device image has the compile_target property, so it is AOT compiled for
+    // some device, check if that architecture is Device's architecture.
+    auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
+    CompileTargetByteArray.dropBytes(8);
+    std::string_view CompileTarget(
+        reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
+        CompileTargetByteArray.size());
+    // Note: there are no explicit targets for CPUs, so on x86_64,
+    // so we use a spir64_x86_64 compile target image.
+    if ((ArchName == CompileTarget) ||
+        (ArchName == "x86_64" && CompileTarget == "spir64_x86_64")) {
+      AddImg();
+    }
+  }
+
+  if (DeviceFilteredImgs.empty())
+    return nullptr;
+
+  std::vector<ur_device_binary_t> UrBinaries(DeviceFilteredImgs.size());
+  for (uint32_t BinaryCount = 0; BinaryCount < DeviceFilteredImgs.size();
+       BinaryCount++) {
+    UrBinaries[BinaryCount].pDeviceTargetSpec = getUrDeviceTarget(
+        getRawImg(DeviceFilteredImgs[BinaryCount])->DeviceTargetSpec);
   }
 
   uint32_t ImgInd = 0;
@@ -1271,8 +1335,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   getSyclObjImpl(Context)->getPlugin()->call(
       urDeviceSelectBinary, getSyclObjImpl(Device)->getHandleRef(),
       UrBinaries.data(), UrBinaries.size(), &ImgInd);
-  std::advance(ItBegin, ImgInd);
-  return ItBegin->second;
+  return DeviceFilteredImgs[ImgInd];
 }
 
 RTDeviceBinaryImage &
@@ -1301,10 +1364,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
         KernelId != m_KernelName2KernelIDs.end()) {
-      // Kernel ID presence guarantees that we have bin image in the storage.
       Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
                                     Context, Device);
-      assert(Img && "No binary image found for kernel id");
     } else {
       Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName, Context,
                                     Device);
@@ -1455,7 +1516,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     ur_device_handle_t Device, uint32_t DeviceLibReqMask,
-    const std::vector<ur_program_handle_t> &ExtraProgramsToLink) {
+    const std::vector<ur_program_handle_t> &ExtraProgramsToLink,
+    bool CreatedFromBinary) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1503,21 +1565,19 @@ ProgramManager::ProgramPtr ProgramManager::build(
   }
 
   // Include the main program and compile/link everything together
-  auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
-                       Context->getHandleRef(), CompileOptions.c_str());
-  Plugin->checkUrResult<errc::build>(Res);
+  if (!CreatedFromBinary) {
+    auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
+                         Context->getHandleRef(), CompileOptions.c_str());
+    Plugin->checkUrResult<errc::build>(Res);
+  }
   LinkPrograms.push_back(Program.get());
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
-    auto Result =
-        Plugin->call_nocheck(urProgramCompileExp, Prg, /* num devices =*/1,
-                             &Device, CompileOptions.c_str());
-    if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Plugin->call(urProgramCompile, Context->getHandleRef(), Prg,
-                   CompileOptions.c_str());
+    if (!CreatedFromBinary) {
+      auto Res = doCompile(Plugin, Prg, /*num devices =*/1, &Device,
+                           Context->getHandleRef(), CompileOptions.c_str());
+      Plugin->checkUrResult<errc::build>(Res);
     }
-    Plugin->checkUrResult(Result);
-
     LinkPrograms.push_back(Prg);
   }
 
@@ -2707,8 +2767,8 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
-  Plugin->call<errc::kernel_not_supported>(urKernelCreate,
-      BuildProgram.get(), KernelName.c_str(), &UrKernel);
+  Plugin->call<errc::kernel_not_supported>(urKernelCreate, BuildProgram.get(),
+                                           KernelName.c_str(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     m_MaterializedKernels[KernelName][SpecializationConsts] = UrKernel;

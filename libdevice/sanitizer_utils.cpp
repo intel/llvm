@@ -53,6 +53,9 @@ __spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
 
+extern SYCL_EXTERNAL __attribute__((convergent)) void
+__spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
+
 extern "C" SYCL_EXTERNAL void __devicelib_exit();
 #endif // __USE_SPIR_BUILTIN__
 
@@ -199,7 +202,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
     auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
     const auto shadow_offset = launch_info->PrivateShadowOffset;
-    const auto shadow_offset_end = launch_info->LocalShadowOffsetEnd;
+    const auto shadow_offset_end = launch_info->PrivateShadowOffsetEnd;
 
     if (shadow_offset == 0) {
       return 0;
@@ -786,19 +789,7 @@ __asan_set_shadow_static_local(uptr ptr, size_t size,
   // if size != aligned_size, then the buffer tail of ptr is not aligned
   uptr aligned_size = RoundUpTo(size, ASAN_SHADOW_GRANULARITY);
 
-  // Set user zone to zero
-  {
-    auto shadow_begin = MemToShadow(ptr, ADDRESS_SPACE_LOCAL);
-    auto shadow_end = MemToShadow(ptr + size, ADDRESS_SPACE_LOCAL);
-    if (__AsanDebug)
-      __spirv_ocl_printf(__mem_set_shadow_local, shadow_begin, shadow_end, 0);
-    while (shadow_begin <= shadow_end) {
-      *((__SYCL_GLOBAL__ u8 *)shadow_begin) = 0;
-      ++shadow_begin;
-    }
-  }
-
-  // Set left red zone
+  // Set red zone
   {
     auto shadow_address = MemToShadow(ptr + aligned_size, ADDRESS_SPACE_LOCAL);
     auto count = (size_with_redzone - aligned_size) >> ASAN_SHADOW_SCALE;
@@ -821,6 +812,36 @@ __asan_set_shadow_static_local(uptr ptr, size_t size,
       __spirv_ocl_printf(__mem_set_shadow_local, shadow_end, shadow_end, value);
     *shadow_end = value;
   }
+}
+
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_static_local_begin[] =
+    "[kernel] BEGIN __asan_unpoison_shadow_static_local\n";
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_static_local_end[] =
+    "[kernel] END   __asan_unpoison_shadow_static_local\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__asan_unpoison_shadow_static_local(uptr ptr, size_t size,
+                                    size_t size_with_redzone) {
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_unpoison_shadow_static_local_begin);
+
+  auto shadow_begin = MemToShadow(ptr + size, ADDRESS_SPACE_LOCAL);
+  auto shadow_end = MemToShadow(ptr + size_with_redzone, ADDRESS_SPACE_LOCAL);
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_set_shadow_local, shadow_begin, shadow_end, 0);
+
+  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+                         __spv::MemorySemanticsMask::SequentiallyConsistent |
+                             __spv::MemorySemanticsMask::WorkgroupMemory);
+
+  while (shadow_begin <= shadow_end) {
+    *((__SYCL_GLOBAL__ u8 *)shadow_begin) = 0;
+    ++shadow_begin;
+  }
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_unpoison_shadow_static_local_end);
 }
 
 static __SYCL_CONSTANT__ const char __mem_local_arg[] =
@@ -865,6 +886,45 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
 
   if (__AsanDebug)
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_end);
+}
+
+static __SYCL_CONSTANT__ const char
+    __mem_unpoison_shadow_dynamic_local_begin[] =
+        "[kernel] BEGIN __asan_unpoison_shadow_dynamic_local\n";
+static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_end[] =
+    "[kernel] END   __asan_unpoison_shadow_dynamic_local\n";
+
+DEVICE_EXTERN_C_NOINLINE void
+__asan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_unpoison_shadow_dynamic_local_begin);
+
+  auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
+  if (num_args != launch_info->NumLocalArgs) {
+    __spirv_ocl_printf(__mem_report_arg_count_incorrect, num_args,
+                       launch_info->NumLocalArgs);
+    return;
+  }
+
+  uptr *args = (uptr *)ptr;
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_launch_info, launch_info,
+                       launch_info->LocalShadowOffset,
+                       launch_info->LocalShadowOffsetEnd,
+                       launch_info->NumLocalArgs, launch_info->LocalArgs);
+
+  for (uint32_t i = 0; i < num_args; ++i) {
+    auto *local_arg = &launch_info->LocalArgs[i];
+    if (__AsanDebug)
+      __spirv_ocl_printf(__mem_local_arg, i, local_arg->Size,
+                         local_arg->SizeWithRedZone);
+
+    __asan_unpoison_shadow_static_local(args[i], local_arg->Size,
+                                        local_arg->SizeWithRedZone);
+  }
+
+  if (__AsanDebug)
+    __spirv_ocl_printf(__mem_unpoison_shadow_dynamic_local_end);
 }
 
 ///

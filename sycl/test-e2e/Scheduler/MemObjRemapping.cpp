@@ -1,5 +1,5 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // XFAIL: hip_nvidia
 #include <cassert>
@@ -29,7 +29,7 @@ int main() {
   {
     // Check access mode flags
     // CHECK: urEnqueueMemBufferMap
-    // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
+    // CHECK: .mapFlags = UR_MAP_FLAG_READ
     auto AccA = BufA.get_access<access::mode::read>();
     for (std::size_t I = 0; I < Size; ++I) {
       assert(AccA[I] == I);
@@ -38,7 +38,7 @@ int main() {
   {
     // CHECK: urEnqueueMemUnmap
     // CHECK: urEnqueueMemBufferMap
-    // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE
+    // CHECK: .mapFlags = UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE
     auto AccA = BufA.get_access<access::mode::write>();
     for (std::size_t I = 0; I < Size; ++I)
       AccA[I] = 2 * I;

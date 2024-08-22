@@ -42,8 +42,8 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
     // Get UR device from the raw device handle.
     // NOTE: this is for OpenCL interop only (and should go away).
     // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call(urDeviceCreateWithNativeHandle, InteropDeviceHandle, nullptr,
-                 nullptr, &MDevice);
+    Plugin->call(urDeviceCreateWithNativeHandle, InteropDeviceHandle,
+                 Plugin->getUrAdapter(), nullptr, &MDevice);
     InteroperabilityConstructor = true;
   }
 
@@ -76,10 +76,14 @@ device_impl::device_impl(ur_native_handle_t InteropDeviceHandle,
 }
 
 device_impl::~device_impl() {
-  // TODO catch an exception and put it to list of asynchronous exceptions
-  const PluginPtr &Plugin = getPlugin();
-  ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MDevice);
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  try {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    const PluginPtr &Plugin = getPlugin();
+    ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MDevice);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
+  }
 }
 
 bool device_impl::is_affinity_supported(
