@@ -19,9 +19,10 @@
 #include <ur_api.h>
 #include <ze_api.h>
 
-#include "../device.hpp"
 #include "common.hpp"
 #include "event.hpp"
+
+#include "../device.hpp"
 
 namespace v2 {
 
@@ -34,24 +35,25 @@ class provider_pool {
 public:
   provider_pool(ur_context_handle_t, ur_device_handle_t, event_type,
                 queue_type);
-  ~provider_pool();
 
-  event_borrowed allocate();
+  raii::cache_borrowed_event allocate();
   size_t nfree() const;
 
 private:
-  // TODO: use a RAII wrapper for the pool handle
-  ze_event_pool_handle_t pool;
-
-  std::vector<ze_event_handle_t> freelist;
+  raii::ze_event_pool_handle_t pool;
+  std::vector<raii::ze_event_handle_t> freelist;
 };
 
 class provider_normal : public event_provider {
 public:
-  provider_normal(ur_context_handle_t, ur_device_handle_t, event_type,
-                  queue_type);
+  provider_normal(ur_context_handle_t context, ur_device_handle_t device,
+                  event_type etype, queue_type qtype)
+      : producedType(etype), queueType(qtype), urContext(context),
+        urDevice(device) {
+    urDeviceRetain(device);
+  }
 
-  ~provider_normal() override;
+  ~provider_normal() override { urDeviceRelease(urDevice); }
 
   event_allocation allocate() override;
   ur_device_handle_t device() override;

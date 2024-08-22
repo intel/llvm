@@ -207,6 +207,15 @@ const int UrL0LeaksDebug = [] {
   return std::atoi(UrRet);
 }();
 
+// Enable for UR L0 Adapter to Init all L0 Drivers on the system with filtering
+// in place for only currently used Drivers.
+const int UrL0InitAllDrivers = [] {
+  const char *UrRet = std::getenv("UR_L0_INIT_ALL_DRIVERS");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
 // Controls Level Zero calls serialization to w/a Level Zero driver being not MT
 // ready. Recognized values (can be used as a bit mask):
 enum {
@@ -316,11 +325,6 @@ bool setEnvVar(const char *name, const char *value);
 
 // Map Level Zero runtime error code to UR error code.
 ur_result_t ze2urResult(ze_result_t ZeResult);
-
-/// Checks the version of the level-zero driver.
-bool isDriverVersionNewerOrSimilar(ze_driver_handle_t ZeDriver,
-                                   uint32_t VersionMajor, uint32_t VersionMinor,
-                                   uint32_t VersionBuild);
 
 // Trace a call to Level-Zero RT
 #define ZE2UR_CALL(ZeName, ZeArgs)                                             \

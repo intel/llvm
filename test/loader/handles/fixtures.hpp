@@ -15,7 +15,7 @@
 #endif
 
 ur_result_t replace_urPlatformGet(void *pParams) {
-    auto params = *static_cast<ur_platform_get_params_t *>(pParams);
+    const auto &params = *static_cast<ur_platform_get_params_t *>(pParams);
 
     if (*params.ppNumPlatforms) {
         **params.ppNumPlatforms = 1;
@@ -29,7 +29,7 @@ ur_result_t replace_urPlatformGet(void *pParams) {
 }
 
 ur_result_t replace_urDeviceGetInfo(void *pParams) {
-    auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+    const auto &params = *static_cast<ur_device_get_info_params_t *>(pParams);
     if (*params.ppropName == UR_DEVICE_INFO_PLATFORM) {
         if (*params.ppPropSizeRet) {
             **params.ppPropSizeRet = sizeof(ur_platform_handle_t);

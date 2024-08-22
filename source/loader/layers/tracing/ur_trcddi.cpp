@@ -705,7 +705,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -719,14 +720,14 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     ur_device_create_with_native_handle_params_t params = {
-        &hNativeDevice, &hPlatform, &pProperties, &phDevice};
+        &hNativeDevice, &hAdapter, &pProperties, &phDevice};
     uint64_t instance =
         getContext()->notify_begin(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
                                    "urDeviceCreateWithNativeHandle", &params);
 
     getContext()->logger.info("---> urDeviceCreateWithNativeHandle");
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hAdapter,
                                                    pProperties, phDevice);
 
     getContext()->notify_end(UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE,
@@ -2943,6 +2944,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
+    ///< The data pointed to will be copied and therefore can be reused on return.
 ) {
     auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
@@ -6049,6 +6051,51 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urBindlessImagesMapExternalLinearMemoryExp
+__urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    uint64_t offset,              ///< [in] offset into memory region to map
+    uint64_t size,                ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
+) {
+    auto pfnMapExternalLinearMemoryExp =
+        getContext()
+            ->urDdiTable.BindlessImagesExp.pfnMapExternalLinearMemoryExp;
+
+    if (nullptr == pfnMapExternalLinearMemoryExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_bindless_images_map_external_linear_memory_exp_params_t params = {
+        &hContext, &hDevice, &offset, &size, &hExternalMem, &ppRetMem};
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP,
+        "urBindlessImagesMapExternalLinearMemoryExp", &params);
+
+    getContext()->logger.info(
+        "---> urBindlessImagesMapExternalLinearMemoryExp");
+
+    ur_result_t result = pfnMapExternalLinearMemoryExp(
+        hContext, hDevice, offset, size, hExternalMem, ppRetMem);
+
+    getContext()->notify_end(
+        UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP,
+        "urBindlessImagesMapExternalLinearMemoryExp", &params, &result,
+        instance);
+
+    std::ostringstream args_str;
+    ur::extras::printFunctionParams(
+        args_str, UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP,
+        &params);
+    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesReleaseExternalMemoryExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -8125,6 +8172,11 @@ __urdlllocal ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
     dditable.pfnMapExternalArrayExp = pDdiTable->pfnMapExternalArrayExp;
     pDdiTable->pfnMapExternalArrayExp =
         ur_tracing_layer::urBindlessImagesMapExternalArrayExp;
+
+    dditable.pfnMapExternalLinearMemoryExp =
+        pDdiTable->pfnMapExternalLinearMemoryExp;
+    pDdiTable->pfnMapExternalLinearMemoryExp =
+        ur_tracing_layer::urBindlessImagesMapExternalLinearMemoryExp;
 
     dditable.pfnReleaseExternalMemoryExp =
         pDdiTable->pfnReleaseExternalMemoryExp;

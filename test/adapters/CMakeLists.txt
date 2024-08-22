@@ -85,6 +85,6 @@ if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(hip)
 endif()
 
-if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(level_zero)
 endif()

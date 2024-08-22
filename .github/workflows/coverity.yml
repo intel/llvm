@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -37,11 +37,6 @@ jobs:
 
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
-
-      - name: Install apt packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libhwloc-dev
 
       - name: Configure CMake
         run: >

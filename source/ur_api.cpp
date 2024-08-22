@@ -997,7 +997,7 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
+///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
@@ -1005,7 +1005,8 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -3113,6 +3114,7 @@ ur_result_t UR_APICALL urKernelSetArgValue(
         *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
+    ///< The data pointed to will be copied and therefore can be reused on return.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -6046,6 +6048,39 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         hExternalMem, ///< [in] external memory handle to the external memory
     ur_exp_image_mem_native_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Map an external memory handle to a device memory region described by
+///        void*
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hContext`
+///         + `NULL == hDevice`
+///         + `NULL == hExternalMem`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppRetMem`
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    uint64_t offset,              ///< [in] offset into memory region to map
+    uint64_t size,                ///< [in] size of memory region to map
+    ur_exp_external_mem_handle_t
+        hExternalMem, ///< [in] external memory handle to the external memory
+    void **ppRetMem   ///< [out] pointer of the externally allocated memory
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

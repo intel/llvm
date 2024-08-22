@@ -7,37 +7,34 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "event_pool.hpp"
 #include "ur_api.h"
-#include <event_pool.hpp>
 
 namespace v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
-ur_event *event_pool::allocate() {
+ur_event_handle_t_ *event_pool::allocate() {
   if (freelist.empty()) {
     auto start = events.size();
     auto end = start + EVENTS_BURST;
-    events.resize(end);
     for (; start < end; ++start) {
+      events.emplace_back(provider->allocate(), this);
       freelist.push_back(&events.at(start));
     }
   }
 
   auto event = freelist.back();
-
-  auto ZeEvent = provider->allocate();
-  event->attachZeHandle(std::move(ZeEvent));
-
   freelist.pop_back();
 
   return event;
 }
 
-void event_pool::free(ur_event *event) {
-  auto _ = event->detachZeHandle();
-
+void event_pool::free(ur_event_handle_t_ *event) {
+  event->reset();
   freelist.push_back(event);
 }
+
+event_provider *event_pool::getProvider() { return provider.get(); }
 
 } // namespace v2

@@ -496,6 +496,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
              (ZeImageTranslated, &DeviceOffset));
   *phImage = DeviceOffset;
 
+  hDevice->ZeOffsetToImageHandleMap[*phImage] = ZeImage;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -675,9 +677,16 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hImage;
+  UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+
+  auto item = hDevice->ZeOffsetToImageHandleMap.find(hImage);
+
+  if (item != hDevice->ZeOffsetToImageHandleMap.end()) {
+    ZE2UR_CALL(zeImageDestroy, (item->second));
+    hDevice->ZeOffsetToImageHandleMap.erase(item);
+  } else {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
 
   return UR_RESULT_SUCCESS;
 }
@@ -1024,6 +1033,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         break;
       case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
       default:
+        delete importWin32;
+        delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
       importWin32->handle = Win32Handle->handle;
@@ -1072,6 +1083,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   externalMemoryData->urMemoryHandle =
       reinterpret_cast<ur_mem_handle_t>(*phImageMem);
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
+  std::ignore = hContext;
+  std::ignore = hDevice;
+  std::ignore = size;
+  std::ignore = offset;
+  std::ignore = hExternalMem;
+  std::ignore = phRetMem;
+  logger::error("[UR][L0] {} function not implemented!",
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(

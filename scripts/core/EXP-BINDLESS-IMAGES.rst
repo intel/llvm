@@ -181,6 +181,7 @@ Functions
 * Interop
    * ${x}BindlessImagesImportExternalMemoryExp
    * ${x}BindlessImagesMapExternalArrayExp
+   * ${x}BindlessImagesMapExternalLinearMemoryExp
    * ${x}BindlessImagesReleaseExternalMemoryExp
    * ${x}BindlessImagesImportExternalSemaphoreExp
    * ${x}BindlessImagesReleaseExternalSemaphoreExp
@@ -249,6 +250,8 @@ Changelog
 +----------+-------------------------------------------------------------+
 | 17.0     || Rename interop related structs and funcs with "external"   |
 |          || keyword over "interop".                                    |
++----------+-------------------------------------------------------------+
+| 18.0     | Added BindlessImagesMapExternalLinearMemoryExp function.    |
 +----------+-------------------------------------------------------------+
 
 Contributors

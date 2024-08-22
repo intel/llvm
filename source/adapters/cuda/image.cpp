@@ -455,21 +455,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
   // Allocate a cuArray
   if (pImageDesc->numMipLevel == 1) {
-    CUarray ImageArray;
+    CUarray ImageArray{};
 
     try {
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
       *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return Err;
     } catch (...) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   } else // Allocate a cuMipmappedArray
   {
-    CUmipmappedArray mip_array;
+    CUmipmappedArray mip_array{};
     array_desc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
 
     try {
@@ -477,10 +481,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
                                             pImageDesc->numMipLevel));
       *phImageMem = (ur_exp_image_mem_native_handle_t)mip_array;
     } catch (ur_result_t Err) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return Err;
     } catch (...) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }
@@ -1160,6 +1168,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 
       *phImageMem = (ur_exp_image_mem_native_handle_t)memArray;
     }
+
+  } catch (ur_result_t Err) {
+    return Err;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
+    uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **ppRetMem) {
+  UR_ASSERT(std::find(hContext->getDevices().begin(),
+                      hContext->getDevices().end(),
+                      hDevice) != hContext->getDevices().end(),
+            UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  try {
+    ScopedContext Active(hDevice);
+
+    CUDA_EXTERNAL_MEMORY_BUFFER_DESC BufferDesc = {};
+    BufferDesc.size = size;
+    BufferDesc.offset = offset;
+    BufferDesc.flags = 0;
+
+    CUdeviceptr retMem;
+    UR_CHECK_ERROR(cuExternalMemoryGetMappedBuffer(
+        &retMem, (CUexternalMemory)hExternalMem, &BufferDesc));
+
+    *ppRetMem = (void *)retMem;
 
   } catch (ur_result_t Err) {
     return Err;
