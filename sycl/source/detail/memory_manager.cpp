@@ -124,10 +124,9 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   if (!Events.empty()) {
     const PluginPtr &Plugin = Events[0]->getPlugin();
     std::vector<ur_event_handle_t> UrEvents(Events.size());
-    std::transform(Events.begin(), Events.end(), UrEvents.begin(),
-                   [](const EventImplPtr &EventImpl) {
-                     return EventImpl->getHandleRef();
-                   });
+    std::transform(
+        Events.begin(), Events.end(), UrEvents.begin(),
+        [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
     if (!UrEvents.empty() && UrEvents[0]) {
       Plugin->call(urEventWait, UrEvents.size(), &UrEvents[0]);
     }
@@ -313,7 +312,7 @@ void *MemoryManager::allocateInteropMemObject(
   // If memory object is created with interop c'tor return cl_mem as is.
   assert(TargetContext == InteropContext && "Expected matching contexts");
 
-  OutEventToWait = InteropEvent->getHandleRef();
+  OutEventToWait = InteropEvent->getHandle();
   // Retain the event since it will be released during alloca command
   // destruction
   if (nullptr != OutEventToWait) {

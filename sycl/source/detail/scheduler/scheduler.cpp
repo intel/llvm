@@ -741,7 +741,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 
   // A nullptr here means that the commmand does not produce a UR event or it
   // hasn't been enqueued yet.
-  return SyclEventImplPtr->getHandleRef() != nullptr;
+  return SyclEventImplPtr->getHandle() != nullptr;
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(
