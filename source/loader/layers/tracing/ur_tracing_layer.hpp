@@ -21,6 +21,8 @@
 #define TRACING_COMP_NAME "tracing layer"
 
 namespace ur_tracing_layer {
+struct XptiContextManager;
+
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal context_t : public proxy_layer_context_t,
                                public AtomicSingleton<context_t> {
@@ -47,6 +49,8 @@ class __urdlllocal context_t : public proxy_layer_context_t,
     uint8_t call_stream_id;
 
     inline static const std::string name = "UR_LAYER_TRACING";
+
+    std::shared_ptr<XptiContextManager> xptiContextManager;
 };
 
 context_t *getContext();
