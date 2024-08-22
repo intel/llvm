@@ -124,7 +124,7 @@ template <typename T> int test(size_t Stride) {
        auto Group = NDId.get_group();
        size_t NElemsToCopy =
            WorkGroupSize / Stride + ((WorkGroupSize % Stride) ? 1 : 0);
-       size_t Offset = GrId * WorkGroupSize;
+       std::ptrdiff_t Offset = GrId * WorkGroupSize;
        if (Stride == 1) { // Check the version without stride arg.
          auto E = NDId.async_work_group_copy(
              Local.template get_multi_ptr<access::decorated::legacy>(),
