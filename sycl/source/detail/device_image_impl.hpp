@@ -95,10 +95,14 @@ public:
 
     // Otherwise, if the device candidate is a sub-device it is also valid if
     // its parent is valid.
-    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
-      return has_kernel(KernelIDCand,
-                        DeviceCand.get_info<info::device::parent_device>());
-
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice()) {
+      try {
+        return has_kernel(KernelIDCand,
+                          DeviceCand.get_info<info::device::parent_device>());
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in has_kernel", e);
+      }
+    }
     return false;
   }
 
@@ -259,7 +263,7 @@ public:
     return MSpecConstsBlob;
   }
 
-  ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
+  ur_mem_handle_t &get_spec_const_buffer_ref() {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
@@ -270,10 +274,15 @@ public:
       //  TODO consider changing the lifetime of device_image_impl instead
       ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                            nullptr, MSpecConstsBlob.data()};
-      memBufferCreateHelper(
-          Plugin, detail::getSyclObjImpl(MContext)->getHandleRef(),
-          UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-          MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
+      try {
+        memBufferCreateHelper(
+            Plugin, detail::getSyclObjImpl(MContext)->getHandleRef(),
+            UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+            MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM(
+            "exception in get_spec_const_buffer_ref", e);
+      }
     }
     return MSpecConstsBuffer;
   }

@@ -1618,15 +1618,18 @@ void modifiable_command_graph::end_recording() {
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl && QueueImpl->getCommandGraph() == impl) {
-    QueueImpl->setCommandGraph(nullptr);
-    graph_impl::WriteLock Lock(impl->MMutex);
-    impl->removeQueue(QueueImpl);
-  }
-  if (QueueImpl->getCommandGraph() != nullptr) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "end_recording called for a queue which is recording "
-                          "to a different graph.");
+  if (QueueImpl) {
+    if (QueueImpl->getCommandGraph() == impl) {
+      QueueImpl->setCommandGraph(nullptr);
+      graph_impl::WriteLock Lock(impl->MMutex);
+      impl->removeQueue(QueueImpl);
+    }
+    if (QueueImpl->getCommandGraph() != nullptr) {
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "end_recording called for a queue which is recording "
+          "to a different graph.");
+    }
   }
 }
 
