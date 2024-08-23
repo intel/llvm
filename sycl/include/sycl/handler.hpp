@@ -172,6 +172,7 @@ namespace ext::oneapi::experimental::detail {
 class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
+
 class work_group_memory_impl;
 size_t getWorkGroupMemoryOwnSize(work_group_memory_impl *);
 size_t getWorkGroupMemoryBufferSize(work_group_memory_impl *);
@@ -693,6 +694,7 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+
   template <typename DataT, typename PropertyListT>
   void setArgHelper(int ArgIndex, ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &&Arg) {
     addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, detail::getWorkGroupMemoryOwnSize(static_cast<detail::work_group_memory_impl *>(Arg)), ArgIndex);
@@ -918,6 +920,7 @@ private:
 
     constexpr bool KernelHasName =
         KI::getName() != nullptr && KI::getName()[0] != '\0';
+
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
