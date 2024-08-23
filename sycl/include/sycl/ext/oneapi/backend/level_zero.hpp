@@ -21,7 +21,7 @@
 #include <sycl/detail/ur.hpp>                        // for cast
 #include <sycl/device.hpp>                           // for device
 #include <sycl/event.hpp>                            // for event
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/buffer.hpp>                           // for buffer
 #include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>     // for ownership
 #include <sycl/image.hpp>                                       // for image
 #include <sycl/kernel.hpp>                                      // for kernel

@@ -13,7 +13,7 @@
 #include <sycl/context.hpp>       // for context
 #include <sycl/device.hpp>        // for device
 #include <sycl/event.hpp>         // for event
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for accessor
+#include <sycl/accessor.hpp>      // for accessor
 #include <sycl/ext/oneapi/weak_object.hpp>      // for weak_object
 #include <sycl/kernel.hpp>                      // for kernel
 #include <sycl/kernel_bundle.hpp>               // for kernel_id

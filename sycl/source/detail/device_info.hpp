@@ -1173,6 +1173,16 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   }
 };
 
+// Specialization for kernel fusion support
+template <>
+struct get_device_info_impl<
+    bool, ext::codeplay::experimental::info::device::supports_fusion> {
+  static bool get(const DeviceImplPtr &Dev) {
+    (void)Dev;
+    return false;
+  }
+};
+
 // Specialization for max registers per work-group
 template <>
 struct get_device_info_impl<
