@@ -18,6 +18,8 @@
 // Unfortunately, for this workaround to work, it must not be succeeded 
 // by an include of <cassert> or <assert.h> because these two headers
 // do not have include guards and will redefine the assert macro.
+// This means that whenever a user wants to use device asserts on Windows,
+// they must make sure to always include <sycl/sycl.hpp> last.
 // TODO: Delete this header file and its inclusion in <sycl/sycl.hpp> once the
 // extension is supported by IGC.
 
