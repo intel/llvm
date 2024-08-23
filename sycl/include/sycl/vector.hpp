@@ -497,7 +497,7 @@ using vector_t =
 //
 //   template <class Self>
 //   class AMixin {
-//     using DataT = typename from_incomplete<Self>::DataT;
+//     using DataT = typename from_incomplete<Self>::element_type;
 //     ...
 //   };
 //
@@ -526,6 +526,10 @@ struct from_incomplete<vec<DataT, NumElements>> {
   using vector_t = vector_t<DataT, size()>;
 #endif
 };
+
+template <typename T>
+using vec_from =
+    vec<typename from_incomplete<T>::element_type, from_incomplete<T>::size()>;
 
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 struct from_incomplete<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
@@ -619,10 +623,11 @@ template <typename SelfOperandTy, typename = void>
 class IncDecMixin {};
 
 template <typename SelfOperandTy>
-class IncDecMixin<SelfOperandTy,
-                  std::enable_if_t<!std::is_same_v<
-                      bool, typename from_incomplete<SelfOperandTy>::DataT>>> {
-  using DataT = typename from_incomplete<SelfOperandTy>::DataT;
+class IncDecMixin<
+    SelfOperandTy,
+    std::enable_if_t<!std::is_same_v<
+        bool, typename from_incomplete<SelfOperandTy>::element_type>>> {
+  using DataT = typename from_incomplete<SelfOperandTy>::element_type;
 
 public:
   friend SelfOperandTy &operator++(SelfOperandTy &x) {
@@ -650,43 +655,35 @@ public:
 // do. Otherwise shift operators for byte element type would have to be disabled
 // completely to follow C++ standard approach.
 template <typename Self, typename = void>
-class ByteShiftsNonAssignMixin {};
+struct ByteShiftsNonAssignMixin {};
 
 template <typename SelfOperandTy, typename = void>
-class ByteShiftsOpAssignMixin {};
+struct ByteShiftsOpAssignMixin {};
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 template <typename Self>
-class ByteShiftsNonAssignMixin<
+struct ByteShiftsNonAssignMixin<
     Self, std::enable_if_t<std::is_same_v<
-              std::byte, typename from_incomplete<Self>::DataT>>> {
-  using DataT = typename from_incomplete<Self>::DataT;
-  static constexpr int N = from_incomplete<Self>::size();
-
-public:
+              std::byte, typename from_incomplete<Self>::element_type>>> {
   friend auto operator<<(const Self &lhs, int shift) {
-    vec<DataT, N> tmp;
-    for (int i = 0; i < N; ++i)
+    vec_from<Self> tmp;
+    for (int i = 0; i < tmp.size(); ++i)
       tmp[i] = lhs[i] << shift;
     return tmp;
   }
   friend auto operator>>(const Self &lhs, int shift) {
-    vec<DataT, N> tmp;
-    for (int i = 0; i < N; ++i)
+    vec_from<Self> tmp;
+    for (int i = 0; i < tmp.size(); ++i)
       tmp[i] = lhs[i] >> shift;
     return tmp;
   }
 };
 
 template <typename SelfOperandTy>
-class ByteShiftsOpAssignMixin<
+struct ByteShiftsOpAssignMixin<
     SelfOperandTy,
     std::enable_if_t<std::is_same_v<
-        std::byte, typename from_incomplete<SelfOperandTy>::DataT>>> {
-  using DataT = typename from_incomplete<SelfOperandTy>::DataT;
-  static constexpr int N = from_incomplete<SelfOperandTy>::size();
-
-public:
+        std::byte, typename from_incomplete<SelfOperandTy>::element_type>>> {
   friend SelfOperandTy &operator<<=(SelfOperandTy &lhs, int shift) {
     lhs = lhs << shift;
     return lhs;
@@ -917,13 +914,11 @@ public:
 // to unify the code, both between vec/swizzle, and between arithmetic/logical
 // ops.
 
-template <typename Self, typename DataT, int N, bool OpAssign, typename Op,
-          typename = void>
-struct SwizzleOpMixin {};
+template <typename Self, bool OpAssign, typename Op, typename = void>
+class SwizzleOpMixin {};
 
-template <typename Self, typename DataT, int N, bool OpAssign, typename Op,
-          typename = void>
-struct VecOpMixin {};
+template <typename Self, bool OpAssign, typename Op, typename = void>
+class VecOpMixin {};
 
 // We need that trait when the type is still incomplete (inside mixin), so
 // cannot deduce the property through the swizzle's `operator[]`.
@@ -938,9 +933,13 @@ inline constexpr bool is_over_const_vec =
     is_over_const_vec_impl<Swizzle>::value;
 
 #define __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                      \
-  template <typename Self, typename DataT, int N>                              \
-  struct SwizzleOpMixin<Self, DataT, N, false, OP,                             \
-                        std::enable_if_t<is_op_available<Self, OP>>> {         \
+  template <typename Self>                                                     \
+  class SwizzleOpMixin<Self, false, OP,                                        \
+                       std::enable_if_t<is_op_available<Self, OP>>> {          \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
                                           !is_swizzle_v<T>>>                   \
@@ -986,9 +985,13 @@ inline constexpr bool is_over_const_vec =
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
   };                                                                           \
-  template <typename Self, typename DataT, int N>                              \
-  struct VecOpMixin<Self, DataT, N, false, OP,                                 \
-                    std::enable_if_t<is_op_available<Self, OP>>> {             \
+  template <typename Self>                                                     \
+  class VecOpMixin<Self, false, OP,                                            \
+                   std::enable_if_t<is_op_available<Self, OP>>> {              \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
     friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
@@ -1006,9 +1009,13 @@ inline constexpr bool is_over_const_vec =
 
 #define __SYCL_BINARY_OP_AND_OPASSIGN_MIXIN(OP, BINOP, OPASSIGN)               \
   __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                            \
-  template <typename Self, typename DataT, int N>                              \
-  struct SwizzleOpMixin<Self, DataT, N, true, OP,                              \
-                        std::enable_if_t<is_op_available<Self, OP>>> {         \
+  template <typename Self>                                                     \
+  class SwizzleOpMixin<Self, true, OP,                                         \
+                       std::enable_if_t<is_op_available<Self, OP>>> {          \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
                                           !is_swizzle_v<T>>>                   \
@@ -1033,9 +1040,13 @@ inline constexpr bool is_over_const_vec =
       return lhs;                                                              \
     }                                                                          \
   };                                                                           \
-  template <typename Self, typename DataT, int N>                              \
-  struct VecOpMixin<Self, DataT, N, true, OP,                                  \
-                    std::enable_if_t<is_op_available<Self, OP>>> {             \
+  template <typename Self>                                                     \
+  class VecOpMixin<Self, true, OP,                                             \
+                   std::enable_if_t<is_op_available<Self, OP>>> {              \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
     friend Self &operator OPASSIGN(Self & lhs, const T & rhs) {                \
@@ -1053,14 +1064,22 @@ inline constexpr bool is_over_const_vec =
 // would use default empty implementation. That is important, becuase we only
 // want the "false" one to provide the implementation to avoid ambiguity.
 #define __SYCL_UNARY_OP_MIXIN(OP, UOP)                                         \
-  template <typename Self, typename DataT, int N>                              \
-  struct SwizzleOpMixin<Self, DataT, N, false, OP,                             \
-                        std::enable_if_t<is_op_available<Self, OP>>> {         \
+  template <typename Self>                                                     \
+  class SwizzleOpMixin<Self, false, OP,                                        \
+                       std::enable_if_t<is_op_available<Self, OP>>> {          \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     friend auto operator UOP(const Self &x) { return OP{}(vec<DataT, N>{x}); } \
   };                                                                           \
-  template <typename Self, typename DataT, int N>                              \
-  struct VecOpMixin<Self, DataT, N, false, OP,                                 \
-                    std::enable_if_t<is_op_available<Self, OP>>> {             \
+  template <typename Self>                                                     \
+  class VecOpMixin<Self, false, OP,                                            \
+                   std::enable_if_t<is_op_available<Self, OP>>> {              \
+    using DataT = typename from_incomplete<Self>::element_type;                \
+    static constexpr int N = from_incomplete<Self>::size();                    \
+                                                                               \
+  public:                                                                      \
     friend auto operator UOP(const Self &x) { return VectorImpl{}(x, OP{}); }  \
   };
 
@@ -1127,14 +1146,14 @@ inline constexpr bool is_over_const_vec =
   public MIXIN_TEMPLATE<__VA_ARGS__, UnaryPlus>
 // clang-format on
 
-template <typename Self, typename DataT, int N, bool EnableAssign>
+template <typename Self, bool EnableAssign>
 struct __SYCL_EBO SwizzleOpsMixin
-    : __SYCL_COMBINE_OP_MIXINS(SwizzleOpMixin, Self, DataT, N, EnableAssign) {};
+    : __SYCL_COMBINE_OP_MIXINS(SwizzleOpMixin, Self, EnableAssign) {};
 
-template <typename Self, typename DataT, int N>
+template <typename Self>
 struct __SYCL_EBO VecOpsMixin
-    : __SYCL_COMBINE_OP_MIXINS(VecOpMixin, Self, DataT, N, false),
-      __SYCL_COMBINE_OP_MIXINS(VecOpMixin, Self, DataT, N, true) {};
+    : __SYCL_COMBINE_OP_MIXINS(VecOpMixin, Self, false),
+      __SYCL_COMBINE_OP_MIXINS(VecOpMixin, Self, true) {};
 
 #undef __SYCL_COMBINE_OP_MIXINS
 
@@ -1145,7 +1164,7 @@ template <typename Self, typename VecT, typename DataT, int N,
           bool AllowAssignOps>
 struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, N>,
-      public SwizzleOpsMixin<Self, DataT, N, false>,
+      public SwizzleOpsMixin<Self, false>,
       public ByteShiftsNonAssignMixin<Self>,
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Self, DataT,
@@ -1174,7 +1193,7 @@ struct __SYCL_EBO SwizzleMixins
 template <typename Self, typename VecT, typename DataT, int N>
 struct __SYCL_EBO SwizzleMixins<Self, VecT, DataT, N, true>
     : public SwizzleMixins<Self, VecT, DataT, N, false>,
-      public SwizzleOpsMixin<Self, DataT, N, true>,
+      public SwizzleOpsMixin<Self, true>,
       public IncDecMixin<const Self>,
       public ByteShiftsOpAssignMixin<const Self> {};
 
@@ -1390,7 +1409,7 @@ class __SYCL_EBO vec
       public detail::IncDecMixin<vec<DataT, NumElements>>,
       public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>>,
       public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>>,
-      public detail::VecOpsMixin<vec<DataT, NumElements>, DataT, NumElements>,
+      public detail::VecOpsMixin<vec<DataT, NumElements>>,
       public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
                                             NumElements> {
 
