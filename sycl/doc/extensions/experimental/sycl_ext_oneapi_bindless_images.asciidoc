@@ -713,6 +713,13 @@ semantics. The value for the addressing mode, `addressing_mode::none`,
 represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
 `addressing_mode::repeat`.
 
+We propose renaming `addressing_mode::clamp` to
+`addressing_mode::clamp_to_border`. This name aligns better with terms used in
+other APIs and is more descriptive as to what the addressing mode does. Note
+that in this extension, the addressing mode will be named 
+`addressing_mode::ext_oneapi_clamp_to_border` as to comply with extension naming
+guidelines.
+
 `addressing[3]` defines the addressing mode per texture dimension. A 
 `bindless_image_sampler` can be constructed with a singular 
 `sycl::addressing_mode`, where this parameter will define all dimensions.
@@ -2894,4 +2901,6 @@ These features still need to be handled:
 |6 |2024-08-05 | - Collated all changes since revision 5.
                  - Bumped SYCL_EXT_ONEAPI_BINDLESS_IMAGES to number 6.
 |6.1|2024-09-09| - Update for image-array sub-region copy support.
+|6.2|2024-08-26| - Added addressing mode `ext_oneapi_clamp_to_border` value,
+                   equivalent to `clamp`, to match with external APIs.
 |======================
