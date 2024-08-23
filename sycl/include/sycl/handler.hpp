@@ -699,7 +699,8 @@ private:
           &Arg) {
     addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg,
            detail::getWorkGroupMemoryOwnSize(
-               static_cast<ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> *>(Arg)),
+               static_cast<ext::oneapi::experimental::work_group_memory<
+                   DataT, PropertyListT> *>(Arg)),
            ArgIndex);
   }
 
