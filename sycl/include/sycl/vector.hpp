@@ -193,7 +193,10 @@ private:
       // and returns values of the underlying vector of some of the operands. On
       // the other hand, `getValue()` gives correct results. This can be changed
       // to using `operator[]` once the bug is fixed.
-      return std::array{static_cast<DataT_>(V.getValue(Is))...};
+      if constexpr (detail::is_swizzle_v<T>)
+        return std::array{static_cast<DataT_>(V.getValue(Is))...};
+      else
+        return std::array{static_cast<DataT_>(V[Is])...};
     }
 
   public:
