@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
-  # Merge: e26bba51 45a781f4
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
+  # commit d0a50523006fa6f283da6a36811081add3bb22fc
+  # Merge: 804851e4 04deb8b3
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 10 12:08:57 2024 +0100
-  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
-  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
-  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
+  # Date:   Tue Aug 20 16:28:30 2024 +0100
+  #    Merge pull request #1940 from RossBrunton/ross/urcall
+  #    [XPTI] Use `ur.call` rather than `ur` in XPTI
+  set(UNIFIED_RUNTIME_TAG 94cb7b07e5dc5712432d9793b2879916dc9b8653)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
