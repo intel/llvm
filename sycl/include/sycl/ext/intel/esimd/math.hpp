@@ -98,9 +98,12 @@ template <typename TRes, typename TArg, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<TRes, SZ>
 __esimd_abs_common_internal(simd<TArg, SZ> src0) {
   simd<TArg, SZ> Result;
-  if constexpr (detail::is_generic_floating_point_v<TArg>)
-    Result = simd<TArg, SZ>(__spirv_ocl_fabs<TArg, SZ>(src0.data()));
-  else
+  if constexpr (detail::is_generic_floating_point_v<TArg>) {
+    using CppT = __ESIMD_DNS::element_type_traits<TArg>::EnclosingCppT;
+    Result =
+        __ESIMD_DNS::convert_vector<TArg, CppT, SZ>(__spirv_ocl_fabs<CppT, SZ>(
+            __ESIMD_DNS::convert_vector<CppT, TArg, SZ>(src0.data())));
+  } else
     Result = simd<TArg, SZ>(__spirv_ocl_s_abs<TArg, SZ>(src0.data()));
   return convert<TRes>(Result);
 }
