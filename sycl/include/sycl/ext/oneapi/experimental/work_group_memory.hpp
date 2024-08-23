@@ -82,7 +82,7 @@ public:
   void __init(decoratedPtr ptr) { this->ptr = ptr; }
 #endif
 private:
-  decoratedPtr data_ptr;
+  decoratedPtr ptr;
 };
 } // namespace ext::oneapi::experimental
 } // namespace _V1
