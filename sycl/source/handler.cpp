@@ -792,7 +792,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
   case kernel_param_kind_t::kind_work_group_memory: {
     addArg(kernel_param_kind_t::kind_std_layout, nullptr,
-               static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
+           static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
            Index + IndexShift);
     break;
   }
