@@ -1238,21 +1238,32 @@ inline constexpr bool has_repeating_indexes = []() constexpr {
   return false;
 }();
 
-template <typename Self, typename VecT, typename = void> class SwizzleBase {
+template <typename Self, int VecSize, typename = void> class SwizzleBase {
+  using DataT = typename from_incomplete<Self>::element_type;
+  using VecT =
+      std::conditional_t<is_over_const_vec<Self>, const vec<DataT, VecSize>,
+                         vec<DataT, VecSize>>;
+
 public:
+  explicit SwizzleBase(VecT &Vec) : Vec(Vec) {}
+
   const Self &operator=(const Self &) = delete;
 
 protected:
-  SwizzleBase(VecT &Vec) : Vec(Vec) {}
   VecT &Vec;
 };
 
-template <typename Self, typename VecT>
-class SwizzleBase<Self, VecT, std::enable_if_t<is_assignable_swizzle_v<Self>>> {
-  using DataT = typename VecT::element_type;
+template <typename Self, int VecSize>
+class SwizzleBase<Self, VecSize, std::enable_if_t<is_assignable_swizzle_v<Self>>> {
+  using DataT = typename from_incomplete<Self>::element_type;
+  using VecT =
+      std::conditional_t<is_over_const_vec<Self>, const vec<DataT, VecSize>,
+                         vec<DataT, VecSize>>;
   static constexpr int N = from_incomplete<Self>::size();
 
 public:
+  explicit SwizzleBase(VecT &Vec) : Vec(Vec) {}
+
   template <access::address_space AddressSpace, access::decorated IsDecorated>
   void load(size_t offset,
             multi_ptr<const DataT, AddressSpace, IsDecorated> ptr) const {
@@ -1298,7 +1309,6 @@ public:
   }
 
 protected:
-  SwizzleBase(VecT &Vec) : Vec(Vec) {}
   VecT &Vec;
 };
 
@@ -1306,15 +1316,11 @@ protected:
 // its hidden friends into ADL.
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 class __SYCL_EBO Swizzle
-    : public SwizzleBase<
-          Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
-          std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
-                             vec<DataT, VecSize>>>,
+    : public SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+                         VecSize>,
       public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
-  using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
-                                  vec<DataT, VecSize>>;
   using Base =
-      SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>, VecT>;
+      SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>, VecSize>;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
 
@@ -1356,6 +1362,7 @@ private:
   }
 
 public:
+  using Base::Base;
   using Base::operator=;
 
   using element_type = DataT;
@@ -1363,8 +1370,6 @@ public:
 
   Swizzle() = delete;
   Swizzle(const Swizzle &) = delete;
-
-  explicit Swizzle(VecT &Vec) : Base(Vec) {}
 
   static constexpr size_t byte_size() noexcept {
     return ResultVec::byte_size();
