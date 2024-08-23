@@ -16,13 +16,20 @@ int main() {
 // CHECK-HEADER: namespace sycl {
 // CHECK-HEADER-NEXT: inline namespace _V1 {
 // CHECK-HEADER-NEXT: namespace detail {
-// CHECK-HEADER-NEXT: namespace {
+// CHECK-HEADER: #ifdef __clang__
+// CHECK-HEADER-NEXT: #pragma clang diagnostic push
+// CHECK-HEADER-NEXT: #pragma clang diagnostic ignored "-Wreserved-identifier"
+// CHECK-HEADER-NEXT: #endif // defined(__clang__)
+// CHECK-HEADER: namespace {
 // CHECK-HEADER-NEXT: class __sycl_device_global_registration {
 // CHECK-HEADER-NEXT: public:
 // CHECK-HEADER-NEXT:   __sycl_device_global_registration() noexcept;
 // CHECK-HEADER-NEXT: };
 // CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registrar;
 // CHECK-HEADER-NEXT: } // namespace
+// CHECK-HEADER: #ifdef __clang__
+// CHECK-HEADER-NEXT: #pragma clang diagnostic pop
+// CHECK-HEADER-NEXT: #endif // defined(__clang__)
 // CHECK-HEADER: } // namespace detail
 // CHECK-HEADER: } // namespace _V1
 // CHECK-HEADER: } // namespace sycl
@@ -49,7 +56,11 @@ int main() {
 
 // CHECK-FOOTER: #include <sycl/detail/device_global_map.hpp>
 // CHECK-FOOTER: namespace sycl::detail {
-// CHECK-FOOTER-NEXT: namespace {
+// CHECK-FOOTER: #ifdef __clang__
+// CHECK-FOOTER-NEXT: #pragma clang diagnostic push
+// CHECK-FOOTER-NEXT: #pragma clang diagnostic ignored "-Wold-style-cast"
+// CHECK-FOOTER-NEXT: #endif // defined(__clang__)
+// CHECK-FOOTER: namespace {
 // CHECK-FOOTER-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
 
 extern device_global<int> Basic;
@@ -111,3 +122,6 @@ struct HasVarTemplate {
 } // namespace
 const auto x = HasVarTemplate::VarTempl<int>.get();
 // CHECK-FOOTER-NEXT: device_global_map::add((void *)&::__sycl_detail::__shim_[[SHIM1]](), "THE_PREFIX____ZN12_GLOBAL__N_114HasVarTemplate8VarTemplIiEE");
+// CHECK-FOOTER: #ifdef __clang__
+// CHECK-FOOTER-NEXT: #pragma clang diagnostic pop
+// CHECK-FOOTER-NEXT: #endif // defined(__clang__)
