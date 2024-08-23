@@ -1,4 +1,4 @@
-// RUN: %{build} %debug_option -O3 -ffast-math -o %t.out
+// RUN: %{build} %debug_option -ffp-model=fast -o %t.out
 // RUN: %{build} %debug_option -Os -o %t.out
 // RUN: %{build} %debug_option -Oz -o %t.out
 // RUN: %{build} %debug_option -Og -o %t.out
