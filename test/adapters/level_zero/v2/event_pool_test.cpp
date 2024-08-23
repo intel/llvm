@@ -143,7 +143,8 @@ TEST_P(EventPoolTest, Basic) {
 
             first = pool->allocate();
             zeFirst = first->getZeEvent();
-            pool->free(first);
+
+            urEventRelease(first);
         }
         ur_event_handle_t second;
         ze_event_handle_t zeSecond;
@@ -152,7 +153,8 @@ TEST_P(EventPoolTest, Basic) {
 
             second = pool->allocate();
             zeSecond = second->getZeEvent();
-            pool->free(second);
+
+            urEventRelease(second);
         }
         ASSERT_EQ(first, second);
         ASSERT_EQ(zeFirst, zeSecond);
@@ -171,7 +173,7 @@ TEST_P(EventPoolTest, Threaded) {
                     events.push_back(pool->allocate());
                 }
                 for (int i = 0; i < 100; ++i) {
-                    pool->free(events[i]);
+                    urEventRelease(events[i]);
                 }
             });
         }
@@ -190,7 +192,7 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
     }
     auto frontZeHandle = events.front()->getZeEvent();
     for (int i = 0; i < 8; ++i) {
-        pool->free(events.front());
+        urEventRelease(events.front());
         events.pop_front();
     }
     for (int i = 0; i < 8; ++i) {
@@ -202,6 +204,6 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
     ASSERT_EQ(frontZeHandle, events.back()->getZeEvent());
 
     for (auto e : events) {
-        pool->free(e);
+        urEventRelease(e);
     }
 }

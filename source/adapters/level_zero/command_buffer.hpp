@@ -17,6 +17,7 @@
 #include "common.hpp"
 
 #include "context.hpp"
+#include "kernel.hpp"
 #include "queue.hpp"
 
 struct command_buffer_profiling_t {

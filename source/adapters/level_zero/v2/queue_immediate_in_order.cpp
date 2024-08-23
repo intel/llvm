@@ -9,8 +9,37 @@
 //===----------------------------------------------------------------------===//
 
 #include "queue_immediate_in_order.hpp"
+#include "kernel.hpp"
+#include "ur.hpp"
+
+#include "../helpers/kernel_helpers.hpp"
+#include "../program.hpp"
+
+#include "../common/latency_tracker.hpp"
 
 namespace v2 {
+
+std::pair<ze_event_handle_t *, uint32_t>
+ur_queue_immediate_in_order_t::getWaitListView(
+    const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+    ur_command_list_handler_t *pHandler) {
+  auto extraWaitEvent = (lastHandler && pHandler != lastHandler)
+                            ? lastHandler->lastEvent
+                            : nullptr;
+
+  auto totalEvents = numWaitEvents + (extraWaitEvent != nullptr);
+  waitList.reserve(totalEvents);
+
+  for (uint32_t i = 0; i < numWaitEvents; i++) {
+    waitList[i] = phWaitEvents[i]->getZeEvent();
+  }
+
+  if (extraWaitEvent) {
+    waitList[numWaitEvents] = extraWaitEvent;
+  }
+
+  return {waitList.data(), static_cast<uint32_t>(totalEvents)};
+}
 
 static int32_t getZeOrdinal(ur_device_handle_t hDevice, queue_group_type type) {
   if (type == queue_group_type::MainCopy && hDevice->hasMainCopyEngine()) {
@@ -42,28 +71,90 @@ static ze_command_queue_priority_t getZePriority(ur_queue_flags_t flags) {
 
 ur_command_list_handler_t::ur_command_list_handler_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_queue_properties_t *pProps, queue_group_type type)
+    const ur_queue_properties_t *pProps, queue_group_type type,
+    event_pool *eventPool)
     : commandList(hContext->commandListCache.getImmediateCommandList(
           hDevice->ZeDevice, true, getZeOrdinal(hDevice, type),
           ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
           getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
-          getZeIndex(pProps))) {}
+          getZeIndex(pProps))),
+      internalEvent(std::move(eventPool->getProvider()->allocate().borrow)) {}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProps)
-    : copyHandler(hContext, hDevice, pProps, queue_group_type::MainCopy),
-      computeHandler(hContext, hDevice, pProps, queue_group_type::Compute) {}
+    : hContext(hContext), hDevice(hDevice), flags(pProps ? pProps->flags : 0),
+      eventPool(hContext->eventPoolCache.borrow(hDevice->Id.value())),
+      copyHandler(hContext, hDevice, pProps, queue_group_type::MainCopy,
+                  eventPool.get()),
+      computeHandler(hContext, hDevice, pProps, queue_group_type::Compute,
+                     eventPool.get()) {}
+
+ur_command_list_handler_t *
+ur_queue_immediate_in_order_t::getCommandListHandlerForCompute() {
+  return &computeHandler;
+}
+
+ur_command_list_handler_t *
+ur_queue_immediate_in_order_t::getCommandListHandlerForCopy() {
+  // TODO: optimize for specific devices, see ../memory.cpp
+  return &copyHandler;
+}
+
+ur_command_list_handler_t *
+ur_queue_immediate_in_order_t::getCommandListHandlerForFill(
+    size_t patternSize) {
+  if (patternSize <= hDevice->QueueGroup[queue_group_type::MainCopy]
+                         .ZeProperties.maxMemoryFillPatternSize)
+    return &copyHandler;
+  else
+    return &computeHandler;
+}
+
+ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
+    ur_command_list_handler_t *handler, ur_event_handle_t *hUserEvent) {
+  if (!hUserEvent) {
+    handler->lastEvent = handler->internalEvent.get();
+  } else {
+    *hUserEvent = eventPool->allocate();
+    handler->lastEvent = (*hUserEvent)->getZeEvent();
+  }
+
+  return handler->lastEvent;
+}
 
 ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
                                             size_t propSize, void *pPropValue,
                                             size_t *pPropSizeRet) {
-  std::ignore = propName;
-  std::ignore = propSize;
-  std::ignore = pPropValue;
-  std::ignore = pPropSizeRet;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::shared_lock<ur_shared_mutex> Lock(Mutex);
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+  // TODO: consider support for queue properties and size
+  switch ((uint32_t)propName) { // cast to avoid warnings on EXT enum values
+  case UR_QUEUE_INFO_CONTEXT:
+    return ReturnValue(hContext);
+  case UR_QUEUE_INFO_DEVICE:
+    return ReturnValue(hDevice);
+  case UR_QUEUE_INFO_REFERENCE_COUNT:
+    return ReturnValue(uint32_t{RefCount.load()});
+  case UR_QUEUE_INFO_FLAGS:
+    return ReturnValue(flags);
+  case UR_QUEUE_INFO_SIZE:
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_QUEUE_INFO_EMPTY: {
+    // We can exit early if we have in-order queue.
+    if (!lastHandler)
+      return ReturnValue(true);
+  }
+  default:
+    logger::error(
+        "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
+        propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueRetain() {
@@ -87,11 +178,27 @@ ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
+  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+
+  if (!lastHandler) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  auto lastCmdList = lastHandler->commandList.get();
+  lastHandler = nullptr;
+  lock.unlock();
+
+  // TODO: use zeEventHostSynchronize instead?
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
+  ZE2UR_CALL(zeCommandListHostSynchronize, (lastCmdList, UINT64_MAX));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::queueFlush() {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
@@ -99,15 +206,46 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueKernelLaunch");
+
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
+      hKernel->Mutex, hKernel->getProgramHandle()->Mutex, this->Mutex);
+
+  if (pGlobalWorkOffset != NULL) {
+    UR_CALL(setKernelGlobalOffset(hContext, hZeKernel, pGlobalWorkOffset));
+  }
+
+  ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3];
+  UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice,
+                                        zeThreadGroupDimensions, WG, workDim,
+                                        pGlobalWorkSize, pLocalWorkSize));
+
+  ZE2UR_CALL(zeKernelSetGroupSize, (hZeKernel, WG[0], WG[1], WG[2]));
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::zeCommandListAppendLaunchKernel");
+  ZE2UR_CALL(zeCommandListAppendLaunchKernel,
+             (handler->commandList.get(), hZeKernel, &zeThreadGroupDimensions,
+              signalEvent, numWaitEvents, pWaitEvents));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
@@ -337,28 +475,57 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill(
     void *pMem, size_t patternSize, const void *pPattern, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = pMem;
-  std::ignore = patternSize;
-  std::ignore = pPattern;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMFill");
+
+  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForFill(patternSize);
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  // TODO: support non-power-of-two pattern sizes
+
+  // PatternSize must be a power of two for zeCommandListAppendMemoryFill.
+  // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
+  ZE2UR_CALL(zeCommandListAppendMemoryFill,
+             (handler->commandList.get(), pMem, pPattern, patternSize, size,
+              signalEvent, numWaitEvents, pWaitEvents));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
     bool blocking, void *pDst, const void *pSrc, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // TODO: parametrize latency tracking with 'blocking'
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy");
+
+  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCopy();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (handler->commandList.get(), pDst, pSrc, size, signalEvent,
+              numWaitEvents, pWaitEvents));
+
+  if (blocking) {
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+               (handler->commandList.get(), UINT64_MAX));
+    lastHandler = nullptr;
+  } else {
+    lastHandler = handler;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
