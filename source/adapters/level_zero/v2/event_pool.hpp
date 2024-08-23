@@ -28,8 +28,9 @@ namespace v2 {
 
 class event_pool {
 public:
+  // store weak reference to the queue as event_pool is part of the queue
   event_pool(std::unique_ptr<event_provider> Provider)
-      : provider(std::move(Provider)){};
+      : provider(std::move(Provider)), mutex(std::make_unique<std::mutex>()){};
 
   event_pool(event_pool &&other) = default;
   event_pool &operator=(event_pool &&other) = default;
@@ -39,7 +40,10 @@ public:
 
   DeviceId Id() { return provider->device()->Id.value(); };
 
+  // Allocate an event from the pool. Thread safe.
   ur_event_handle_t_ *allocate();
+
+  // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t_ *event);
 
   event_provider *getProvider();
@@ -49,6 +53,8 @@ private:
 
   std::deque<ur_event_handle_t_> events;
   std::vector<ur_event_handle_t_ *> freelist;
+
+  std::unique_ptr<std::mutex> mutex;
 };
 
 } // namespace v2

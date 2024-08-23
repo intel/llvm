@@ -41,7 +41,6 @@ ur_result_t ur_event_handle_t_::release() {
     return UR_RESULT_SUCCESS;
 
   pool->free(this);
-  RefCount.increment();
 
   return UR_RESULT_SUCCESS;
 }

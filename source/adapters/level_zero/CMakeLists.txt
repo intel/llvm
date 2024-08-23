@@ -179,11 +179,15 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
@@ -194,8 +198,10 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/context.cpp
@@ -204,9 +210,11 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_counter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
     )
 
     if(NOT WIN32)
@@ -219,6 +227,8 @@ if(UR_BUILD_ADAPTER_L0_V2)
                 ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
         )
     endif()
+
+    target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_ADAPTER_LEVEL_ZERO_V2)
 
     # TODO: fix level_zero adapter conversion warnings
     target_compile_options(ur_adapter_level_zero_v2 PRIVATE
@@ -245,6 +255,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../.."
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../ur"
         LevelZeroLoader-Headers
     )
 endif()

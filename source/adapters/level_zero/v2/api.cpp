@@ -17,14 +17,6 @@
 
 std::mutex ZeCall::GlobalLock;
 
-ur_result_t UR_APICALL urContextGetInfo(ur_context_handle_t hContext,
-                                        ur_context_info_t propName,
-                                        size_t propSize, void *pPropValue,
-                                        size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
   logger::error("{} function not implemented!", __FUNCTION__);
@@ -157,71 +149,6 @@ ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL urUSMHostAlloc(ur_context_handle_t hContext,
-                                      const ur_usm_desc_t *pUSMDesc,
-                                      ur_usm_pool_handle_t pool, size_t size,
-                                      void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMDeviceAlloc(ur_context_handle_t hContext,
-                                        ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
-                                        ur_usm_pool_handle_t pool, size_t size,
-                                        void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMSharedAlloc(ur_context_handle_t hContext,
-                                        ur_device_handle_t hDevice,
-                                        const ur_usm_desc_t *pUSMDesc,
-                                        ur_usm_pool_handle_t pool, size_t size,
-                                        void **ppMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext, void *pMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMGetMemAllocInfo(ur_context_handle_t hContext,
-                                            const void *pMem,
-                                            ur_usm_alloc_info_t propName,
-                                            size_t propSize, void *pPropValue,
-                                            size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolCreate(ur_context_handle_t hContext,
-                                       ur_usm_pool_desc_t *pPoolDesc,
-                                       ur_usm_pool_handle_t *ppPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolRetain(ur_usm_pool_handle_t pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolRelease(ur_usm_pool_handle_t pPool) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urUSMPoolGetInfo(ur_usm_pool_handle_t hPool,
-                                        ur_usm_pool_info_t propName,
-                                        size_t propSize, void *pPropValue,
-                                        size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
@@ -294,124 +221,6 @@ urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t UR_APICALL
-urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
-                      size_t length, const ur_program_properties_t *pProperties,
-                      ur_program_handle_t *phProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
-    ur_program_handle_t *phProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
-                                      ur_program_handle_t hProgram,
-                                      const char *pOptions) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramCompile(ur_context_handle_t hContext,
-                                        ur_program_handle_t hProgram,
-                                        const char *pOptions) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramLink(ur_context_handle_t hContext,
-                                     uint32_t count,
-                                     const ur_program_handle_t *phPrograms,
-                                     const char *pOptions,
-                                     ur_program_handle_t *phProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramRetain(ur_program_handle_t hProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramRelease(ur_program_handle_t hProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramGetFunctionPointer(ur_device_handle_t hDevice,
-                                                   ur_program_handle_t hProgram,
-                                                   const char *pFunctionName,
-                                                   void **ppFunctionPointer) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
-    ur_device_handle_t hDevice, ur_program_handle_t hProgram,
-    const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
-    void **ppGlobalVariablePointerRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramGetInfo(ur_program_handle_t hProgram,
-                                        ur_program_info_t propName,
-                                        size_t propSize, void *pPropValue,
-                                        size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramGetBuildInfo(ur_program_handle_t hProgram,
-                                             ur_device_handle_t hDevice,
-                                             ur_program_build_info_t propName,
-                                             size_t propSize, void *pPropValue,
-                                             size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramSetSpecializationConstants(
-    ur_program_handle_t hProgram, uint32_t count,
-    const ur_specialization_constant_info_t *pSpecConstants) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramGetNativeHandle(
-    ur_program_handle_t hProgram, ur_native_handle_t *phNativeProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram, ur_context_handle_t hContext,
-    const ur_program_native_properties_t *pProperties,
-    ur_program_handle_t *phProgram) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urKernelCreate(ur_program_handle_t hProgram,
-                                      const char *pKernelName,
-                                      ur_kernel_handle_t *phKernel) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urKernelSetArgValue(
-    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
-    const ur_kernel_arg_value_properties_t *pProperties,
-    const void *pArgValue) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t UR_APICALL urKernelSetArgLocal(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_local_properties_t *pProperties) {
@@ -440,24 +249,6 @@ ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                         ur_kernel_sub_group_info_t propName, size_t propSize,
                         void *pPropValue, size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urKernelRelease(ur_kernel_handle_t hKernel) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL
-urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                      const ur_kernel_arg_pointer_properties_t *pProperties,
-                      const void *pArgValue) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -884,33 +675,6 @@ ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
 ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, size_t localWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t hProgram,
-                                         uint32_t numDevices,
-                                         ur_device_handle_t *phDevices,
-                                         const char *pOptions) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t hProgram,
-                                           uint32_t numDevices,
-                                           ur_device_handle_t *phDevices,
-                                           const char *pOptions) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t UR_APICALL urProgramLinkExp(ur_context_handle_t hContext,
-                                        uint32_t numDevices,
-                                        ur_device_handle_t *phDevices,
-                                        uint32_t count,
-                                        const ur_program_handle_t *phPrograms,
-                                        const char *pOptions,
-                                        ur_program_handle_t *phProgram) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
