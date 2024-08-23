@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "KernelTranslation.h"
+#include "helper/ConfigHelper.h"
 
 #include "SPIRVLLVMTranslation.h"
 #include "llvm/Bitcode/BitcodeReader.h"
@@ -168,11 +169,10 @@ KernelTranslator::loadSPIRVKernel(llvm::LLVMContext &LLVMCtx,
   return SPIRVLLVMTranslator::loadSPIRVKernel(LLVMCtx, Kernel);
 }
 
-llvm::Error
-KernelTranslator::translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
-                                  JITContext &JITCtx, BinaryFormat Format,
-                                  const std::string &TargetCPU,
-                                  const std::string &TargetFeatures) {
+llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
+                                              llvm::Module &Mod,
+                                              JITContext &JITCtx,
+                                              BinaryFormat Format) {
 
   KernelBinary *KernelBin = nullptr;
   switch (Format) {
@@ -187,7 +187,7 @@ KernelTranslator::translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
   }
   case BinaryFormat::PTX: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToPTX(Kernel, Mod, JITCtx, TargetCPU, TargetFeatures);
+        translateToPTX(Kernel, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError()) {
       return Error;
     }
@@ -196,7 +196,7 @@ KernelTranslator::translateKernel(SYCLKernelInfo &Kernel, llvm::Module &Mod,
   }
   case BinaryFormat::AMDGCN: {
     llvm::Expected<KernelBinary *> BinaryOrError =
-        translateToAMDGCN(Kernel, Mod, JITCtx, TargetCPU, TargetFeatures);
+        translateToAMDGCN(Kernel, Mod, JITCtx);
     if (auto Error = BinaryOrError.takeError())
       return Error;
     KernelBin = *BinaryOrError;
@@ -227,10 +227,9 @@ KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);
 }
 
-llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
-    SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
-    [[maybe_unused]] const std::string &TargetCPU,
-    [[maybe_unused]] const std::string &TargetFeatures) {
+llvm::Expected<KernelBinary *>
+KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+                                 JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_PTX
   (void)KernelInfo;
   (void)Mod;
@@ -261,8 +260,10 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
 
   // Give priority to user specified values (through environment variables:
   // SYCL_JIT_AMDGCN_PTX_TARGET_CPU and SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES).
-  llvm::StringRef CPU{TargetCPU};
-  llvm::StringRef Features{TargetFeatures};
+  auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
+  auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
+  llvm::StringRef CPU = CPUVal.begin();
+  llvm::StringRef Features = FeaturesVal.begin();
 
   auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
   // If they were not set, use default and consult the module for alternatives
@@ -309,10 +310,9 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToPTX(
 #endif // JIT_SUPPORT_PTX
 }
 
-llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
-    SYCLKernelInfo &KernelInfo, llvm::Module &Mod, JITContext &JITCtx,
-    [[maybe_unused]] const std::string &TargetCPU,
-    [[maybe_unused]] const std::string &TargetFeatures) {
+llvm::Expected<KernelBinary *>
+KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
+                                    llvm::Module &Mod, JITContext &JITCtx) {
 #ifndef JIT_SUPPORT_AMDGCN
   (void)KernelInfo;
   (void)Mod;
@@ -341,8 +341,10 @@ llvm::Expected<KernelBinary *> KernelTranslator::translateToAMDGCN(
         "Failed to load and translate AMDGCN LLVM IR module with error %s",
         ErrorMessage.c_str());
 
-  llvm::StringRef CPU{TargetCPU};
-  llvm::StringRef Features{TargetFeatures};
+  auto CPUVal = ConfigHelper::get<option::JITTargetCPU>();
+  auto FeaturesVal = ConfigHelper::get<option::JITTargetFeatures>();
+  llvm::StringRef CPU = CPUVal.begin();
+  llvm::StringRef Features = FeaturesVal.begin();
 
   auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str());
   if (CPU.empty()) {

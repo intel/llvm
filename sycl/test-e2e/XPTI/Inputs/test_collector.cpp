@@ -21,7 +21,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
   std::string_view NameView{StreamName};
   using type = xpti::trace_point_type_t;
 
-  if (NameView == "ur") {
+  if (NameView == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     for (type t : std::initializer_list<type>{type::function_with_args_begin})
       xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclUrCallback);
