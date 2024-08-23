@@ -6187,6 +6187,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << ",";
     O << "\n";
   }
+  // Add a sentinel to avoid warning if the collection is empty
+  // (similar to what we do for kernel_signatures below).
+  O << "  \"\",\n";
   O << "};\n\n";
 
   O << "// array representing signatures of all kernels defined in the\n";

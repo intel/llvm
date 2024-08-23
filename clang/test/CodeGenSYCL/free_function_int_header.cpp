@@ -52,6 +52,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
