@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d0a50523006fa6f283da6a36811081add3bb22fc
-  # Merge: 804851e4 04deb8b3
+  # commit 40a790fa5edaa635f49ce2e7342bfa5e5b359694
+  # Merge: 2f67b38d 5e240cf8
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 20 16:28:30 2024 +0100
-  #    Merge pull request #1940 from RossBrunton/ross/urcall
-  #    [XPTI] Use `ur.call` rather than `ur` in XPTI
-  set(UNIFIED_RUNTIME_TAG d0a50523006fa6f283da6a36811081add3bb22fc)
+  # Date:   Thu Aug 22 14:04:32 2024 +0100
+  #    Merge pull request #1995 from kswiecicki/refcount-clear
+  #    Coverity fixes
+  set(UNIFIED_RUNTIME_TAG 40a790fa5edaa635f49ce2e7342bfa5e5b359694)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
