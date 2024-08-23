@@ -452,22 +452,11 @@ struct elem {
   static constexpr int sF = 15;
 };
 
+template <typename DataT, int NumElements> class __SYCL_EBO vec;
+
 namespace detail {
-template <class T, class U, class = void>
-struct is_explicitly_convertible_to_impl : std::false_type {};
-
-template <class T, class U>
-struct is_explicitly_convertible_to_impl<
-    T, U, std::void_t<decltype(static_cast<U>(std::declval<T>()))>>
-    : std::true_type {};
-
-template <class T, class U>
-struct is_explicitly_convertible_to : is_explicitly_convertible_to_impl<T, U> {
-};
-
-template <class T, class U>
-inline constexpr bool is_explicitly_convertible_to_v =
-    is_explicitly_convertible_to<T, U>::value;
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+class __SYCL_EBO Swizzle;
 
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename DataT>
@@ -494,6 +483,69 @@ using vector_t =
                                 element_type_for_vector_t<DataT> __attribute__((
                                     ext_vector_type(NumElements)))>;
 #endif // __SYCL_DEVICE_ONLY__
+
+// Provide a class that can deduce element_type/size() from an incomplete type
+// to be used in mixins like:
+//
+//   template <class Self>
+//   struct AMixin : private from_incomplete<Self> {
+//     /* `typename` is required with gcc and not clang /*
+//     ... typename AMixin::element_type/AMixin::size() ...
+//   };
+//
+// or via type alias
+//
+//   template <class Self>
+//   class AMixin {
+//     using DataT = typename from_incomplete<Self>::DataT;
+//     ...
+//   };
+//
+//
+// We'd like actual vec/swizle to `public`-inherit from this to avoid code
+// duplication as well, but it's impossible due to `-Winaccessible-base`
+// warning:
+//
+//   > direct base 'from_incomplete<vec<int, 2>>' is inaccessible due to
+//   > ambiguity.
+//
+// I personally think it's meaningless, because this helper is eligible for
+// Empty Bases Optimization meaning its size as a sub-object is zero and no
+// members of it will ever be accessed (and `element_type`/`size()` don't result
+// in an ill-formed code, meaning no errors are emitted for them).
+template <typename T> struct from_incomplete;
+template <typename T>
+struct from_incomplete<const T> : public from_incomplete<T> {};
+
+template <typename DataT, int NumElements>
+struct from_incomplete<vec<DataT, NumElements>> {
+  using element_type = DataT;
+  static constexpr size_t size() { return NumElements; }
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t = vector_t<DataT, size()>;
+#endif
+};
+
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct from_incomplete<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
+    : public from_incomplete<vec<DataT, sizeof...(Indexes)>> {};
+
+template <class T, class U, class = void>
+struct is_explicitly_convertible_to_impl : std::false_type {};
+
+template <class T, class U>
+struct is_explicitly_convertible_to_impl<
+    T, U, std::void_t<decltype(static_cast<U>(std::declval<T>()))>>
+    : std::true_type {};
+
+template <class T, class U>
+struct is_explicitly_convertible_to : is_explicitly_convertible_to_impl<T, U> {
+};
+
+template <class T, class U>
+inline constexpr bool is_explicitly_convertible_to_v =
+    is_explicitly_convertible_to<T, U>::value;
 
 // Templated vs. non-templated conversion operator behaves differently when two
 // conversions are needed as in the case below:
@@ -1122,9 +1174,6 @@ inline constexpr bool has_repeating_indexes = []() constexpr {
 
   return false;
 }();
-
-template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
-class __SYCL_EBO Swizzle;
 
 template <typename Self, typename VecT, int N, bool AllowAssignOps>
 class SwizzleBase {
