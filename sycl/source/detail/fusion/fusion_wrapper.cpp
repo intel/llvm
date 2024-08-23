@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// TODO(#15184): Delete this file in the next ABI-breaking window.
+
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 
 #include <detail/queue_impl.hpp>

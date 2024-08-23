@@ -323,6 +323,7 @@ bool queue::device_has(aspect Aspect) const {
   return impl->getDeviceImplPtr()->has(Aspect);
 }
 
+// TODO(#15184) Remove this function in the next ABI-breaking window.
 bool queue::ext_codeplay_supports_fusion() const {
   return false; 
 }

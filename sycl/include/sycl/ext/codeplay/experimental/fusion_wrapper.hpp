@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// TODO(#15184): Delete this file in the next ABI-breaking window.
+
 #pragma once
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT

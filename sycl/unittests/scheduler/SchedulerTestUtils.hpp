@@ -142,8 +142,10 @@ public:
   static bool enqueueCommand(sycl::detail::Command *Cmd,
                              sycl::detail::EnqueueResultT &EnqueueResult,
                              sycl::detail::BlockingT Blocking) {
+    RWLockT MockLock;
+    ReadLockT MockReadLock(MockLock);
     std::vector<sycl::detail::Command *> ToCleanUp;
-    return GraphProcessor::enqueueCommand(Cmd, EnqueueResult,
+    return GraphProcessor::enqueueCommand(Cmd, MockReadLock, EnqueueResult,
                                           ToCleanUp, Cmd, Blocking);
   }
 
@@ -195,10 +197,9 @@ public:
                                sycl::detail::QueueImplPtr Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
-    return MGraphBuilder
-        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded);
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
+                               EventNeeded);
   }
-
 };
 
 void addEdge(sycl::detail::Command *User, sycl::detail::Command *Dep,

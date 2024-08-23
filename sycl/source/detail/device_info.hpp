@@ -1174,6 +1174,7 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
 };
 
 // Specialization for kernel fusion support
+// TODO(#15184): Remove this aspect in the next ABI-breaking window.
 template <>
 struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
