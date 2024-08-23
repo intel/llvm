@@ -122,10 +122,10 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  /// Returns all banned (non-SYCL) platforms in the system.
+  /// Returns all unsupported (non-SYCL) platforms in the system.
   ///
-  /// \return a vector of all banned (non-SYCL) platforms.
-  static std::vector<platform> get_banned_platforms();
+  /// \return a vector of all unsupported (non-SYCL) platforms.
+  static std::vector<platform> get_unsupported_platforms();
 
   // \return the Plugin associated with this platform.
   const PluginPtr &getPlugin() const { return MPlugin; }

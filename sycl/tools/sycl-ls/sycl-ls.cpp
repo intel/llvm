@@ -15,7 +15,7 @@
 //
 // In verbose mode it also prints, which devices would be chosen by various SYCL
 // device selectors. If the system has unsupported platforms (for instance
-// CUDA's OpenCL) those will also be listed in verbose mode, under "Banned
+// CUDA's OpenCL) those will also be listed in verbose mode, under "Unsupported
 // Platforms".
 //
 #include <sycl/sycl.hpp>
@@ -124,7 +124,8 @@ std::array<int, 2> GetNumberOfSubAndSubSubDevices(const device &Device) {
 }
 
 static void printDeviceInfo(const device &Device, bool Verbose,
-                            const std::string &Prepend, bool IsBanned = false) {
+                            const std::string &Prepend,
+                            bool IsUnsupported = false) {
   auto DeviceVersion = Device.get_info<info::device::version>();
   auto DeviceName = Device.get_info<info::device::name>();
   auto DeviceVendor = Device.get_info<info::device::vendor>();
@@ -161,7 +162,7 @@ static void printDeviceInfo(const device &Device, bool Verbose,
 
     // We don't expect to find info on aspects, device's sub-group size or
     // architecture on non supported devices.
-    if (!IsBanned) {
+    if (!IsUnsupported) {
       std::cout << Prepend << "Aspects           :";
 #define __SYCL_ASPECT(ASPECT, ID)                                              \
   if (Device.has(aspect::ASPECT))                                              \
@@ -206,12 +207,13 @@ static int printUsageAndExit() {
   std::cout << "This program lists all devices and backends discovered by SYCL."
             << std::endl;
   std::cout << "\n Options:" << std::endl;
-  std::cout << "\t --verbose "
-            << "\t Verbosely prints all the discovered platforms. "
-            << "It also lists the device chosen by various SYCL device "
-               "selectors. If the system contains banned platforms, those will "
-               "also be listed in verbose mode, under \"Banned Platforms\"."
-            << std::endl;
+  std::cout
+      << "\t --verbose "
+      << "\t Verbosely prints all the discovered platforms. "
+      << "It also lists the device chosen by various SYCL device "
+         "selectors. If the system contains unsupported platforms, those will "
+         "also be listed in verbose mode, under \"Unsupported Platforms\"."
+      << std::endl;
   std::cout
       << "\t --ignore-device-selectors "
       << "\t Lists all platforms available on the system irrespective "
@@ -329,7 +331,7 @@ static int unsetFilterEnvVarsAndFork() {
 static void printVerbosePlatformInfo(const std::vector<platform> &Platforms,
                                      std::map<backend, size_t> &DeviceNums,
                                      const bool SuppressNumberPrinting,
-                                     bool IsBanned = false) {
+                                     bool IsUnsupported = false) {
   uint32_t PlatformNum = 0;
   if (!SuppressNumberPrinting)
     DeviceNums.clear();
@@ -352,7 +354,7 @@ static void printVerbosePlatformInfo(const std::vector<platform> &Platforms,
                   << "]:" << std::endl;
         ++DeviceNums[Backend];
       }
-      printDeviceInfo(Device, true, "        ", IsBanned);
+      printDeviceInfo(Device, true, "        ", IsUnsupported);
     }
   }
 }
@@ -428,10 +430,10 @@ int main(int argc, char **argv) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       printVerbosePlatformInfo(Platforms, DeviceNums, SuppressNumberPrinting);
 
-      const auto &BannedPlatforms = platform::get_banned_platforms();
-      std::cout << "\nBanned Platforms: " << BannedPlatforms.size()
+      const auto &UnsupportedPlatforms = platform::get_unsupported_platforms();
+      std::cout << "\nUnsupported Platforms: " << UnsupportedPlatforms.size()
                 << std::endl;
-      printVerbosePlatformInfo(BannedPlatforms, DeviceNums,
+      printVerbosePlatformInfo(UnsupportedPlatforms, DeviceNums,
                                SuppressNumberPrinting, true);
       std::cout << std::endl;
     } else {

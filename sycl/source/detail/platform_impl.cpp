@@ -134,8 +134,8 @@ std::vector<platform> platform_impl::getPluginPlatforms(PluginPtr &Plugin,
   return Platforms;
 }
 
-std::vector<platform> platform_impl::get_banned_platforms() {
-  std::vector<platform> BannedPlatforms;
+std::vector<platform> platform_impl::get_unsupported_platforms() {
+  std::vector<platform> UnsupportedPlatforms;
 
   std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
   // Ignore UR as it has to be supported.
@@ -146,10 +146,10 @@ std::vector<platform> platform_impl::get_banned_platforms() {
     std::vector<platform> PluginPlatforms =
         getPluginPlatforms(Plugin, /*Supported=*/false);
     std::copy(PluginPlatforms.begin(), PluginPlatforms.end(),
-              std::back_inserter(BannedPlatforms));
+              std::back_inserter(UnsupportedPlatforms));
   }
 
-  return BannedPlatforms;
+  return UnsupportedPlatforms;
 }
 
 // This routine has the side effect of registering each platform's last device

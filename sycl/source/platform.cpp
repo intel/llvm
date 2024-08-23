@@ -52,8 +52,8 @@ std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
 }
 
-std::vector<platform> platform::get_banned_platforms() {
-  return detail::platform_impl::get_banned_platforms();
+std::vector<platform> platform::get_unsupported_platforms() {
+  return detail::platform_impl::get_unsupported_platforms();
 }
 
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
