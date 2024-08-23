@@ -393,8 +393,8 @@ bool SemaSYCL::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
       return true;
 
     const DeclContext *DC = FD->getDeclContext();
-    if (II && II->isStr("__spirv_ocl_printf") && 
-	!FD->isDefined() &&
+    if (II && II->isStr("__spirv_ocl_printf") &&
+        !FD->isDefined() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
         DC->getEnclosingNamespaceContext()->isTranslationUnit())
       return true;
@@ -645,7 +645,7 @@ public:
 
   // Make sure we skip the condition of the case, since that is a constant
   // expression.
-  bool TraverseCaseStmt(CaseStmt *S) { 
+  bool TraverseCaseStmt(CaseStmt *S) {
     return TraverseStmt(S->getSubStmt());
   }
 
@@ -1004,8 +1004,8 @@ public:
       // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
-    if (Name != "wait_for" || 
-	Callee->hasAttr<SYCLScopeAttr>())
+    if (Name != "wait_for" ||
+        Callee->hasAttr<SYCLScopeAttr>())
       return true;
     // it is a call to sycl::group::wait_for - mark the callee
     Callee->addAttr(
@@ -1723,7 +1723,7 @@ template <typename ParentTy, typename... HandlerTys>
 void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    const CXXRecordDecl *Wrapper,
                                    QualType RecordTy,
-				   HandlerTys &...Handlers) {
+                                   HandlerTys &... Handlers) {
   RecordDecl *RD = RecordTy->getAsRecordDecl();
   assert(RD && "should not be null.");
   if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
@@ -6688,7 +6688,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       }
       HostPipesOS << ", \"";
       HostPipesOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
-		      					 VD);
+                                                         VD);
       HostPipesOS << "\");\n";
     } else {
       EmittedFirstSpecConstant = true;
