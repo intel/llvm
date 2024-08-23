@@ -1160,38 +1160,47 @@ struct __SYCL_EBO VecOpsMixin
 // Mixins infrastructure above is complete, now use these shared (vec/swizzle)
 // mixins to define swizzle class.
 
-template <typename Self, typename DataT, int N, bool AllowAssignOps>
-struct __SYCL_EBO SwizzleMixins
-    : public NamedSwizzlesMixinConst<Self, N>,
-      public SwizzleOpsMixin<Self, false>,
-      public ByteShiftsNonAssignMixin<Self>,
-      // Conversion to scalar DataT for single-element swizzles:
-      public ConversionOperatorMixin<Self, DataT,
-                                     ConversionOpType::conv_regular,
-                                     /* Enable = */ (N == 1)>,
-      public detail::ConversionOperatorMixin<
-          Self, DataT, detail::ConversionOpType::conv_explicit_template_convert,
-          /* Enable = */ (N == 1)>,
+template <typename Self,
 #ifdef __SYCL_DEVICE_ONLY__
-      public ConversionOperatorMixin<
-          Self, typename vec<DataT, N>::vector_t,
-          ConversionOpType::conv_template,
-          // if `vector_t` and `DataT` are the same, then the `operator DataT`
-          // from the above is enough.
-          !std::is_same_v<DataT, typename vec<DataT, N>::vector_t>>,
+          typename vector_t = typename from_incomplete<Self>::vector_t,
 #endif
-      // Conversion to sycl::vec, must be available only when `NumElements > 1`
-      // per the SYCL 2020 specification:
-      public ConversionOperatorMixin<Self, vec<DataT, N>,
-                                     ConversionOpType::conv_regular,
-                                     /* Enable = */ true>
-
-{
+          typename DataT = typename from_incomplete<Self>::element_type,
+          int N = from_incomplete<Self>::size()>
+struct __SYCL_EBO VecConversionsMixin :
+#ifdef __SYCL_DEVICE_ONLY__
+    public detail::ConversionOperatorMixin<
+        Self, vector_t, ConversionOpType::conv_template,
+        // if `vector_t` and `DataT` are the same, then the `operator DataT`
+        // from the above is enough.
+        !std::is_same_v<DataT, vector_t>>,
+#endif
+    public ConversionOperatorMixin<Self, DataT, ConversionOpType::conv_regular,
+                                   /* Enable = */ N == 1>,
+    public ConversionOperatorMixin<
+        Self, DataT, ConversionOpType::conv_explicit_template_convert,
+        /* Enable = */ (N == 1)> {
 };
 
-template <typename Self, typename DataT, int N>
-struct __SYCL_EBO SwizzleMixins<Self, DataT, N, true>
-    : public SwizzleMixins<Self, DataT, N, false>,
+template <typename Self, bool AllowAssignOps>
+struct __SYCL_EBO SwizzleMixins
+    : public NamedSwizzlesMixinConst<Self, from_incomplete<Self>::size()>,
+      public SwizzleOpsMixin<Self, false>,
+      public ByteShiftsNonAssignMixin<Self>,
+      // Same conversions as in sycl::vec of the same size as the produced
+      // swizzle.
+      public VecConversionsMixin<Self>,
+      // Conversion to sycl::vec, must be available only when `NumElements > 1`
+      // per the SYCL 2020 specification:
+      public ConversionOperatorMixin<
+          Self,
+          vec<typename from_incomplete<Self>::element_type,
+              from_incomplete<Self>::size()>,
+          ConversionOpType::conv_regular,
+          /* Enable = */ true> {};
+
+template <typename Self>
+struct __SYCL_EBO SwizzleMixins<Self, true>
+    : public SwizzleMixins<Self, false>,
       public SwizzleOpsMixin<Self, true>,
       public IncDecMixin<const Self>,
       public ByteShiftsOpAssignMixin<const Self> {};
@@ -1282,7 +1291,6 @@ class __SYCL_EBO Swizzle
                              vec<DataT, VecSize>>,
           (!IsConstVec && !has_repeating_indexes<Indexes...>)>,
       public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
-                           DataT, sizeof...(Indexes),
                            (!IsConstVec &&
                             !has_repeating_indexes<Indexes...>)> {
   using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
@@ -1385,22 +1393,7 @@ public:
 // SYCL devices as well as in host C++ code.
 template <typename DataT, int NumElements>
 class __SYCL_EBO vec
-    : public detail::ConversionOperatorMixin<
-          vec<DataT, NumElements>, DataT,
-          detail::ConversionOpType::conv_regular,
-          /* Enable = */ NumElements == 1>,
-      public detail::ConversionOperatorMixin<
-          vec<DataT, NumElements>, DataT,
-          detail::ConversionOpType::conv_explicit_template_convert,
-          /* Enable = */ (NumElements == 1)>,
-#ifdef __SYCL_DEVICE_ONLY__
-      public detail::ConversionOperatorMixin<
-          vec<DataT, NumElements>, detail::vector_t<DataT, NumElements>,
-          detail::ConversionOpType::conv_template,
-          // if `vector_t` and `DataT` are the same, then the `operator DataT`
-          // from the above is enough.
-          !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
-#endif
+    : public detail::VecConversionsMixin<vec<DataT, NumElements>>,
       public detail::IncDecMixin<vec<DataT, NumElements>>,
       public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>>,
       public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>>,
