@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <type_traits>
 #include <sycl/access/access.hpp>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -35,10 +35,6 @@ public:
 
 inline size_t getWorkGroupMemoryOwnSize(detail::work_group_memory_impl *wgm) {
   return wgm->wgm_size;
-}
-inline size_t
-getWorkGroupMemoryBufferSize(detail::work_group_memory_impl *wgm) {
-  return wgm->buffer_size;
 }
 } // namespace detail
 
