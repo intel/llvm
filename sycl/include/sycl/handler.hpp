@@ -173,7 +173,6 @@ namespace detail {
 
 class work_group_memory_impl;
 size_t getWorkGroupMemoryOwnSize(work_group_memory_impl *);
-size_t getWorkGroupMemoryBufferSize(work_group_memory_impl *);
 class handler_impl;
 class kernel_impl;
 class queue_impl;
