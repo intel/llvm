@@ -12,6 +12,14 @@
 #include "ur_level_zero.hpp"
 #include <iomanip>
 
+// As windows order of unloading dlls is reversed from linux, windows will call
+// umfTearDown before it could release umf objects in level_zero, so we call
+// umfInit on urAdapterGet and umfAdapterTearDown to enforce the teardown of umf
+// after umf objects are destructed.
+#if defined(_WIN32)
+#include <umf.h>
+#endif
+
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
 #if defined(_WIN32)
@@ -74,7 +82,14 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t adapterStateInit() { return UR_RESULT_SUCCESS; }
+ur_result_t adapterStateInit() {
+
+#if defined(_WIN32)
+  umfInit();
+#endif
+
+  return UR_RESULT_SUCCESS;
+}
 
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("level_zero")) {
@@ -258,6 +273,7 @@ ur_result_t adapterStateTeardown() {
     // Due to multiple DLLMain definitions with SYCL, register to cleanup the
     // Global Adapter after refcnt is 0
 #if defined(_WIN32)
+  umfTearDown();
   std::atexit(globalAdapterOnDemandCleanup);
 #endif
 
