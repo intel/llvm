@@ -780,9 +780,11 @@ __SYCL_OP_AVAILABILITY(UnaryPlus                , not_byte<T>)
 
 #undef __SYCL_OP_AVAILABILITY
 
-template <typename Op, typename DataT, int N>
+template <typename Self, typename Op>
 inline constexpr bool is_op_available =
-    (N >= 1 && is_op_available_for_type<Op, DataT>);
+    (from_incomplete<Self>::size() >= 1 &&
+     is_op_available_for_type<Op,
+                              typename from_incomplete<Self>::element_type>);
 
 // Vector-specific part of the mixins' implementation.
 struct VectorImpl {
@@ -938,7 +940,7 @@ inline constexpr bool is_over_const_vec =
 #define __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                      \
   template <typename Self, typename DataT, int N>                              \
   struct SwizzleOpMixin<Self, DataT, N, false, OP,                             \
-                        std::enable_if_t<is_op_available<OP, DataT, N>>> {     \
+                        std::enable_if_t<is_op_available<Self, OP>>> {         \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
                                           !is_swizzle_v<T>>>                   \
@@ -986,7 +988,7 @@ inline constexpr bool is_over_const_vec =
   };                                                                           \
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, false, OP,                                 \
-                    std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
+                    std::enable_if_t<is_op_available<Self, OP>>> {             \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
     friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
@@ -1006,7 +1008,7 @@ inline constexpr bool is_over_const_vec =
   __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                            \
   template <typename Self, typename DataT, int N>                              \
   struct SwizzleOpMixin<Self, DataT, N, true, OP,                              \
-                        std::enable_if_t<is_op_available<OP, DataT, N>>> {     \
+                        std::enable_if_t<is_op_available<Self, OP>>> {         \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
                                           !is_swizzle_v<T>>>                   \
@@ -1033,7 +1035,7 @@ inline constexpr bool is_over_const_vec =
   };                                                                           \
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, true, OP,                                  \
-                    std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
+                    std::enable_if_t<is_op_available<Self, OP>>> {             \
     template <typename T,                                                      \
               typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
     friend Self &operator OPASSIGN(Self & lhs, const T & rhs) {                \
@@ -1053,12 +1055,12 @@ inline constexpr bool is_over_const_vec =
 #define __SYCL_UNARY_OP_MIXIN(OP, UOP)                                         \
   template <typename Self, typename DataT, int N>                              \
   struct SwizzleOpMixin<Self, DataT, N, false, OP,                             \
-                        std::enable_if_t<is_op_available<OP, DataT, N>>> {     \
+                        std::enable_if_t<is_op_available<Self, OP>>> {         \
     friend auto operator UOP(const Self &x) { return OP{}(vec<DataT, N>{x}); } \
   };                                                                           \
   template <typename Self, typename DataT, int N>                              \
   struct VecOpMixin<Self, DataT, N, false, OP,                                 \
-                    std::enable_if_t<is_op_available<OP, DataT, N>>> {         \
+                    std::enable_if_t<is_op_available<Self, OP>>> {             \
     friend auto operator UOP(const Self &x) { return VectorImpl{}(x, OP{}); }  \
   };
 
