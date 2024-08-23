@@ -68,18 +68,18 @@ public:
   multi_ptr<value_type, access::address_space::local_space, IsDecorated>
   get_multi_ptr() const {
     return sycl::address_space_cast<access::address_space::local_space,
-                                    IsDecorated, value_type>(data_ptr);
+                                    IsDecorated, value_type>(ptr);
   }
   DataT *operator&() const { return ptr; }
   operator DataT &() const { return *(this->operator&()); }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
   const work_group_memory &operator=(const DataT &value) const {
-    *data_ptr = value;
+    *ptr = value;
     return *this;
   }
 #ifdef __SYCL_DEVICE_ONLY__
-  void __init(__OPENCL_LOCAL_AS__ DataT data) { this->data_ptr = &data; }
+  void __init(decoratedPtr ptr) { this->ptr = ptr; }
 #endif
 private:
   decoratedPtr data_ptr;
