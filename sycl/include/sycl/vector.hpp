@@ -1700,6 +1700,9 @@ private:
   // friends
   template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
+
+static_assert(sizeof(vec<int, 2>) == 2 * sizeof(int),
+              "Empty Bases Optimization didn't work!");
 ///////////////////////// class sycl::vec /////////////////////////
 
 #ifdef __cpp_deduction_guides
