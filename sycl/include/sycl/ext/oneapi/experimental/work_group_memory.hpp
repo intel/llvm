@@ -63,7 +63,7 @@ public:
                                              sizeof(DataT)) {}
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
-  work_group_memory(size_t num, handler &cgh)
+  work_group_memory(size_t num, handler &)
       : sycl::detail::work_group_memory_impl(
             sizeof(work_group_memory),
             num * sizeof(std::remove_extent_t<DataT>)) {}
