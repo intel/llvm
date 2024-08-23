@@ -116,4 +116,6 @@
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
 
+// This header should be included last in order for
+// device assertions to work correctly on Windows.
 #include <sycl/detail/device_assert_win.hpp>
