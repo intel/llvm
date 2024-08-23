@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
 #include <type_traits>
 
 namespace sycl {
