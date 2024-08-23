@@ -19,8 +19,7 @@ int main() {
       auto ref_half =
           sycl::atomic_ref<sycl::half, sycl::memory_order_acq_rel,
                            sycl::memory_scope_device,
-                           sycl::access::address_space::local_space>(
-              val_half);
+                           sycl::access::address_space::local_space>(val_half);
 
       ref_half.store(val_half);
       sycl::half load = ref_half.load();
