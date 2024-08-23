@@ -2039,7 +2039,7 @@ public:
   set_arg(int ArgIndex,
           const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
               &Arg) {
-    setArgHelper(ArgIndex, Arg));
+    setArgHelper(ArgIndex, Arg);
   }
 
   // set_arg for graph dynamic_parameters
