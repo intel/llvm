@@ -5,6 +5,8 @@ import lit.formats
 import os
 import re
 
+SUFFIXES = {".hpp"}
+
 
 class SYCLHeadersTest(lit.formats.TestFormat):
     def getTestsForPath(
@@ -21,7 +23,8 @@ class SYCLHeadersTest(lit.formats.TestFormat):
         for dirpath, _, filenames in os.walk(source_path):
             relative_dirpath = dirpath[len(localConfig.sycl_include) + 1 :]
             for filename in filenames:
-                if not filename.endswith(".hpp"):
+                suffix = os.path.splitext(filename)[1]
+                if suffix not in SUFFIXES or suffix not in litConfig.suffixes:
                     continue
                 filepath = os.path.join(dirpath, filename)
 
