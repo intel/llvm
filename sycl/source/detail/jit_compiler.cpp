@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
 #include <detail/device_image_impl.hpp>
 #include <detail/jit_compiler.hpp>
@@ -1164,4 +1164,4 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 } // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE

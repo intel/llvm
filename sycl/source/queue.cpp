@@ -12,7 +12,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 
@@ -325,8 +324,7 @@ bool queue::device_has(aspect Aspect) const {
 }
 
 bool queue::ext_codeplay_supports_fusion() const {
-  return has_property<
-      ext::codeplay::experimental::property::queue::enable_fusion>();
+  return false; 
 }
 
 event queue::ext_oneapi_get_last_event() const {
