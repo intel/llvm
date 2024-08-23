@@ -324,9 +324,7 @@ bool queue::device_has(aspect Aspect) const {
 }
 
 // TODO(#15184) Remove this function in the next ABI-breaking window.
-bool queue::ext_codeplay_supports_fusion() const {
-  return false; 
-}
+bool queue::ext_codeplay_supports_fusion() const { return false; }
 
 event queue::ext_oneapi_get_last_event() const {
   if (!is_in_order())

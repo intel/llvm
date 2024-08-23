@@ -33,7 +33,7 @@ enum DataLessPropKind {
   UseDefaultStream = 8,
   DiscardEvents = 9,
   DeviceReadOnly = 10,
-  // TODO(#15184): Remove the following fusion-related entries in the next 
+  // TODO(#15184): Remove the following fusion-related entries in the next
   // ABI-breaking window.
   FusionPromotePrivate = 11,
   FusionPromoteLocal = 12,

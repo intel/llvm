@@ -92,7 +92,6 @@ public:
   ///
   /// @param properties Properties to take into account when performing fusion.
   event complete_fusion(const property_list &propList = {});
-
 };
 } // namespace ext::codeplay::experimental
 } // namespace _V1

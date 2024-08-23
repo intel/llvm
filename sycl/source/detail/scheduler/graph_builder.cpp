@@ -9,15 +9,15 @@
 #include "detail/config.hpp"
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
-#include <sstream>
-#include <sycl/feature_test.hpp>
 #include <detail/graph_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sstream>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/feature_test.hpp>
 
 #include <algorithm>
 #include <cstdlib>

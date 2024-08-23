@@ -9,11 +9,11 @@
 #include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
-#include <sycl/feature_test.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/feature_test.hpp>
 
 #include <chrono>
 #include <cstdio>
