@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// https://github.com/intel/llvm/issues/14868
-// UNSUPPORTED: windows
 
 // The test verifies ESIMD API that adds 2 32-bit integer scalars/vectors with
 // carry returning the result as 2 parts: carry flag the input modified operand
@@ -129,7 +127,7 @@ bool test(sycl::queue Q) {
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    return 1;
+    return 0;
   }
 
   using ResultT = std::conditional_t<
