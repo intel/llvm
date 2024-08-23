@@ -833,11 +833,8 @@ urEventRetain(ur_event_handle_t Event ///< [in] handle of the event object
 ur_result_t
 urEventRelease(ur_event_handle_t Event ///< [in] handle of the event object
 ) {
-  if (--Event->RefCountExternal == 0 && Event->CounterBasedEventsEnabled) {
-    Event->Context->addEventToContextCache(Event);
-  } else {
-    UR_CALL(urEventReleaseInternal(Event));
-  }
+  Event->RefCountExternal--;
+  UR_CALL(urEventReleaseInternal(Event));
   return UR_RESULT_SUCCESS;
 }
 
@@ -1057,7 +1054,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   // When we add an event to the cache we need to check whether profiling is
   // enabled or not, so we access properties of the queue and that's why queue
   // must released later.
-  if (DisableEventsCaching || !Event->OwnNativeHandle) {
+  if ((Event->RefCountExternal > 0 && !Event->CounterBasedEventsEnabled) &&
+      (DisableEventsCaching || !Event->OwnNativeHandle)) {
     delete Event;
   } else {
     Event->Context->addEventToContextCache(Event);
