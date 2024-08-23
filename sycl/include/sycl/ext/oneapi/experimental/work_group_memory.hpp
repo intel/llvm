@@ -9,6 +9,7 @@
 #pragma once
 
 #include <type_traits>
+#include <sycl/access/access.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -58,36 +59,31 @@ public:
       : sycl::detail::work_group_memory_impl(sizeof(work_group_memory), sizeof(DataT)) {}
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
-  work_group_memory(size_t num, handler &cgh)
+  work_group_memory(size_t num, handler &)
       : sycl::detail::work_group_memory_impl(sizeof(work_group_memory),
             num * sizeof(std::remove_extent_t<DataT>)) {}
   template <access::decorated IsDecorated = access::decorated::no>
   multi_ptr<value_type, access::address_space::local_space, IsDecorated>
   get_multi_ptr() const {
     return sycl::address_space_cast<access::address_space::local_space,
-                                    IsDecorated, value_type>(ptr);
+                                    IsDecorated, value_type>(data_ptr);
   }
-  DataT * operator&() const { return ptr; }
+  DataT * operator&() const { return data_ptr; }
   operator DataT&() const {
     return *(this->operator&());
   }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
   const work_group_memory &operator=(const DataT &value) const {
-    *ptr = value;
+    *data_ptr = value;
     return *this;
   }
 #ifdef __SYCL_DEVICE_ONLY__
-  void __init(decoratedPtr ptr) { this->ptr = ptr; }
+  void __init(__OPENCL_LOCAL_AS__ DataT data) { this->data_ptr = &data; }
 #endif
 private:
-  decoratedPtr ptr;
+  decoratedPtr data_ptr;
 };
 } // namespace ext::oneapi::experimental
 } // namespace _V1
-
-template <typename DataT>
-struct is_device_copyable<ext::oneapi::experimental::work_group_memory<DataT>>
-    : std::true_type {};
-
 } // namespace sycl
