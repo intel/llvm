@@ -615,12 +615,16 @@ struct ConversionOperatorMixin<
 // a separate mixin for each overload/narrow set of overloads and just "merge"
 // them all back later.
 
-template <typename SelfOperandTy, typename DataT, typename = void>
-struct IncDecMixin {};
+template <typename SelfOperandTy, typename = void>
+class IncDecMixin {};
 
-template <typename SelfOperandTy, typename DataT>
-struct IncDecMixin<SelfOperandTy, DataT,
-                   std::enable_if_t<!std::is_same_v<bool, DataT>>> {
+template <typename SelfOperandTy>
+class IncDecMixin<SelfOperandTy,
+                  std::enable_if_t<!std::is_same_v<
+                      bool, typename from_incomplete<SelfOperandTy>::DataT>>> {
+  using DataT = typename from_incomplete<SelfOperandTy>::DataT;
+
+public:
   friend SelfOperandTy &operator++(SelfOperandTy &x) {
     x += DataT{1};
     return x;
@@ -645,16 +649,21 @@ struct IncDecMixin<SelfOperandTy, DataT,
 // the implementation has been doing and it seems to be a reasonable thing to
 // do. Otherwise shift operators for byte element type would have to be disabled
 // completely to follow C++ standard approach.
-template <typename Self, typename DataT, int N, typename = void>
-struct ByteShiftsNonAssignMixin {};
+template <typename Self, typename = void>
+class ByteShiftsNonAssignMixin {};
 
-template <typename SelfOperandTy, typename DataT, int N, typename = void>
-struct ByteShiftsOpAssignMixin {};
+template <typename SelfOperandTy, typename = void>
+class ByteShiftsOpAssignMixin {};
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <typename Self, typename DataT, int N>
-struct ByteShiftsNonAssignMixin<
-    Self, DataT, N, std::enable_if_t<std::is_same_v<std::byte, DataT>>> {
+template <typename Self>
+class ByteShiftsNonAssignMixin<
+    Self, std::enable_if_t<std::is_same_v<
+              std::byte, typename from_incomplete<Self>::DataT>>> {
+  using DataT = typename from_incomplete<Self>::DataT;
+  static constexpr int N = from_incomplete<Self>::size();
+
+public:
   friend auto operator<<(const Self &lhs, int shift) {
     vec<DataT, N> tmp;
     for (int i = 0; i < N; ++i)
@@ -669,10 +678,15 @@ struct ByteShiftsNonAssignMixin<
   }
 };
 
-template <typename SelfOperandTy, typename DataT, int N>
-struct ByteShiftsOpAssignMixin<
-    SelfOperandTy, DataT, N,
-    std::enable_if_t<std::is_same_v<std::byte, DataT>>> {
+template <typename SelfOperandTy>
+class ByteShiftsOpAssignMixin<
+    SelfOperandTy,
+    std::enable_if_t<std::is_same_v<
+        std::byte, typename from_incomplete<SelfOperandTy>::DataT>>> {
+  using DataT = typename from_incomplete<SelfOperandTy>::DataT;
+  static constexpr int N = from_incomplete<SelfOperandTy>::size();
+
+public:
   friend SelfOperandTy &operator<<=(SelfOperandTy &lhs, int shift) {
     lhs = lhs << shift;
     return lhs;
@@ -1130,7 +1144,7 @@ template <typename Self, typename VecT, typename DataT, int N,
 struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, N>,
       public SwizzleOpsMixin<Self, DataT, N, false>,
-      public ByteShiftsNonAssignMixin<Self, DataT, N>,
+      public ByteShiftsNonAssignMixin<Self>,
       // Conversion to scalar DataT for single-element swizzles:
       public ConversionOperatorMixin<Self, DataT,
                                      ConversionOpType::conv_regular,
@@ -1159,8 +1173,8 @@ template <typename Self, typename VecT, typename DataT, int N>
 struct __SYCL_EBO SwizzleMixins<Self, VecT, DataT, N, true>
     : public SwizzleMixins<Self, VecT, DataT, N, false>,
       public SwizzleOpsMixin<Self, DataT, N, true>,
-      public IncDecMixin<const Self, DataT>,
-      public ByteShiftsOpAssignMixin<const Self, DataT, N> {};
+      public IncDecMixin<const Self>,
+      public ByteShiftsOpAssignMixin<const Self> {};
 
 template <int... Indexes>
 inline constexpr bool has_repeating_indexes = []() constexpr {
@@ -1371,11 +1385,9 @@ class __SYCL_EBO vec
           // from the above is enough.
           !std::is_same_v<DataT, detail::vector_t<DataT, NumElements>>>,
 #endif
-      public detail::IncDecMixin<vec<DataT, NumElements>, DataT>,
-      public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>, DataT,
-                                              NumElements>,
-      public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>, DataT,
-                                             NumElements>,
+      public detail::IncDecMixin<vec<DataT, NumElements>>,
+      public detail::ByteShiftsNonAssignMixin<vec<DataT, NumElements>>,
+      public detail::ByteShiftsOpAssignMixin<vec<DataT, NumElements>>,
       public detail::VecOpsMixin<vec<DataT, NumElements>, DataT, NumElements>,
       public detail::NamedSwizzlesMixinBoth<vec<DataT, NumElements>,
                                             NumElements> {
