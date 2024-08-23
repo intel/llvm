@@ -693,8 +693,10 @@ private:
   }
 
   template <typename DataT, typename PropertyListT>
-  void setArgHelper(int ArgIndex, const ext::oneapi::experimental::work_group_memory<
-                                      DataT, PropertyListT> &Arg) {
+  void setArgHelper(
+      int ArgIndex,
+      const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
+          &Arg) {
     addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg,
            detail::getWorkGroupMemoryOwnSize(
                static_cast<detail::work_group_memory_impl *>(Arg)),
@@ -2035,10 +2037,8 @@ public:
 
   template <typename DataT, typename PropertyListT =
                                 ext::oneapi::experimental::empty_properties_t>
-  void
-  set_arg(int ArgIndex,
-          const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
-              &Arg) {
+  void set_arg(int ArgIndex, const ext::oneapi::experimental::work_group_memory<
+                                 DataT, PropertyListT> &Arg) {
     setArgHelper(ArgIndex, Arg);
   }
 
