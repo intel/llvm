@@ -221,13 +221,17 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     StringRef DeviceLibOption;
   };
 
-  bool NoDeviceLibs = false;
-  // Currently, all SYCL device libraries will be linked by default. Linkage
-  // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
+  // Currently, all SYCL device libraries will be linked by default.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
       {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
       {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
       {"libm-bfloat16", true}, {"internal", true}};
+
+  // If -fno-sycl-device-lib is specified, its values will be used to exclude
+  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
+  // libraries cannot be affected via -fno-sycl-device-lib.
+  bool ExcludeDeviceLibs = false;
+
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
@@ -235,15 +239,24 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           << A->getAsString(Args);
     else {
       if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
-        NoDeviceLibs = true;
+        ExcludeDeviceLibs = true;
 
-      bool PrintUnusedLibWarning = false;
+      // When single libraries are ignored and a subset of library names
+      // not containing the value "all" is specified by -fno-sycl-device-lib,
+      // print an unused argument warning.
+      bool PrintUnusedExcludeWarning = false;
+
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
+          PrintUnusedExcludeWarning = false;
+
+          // Make sure that internal libraries are still linked against
+          // when -fno-sycl-device-lib contains "all" and single libraries
+          // should be ignored.
+          IgnoreSingleLibs = IgnoreSingleLibs && !ExcludeDeviceLibs;
+
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = (!IgnoreSingleLibs && !NoDeviceLibs) ||
-                                   (K == "internal" && NoDeviceLibs);
-          PrintUnusedLibWarning = false;
+            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
@@ -254,20 +267,21 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
         }
-        DeviceLibLinkInfo[Val] = !NoDeviceLibs && !IgnoreSingleLibs;
-        PrintUnusedLibWarning = IgnoreSingleLibs && !NoDeviceLibs;
+        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
+        PrintUnusedExcludeWarning = IgnoreSingleLibs && ExcludeDeviceLibs;
       }
-      if (PrintUnusedLibWarning)
-        C.getDriver().Diag(diag::warn_ignored_clang_option)
-            << A->getSpelling() << A->getAsString(Args);
+      if (PrintUnusedExcludeWarning)
+        C.getDriver().Diag(diag::warn_drv_unused_argument) << A->getSpelling();
     }
   }
 
-  if (TargetTriple.isNVPTX() && !NoDeviceLibs)
+  if (TargetTriple.isNVPTX() && IgnoreSingleLibs) {
     LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+  }
 
-  if (IgnoreSingleLibs && !NoDeviceLibs)
+  if (IgnoreSingleLibs) {
     return LibraryList;
+  }
 
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
