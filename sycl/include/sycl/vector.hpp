@@ -1160,8 +1160,7 @@ struct __SYCL_EBO VecOpsMixin
 // Mixins infrastructure above is complete, now use these shared (vec/swizzle)
 // mixins to define swizzle class.
 
-template <typename Self, typename VecT, typename DataT, int N,
-          bool AllowAssignOps>
+template <typename Self, typename DataT, int N, bool AllowAssignOps>
 struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, N>,
       public SwizzleOpsMixin<Self, false>,
@@ -1190,9 +1189,9 @@ struct __SYCL_EBO SwizzleMixins
 {
 };
 
-template <typename Self, typename VecT, typename DataT, int N>
-struct __SYCL_EBO SwizzleMixins<Self, VecT, DataT, N, true>
-    : public SwizzleMixins<Self, VecT, DataT, N, false>,
+template <typename Self, typename DataT, int N>
+struct __SYCL_EBO SwizzleMixins<Self, DataT, N, true>
+    : public SwizzleMixins<Self, DataT, N, false>,
       public SwizzleOpsMixin<Self, true>,
       public IncDecMixin<const Self>,
       public ByteShiftsOpAssignMixin<const Self> {};
@@ -1284,12 +1283,10 @@ class __SYCL_EBO Swizzle
                              vec<DataT, VecSize>>,
           sizeof...(Indexes),
           (!IsConstVec && !has_repeating_indexes<Indexes...>)>,
-      public SwizzleMixins<
-          Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
-          std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
-                             vec<DataT, VecSize>>,
-          DataT, sizeof...(Indexes),
-          (!IsConstVec && !has_repeating_indexes<Indexes...>)> {
+      public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
+                           DataT, sizeof...(Indexes),
+                           (!IsConstVec &&
+                            !has_repeating_indexes<Indexes...>)> {
   using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
                                   vec<DataT, VecSize>>;
   using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
