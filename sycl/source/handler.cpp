@@ -32,8 +32,8 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
-#include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
+#include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
 inline namespace _V1 {
