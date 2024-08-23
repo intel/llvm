@@ -527,10 +527,6 @@ struct from_incomplete<vec<DataT, NumElements>> {
 #endif
 };
 
-template <typename T>
-using vec_from =
-    vec<typename from_incomplete<T>::element_type, from_incomplete<T>::size()>;
-
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 struct from_incomplete<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
     : public from_incomplete<vec<DataT, sizeof...(Indexes)>> {};
@@ -666,13 +662,17 @@ struct ByteShiftsNonAssignMixin<
     Self, std::enable_if_t<std::is_same_v<
               std::byte, typename from_incomplete<Self>::element_type>>> {
   friend auto operator<<(const Self &lhs, int shift) {
-    vec_from<Self> tmp;
+    vec<typename from_incomplete<Self>::element_type,
+        from_incomplete<Self>::size()>
+        tmp;
     for (int i = 0; i < tmp.size(); ++i)
       tmp[i] = lhs[i] << shift;
     return tmp;
   }
   friend auto operator>>(const Self &lhs, int shift) {
-    vec_from<Self> tmp;
+    vec<typename from_incomplete<Self>::element_type,
+        from_incomplete<Self>::size()>
+        tmp;
     for (int i = 0; i < tmp.size(); ++i)
       tmp[i] = lhs[i] >> shift;
     return tmp;
@@ -1209,8 +1209,7 @@ inline constexpr bool has_repeating_indexes = []() constexpr {
   return false;
 }();
 
-template <typename Self, typename VecT, int N, bool AllowAssignOps>
-class SwizzleBase {
+template <typename Self, typename VecT, bool AllowAssignOps> class SwizzleBase {
 public:
   const Self &operator=(const Self &) = delete;
 
@@ -1219,9 +1218,9 @@ protected:
   VecT &Vec;
 };
 
-template <typename Self, typename VecT, int N>
-class SwizzleBase<Self, VecT, N, true> {
+template <typename Self, typename VecT> class SwizzleBase<Self, VecT, true> {
   using DataT = typename VecT::element_type;
+  static constexpr int N = from_incomplete<Self>::size();
 
 public:
   template <access::address_space AddressSpace, access::decorated IsDecorated>
@@ -1281,7 +1280,6 @@ class __SYCL_EBO Swizzle
           Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
           std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
                              vec<DataT, VecSize>>,
-          sizeof...(Indexes),
           (!IsConstVec && !has_repeating_indexes<Indexes...>)>,
       public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
                            DataT, sizeof...(Indexes),
@@ -1289,9 +1287,9 @@ class __SYCL_EBO Swizzle
                             !has_repeating_indexes<Indexes...>)> {
   using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
                                   vec<DataT, VecSize>>;
-  using Base = SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
-                           VecT, sizeof...(Indexes),
-                           (!IsConstVec && !has_repeating_indexes<Indexes...>)>;
+  using Base =
+      SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>, VecT,
+                  (!IsConstVec && !has_repeating_indexes<Indexes...>)>;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
 
