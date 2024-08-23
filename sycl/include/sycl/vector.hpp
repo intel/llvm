@@ -458,6 +458,38 @@ namespace detail {
 template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
 class __SYCL_EBO Swizzle;
 
+template <typename Swizzle> struct is_assignable_swizzle;
+
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct is_assignable_swizzle<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
+  static constexpr bool value = !IsConstVec && []() constexpr {
+    int Idxs[] = {Indexes...};
+    for (std::size_t i = 1; i < sizeof...(Indexes); ++i) {
+      for (std::size_t j = 0; j < i; ++j)
+        if (Idxs[j] == Idxs[i])
+          // Repeating index
+          return false;
+    }
+
+    return true;
+  }();
+};
+
+template <typename Swizzle>
+constexpr bool is_assignable_swizzle_v = is_assignable_swizzle<Swizzle>::value;
+
+// We need that trait when the type is still incomplete (inside mixin), so
+// cannot deduce the property through the swizzle's `operator[]`.
+template <typename Swizzle> struct is_over_const_vec_impl;
+
+template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
+struct is_over_const_vec_impl<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
+    : std::bool_constant<IsConstVec> {};
+
+template <typename Swizzle>
+inline constexpr bool is_over_const_vec =
+    is_over_const_vec_impl<Swizzle>::value;
+
 #ifdef __SYCL_DEVICE_ONLY__
 template <typename DataT>
 using element_type_for_vector_t = typename detail::map_type<
@@ -920,18 +952,6 @@ class SwizzleOpMixin {};
 template <typename Self, bool OpAssign, typename Op, typename = void>
 class VecOpMixin {};
 
-// We need that trait when the type is still incomplete (inside mixin), so
-// cannot deduce the property through the swizzle's `operator[]`.
-template <typename Swizzle> struct is_over_const_vec_impl;
-
-template <bool IsConstVec, typename DataT, int VecSize, int... Indexes>
-struct is_over_const_vec_impl<Swizzle<IsConstVec, DataT, VecSize, Indexes...>>
-    : std::bool_constant<IsConstVec> {};
-
-template <typename Swizzle>
-inline constexpr bool is_over_const_vec =
-    is_over_const_vec_impl<Swizzle>::value;
-
 #define __SYCL_BINARY_OP_MIXIN(OP, BINOP)                                      \
   template <typename Self>                                                     \
   class SwizzleOpMixin<Self, false, OP,                                        \
@@ -1181,7 +1201,7 @@ struct __SYCL_EBO VecConversionsMixin :
         /* Enable = */ (N == 1)> {
 };
 
-template <typename Self, bool AllowAssignOps>
+template <typename Self, bool AllowAssignOps = is_assignable_swizzle_v<Self>>
 struct __SYCL_EBO SwizzleMixins
     : public NamedSwizzlesMixinConst<Self, from_incomplete<Self>::size()>,
       public SwizzleOpsMixin<Self, false>,
@@ -1218,7 +1238,7 @@ inline constexpr bool has_repeating_indexes = []() constexpr {
   return false;
 }();
 
-template <typename Self, typename VecT, bool AllowAssignOps> class SwizzleBase {
+template <typename Self, typename VecT, typename = void> class SwizzleBase {
 public:
   const Self &operator=(const Self &) = delete;
 
@@ -1227,7 +1247,8 @@ protected:
   VecT &Vec;
 };
 
-template <typename Self, typename VecT> class SwizzleBase<Self, VecT, true> {
+template <typename Self, typename VecT>
+class SwizzleBase<Self, VecT, std::enable_if_t<is_assignable_swizzle_v<Self>>> {
   using DataT = typename VecT::element_type;
   static constexpr int N = from_incomplete<Self>::size();
 
@@ -1288,16 +1309,12 @@ class __SYCL_EBO Swizzle
     : public SwizzleBase<
           Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
           std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
-                             vec<DataT, VecSize>>,
-          (!IsConstVec && !has_repeating_indexes<Indexes...>)>,
-      public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>,
-                           (!IsConstVec &&
-                            !has_repeating_indexes<Indexes...>)> {
+                             vec<DataT, VecSize>>>,
+      public SwizzleMixins<Swizzle<IsConstVec, DataT, VecSize, Indexes...>> {
   using VecT = std::conditional_t<IsConstVec, const vec<DataT, VecSize>,
                                   vec<DataT, VecSize>>;
   using Base =
-      SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>, VecT,
-                  (!IsConstVec && !has_repeating_indexes<Indexes...>)>;
+      SwizzleBase<Swizzle<IsConstVec, DataT, VecSize, Indexes...>, VecT>;
   static constexpr int NumElements = sizeof...(Indexes);
   using ResultVec = vec<DataT, NumElements>;
 
