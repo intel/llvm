@@ -923,7 +923,7 @@ private:
     // a static assert is made to fail for incompatible kernel lambdas.
     static_assert(
         !KernelHasName || sizeof(KernelFunc) == KI::getKernelSize(),
-        "Unexpected kernel lambda size. Expected This can be caused by an "
+        "Unexpected kernel lambda size. This can be caused by an "
         "external host compiler producing a lambda with an "
         "unexpected layout. This is a limitation of the compiler."
         "In many cases the difference is related to capturing constexpr "
