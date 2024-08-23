@@ -35,7 +35,6 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
   size_t sg_size = get_sg_size<kernel_name>(q);
   q.submit([&](handler &cgh) {
      sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
-
      cgh.parallel_for<kernel_name>(
          nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * sg_size},
                      {1, 1 * sg_size}),
