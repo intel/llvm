@@ -25,6 +25,9 @@
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
+
 #include "esimd_test_utils.hpp"
 
 #if defined(USE_NEW_API) || defined(USE_AUTO)
