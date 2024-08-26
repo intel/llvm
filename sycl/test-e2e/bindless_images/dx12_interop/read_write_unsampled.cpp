@@ -425,8 +425,13 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
 
   // Set our texture data to upload.
   std::vector<DType> uploadData(m_numElems);
+  auto getInputValue = [&](int i) -> DType {
+    if constexpr (std::is_integral_v<DType>)
+      i = i % (std::numeric_limits<DType>::max() / 2);
+    return i;
+  };
   for (int i = 0; i < m_numElems; ++i) {
-    uploadData[i] = static_cast<DType>(i);
+    uploadData[i] = getInputValue(i);
   }
 
   // Get required staging buffer size.
@@ -626,9 +631,14 @@ bool DX12InteropTest<NDims, DType, NChannels>::validateOutput() {
 
   // Read back the updated texture data and validate it.
   bool validated = true;
+  auto getOutputValue = [&](int i) -> DType {
+    if constexpr (std::is_integral_v<DType>)
+      i = i % (std::numeric_limits<DType>::max() / 2);
+    return i * 2;
+  };
   for (int i = 0; i < m_numElems; ++i) {
     bool mismatch = false;
-    auto expected = static_cast<DType>(i * 2);
+    auto expected = getOutputValue(i);
     auto actual = pReadbackBufferData[i];
 
     if (actual != expected) {
