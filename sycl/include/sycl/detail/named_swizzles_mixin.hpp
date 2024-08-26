@@ -701,40 +701,36 @@ namespace detail {
   __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, aaaa, 3, 3, 3, 3)
 #endif
 
-// FIXME: One element swizzles must return a swizzle and not a scalar. However,
-// old implementation didn't do that and we want to have that fix separately
-// from other swizzle changes. To be addressed soon.
-
 #define __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES                                      \
   /* __swizzled_vec__ XYZW_ACCESS() const; */                                  \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N <= 4, x, 0)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 2 || N == 3 || N == 4, y, 1)                \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 3 || N == 4, z, 2)                          \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, w, 3)                                    \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N <= 4, x, 0)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 2 || N == 3 || N == 4, y, 1)         \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 3 || N == 4, z, 2)                   \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 4, w, 3)                             \
                                                                                \
   /* __swizzled_vec__ RGBA_ACCESS() const; */                                  \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, r, 0)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, g, 1)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, b, 2)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 4, a, 3)                                    \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 4, r, 0)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 4, g, 1)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 4, b, 2)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 4, a, 3)                             \
                                                                                \
   /* __swizzled_vec__ INDEX_ACCESS() const; */                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 0, s0, 0)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 1, s1, 1)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 2, s2, 2)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 2, s3, 3)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s4, 4)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s5, 5)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s6, 6)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N > 4, s7, 7)                                    \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, s8, 8)                                  \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, s9, 9)                                  \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sA, 10)                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sB, 11)                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sC, 12)                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sD, 13)                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sE, 14)                                 \
-  __SYCL_SWIZZLE_MIXIN_METHOD(N == 16, sF, 15)                                 \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 0, s0, 0)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 1, s1, 1)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 2, s2, 2)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 2, s3, 3)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 4, s4, 4)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 4, s5, 5)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 4, s6, 6)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N > 4, s7, 7)                             \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, s8, 8)                           \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, s9, 9)                           \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sA, 10)                          \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sB, 11)                          \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sC, 12)                          \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sD, 13)                          \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sE, 14)                          \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(N == 16, sF, 15)                          \
                                                                                \
   /* __swizzled_vec__ lo()/hi() const; */                                      \
   __SYCL_SWIZZLE_MIXIN_METHOD(N == 2, lo, 0)                                   \
@@ -777,12 +773,28 @@ namespace detail {
     return static_cast<const Self_ *>(this)->template swizzle<__VA_ARGS__>();  \
   }
 
+#define __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS_NON_CONST(COND, NAME, INDEX)        \
+  template <int N = NumElements, typename Self_ = Self>                        \
+  std::enable_if_t<(COND), decltype(std::declval<Self_>()[0])> NAME() {        \
+    return (*static_cast<Self_ *>(this))[INDEX];                               \
+  }
+#define __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS_CONST(COND, NAME, INDEX)            \
+  template <int N = NumElements, typename Self_ = Self>                        \
+  std::enable_if_t<(COND), decltype(std::declval<const Self_>()[0])> NAME()    \
+      const {                                                                  \
+    return (*static_cast<const Self_ *>(this))[INDEX];                         \
+  }
+
 template <typename Self, int NumElements> struct NamedSwizzlesMixinConst {
 #define __SYCL_SWIZZLE_MIXIN_METHOD(COND, NAME, ...)                           \
   __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)
 
+#define __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(COND, NAME, INDEX)                  \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS_CONST(COND, NAME, INDEX)
+
   __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES
 
+#undef __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS
 #undef __SYCL_SWIZZLE_MIXIN_METHOD
 };
 
@@ -791,8 +803,13 @@ template <typename Self, int NumElements> struct NamedSwizzlesMixinBoth {
   __SYCL_SWIZZLE_MIXIN_METHOD_NON_CONST(COND, NAME, __VA_ARGS__)               \
   __SYCL_SWIZZLE_MIXIN_METHOD_CONST(COND, NAME, __VA_ARGS__)
 
+#define __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS(COND, NAME, INDEX)                  \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS_NON_CONST(COND, NAME, INDEX)              \
+  __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS_CONST(COND, NAME, INDEX)
+
   __SYCL_SWIZZLE_MIXIN_ALL_SWIZZLES
 
+#undef __SYCL_SWIZLLE_MIXIN_SCALAR_ACCESS
 #undef __SYCL_SWIZZLE_MIXIN_METHOD
 };
 

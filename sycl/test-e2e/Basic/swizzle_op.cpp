@@ -249,11 +249,10 @@ int main() {
         });
       });
     }
-    // Modulo 256 arithmetic as all operations are done on swizzles.
     assert(results[0] == 255);
-    assert(results[1] == 0);
-    assert(results[2] == 1);
-    assert(results[3] == 2);
+    assert(results[1] == 256);
+    assert(results[2] == 257);
+    assert(results[3] == 258);
   }
 
   {
