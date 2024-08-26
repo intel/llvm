@@ -85,9 +85,10 @@ public:
   simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
       : simd(static_cast<raw_vector_type>(v)) {}
 
-  // Implicit conversion constructor from simd_view
-  template <typename BaseTy>
-  simd(simd_view<BaseTy, region1d_t<Ty, N, 1>> &v) : simd(v.read()) {}
+  // Implicit conversion constructor from 1D simd_view
+  template <typename BaseTy, int Stride>
+  simd(simd_view<BaseTy, region_base<false, Ty, 1, 1, N, Stride>> &v)
+      : simd(v.read()) {}
 
   /// Broadcast constructor with conversion. Converts given value to
   /// #element_type and replicates it in all elements.
