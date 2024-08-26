@@ -16,6 +16,7 @@
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_B",
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_C",
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_D"
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
 // CHECK: static constexpr
