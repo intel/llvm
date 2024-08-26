@@ -1,7 +1,7 @@
 // REQUIRES: cuda || (windows && level_zero && gpu-intel-dg2)
 // REQUIRES: vulkan
 
-// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
+// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DENABLE_LINEAR_TILING -DTEST_L0_SUPPORTED_VK_FORMAT %}
 // RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
@@ -251,7 +251,12 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                             VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1 /*mipLevels*/, true /*linearTiling*/);
+                                        1 /*mipLevels*/
+#ifdef ENABLE_LINEAR_TILING
+                                        ,
+                                        true /*linearTiling*/
+#endif
+  );
   VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
       inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
