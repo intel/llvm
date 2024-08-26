@@ -271,8 +271,8 @@ represents either a command-group or an empty operation.
 through newly added interfaces. This is either using the `make_edge()` function
 to define an edge between existing nodes, or using a
 `property::node::depends_on` property list when adding a new node to the graph.
-Nodes passed to this property that are from the same graph will create edges
-within the graph.
+Nodes or <<event-terminology, graph-limited events>> passed to this property
+that are from the same graph will create edges within the graph.
 
 Edges can also be created when explicitly adding nodes to the graph through
 existing SYCL mechanisms for expressing dependencies. Data dependencies from
@@ -281,8 +281,8 @@ accessors to existing nodes in the graph are captured as an edge.
 Using `handler::depends_on()` inside the node's command-group function can also
 be used for defining graph edges. However, for an event passed to
 `handler::depends_on()` to create an edge, it must be an event returned from a
-queue submission captured by a graph (a <<event-terminology, graph-limited
-event>>). 
+queue submission captured by the same graph (a <<event-terminology,
+graph-limited event>>). 
 
 | External Dependencies | Graph nodes may have dependencies on operations
 outside of the graph they belong to. These can be dependencies on nodes from
@@ -298,8 +298,8 @@ respected when the graph is executed.
 ===== Explicit API Example
 
 Simple example that shows using the explicit API to add two nodes to a graph
-with the <<depends-on-property, depends_on node property>> used to define
-dependencies between them.
+with the <<depends-on-property, depends_on node property>> used to define the
+graph edge between them.
 
 [source, c++]
 ----
@@ -369,7 +369,7 @@ graph nodes that will be respected when the graph is executed.
 ===== Queue Recording API Example
 
 Simple example that shows using the Queue Recording API to add two nodes to a
-graph with a `sycl::event` used to define the dependency between them.
+graph with a `sycl::event` used to define the graph edge between them.
 
 [source, c++]
 ----
@@ -391,6 +391,8 @@ SyclQueue.submit(
     CGH.parallel_for(...);
   }
 );
+
+Graph.end_recording();
 
 sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.finalize();
 
@@ -692,13 +694,14 @@ be passed here. `depends_on` may be used in two ways:
 * Passing nodes from the same `command_graph` which will create dependencies and
 graph edges between those nodes and the node being added. 
 
-* Passing SYCL events, including <<dynamic-event, Dynamic Events>>. If an event
-is a <<event-terminology, graph-limited event>>, then a graph edge is created
-between this node and the other node. For dynamic events, or
-<<event-terminology, regular SYCL events>>, an external dependency is created
-between this node and the command that is associated with the event. Passing a
-default constructed `dynamic_event` with no associated SYCL event will result in
-a synchronous error being thrown.
+* Passing SYCL events, including <<dynamic-events, Dynamic Events>>. If an event
+is a <<event-terminology, graph-limited event>> from the same `command_graph`,
+then a graph edge is created between this node and the other node. For dynamic
+events, graph-limited events from a different graph or <<event-terminology,
+regular SYCL events>>, an external dependency is created between this node and
+the command that is associated with the event. Passing a default constructed
+`dynamic_event` with no associated SYCL event will result in a synchronous error
+being thrown.
 
 The only permitted types for `NodeTN` and `EventTN` are `node` and
 `event`/`dynamic_event` respectively.
