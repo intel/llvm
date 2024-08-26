@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// CHECK: Banned Platforms: 1
+// CHECK: Unsupported Platforms: 1
 // CHECK-NEXT: Platform [#1]:
 // CHECK-NEXT: Version  : OpenCL
 // CHECK-NEXT: Name     : NVIDIA CUDA
