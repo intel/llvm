@@ -2188,7 +2188,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *BC = static_cast<SPIRVBinary *>(BV);
     auto Ops = transValue(BC->getOperands(), F, BB);
     IRBuilder<> Builder(BB);
-    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
+    Type *ElemTy =
+        transType(BC->getOperands()[0]->getType()->getPointerElementType());
+    Value *V = Builder.CreatePtrDiff(ElemTy, Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
