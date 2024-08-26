@@ -97,15 +97,6 @@ public:
   // non-standard integer types.
   void cleanupConversionToNonStdIntegers(llvm::Module *M);
 
-  // intel/llvm customization
-  // SROA has troubles processing structures containing TargetExtType, which
-  // in some cases will lead to a situation, when OpAccessChain would attempt
-  // to access a structure containing a cooperative matrix, but with indexes set
-  // to access the matrix itself, which is invalid. This routine finds alloca
-  // to such structure and replaces it with alloca to cooperative matrix type.
-  void finishSROACooperativeMatrix(llvm::Module *M);
-  // intel/llvm customization
-
   // According to the specification, the operands of a shift instruction must be
   // a scalar/vector of integer. When LLVM-IR contains a shift instruction with
   // i1 operands, they are treated as a bool. We need to extend them to i32 to
