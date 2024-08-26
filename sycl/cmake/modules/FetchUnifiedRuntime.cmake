@@ -121,7 +121,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Merge: b4195cb 0db57da
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Wed, 31 Jul 2024 14:26:38 +0100
-  #     Merge pull request #1961 from DBDuncan/duncan/num-channels-mipmap-fix 
+  #    Merge pull request #1961 from DBDuncan/duncan/num-channels-mipmap-fix 
   #    [Bindless][Exp] Fix urBindlessImagesImageGetInfoExp failing with mipmap images
   set(UNIFIED_RUNTIME_TAG 76361a88a0af6502fe655144655b381260ea9706)
 
