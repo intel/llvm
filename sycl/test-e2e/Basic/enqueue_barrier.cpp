@@ -1,9 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
-
-// The test is failing sporadically on Windows OpenCL RTs
-// Disabling on windows until fixed
-// UNSUPPORTED: windows
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/ext/intel/fpga_device_selector.hpp>
 #include <sycl/detail/core.hpp>

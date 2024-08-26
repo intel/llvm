@@ -11,16 +11,16 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void foo() {}
 };
 
 class Derived : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<void>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<void>)
   virtual void bar() {}
 };
 
@@ -28,16 +28,16 @@ class SubDerived : public Derived {
 public:
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<int>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<int>)
   void bar() override {}
 };
 
 class SubSubDerived : public SubDerived {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<Base>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<Base>)
   void bar() override {}
 };
 
@@ -55,10 +55,10 @@ int main() {
   // The exact arguments passed to calls_indirectly property don't matter,
   // because we have no way of connecting a virtual call with a particular
   // property set, but we test different properties here just in case.
-  oneapi::properties props_empty{oneapi::calls_indirectly<>};
-  oneapi::properties props_void{oneapi::calls_indirectly<void>};
-  oneapi::properties props_int{oneapi::calls_indirectly<int>};
-  oneapi::properties props_base{oneapi::calls_indirectly<Base>};
+  oneapi::properties props_empty{oneapi::assume_indirect_calls};
+  oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
+  oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};
+  oneapi::properties props_base{oneapi::assume_indirect_calls_to<Base>};
 
   char *Storage = sycl::malloc_device<char>(128, q);
 
