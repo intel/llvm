@@ -167,6 +167,26 @@ if(UR_ENABLE_SANITIZER)
         )
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
+        # In in-tree build, if LLVM is built with libc++, we also need to build
+        # symbolizer.cpp with libc++ abi and link libc++ in.
+        if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
+            execute_process(
+                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++.a
+                OUTPUT_VARIABLE LIBCXX_PATH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+            execute_process(
+                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++abi.a
+                OUTPUT_VARIABLE LIBCXX_ABI_PATH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+            set_property(SOURCE
+                ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
+                APPEND_STRING PROPERTY COMPILE_FLAGS
+                " -stdlib=libc++ ")
+            if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
+                message(FATAL_ERROR "libc++ is required but can't find the libraries")
+            endif()
+            target_link_libraries(ur_loader PRIVATE ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
+        endif()
     endif()
 
     target_include_directories(ur_loader PRIVATE
