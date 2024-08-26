@@ -62,10 +62,10 @@ bool transformAccessChain(Function *F) {
   }
   return ModuleChanged;
 }
-}
+} // namespace
 
-PreservedAnalyses
-SYCLProcessJointMatrixPass::run(Module &M, ModuleAnalysisManager &MAM) {
+PreservedAnalyses SYCLProcessJointMatrixPass::run(Module &M,
+                                                  ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   for (Function &F : M) {
     if (!F.isDeclaration())
