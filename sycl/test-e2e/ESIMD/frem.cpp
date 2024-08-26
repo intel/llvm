@@ -92,10 +92,8 @@ int main() {
   bool passed = true;
 
   passed &= test<float>(q);
-  // TODO: Enable when driver issue fixed
-#if 0
   if (q.get_device().has(sycl::aspect::fp64))
     passed &= test<double>(q);
-#endif
+
   return passed ? 0 : 1;
 }
