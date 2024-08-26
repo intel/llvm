@@ -49,7 +49,8 @@ function(add_xpti_library LIB_NAME)
     $<BUILD_INTERFACE:${XPTI_DIR}/include>
   )
 
-  target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS})
+  find_package(Threads REQUIRED)
+  target_link_libraries(${LIB_NAME} PUBLIC ${CMAKE_DL_LIBS} Threads::Threads)
 
   if (XPTI_ENABLE_TBB)
     add_dependencies(${LIB_NAME} tbb)
