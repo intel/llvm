@@ -31,8 +31,9 @@ llvm::symbolize::PrinterConfig GetPrinterConfig() {
 
 extern "C" {
 
-bool SymbolizeCode(const std::string ModuleName, uint64_t ModuleOffset,
-                   std::string &Result) {
+void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
+                   char *ResultString, size_t ResultSize, size_t *RetSize) {
+    std::string Result;
     llvm::raw_string_ostream OS(Result);
     llvm::symbolize::Request Request{ModuleName, ModuleOffset};
     llvm::symbolize::PrinterConfig Config =
@@ -51,10 +52,16 @@ bool SymbolizeCode(const std::string ModuleName, uint64_t ModuleOffset,
         {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
 
     if (!ResOrErr) {
-        return false;
+        return;
     }
     Printer->print(Request, *ResOrErr);
     ur_sanitizer_layer::GetSymbolizer()->pruneCache();
-    return true;
+    if (RetSize) {
+        *RetSize = Result.size() + 1;
+    }
+    if (ResultString) {
+        std::strncpy(ResultString, Result.c_str(), ResultSize);
+        ResultString[ResultSize - 1] = '\0';
+    }
 }
 }
