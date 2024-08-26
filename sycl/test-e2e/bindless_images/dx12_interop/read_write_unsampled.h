@@ -100,6 +100,8 @@ private:
   uint32_t m_depth;
   uint32_t m_numElems;
 
+  std::vector<DType> m_inputData;
+
   sycl::image_channel_type m_channelType;
 
   sycl::range<NDims> m_globalSize;
