@@ -141,8 +141,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(opencl
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/nrspruit/unified-runtime.git
+    be9094363c4f8ddd94a41d8b001b7701deffb48b
   )
 
   fetch_adapter_source(cuda
