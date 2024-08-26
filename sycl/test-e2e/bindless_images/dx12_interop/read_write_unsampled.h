@@ -37,15 +37,11 @@ inline void ThrowIfFailed(HRESULT result) {
   }
 }
 
-class DX12InteropTest {
+template <int NDims, typename DType, int NChannels> class DX12InteropTest {
 public:
-  DX12InteropTest(uint32_t width)
-      : m_width(width), m_sharedFenceValue(1),
-        m_syclImageDesc({m_width}, 1,
-                        sycl::image_channel_type::unsigned_int32) {
-    m_syclQueue =
-        sycl::queue{m_syclDevice, {sycl::property::queue::in_order{}}};
-  }
+  DX12InteropTest(sycl::image_channel_type channelType,
+                  sycl::range<NDims> globalSize, sycl::range<NDims> localSize);
+
   ~DX12InteropTest() {}
 
   void initDX12Device();
@@ -66,6 +62,14 @@ private:
 
   // Dimensions of image
   uint32_t m_width;
+  uint32_t m_height;
+  uint32_t m_depth;
+  uint32_t m_numElems;
+
+  sycl::image_channel_type m_channelType;
+
+  sycl::range<NDims> m_globalSize;
+  sycl::range<NDims> m_localSize;
 
   // DX12 Objects
   ComPtr<IDXGIFactory4> m_dx12Factory;
@@ -79,14 +83,13 @@ private:
   HANDLE m_dx12FenceEvent;
 
   // Shared handles and values
-  uint64_t m_sharedFenceValue;
-  HANDLE m_sharedMemoryHandle;
+  uint64_t m_sharedFenceValue = 0;
+  HANDLE m_sharedMemoryHandle = INVALID_HANDLE_VALUE;
   HANDLE m_sharedSemaphoreHandle = INVALID_HANDLE_VALUE;
 
   // SYCL Objects
   sycl::queue m_syclQueue;
   sycl::device m_syclDevice;
-  syclexp::image_descriptor m_syclImageDesc;
   syclexp::external_mem m_syclExternalMemHandle;
   syclexp::external_semaphore m_syclExternalSemaphoreHandle;
   syclexp::image_mem_handle m_syclImageMemHandle;
