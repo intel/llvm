@@ -292,41 +292,44 @@ void SPIRVRegularizeLLVMBase::expandVIDWithSYCLTypeByValComp(Function *F) {
 // intel/llvm customization
 void SPIRVRegularizeLLVMBase::finishSROACooperativeMatrix(Module *M) {
   for (auto &F : *M) {
+    if (!F.isDeclaration())
+      continue;
     if (!F.getName().starts_with("_Z19__spirv_AccessChain"))
       continue;
-    for (auto I = F.user_begin(), E = F.user_end(); I != E;) {
-      if (auto *CI = dyn_cast<CallInst>(*I++)) {
-        Instruction *Ptr =
-            dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
-        if (!Ptr || !isa_and_nonnull<AllocaInst>(Ptr))
-          continue;
-        StructType *WrapperMatrixTy =
-            dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
-        if (!WrapperMatrixTy)
-          continue;
-        TargetExtType *MatrixTy =
-            dyn_cast<TargetExtType>(WrapperMatrixTy->getElementType(0));
-        if (!MatrixTy)
-          continue;
-        StringRef Name = MatrixTy->getName();
-        if (Name.consume_front(kSPIRVTypeName::PrefixAndDelim)) {
-          auto OpCode = SPIRVOpaqueTypeOpCodeMap::map(Name.str());
-          if (OpCode != OpTypeCooperativeMatrixKHR)
-            continue;
-        } else
+    for (auto I : F.users()) {
+      auto *CI = dyn_cast<CallInst>(I);
+      if (!CI)
+        continue;
+      Instruction *Ptr =
+          dyn_cast<Instruction>(CI->getArgOperand(0)->stripPointerCasts());
+      if (!Ptr || !isa<AllocaInst>(Ptr))
+        continue;
+      StructType *WrapperMatrixTy =
+          dyn_cast<StructType>(cast<AllocaInst>(Ptr)->getAllocatedType());
+      if (!WrapperMatrixTy)
+        continue;
+      TargetExtType *MatrixTy =
+          dyn_cast<TargetExtType>(WrapperMatrixTy->getElementType(0));
+      if (!MatrixTy)
+        continue;
+      StringRef Name = MatrixTy->getName();
+      if (!Name.consume_front(kSPIRVTypeName::PrefixAndDelim))
+        continue;
+      auto OpCode = SPIRVOpaqueTypeOpCodeMap::map(Name.str());
+      if (OpCode != OpTypeCooperativeMatrixKHR)
           continue;
 
-        AllocaInst *Alloca = nullptr;
-        {
-          IRBuilder Builder(CI);
-          IRBuilderBase::InsertPointGuard IG(Builder);
-          Builder.SetInsertPointPastAllocas(CI->getParent()->getParent());
-          Alloca = Builder.CreateAlloca(MatrixTy);
-        }
-        Ptr->replaceAllUsesWith(Alloca);
-        Ptr->dropAllReferences();
-        Ptr->eraseFromParent();
+      AllocaInst *Alloca = nullptr;
+      {
+        IRBuilder Builder(CI);
+        IRBuilderBase::InsertPointGuard IG(Builder);
+        Builder.SetInsertPointPastAllocas(CI->getFunction());
+        Alloca = Builder.CreateAlloca(MatrixTy);
       }
+      Ptr->replaceAllUsesWith(Alloca);
+      Ptr->dropAllReferences();
+      Ptr->eraseFromParent();
+      
     }
   }
 }
