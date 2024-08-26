@@ -182,20 +182,49 @@ DefineBitwiseGroupOp(uint64_t, int64_t, i64)
     return Type(); /*todo: add support for other flags as they are tested*/    \
   }
 
-#define DefineBroadCast(Type, Sfx, MuxType)\
-  DefineBroadCastImpl(Type, Sfx, MuxType, uint32_t)
+#define DefineBroadcastMuxType(Type, Sfx, MuxType, IDType)                    \
+  DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                   \
+      int32_t id, MuxType val, uint64_t lidx, uint64_t lidy, uint64_t lidz);  \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_broadcast_##Sfx(MuxType val,        \
+                                                          int32_t sg_lid);
 
-DefineBroadCast(int64_t, i64, int64_t)
-DefineBroadCast(uint64_t, i64, int64_t)
-DefineBroadCast(int32_t, i32, int32_t)
+#define DefineBroadCastImpl(Type, Sfx, MuxType, IDType)                       \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                              IDType l) {                     \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l);                           \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l, 0, 0);                 \
+  }                                                                           \
+                                                                              \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                         sycl::vec<IDType, 2>::vector_t l) {  \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[0], 0);           \
+  }                                                                           \
+                                                                              \
+  DEVICE_EXTERNAL Type __spirv_GroupBroadcast(uint32_t g, Type v,             \
+                                          sycl::vec<IDType, 3>::vector_t l) { \
+    if (__spv::Scope::Flag::Subgroup == g)                                    \
+      return __mux_sub_group_broadcast_##Sfx(v, l[0]);                        \
+    else                                                                      \
+      return __mux_work_group_broadcast_##Sfx(0, v, l[0], l[1], l[2]);        \
+  }                                                                           \
+
+#define DefineBroadCast(Type, Sfx, MuxType) \
+   DefineBroadcastMuxType(Type, Sfx, MuxType, uint32_t) \
+   DefineBroadcastMuxType(Type, Sfx, MuxType, uint64_t) \
+   DefineBroadCastImpl(Type, Sfx, MuxType, uint32_t)    \
+   DefineBroadCastImpl(Type, Sfx, MuxType, uint64_t)    \
+
 DefineBroadCast(uint32_t, i32, int32_t)
+DefineBroadCast(int32_t, i32, int32_t)
 DefineBroadCast(float, f32, float)
 DefineBroadCast(double, f64, double)
-
-DefineBroadCastImpl(int32_t, i32, int32_t, uint64_t)
-DefineBroadCastImpl(float, f32, float, uint64_t)
-DefineBroadCastImpl(double, f64, double, uint64_t)
-DefineBroadCastImpl(uint64_t, i64, int64_t, uint64_t)
+DefineBroadCast(uint64_t, i64, int64_t)
+DefineBroadCast(int64_t, i64, int64_t)
 
 
 #define DefShuffleINTEL(Type, Sfx, MuxType)                                    \
@@ -248,6 +277,8 @@ DefShuffleINTEL_All(int32_t, i32, int32_t)
 DefShuffleINTEL_All(uint32_t, i32, int32_t)
 DefShuffleINTEL_All(int16_t, i16, int16_t)
 DefShuffleINTEL_All(uint16_t, i16, int16_t)
+DefShuffleINTEL_All(int8_t, i8, int8_t)
+DefShuffleINTEL_All(uint8_t, i8, int8_t)
 DefShuffleINTEL_All(double, f64, double)
 DefShuffleINTEL_All(float, f32, float)
 
