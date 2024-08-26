@@ -529,9 +529,12 @@ using vector_t =
 //
 //   template <class Self>
 //   class AMixin {
-//     using DataT = typename from_incomplete<Self>::element_type;
+//     using element_type = typename from_incomplete<Self>::element_type;
 //     ...
 //   };
+//
+// NOTE: `AMixin` CANNOT use `DataT` as type alias because MSVC is buggy without
+// `/permissive:-`, see https://godbolt.org/z/bMdn3hWds
 //
 //
 // We'd like actual vec/swizle to `public`-inherit from this to avoid code
@@ -655,25 +658,25 @@ class IncDecMixin<
     SelfOperandTy,
     std::enable_if_t<!std::is_same_v<
         bool, typename from_incomplete<SelfOperandTy>::element_type>>> {
-  using DataT = typename from_incomplete<SelfOperandTy>::element_type;
+  using element_type = typename from_incomplete<SelfOperandTy>::element_type;
 
 public:
   friend SelfOperandTy &operator++(SelfOperandTy &x) {
-    x += DataT{1};
+    x += element_type{1};
     return x;
   }
   friend SelfOperandTy &operator--(SelfOperandTy &x) {
-    x -= DataT{1};
+    x -= element_type{1};
     return x;
   }
   friend auto operator++(SelfOperandTy &x, int) {
     auto tmp = +x;
-    x += DataT{1};
+    x += element_type{1};
     return tmp;
   }
   friend auto operator--(SelfOperandTy &x, int) {
     auto tmp = +x;
-    x -= DataT{1};
+    x -= element_type{1};
     return tmp;
   }
 };
@@ -956,71 +959,73 @@ class VecOpMixin {};
   template <typename Self>                                                     \
   class SwizzleOpMixin<Self, false, OP,                                        \
                        std::enable_if_t<is_op_available<Self, OP>>> {          \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
     template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
-                                          !is_swizzle_v<T>>>                   \
+              typename = std::enable_if_t<                                     \
+                  std::is_convertible_v<T, element_type> && !is_swizzle_v<T>>> \
     friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
-      using Vec = vec<DataT, N>;                                               \
-      return OP{}(Vec{lhs}, Vec{static_cast<DataT>(rhs)});                     \
+      using Vec = vec<element_type, N>;                                        \
+      return OP{}(Vec{lhs}, Vec{static_cast<element_type>(rhs)});              \
     }                                                                          \
     template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
-                                          !is_swizzle_v<T>>>                   \
+              typename = std::enable_if_t<                                     \
+                  std::is_convertible_v<T, element_type> && !is_swizzle_v<T>>> \
     friend auto operator BINOP(const T &lhs, const Self &rhs) {                \
-      using Vec = vec<DataT, N>;                                               \
-      return OP{}(Vec{static_cast<DataT>(lhs)}, Vec{rhs});                     \
+      using Vec = vec<element_type, N>;                                        \
+      return OP{}(Vec{static_cast<element_type>(lhs)}, Vec{rhs});              \
     }                                                                          \
-    friend auto operator BINOP(const Self &lhs, const vec<DataT, N> &rhs) {    \
-      return OP{}(vec<DataT, N>{lhs}, rhs);                                    \
+    friend auto operator BINOP(const Self &lhs,                                \
+                               const vec<element_type, N> &rhs) {              \
+      return OP{}(vec<element_type, N>{lhs}, rhs);                             \
     }                                                                          \
-    friend auto operator BINOP(const vec<DataT, N> &lhs, const Self &rhs) {    \
-      return OP{}(lhs, vec<DataT, N>{rhs});                                    \
+    friend auto operator BINOP(const vec<element_type, N> &lhs,                \
+                               const Self &rhs) {                              \
+      return OP{}(lhs, vec<element_type, N>{rhs});                             \
     }                                                                          \
-    template <                                                                 \
-        typename OtherSwizzle,                                                 \
-        typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,               \
-        typename = std::enable_if_t<                                           \
-            std::is_same_v<DataT, typename OtherSwizzle::element_type> &&      \
-            N == OtherSwizzle::size()>>                                        \
+    template <typename OtherSwizzle,                                           \
+              typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,         \
+              typename = std::enable_if_t<                                     \
+                  std::is_same_v<element_type,                                 \
+                                 typename OtherSwizzle::element_type> &&       \
+                  N == OtherSwizzle::size()>>                                  \
     friend auto operator BINOP(const Self &lhs, const OtherSwizzle &rhs) {     \
-      using ResultVec = vec<DataT, N>;                                         \
+      using ResultVec = vec<element_type, N>;                                  \
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
     /* Can't have both (Self, Swizzle) and (Swizzle, Self) enabled at the      \
      * same time if they use the same `const` as that would be ambiguous. As   \
      * such, only enable the latter if "constness" differs. */                 \
-    template <                                                                 \
-        typename OtherSwizzle,                                                 \
-        typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,               \
-        typename = std::enable_if_t<                                           \
-            std::is_same_v<DataT, typename OtherSwizzle::element_type> &&      \
-            N == OtherSwizzle::size() &&                                       \
-            is_over_const_vec<Self> != is_over_const_vec<OtherSwizzle>>>       \
+    template <typename OtherSwizzle,                                           \
+              typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,         \
+              typename = std::enable_if_t<                                     \
+                  std::is_same_v<element_type,                                 \
+                                 typename OtherSwizzle::element_type> &&       \
+                  N == OtherSwizzle::size() &&                                 \
+                  is_over_const_vec<Self> != is_over_const_vec<OtherSwizzle>>> \
     friend auto operator BINOP(const OtherSwizzle &lhs, const Self &rhs) {     \
-      using ResultVec = vec<DataT, N>;                                         \
+      using ResultVec = vec<element_type, N>;                                  \
       return OP{}(static_cast<ResultVec>(lhs), static_cast<ResultVec>(rhs));   \
     }                                                                          \
   };                                                                           \
   template <typename Self>                                                     \
   class VecOpMixin<Self, false, OP,                                            \
                    std::enable_if_t<is_op_available<Self, OP>>> {              \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
-    template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    template <typename T, typename = std::enable_if_t<                         \
+                              std::is_convertible_v<T, element_type>>>         \
     friend auto operator BINOP(const Self &lhs, const T &rhs) {                \
-      return OP{}(lhs, Self{static_cast<DataT>(rhs)});                         \
+      return OP{}(lhs, Self{static_cast<element_type>(rhs)});                  \
     }                                                                          \
-    template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    template <typename T, typename = std::enable_if_t<                         \
+                              std::is_convertible_v<T, element_type>>>         \
     friend auto operator BINOP(const T &lhs, const Self &rhs) {                \
-      return OP{}(Self{static_cast<DataT>(lhs)}, rhs);                         \
+      return OP{}(Self{static_cast<element_type>(lhs)}, rhs);                  \
     }                                                                          \
     friend auto operator BINOP(const Self &lhs, const Self &rhs) {             \
       return VectorImpl{}(lhs, rhs, OP{});                                     \
@@ -1032,28 +1037,28 @@ class VecOpMixin {};
   template <typename Self>                                                     \
   class SwizzleOpMixin<Self, true, OP,                                         \
                        std::enable_if_t<is_op_available<Self, OP>>> {          \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
     template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT> &&   \
-                                          !is_swizzle_v<T>>>                   \
+              typename = std::enable_if_t<                                     \
+                  std::is_convertible_v<T, element_type> && !is_swizzle_v<T>>> \
     friend const Self &operator OPASSIGN(const Self & lhs, const T & rhs) {    \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
     friend const Self &operator OPASSIGN(const Self & lhs,                     \
-                                         const vec<DataT, N> &rhs) {           \
+                                         const vec<element_type, N> &rhs) {    \
       lhs = OP{}(lhs, rhs);                                                    \
       return lhs;                                                              \
     }                                                                          \
-    template <                                                                 \
-        typename OtherSwizzle,                                                 \
-        typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,               \
-        typename = std::enable_if_t<                                           \
-            std::is_same_v<DataT, typename OtherSwizzle::element_type> &&      \
-            N == OtherSwizzle::size()>>                                        \
+    template <typename OtherSwizzle,                                           \
+              typename = std::enable_if_t<is_swizzle_v<OtherSwizzle>>,         \
+              typename = std::enable_if_t<                                     \
+                  std::is_same_v<element_type,                                 \
+                                 typename OtherSwizzle::element_type> &&       \
+                  N == OtherSwizzle::size()>>                                  \
     friend const Self &operator OPASSIGN(const Self & lhs,                     \
                                          const OtherSwizzle & rhs) {           \
       lhs = OP{}(lhs, rhs);                                                    \
@@ -1063,14 +1068,14 @@ class VecOpMixin {};
   template <typename Self>                                                     \
   class VecOpMixin<Self, true, OP,                                             \
                    std::enable_if_t<is_op_available<Self, OP>>> {              \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
-    template <typename T,                                                      \
-              typename = std::enable_if_t<std::is_convertible_v<T, DataT>>>    \
+    template <typename T, typename = std::enable_if_t<                         \
+                              std::is_convertible_v<T, element_type>>>         \
     friend Self &operator OPASSIGN(Self & lhs, const T & rhs) {                \
-      lhs = OP{}(lhs, static_cast<DataT>(rhs));                                \
+      lhs = OP{}(lhs, static_cast<element_type>(rhs));                         \
       return lhs;                                                              \
     }                                                                          \
     friend Self &operator OPASSIGN(Self & lhs, const Self & rhs) {             \
@@ -1087,16 +1092,18 @@ class VecOpMixin {};
   template <typename Self>                                                     \
   class SwizzleOpMixin<Self, false, OP,                                        \
                        std::enable_if_t<is_op_available<Self, OP>>> {          \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
-    friend auto operator UOP(const Self &x) { return OP{}(vec<DataT, N>{x}); } \
+    friend auto operator UOP(const Self &x) {                                  \
+      return OP{}(vec<element_type, N>{x});                                    \
+    }                                                                          \
   };                                                                           \
   template <typename Self>                                                     \
   class VecOpMixin<Self, false, OP,                                            \
                    std::enable_if_t<is_op_available<Self, OP>>> {              \
-    using DataT = typename from_incomplete<Self>::element_type;                \
+    using element_type = typename from_incomplete<Self>::element_type;         \
     static constexpr int N = from_incomplete<Self>::size();                    \
                                                                                \
   public:                                                                      \
