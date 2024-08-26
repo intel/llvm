@@ -16,15 +16,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::codeplay::experimental {
 
-fusion_wrapper::fusion_wrapper(queue &Queue) {
-  (void)Queue;
-  throw sycl::exception(sycl::errc::feature_not_supported,
-                        "Kernel fusion extension is no longer supported");
-}
+fusion_wrapper::fusion_wrapper(queue &Queue)
+    : MQueue{detail::getSyclObjImpl(Queue)} {}
 
 queue fusion_wrapper::get_queue() const {
-  throw sycl::exception(sycl::errc::feature_not_supported,
-                        "Kernel fusion extension is no longer supported");
+  return detail::createSyclObjFromImpl<sycl::queue>(MQueue);
 }
 
 bool fusion_wrapper::is_in_fusion_mode() const { return false; }

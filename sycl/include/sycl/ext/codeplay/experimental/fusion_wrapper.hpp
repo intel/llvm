@@ -35,12 +35,6 @@ public:
   /// on a queue which doesn't support fusion.
   explicit fusion_wrapper(queue &q);
 
-  fusion_wrapper(const fusion_wrapper &) = default;
-  fusion_wrapper(fusion_wrapper &&) = default;
-  ~fusion_wrapper() = default;
-  fusion_wrapper &operator=(const fusion_wrapper &) = default;
-  fusion_wrapper &operator=(fusion_wrapper &&) = default;
-
   ///
   /// Access the queue wrapped by this fusion wrapper.
   queue get_queue() const;
@@ -94,6 +88,9 @@ public:
   ///
   /// @param properties Properties to take into account when performing fusion.
   event complete_fusion(const property_list &propList = {});
+
+private:
+  std::shared_ptr<detail::queue_impl> MQueue;
 };
 } // namespace ext::codeplay::experimental
 } // namespace _V1

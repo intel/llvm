@@ -709,4 +709,5 @@ with combinations of kernels that should be fused.
 |Rev|Date|Authors|Changes
 |1|2022-10-14|Victor Lomüller, Lukas Sommer and Victor Perez|*Initial draft*
 |2|2022-11-09|Victor Lomüller, Lukas Sommer and Victor Perez|*Separate fusion API into new `fusion_wrapper`*
+|3|2024-08-26|Lukas Sommer|*Mark extension as removed*
 |========================================
