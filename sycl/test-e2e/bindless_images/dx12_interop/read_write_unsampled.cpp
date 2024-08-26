@@ -426,7 +426,8 @@ void DX12InteropTest<NDims, DType, NChannels>::populateDX12Texture() {
   // Set our texture data to upload.
   m_inputData.resize(m_numElems);
   auto getInputValue = [&](int i) -> DType {
-    if constexpr (std::is_integral_v<DType> || std::is_same_v<DType, sycl::half>)
+    if constexpr (std::is_integral_v<DType> ||
+                  std::is_same_v<DType, sycl::half>)
       i = i % (static_cast<uint64_t>(std::numeric_limits<DType>::max()) / 2);
     return i;
   };

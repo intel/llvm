@@ -183,7 +183,8 @@ bool run_sycl(InteropHandleT inputInteropMemHandle,
   auto getExpectedValue = [&](int i) -> OutType {
     if (CType == sycl::image_channel_type::unorm_int8)
       return 0.5f;
-    if constexpr (std::is_integral_v<OutType> || std::is_same_v<OutType, sycl::half>)
+    if constexpr (std::is_integral_v<OutType> ||
+                  std::is_same_v<OutType, sycl::half>)
       i = i % static_cast<uint64_t>(std::numeric_limits<OutType>::max());
     return i / 2.f;
   };
@@ -282,7 +283,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   auto getInputValue = [&](int i) -> DType {
     if (CType == sycl::image_channel_type::unorm_int8)
       return static_cast<DType>(255);
-    if constexpr (std::is_integral_v<DType> || std::is_same_v<DType, sycl::half>)
+    if constexpr (std::is_integral_v<DType> ||
+                  std::is_same_v<DType, sycl::half>)
       i = i % static_cast<uint64_t>(std::numeric_limits<DType>::max());
     return i;
   };
