@@ -1924,7 +1924,7 @@ Using this information is something we may look at for future revisions of
 ==== sycl_ext_codeplay_kernel_fusion
 
 As the
-link:../experimental/sycl_ext_codeplay_kernel_fusion.asciidoc[sycl_ext_codeplay_kernel_fusion]
+link:../deprecated/sycl_ext_codeplay_kernel_fusion.asciidoc[sycl_ext_codeplay_kernel_fusion]
 extension also introduces state to a `sycl::queue`, there are restrictions on
 its usage when combined with `sycl_ext_oneapi_graph`. Exceptions with error code
 `invalid` are thrown in the following cases:

@@ -20,10 +20,6 @@
 namespace sycl {
 inline namespace _V1 {
 
-namespace detail {
-class fusion_wrapper_impl;
-}
-
 namespace ext::codeplay::experimental {
 
 ///
@@ -38,6 +34,12 @@ public:
   /// @throw sycl::exception with errc::invalid if trying to construct a wrapper
   /// on a queue which doesn't support fusion.
   explicit fusion_wrapper(queue &q);
+
+  fusion_wrapper(const fusion_wrapper &) = default;
+  fusion_wrapper(fusion_wrapper &&) = default;
+  ~fusion_wrapper() = default;
+  fusion_wrapper &operator=(const fusion_wrapper &) = default;
+  fusion_wrapper &operator=(fusion_wrapper &&) = default;
 
   ///
   /// Access the queue wrapped by this fusion wrapper.
