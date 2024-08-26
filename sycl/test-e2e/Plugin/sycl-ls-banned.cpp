@@ -1,4 +1,4 @@
-// REQUIRES: gpu, cuda
+// REQUIRES: cuda
 
 // RUN: sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --input-file %t.cuda.out
