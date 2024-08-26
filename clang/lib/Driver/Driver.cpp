@@ -4978,8 +4978,8 @@ class OffloadingActionBuilder final {
             // No need to generate the integration header if
             // -fsycl-no-use-integration-header is specified.
             if (!Args.hasFlag(options::OPT_fsycl_use_integration_headers,
-                             options::OPT_fno_sycl_use_integration_headers,
-                             true))
+                              options::OPT_fno_sycl_use_integration_headers,
+                              true))
               continue;
             if (SYCLDeviceOnly)
               continue;
