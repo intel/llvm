@@ -348,10 +348,10 @@ specific repository URL and revision tag used can be found in the file
 In order to enable developers, a number of CMake variables are available to
 control which revision of Unified Runtime should be used when building DPC++:
 
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
   override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
   the Unified Runtime source code.
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
   override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
   the Unified Runtime source code.
 * `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
