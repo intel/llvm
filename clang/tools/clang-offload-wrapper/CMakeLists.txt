@@ -13,8 +13,6 @@ set(CLANG_OFFLOAD_WRAPPER_LIB_DEPS
   )
 
 add_dependencies(clang-offload-wrapper sycl-compress)
-include_directories(${CMAKE_BINARY_DIR}/include/sycl-compress/)
-
 add_dependencies(clang clang-offload-wrapper)
 
 clang_target_link_libraries(clang-offload-wrapper

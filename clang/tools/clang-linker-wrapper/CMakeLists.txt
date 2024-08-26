@@ -35,7 +35,6 @@ add_clang_tool(clang-linker-wrapper
   )
 
 add_dependencies(clang-linker-wrapper sycl-compress)
-include_directories(${CMAKE_BINARY_DIR}/include/sycl-compress/)
 
 set(CLANG_LINKER_WRAPPER_LIB_DEPS
   clangBasic
