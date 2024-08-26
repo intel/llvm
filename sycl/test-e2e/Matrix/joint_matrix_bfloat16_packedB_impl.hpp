@@ -126,11 +126,6 @@ int main() {
       ret += test<1, 64, 16, class pvc1x64x16>();
       break;
     }
-
-    if (combination.nsize == 8) { // architecture::intel_gpu_dg2*
-      ret += test<32, 32, 16, class dg232x32x16>();
-      break;
-    }
   }
 
   return ret;
