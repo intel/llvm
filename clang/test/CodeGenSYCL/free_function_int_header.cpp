@@ -8,7 +8,6 @@
 #include "sycl.hpp"
 
 // First overload of function ff_2.
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel",
                                               2)]] void
 ff_2(int *ptr, int start, int end) {
@@ -17,7 +16,6 @@ ff_2(int *ptr, int start, int end) {
 }
 
 // Second overload of function ff_2.
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel",
   2)]] void
   ff_2(int* ptr, int start, int end, int value) {
@@ -27,7 +25,6 @@ __attribute__((sycl_device))
 
 // Templated definition of function ff_3.
 template <typename T>
-__attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-nd-range-kernel", 2)]] void
 ff_3(T *ptr, T start, T end) {
   for (int i = start; i <= end; i++)
@@ -52,6 +49,7 @@ template <> void ff_3<double>(double *ptr, double start, double end) {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IiEvPT_S0_S0_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IfEvPT_S0_S0_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
 // CHECK:      const kernel_param_desc_t kernel_signatures[] = {
