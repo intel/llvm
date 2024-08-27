@@ -1312,9 +1312,12 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
         reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
         CompileTargetByteArray.size());
     // Note: there are no explicit targets for CPUs, so on x86_64,
-    // so we use a spir64_x86_64 compile target image.
+    // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
+    // compile target image.
     if ((ArchName == CompileTarget) ||
-        (ArchName == "x86_64" && CompileTarget == "spir64_x86_64")) {
+        ((ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
+          ArchName == "intel_cpu_gnr") &&
+         CompileTarget == "spir64_x86_64")) {
       AddImg();
     }
   }
