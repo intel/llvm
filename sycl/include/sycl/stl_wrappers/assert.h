@@ -21,7 +21,7 @@
 
 // Device assertions on Windows do not work properly so we define these wrappers
 // around the STL assertion headers cassert and assert.h where we redefine
-// the assert macros to call __devicelib_assert_fail directly and bypass
+// the assert macro to call __devicelib_assert_fail directly and bypass
 // _wassert.
 #if defined(_WIN32) && defined(assert)
 extern "C" __DPCPP_SYCL_EXTERNAL void
