@@ -259,6 +259,8 @@ private:
   std::set<const void *> MAssociatedDeviceGlobals;
   std::mutex MAssociatedDeviceGlobalsMutex;
 
+  void verifyProps(const property_list &Props) const;
+
   struct DeviceGlobalInitializer {
     DeviceGlobalInitializer() = default;
     DeviceGlobalInitializer(const RTDeviceBinaryImage *BinImage)
