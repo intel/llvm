@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/buffer_impl.hpp>
+#include <detail/property_check.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
@@ -23,6 +24,7 @@ stream_impl::stream_impl(size_t BufferSize, size_t MaxStatementSize,
     : BufferSize_(BufferSize), MaxStatementSize_(MaxStatementSize),
       PropList_(PropList), Buf_(range<1>(BufferSize + OffsetSize + 1)),
       FlushBuf_(range<1>(MaxStatementSize + FLUSH_BUF_OFFSET_SIZE)) {
+  verifyProps(PropList_);
   // Additional place is allocated in the stream buffer for the offset variable
   // and the end of line symbol. Buffers are created without host pointers so
   // that they are released in a deferred manner. Disable copy back on buffer
@@ -95,6 +97,12 @@ void stream_impl::generateFlushCommand(handler &cgh) {
     }
     fflush(stdout);
   });
+}
+
+void stream_impl::verifyProps(const property_list &Props) const {
+  // no valid props for stream now
+  static const std::set<std::pair<int, bool>> AllowedPropList;
+  checkPropsAndThrow(Props, AllowedPropList);
 }
 
 } // namespace detail
