@@ -14,6 +14,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DiscardEvent.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
+  NoDeviceIPVersion.cpp
 )
 
 add_subdirectory(CommandGraph)

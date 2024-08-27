@@ -11,7 +11,7 @@
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[DEVICE_BC:.+\.bc]]"
 // SPIRV_DEVICE_OBJ: llvm-spirv{{.*}} "-o" "[[DEVICE_SPV:.+\.spv]]"
 // SPIRV_DEVICE_OBJ-SAME: "--spirv-preserve-auxdata"
-// SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_INTEL_memory_access_aliasing"
+// SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_KHR_cooperative_matrix"
 // SPIRV_DEVICE_OBJ-SAME: "[[DEVICE_BC]]"
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"
 // SPIRV_DEVICE_OBJ-SAME: "-fsycl-is-host"
