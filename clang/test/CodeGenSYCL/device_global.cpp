@@ -38,29 +38,29 @@ struct Foo {
 };
 device_global<int> Foo::C;
 
-// CHECK-RDC: @AExt = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
-// CHECK: @A = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Num_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Max_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob2 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Force_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob3 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankw_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob4 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Simple_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob5 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Mem_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob6 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankbits_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob7 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Reg_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob8 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Dpump_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob9 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Spump_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob10 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Merge_ATTRS:[0-9]+]]
-// CHECK: @Nonconst_glob11 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Pc_ATTRS:[0-9]+]]
-// CHECK: @_ZL1B = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
-// CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
+// CHECK-RDC: @AExt = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
+// CHECK: @A = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Num_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob1 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Max_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob2 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Force_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob3 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankw_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob4 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Simple_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob5 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Mem_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob6 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankbits_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob7 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Reg_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob8 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Dpump_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob9 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Spump_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob10 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Merge_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob11 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Pc_ATTRS:[0-9]+]]
+// CHECK: @__THE_PREFIX____ZL1B = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
+// CHECK: @_ZN3Foo1CE = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
 
 device_global<int> same_name;
 namespace NS {
 device_global<int> same_name;
 }
-// CHECK: @same_name = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
-// CHECK: @_ZN2NS9same_nameE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
+// CHECK: @same_name = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ATTRS:[0-9]+]]
+// CHECK: @_ZN2NS9same_nameE = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_NS_ATTRS:[0-9]+]]
 
 // decorated with only global_variable_allowed attribute
 template <typename T>
@@ -83,18 +83,18 @@ only_global_var_allowed<int> no_device_global;
 inline namespace Bar {
 device_global<float> InlineNS;
 }
-// CHECK: @_ZN3Bar8InlineNSE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.0" zeroinitializer, align 8 #[[BAR_INLINENS_ATTRS:[0-9]+]]
+// CHECK: @_ZN3Bar8InlineNSE = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.0" zeroinitializer, align 8 #[[BAR_INLINENS_ATTRS:[0-9]+]]
 
 template <typename T> struct TS {
 public:
   static device_global<T> d;
 };
 template <> device_global<int> TS<int>::d{};
-// CHECK: @_ZN2TSIiE1dE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
+// CHECK: @_ZN2TSIiE1dE = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[TEMPLATED_WRAPPER_ATTRS:[0-9]+]]
 
 template <typename T>
 device_global<T> templ_dev_global;
-// CHECK: @[[TEMPL_DEV_GLOB:[a-zA-Z0-9_]+]] = linkonce_odr addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, comdat, align 8 #[[TEMPL_DEV_GLOB_ATTRS:[0-9]+]]
+// CHECK: @[[TEMPL_DEV_GLOB:[a-zA-Z0-9_]+]] = linkonce_odr addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, comdat, align 8 #[[TEMPL_DEV_GLOB_ATTRS:[0-9]+]]
 
 void foo() {
   q.submit([&](handler &h) {
@@ -140,44 +140,44 @@ device_global<int> same_name;
 // CHECK: [[ANN_singlepump:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:8}{pump:1}{{.*}}
 // CHECK: [[ANN_merge:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:8}{merge:mrg5:width}{{.*}}
 // CHECK: [[ANN_private_copies:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:8}{private_copies:8}{{.*}}
-// CHECK: @counter = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.3" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS:[0-9]+]]
-// CHECK: @counter1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.4" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS1:[0-9]+]]
+// CHECK: @counter = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.3" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS:[0-9]+]]
+// CHECK: @counter1 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.4" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS1:[0-9]+]]
 // CHECK: [[ANN_max_replicates1:@.str.[0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{max_replicates:2}{{.*}}
-// CHECK: @counter2 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.5" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS2:[0-9]+]]
+// CHECK: @counter2 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.5" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS2:[0-9]+]]
 // CHECK: [[ANN_bankwidth1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{bankwidth:2}{{.*}}
-// CHECK: @counter3 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.6" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS3:[0-9]+]]
+// CHECK: @counter3 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.6" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS3:[0-9]+]]
 // CHECK: [[ANN_memory_default1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{{.*}}
-// CHECK: @counter4 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.7" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS4:[0-9]+]]
+// CHECK: @counter4 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.7" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS4:[0-9]+]]
 // CHECK: [[ANN_numbanks1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:2}{{.*}}
-// CHECK: @counter5 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.8" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS5:[0-9]+]]
+// CHECK: @counter5 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.8" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS5:[0-9]+]]
 // CHECK: [[ANN_force_pow2_depth1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{force_pow2_depth:1}{{.*}}
-// CHECK: @counter6 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.9" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS6:[0-9]+]]
+// CHECK: @counter6 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.9" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS6:[0-9]+]]
 // CHECK: [[ANN_bank_bits1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:3,4}{{.*}}
-// CHECK: @counter7 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.10" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS7:[0-9]+]]
+// CHECK: @counter7 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.10" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS7:[0-9]+]]
 // CHECK: [[ANN_doublepump1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{pump:2}{{.*}}
-// CHECK: @counter8 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.11" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS8:[0-9]+]]
+// CHECK: @counter8 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.11" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS8:[0-9]+]]
 // CHECK: [[ANN_singlepump1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{pump:1}{{.*}}
-// CHECK: @counter9 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.12" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS9:[0-9]+]]
+// CHECK: @counter9 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.12" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS9:[0-9]+]]
 // CHECK: [[ANN_merge1:@.str[.0-9]*]]  = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{merge:mrg5:width}{{.*}}
-// CHECK: @counter10 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.13" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS10:[0-9]+]]
+// CHECK: @counter10 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.13" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS10:[0-9]+]]
 // CHECK: [[ANN_private_copies1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{private_copies:8}{{.*}}
-// CHECK: @counter11 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.14" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS11:[0-9]+]]
+// CHECK: @counter11 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.14" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS11:[0-9]+]]
 // CHECK: [[ANN_simple_dual_port1:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{simple_dual_port:1}{{.*}}
-// CHECK: @counter12 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.15" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS12:[0-9]+]]
+// CHECK: @counter12 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.15" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS12:[0-9]+]]
 // CHECK: [[ANN_simple_dual_port2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}{{.*}}
 // CHECK: [[ANN_private_copies2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{private_copies:16}{{.*}}
-// CHECK: @counter13 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.16" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS13:[0-9]+]]
+// CHECK: @counter13 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.16" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS13:[0-9]+]]
 // CHECK: [[ANN_numbanks2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{numbanks:2}{{.*}}
 // CHECK: [[ANN_merge2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{merge:foo:depth}{{.*}}
-// CHECK: @counter14 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.17" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS14:[0-9]+]]
+// CHECK: @counter14 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.17" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS14:[0-9]+]]
 // CHECK: [[ANN_force_pow2_depth2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}{{.*}}
 // CHECK: [[ANN_doublepump2:@.str[.0-9]*]] = {{.*}}"{memory:DEFAULT}{sizeinfo:4}{pump:2}{{.*}}
 // CHECK: [[ANN_bank_bits2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
-// CHECK: @counter15 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.18" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS15:[0-9]+]]
-// CHECK-INTELFPGA: @global_wrapper = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.19" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS16:[0-9]+]]
+// CHECK: @counter15 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.18" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS15:[0-9]+]]
+// CHECK-INTELFPGA: @global_wrapper = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.19" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS16:[0-9]+]]
 // CHECK-INTELFPGA: [[ANN_memory3:@.str[.0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:48}{{.*}}
 // CHECK-INTELFPGA: [[ANN_numbanks4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10}{numbanks:4}{{.*}}
-// CHECK-INTELFPGA: @global_wrapper1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global.20" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS17:[0-9]+]]
+// CHECK-INTELFPGA: @global_wrapper1 = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global.20" zeroinitializer, align 8 #[[DEV_GLOB_FPGA_ATTRS17:[0-9]+]]
 // CHECK-INTELFPGA: [[ANN_private_copies4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:48}{private_copies:16}{{.*}}
 // CHECK-INTELFPGA: [[ANN_simple_dual_port4:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4,10}{simple_dual_port:1}{{.*}}
 // CHECK-INTELFPGA: [[ANN_private_copies_imple_dual_port2:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:4}{simple_dual_port:1}{memory:DEFAULT}{sizeinfo:4}{private_copies:16}{{.*}}
@@ -185,7 +185,7 @@ device_global<int> same_name;
 // CHECK-INTELFPGA: [[ANN_force_pow2_depth3_doublepump3_numbanks3:@.str[.0-9]*]]  = {{.*}}{memory:DEFAULT}{sizeinfo:4}{force_pow2_depth:0}{memory:DEFAULT}{sizeinfo:4}{pump:2}{memory:DEFAULT}{sizeinfo:4,155}{numbanks:4}{bank_bits:2,3}{{.*}}
 // CHECK-INTELFPGA: [[ANN_memory4_numbanks4_register4:@.str[.0-9]*]] = {{.*}}{memory:MLAB}{sizeinfo:48}{memory:DEFAULT}{sizeinfo:4,10}{numbanks:4}{register:1}{register:1}{{.*}}
 // CHECK-INTELFPGA: [[ANN_private_copies5_simple_dual_port5_register5:@.str[.0-9]*]] = {{.*}}{memory:DEFAULT}{sizeinfo:48}{private_copies:16}{memory:DEFAULT}{sizeinfo:4,10}{simple_dual_port:1}{register:1}{{.*}}
-// CHECK: @_ZN12_GLOBAL__N_19same_nameE = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
+// CHECK: @__THE_PREFIX____ZN12_GLOBAL__N_19same_nameE = addrspace(1) externally_initialized global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[SAME_NAME_ANON_NS_ATTRS:[0-9]+]]
 
 struct bar {
   int t1;
@@ -480,10 +480,6 @@ void bar() {
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 314, ptr addrspace(1) null
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper, ptr addrspace(1) [[ANN_memory4_numbanks4_register4]]{{.*}}i32 336, ptr addrspace(1) null
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper1, ptr addrspace(1) [[ANN_private_copies5_simple_dual_port5_register5]]{{.*}}i32 358, ptr addrspace(1) null
-// CHECK: @llvm.used = appending addrspace(1) global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
-// CHECK: @llvm.compiler.used = appending addrspace(1) global [2 x ptr addrspace(4)]
-// CHECK-SAME: @_ZL1B
-// CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
 // CHECK-RDC: attributes #[[AEXT_ATTRS]] = { "sycl-unique-id"="_Z4AExt" }
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
