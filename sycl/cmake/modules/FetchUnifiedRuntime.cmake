@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b4195cbb694b6e7c6216bf42a757ed700a325855
-  # Merge: 5482621c ab77d020
+  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
+  # Merge: 608e9184 c3c57284
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 26 14:00:04 2024 +0100
-  #    Merge pull request #2006 from zhaomaosu/devsan-fix-cxxlib-mismatch
-  #    [DeviceSanitizer] Fix libstdc++ and libc++ mismatch problem
-  set(UNIFIED_RUNTIME_TAG b4195cbb694b6e7c6216bf42a757ed700a325855)
+  # Date:   Tue Aug 27 16:30:04 2024 +0100
+  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
+  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
+  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
