@@ -296,13 +296,15 @@ void exec_graph_impl::makePartitions() {
   }
 }
 
-graph_impl::~graph_impl() try {
-  clearQueues();
-  for (auto &MemObj : MMemObjs) {
-    MemObj->markNoLongerBeingUsedInGraph();
+graph_impl::~graph_impl() {
+  try {
+    clearQueues();
+    for (auto &MemObj : MMemObjs) {
+      MemObj->markNoLongerBeingUsedInGraph();
+    }
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
   }
-} catch (std::exception &e) {
-  __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~graph_impl", e);
 }
 
 std::shared_ptr<node_impl> graph_impl::addNodesToExits(
