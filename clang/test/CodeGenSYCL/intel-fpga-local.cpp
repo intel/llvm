@@ -118,49 +118,49 @@ void attrs_on_struct() {
     int force_p2d [[intel::force_pow2_depth(1)]];
   } s;
 
-  // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_NUMBANKS]]{{.*}}[[ANN_numbanks_4]]
   s.numbanks = 0;
-  // CHECK-DEVICE: %[[FIELD_REGISTER:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_REGISTER:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_REGISTER]]{{.*}}[[ANN_register]]
   s.reg = 0;
-  // CHECK-DEVICE: %[[FIELD_MEM_DEFAULT:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MEM_DEFAULT:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MEM_DEFAULT]]{{.*}}[[ANN_memory_default]]
   s.memory = 0;
-  // CHECK-DEVICE: %[[FIELD_MEM_BLOCKRAM:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MEM_BLOCKRAM:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MEM_BLOCKRAM]]{{.*}}[[ANN_memory_blockram]]
   s.memory_blockram = 0;
-  // CHECK-DEVICE: %[[FIELD_MEM_MLAB:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MEM_MLAB:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MEM_MLAB]]{{.*}}[[ANN_memory_mlab]]
   s.memory_mlab = 0;
-  // CHECK-DEVICE: %[[FIELD_BANKWIDTH:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_BANKWIDTH:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_BANKWIDTH]]{{.*}}[[ANN_bankwidth_4]]
   s.bankwidth = 0;
-  // CHECK-DEVICE: %[[FIELD_PRIV_COPIES:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_PRIV_COPIES:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_PRIV_COPIES]]{{.*}}[[ANN_private_copies_8]]
   s.privatecopies = 0;
-  // CHECK-DEVICE: %[[FIELD_SINGLEPUMP:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_SINGLEPUMP:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_SINGLEPUMP]]{{.*}}[[ANN_singlepump]]
   s.singlepump = 0;
-  // CHECK-DEVICE: %[[FIELD_DOUBLEPUMP:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_DOUBLEPUMP:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_DOUBLEPUMP]]{{.*}}[[ANN_doublepump]]
   s.doublepump = 0;
-  // CHECK-DEVICE: %[[FIELD_MERGE_DEPTH:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MERGE_DEPTH:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MERGE_DEPTH]]{{.*}}[[ANN_merge_depth]]
   s.merge_depth = 0;
-  // CHECK-DEVICE: %[[FIELD_MERGE_WIDTH:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MERGE_WIDTH:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MERGE_WIDTH]]{{.*}}[[ANN_merge_width]]
   s.merge_width = 0;
-  // CHECK-DEVICE: %[[FIELD_MAX_REPLICATES:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MAX_REPLICATES:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MAX_REPLICATES]]{{.*}}[[ANN_max_replicates_2]]
   s.maxreplicates = 0;
-  // CHECK-DEVICE: %[[FIELD_DUALPORT:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_DUALPORT:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_DUALPORT]]{{.*}}[[ANN_simple_dual_port]]
   s.dualport = 0;
-  // CHECK-DEVICE: %[[FIELD_BANKBITS:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_BANKBITS:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_BANKBITS]]{{.*}}[[ANN_bankbits_4_5]]
   s.bankbits = 0;
-  // CHECK-DEVICE: %[[FIELD_FP2D:.*]] = getelementptr inbounds %struct.attrs_on_struct{{.*}}
+  // CHECK-DEVICE: %[[FIELD_FP2D:.*]] = getelementptr inbounds nuw %struct.attrs_on_struct{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_FP2D]]{{.*}}[[ANN_force_pow2_depth_1]]
   s.force_p2d = 0;
 }
@@ -198,22 +198,22 @@ void attrs_with_template_param() {
     int force_p2d [[intel::force_pow2_depth(C)]];
   } s;
 
-  // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_NUMBANKS:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_NUMBANKS]]{{.*}}[[ANN_numbanks_4]]
   s.numbanks = 0;
-  // CHECK-DEVICE: %[[FIELD_BANKWIDTH:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_BANKWIDTH:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_BANKWIDTH]]{{.*}}[[ANN_bankwidth_4]]
   s.bankwidth = 0;
-  // CHECK-DEVICE: %[[FIELD_PRIV_COPIES:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_PRIV_COPIES:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_PRIV_COPIES]]{{.*}}[[ANN_private_copies_4]]
   s.privatecopies = 0;
-  // CHECK-DEVICE: %[[FIELD_MAX_REPLICATES:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_MAX_REPLICATES:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_MAX_REPLICATES]]{{.*}}[[ANN_max_replicates_4]]
   s.maxreplicates = 0;
-  // CHECK-DEVICE: %[[FIELD_BANKBITS:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_BANKBITS:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_BANKBITS]]{{.*}}[[ANN_bankbits_4_5]]
   s.bankbits = 0;
-  // CHECK-DEVICE: %[[FIELD_FP2D:.*]] = getelementptr inbounds %struct.templ_on_struct_fields{{.*}}
+  // CHECK-DEVICE: %[[FIELD_FP2D:.*]] = getelementptr inbounds nuw %struct.templ_on_struct_fields{{.*}}
   // CHECK-DEVICE: call ptr addrspace(4) @llvm.ptr.annotation.p4{{.*}}%[[FIELD_FP2D]]{{.*}}[[ANN_force_pow2_depth_1]]
   s.force_p2d = 0;
 }
@@ -231,7 +231,7 @@ void field_addrspace_cast() {
     }
   } state_var;
   // CHECK-DEVICE: define internal {{.*}} @_ZZ20field_addrspace_castvEN5stateC2Ev
-  // CHECK-DEVICE: %[[MEM:[a-zA-Z0-9]+]] = getelementptr inbounds %{{.*}}, ptr addrspace(4) %{{.*}}, i32 0, i32 0
+  // CHECK-DEVICE: %[[MEM:[a-zA-Z0-9]+]] = getelementptr inbounds nuw %{{.*}}, ptr addrspace(4) %{{.*}}, i32 0, i32 0
   // CHECK-DEVICE: %[[ANN:[0-9]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p1(ptr addrspace(4) %[[MEM]], {{.*}}, {{.*}})
   state_var.mem[0] = 42;
 }
