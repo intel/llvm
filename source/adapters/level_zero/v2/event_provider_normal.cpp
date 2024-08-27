@@ -43,7 +43,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   }
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->hContext, &desc, 1,
+                    (context->getZeHandle(), &desc, 1,
                      const_cast<ze_device_handle_t *>(&device->ZeDevice),
                      pool.ptr()));
 
