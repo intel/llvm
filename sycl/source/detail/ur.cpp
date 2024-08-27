@@ -109,12 +109,9 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
 
   bool OwnLoaderConfig = false;
-  // If we weren't provided with a custom config handle create our own and
-  // enable full validation by default.
+  // If we weren't provided with a custom config handle create our own.
   if(!LoaderConfig) {
     CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig,
-                                               "UR_LAYER_PARAMETER_VALIDATION"))
     OwnLoaderConfig = true;
   }
 
