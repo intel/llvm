@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 TEST(BufferProps, ValidPropsHostPtr) {
@@ -23,7 +23,7 @@ TEST(BufferProps, ValidPropsHostPtr) {
 
 TEST(BufferProps, ValidPropsContextBound) {
   try {
-    sycl::unittest::PiMock Mock;
+    sycl::unittest::UrMock<> Mock;
     sycl::context Context;
     sycl::buffer<int, 1> Buf{1, sycl::property::buffer::context_bound{Context}};
     // no explicit checks, we expect no exception to be thrown
@@ -63,7 +63,7 @@ TEST(BufferProps, ValidPropsMemChannel) {
 
 TEST(BufferProps, SetAndQueryMatch) {
   try {
-    sycl::unittest::PiMock Mock;
+    sycl::unittest::UrMock<> Mock;
     std::mutex Mutex;
     sycl::context Context;
     int HostPtr[1];
@@ -120,7 +120,7 @@ TEST(ImageProps, ValidPropsHostPtr) {
 
 TEST(ImageProps, ValidPropsContextBound) {
   try {
-    sycl::unittest::PiMock Mock;
+    sycl::unittest::UrMock<> Mock;
     sycl::context Context;
     constexpr size_t ElementsCount = 4;
     sycl::image<1> Image(sycl::image_channel_order::rgba,
