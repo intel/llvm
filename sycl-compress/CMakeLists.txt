@@ -38,13 +38,14 @@ set(ZSTD_INCLUDE_DIR ${ZSTD_INSTALL_DIR}/include)
 # Setup sycl-compress library. Add dependency on zstd.
 set(SOURCES
   src/sycl-compress.cpp
+  include/sycl-compress/sycl-compress.h
 )
 
 add_library(sycl-compress SHARED ${SOURCES})
 
 add_dependencies(sycl-compress zstd)
-target_include_directories(sycl-compress PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${ZSTD_INCLUDE_DIR})
-target_include_directories(sycl-compress PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(sycl-compress PRIVATE ${CMAKE_CURRENT_LIST_DIR}/include ${ZSTD_INCLUDE_DIR})
+target_include_directories(sycl-compress PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include)
 target_link_libraries(sycl-compress PRIVATE ${ZSTD_LIBRARY})
 
 # Set the location of the library installation
