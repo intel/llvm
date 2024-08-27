@@ -450,6 +450,16 @@ graph_impl::add(node_type NodeType,
                           "Graph construction.");
   }
 
+  if (CommandGroup->getType() == sycl::detail::CGType::Kernel) {
+    auto CGKernel =
+        static_cast<sycl::detail::CGExecKernel *>(CommandGroup.get());
+    if (CGKernel->hasStreams()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Using sycl streams in a graph node is unsupported.");
+    }
+  }
+
   for (auto &Req : Requirements) {
     // Track and mark the memory objects being used by the graph.
     auto MemObj = static_cast<sycl::detail::SYCLMemObjT *>(Req->MSYCLMemObj);

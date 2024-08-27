@@ -140,7 +140,6 @@
     return (RET_TYPE##16)(FUNCTION(x, y, z.lo), FUNCTION(x, y, z.hi));         \
   }
 
-
 #define _CLC_V_V_VP_VECTORIZE(DECLSPEC, RET_TYPE, FUNCTION, ARG1_TYPE,         \
                               ADDR_SPACE, ARG2_TYPE)                           \
   DECLSPEC RET_TYPE##2 FUNCTION(ARG1_TYPE##2 x, ADDR_SPACE ARG2_TYPE##2 * y) { \
