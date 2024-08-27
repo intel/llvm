@@ -238,9 +238,7 @@ public:
 
   // Returns the total number of elements in the image
   size_t get_count() const { return size(); }
-  size_t size() const try {
-    return MRange.size();
-  } catch (std::exception &e) {
+  size_t size() const try { return MRange.size(); } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in size", e);
     std::abort();
   }

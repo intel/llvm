@@ -352,8 +352,9 @@ void shutdown_late() {
 #endif
 
 #ifdef _WIN32
-extern "C" __SYCL_EXPORT BOOL WINAPI
-DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
+                                             DWORD fdwReason,
+                                             LPVOID lpReserved) {
   bool PrintUrTrace;
   try {
     PrintUrTrace =
@@ -372,8 +373,8 @@ DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents
-                   // release.
+                    // TODO: figure out what XPTI is doing that prevents
+                    // release.
 #endif
 
     shutdown_win();
