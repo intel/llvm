@@ -4,24 +4,28 @@
 
 // UNSUPPORTED: system-windows
 
-// Check if internal libraries are still linked against when linkage of all device libs is manually excluded.
-// RUN: %clangxx -ccc-print-phases -std=c++11 \
-// RUN: -fsycl -fno-sycl-device-lib=all \
+// Check if internal libraries are still linked against when linkage of all
+// device libs is manually excluded.
+// RUN: %clangxx -ccc-print-phases -std=c++11 -fsycl -fno-sycl-device-lib=all \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-NO-DEVLIB %s
 
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--cuda.bc", ir, (device-sycl, sm_50)
 // CHK-NO-DEVLIB: [[LIB1:[0-9]+]]: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, sm_50)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--cuda.bc", ir, (device-sycl, sm_50)
 // CHK-NO-DEVLIB: [[LIB2:[0-9]+]]: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, sm_50)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--cuda.bc", ir, (device-sycl, sm_50)
 // CHK-NO-DEVLIB: [[LIB3:[0-9]+]]: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, sm_50)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--cuda.bc", ir, (device-sycl, sm_50)
 // CHK-NO-DEVLIB: {{[0-9]+}}: linker, {{{.*}}[[LIB1]], [[LIB2]], [[LIB3]]{{.*}}}, ir, (device-sycl, sm_50)
 
 // Check that the -fsycl-device-lib flag has no effect when "all" is specified.
-// RUN: %clangxx -ccc-print-phases -std=c++11 \
-// RUN: -fsycl -fsycl-device-lib=all \
+// RUN: %clangxx -ccc-print-phases -std=c++11 -fsycl -fsycl-device-lib=all \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ALL %s
 
-// Check that the -fsycl-device-lib flag has no effect when subsets of libs are specified.
+// Check that the -fsycl-device-lib flag has no effect when subsets of libs
+// are specified.
 // RUN: %clangxx -ccc-print-phases -std=c++11 \
 // RUN: -fsycl -fsycl-device-lib=libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,libm-bfloat16 \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
@@ -29,8 +33,8 @@
 
 // Check that -fno-sycl-device-lib is ignored when it does not contain "all".
 // A warning should be printed that the flag got ignored.
-// RUN: %clangxx -ccc-print-phases -std=c++11 \
-// RUN: -fsycl -fno-sycl-device-lib=libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,libm-bfloat16 \
+// RUN: %clangxx -ccc-print-phases -std=c++11 -fsycl \
+// RUN: -fno-sycl-device-lib=libc,libm-fp32,libm-fp64,libimf-fp32,libimf-fp64,libimf-bf16,libm-bfloat16 \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHK-UNUSED-WARN,CHK-ALL %s
 
