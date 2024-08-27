@@ -27,7 +27,12 @@ ur_adapter_handle_t_ *GlobalAdapter = new ur_adapter_handle_t_();
 #else
 ur_adapter_handle_t_ *GlobalAdapter;
 #endif
-
+// This is a temporary workaround on windows, where UR adapter is teardowned
+// before the UR loader, which will result in access violation when we use print
+// function as the overrided print function was already released with the UR
+// adapter.
+// TODO: Change adapters to use a common sink class in the loader instead of
+// using thier own sink class that inherit from logger::Sink.
 class ur_legacy_sink : public logger::Sink {
 public:
   ur_legacy_sink(std::string logger_name = "", bool skip_prefix = true)
@@ -40,7 +45,11 @@ public:
     fprintf(stderr, "%s", msg.c_str());
   }
 
-  ~ur_legacy_sink() = default;
+  ~ur_legacy_sink() {
+#if defined(_WIN32)
+    logger::isTearDowned = true;
+#endif
+  };
 };
 
 ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
