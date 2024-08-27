@@ -418,7 +418,7 @@ private:
 
   /// A queue of static SYCL device global vars to rename once module has been
   /// parsed
-  llvm::StringMap<llvm::GlobalVariable*> SYCLStaticDeviceGlobalsToRename;
+  llvm::StringMap<llvm::GlobalVariable *> SYCLStaticDeviceGlobalsToRename;
 
   /// A queue of (optional) vtables that may be emitted opportunistically.
   std::vector<const CXXRecordDecl *> OpportunisticVTables;
