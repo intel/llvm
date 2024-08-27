@@ -352,42 +352,42 @@ void shutdown_late() {
 #endif
 
 #ifdef _WIN32
-extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
-                                             DWORD fdwReason,
-                                             LPVOID lpReserved) {
+extern "C" __SYCL_EXPORT BOOL WINAPI
+DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved) {
+  bool PrintUrTrace;
   try {
-    bool PrintUrTrace =
+    PrintUrTrace =
         sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
-
-    // Perform actions based on the reason for calling.
-    switch (fdwReason) {
-    case DLL_PROCESS_DETACH:
-      if (PrintUrTrace)
-        std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-      if (xptiTraceEnabled())
-        return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                     // TODO: figure out what XPTI is doing that prevents
-                     // release.
-#endif
-
-      shutdown_win();
-      break;
-    case DLL_PROCESS_ATTACH:
-      if (PrintUrTrace)
-        std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
-      break;
-    case DLL_THREAD_ATTACH:
-      break;
-    case DLL_THREAD_DETACH:
-      break;
-    }
-    return TRUE; // Successful DLL_PROCESS_ATTACH.
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
     return FALSE;
   }
+
+  // Perform actions based on the reason for calling.
+  switch (fdwReason) {
+  case DLL_PROCESS_DETACH:
+    if (PrintUrTrace)
+      std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+    if (xptiTraceEnabled())
+      return TRUE; // When doing xpti tracing, we can't safely call shutdown.
+                   // TODO: figure out what XPTI is doing that prevents
+                   // release.
+#endif
+
+    shutdown_win();
+    break;
+  case DLL_PROCESS_ATTACH:
+    if (PrintUrTrace)
+      std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+    break;
+  case DLL_THREAD_ATTACH:
+    break;
+  case DLL_THREAD_DETACH:
+    break;
+  }
+  return TRUE; // Successful DLL_PROCESS_ATTACH.
 }
 #else
 // Setting low priority on destructor ensures it runs after all other global
