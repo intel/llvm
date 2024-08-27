@@ -2165,13 +2165,38 @@ Queue.submit((sycl::handler& CGH)
 Queue.ext_oneapi_graph(ExecGraph);
 ....
 
-These events represent only the most recent execution of a given executable
-graph. If an application executes the same graph multiple times before
-scheduling work or performing a host-side wait on the event then executions of
-the node in a previous execution other than the most recent one may be missed.
-Applications requiring this should take care to schedule eager operations/waits
-between each graph execution, or include these operations as nodes in the graph
-if they are to be performed for every graph execution.
+These events represent only the current execution of a given executable graph on
+a device. These events are not unique per execution of a graph. If a graph is
+enqueued multiple times before using one of these events (for example as a
+dependency to an eager SYCL operation or a host wait), it is undefined which
+specific execution of a graph the event will represent. If a dependency on a
+specific graph execution is required this ordering must be enforced by the
+application to ensure there is only a single graph execution in flight when
+using these events.
+
+For example:
+
+[source, c++]
+----
+
+sycl::event NodeExecutionEvent;
+sycl::event GraphCompletionEvent;
+
+for (size_t i = 0; i < GraphIterations; i++){
+  // Obtain the node execution event for the graph
+  NodeExecutionEvent = ExecGraph.get_event(SomeNode);
+
+  // Enqueue the graph for execution
+  sycl::event GraphCompletionEvent = Queue.ext_oneapi_graph(ExecGraph);
+  // Use the event, to wait on the host and perform some intermediate
+  // host-work once that node has completed
+  ExecutionEvent.wait();
+  DoSomethingOnHost();
+  // Wait on the graph finishing to ensure it is complete before the next use of
+  // a node-level execution event
+  GraphCompletionEvent.wait_and_throw();
+}
+----
 
 These events cannot be used to define dependencies between graphs. These should
 instead be defined as described in <<inter-graph-dependencies, this section>>.
