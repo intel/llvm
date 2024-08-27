@@ -37,15 +37,50 @@ inline void ThrowIfFailed(HRESULT result) {
   }
 }
 
+class DX12SYCLDevice {
+public:
+  DX12SYCLDevice();
+
+  DX12SYCLDevice(const DX12SYCLDevice &) = delete;
+  DX12SYCLDevice &operator=(const DX12SYCLDevice &) = delete;
+
+  void initDX12Device();
+  void initDX12CommandList();
+
+  ID3D12Device *getDx12Device() { return m_dx12Device.Get(); }
+  ID3D12CommandQueue *getDx12CommandQueue() { return m_dx12CommandQueue.Get(); }
+  ID3D12GraphicsCommandList *getDx12CommandList() {
+    return m_dx12CommandList.Get();
+  }
+  sycl::queue &getSyclQueue() { return m_syclQueue; }
+
+  HRESULT resetCommandList() {
+    return m_dx12CommandList->Reset(m_dx12CommandAllocator.Get(), nullptr);
+  }
+
+private:
+  void getDX12Adapter(IDXGIFactory2 *pFactory, IDXGIAdapter1 **ppAdapter);
+
+  // DX12 Objects
+  ComPtr<IDXGIFactory4> m_dx12Factory;
+  ComPtr<IDXGIAdapter1> m_dx12HardwareAdapter;
+  ComPtr<ID3D12Device> m_dx12Device;
+  ComPtr<ID3D12CommandQueue> m_dx12CommandQueue;
+  ComPtr<ID3D12GraphicsCommandList> m_dx12CommandList;
+  ComPtr<ID3D12CommandAllocator> m_dx12CommandAllocator;
+
+  // SYCL Objects
+  sycl::device m_syclDevice;
+  sycl::queue m_syclQueue;
+};
+
 template <int NDims, typename DType, int NChannels> class DX12InteropTest {
 public:
-  DX12InteropTest(sycl::image_channel_type channelType,
+  DX12InteropTest(DX12SYCLDevice &device, sycl::image_channel_type channelType,
                   sycl::range<NDims> globalSize, sycl::range<NDims> localSize);
 
   ~DX12InteropTest() {}
 
-  void initDX12Device();
-  void initDX12CommandList();
   void initDX12Resources();
   void cleanupDX12();
 
@@ -56,7 +91,6 @@ public:
 private:
   void waitDX12Fence(DWORD timeoutMilliseconds = INFINITE);
   void populateDX12Texture();
-  void getDX12Adapter(IDXGIFactory2 *pFactory, IDXGIAdapter1 **ppAdapter);
   void importDX12SharedMemoryHandle(size_t allocSize);
   void importDX12SharedSemaphoreHandle();
 
@@ -66,18 +100,16 @@ private:
   uint32_t m_depth;
   uint32_t m_numElems;
 
+  std::vector<DType> m_inputData;
+
   sycl::image_channel_type m_channelType;
 
   sycl::range<NDims> m_globalSize;
   sycl::range<NDims> m_localSize;
 
+  DX12SYCLDevice &m_device;
+
   // DX12 Objects
-  ComPtr<IDXGIFactory4> m_dx12Factory;
-  ComPtr<IDXGIAdapter1> m_dx12HardwareAdapter;
-  ComPtr<ID3D12Device> m_dx12Device;
-  ComPtr<ID3D12CommandQueue> m_dx12CommandQueue;
-  ComPtr<ID3D12GraphicsCommandList> m_dx12CommandList;
-  ComPtr<ID3D12CommandAllocator> m_dx12CommandAllocator;
   ComPtr<ID3D12Resource> m_dx12Texture;
   ComPtr<ID3D12Fence> m_dx12Fence;
   HANDLE m_dx12FenceEvent;
@@ -88,8 +120,6 @@ private:
   HANDLE m_sharedSemaphoreHandle = INVALID_HANDLE_VALUE;
 
   // SYCL Objects
-  sycl::queue m_syclQueue;
-  sycl::device m_syclDevice;
   syclexp::external_mem m_syclExternalMemHandle;
   syclexp::external_semaphore m_syclExternalSemaphoreHandle;
   syclexp::image_mem_handle m_syclImageMemHandle;
