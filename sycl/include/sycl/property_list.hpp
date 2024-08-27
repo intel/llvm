@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
-#include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
+#include <sycl/detail/property_helper.hpp>    // for DataLessPropKind, Pro...
+#include <sycl/detail/property_list_base.hpp> // for PropertyListBase
 #include <sycl/exception.hpp>
 #include <sycl/properties/property_traits.hpp> // for is_property
 
@@ -65,6 +65,7 @@ public:
   template <typename... T> operator ext::oneapi::accessor_property_list<T...>();
 
   using PropertyListBase::convertPropertiesToKinds;
+
 private:
   property_list(
       std::bitset<detail::DataLessPropKind::DataLessPropKindSize> DataLessProps,
