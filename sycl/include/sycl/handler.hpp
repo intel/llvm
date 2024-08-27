@@ -914,6 +914,9 @@ private:
     // Some host compilers may have different captures from Clang. Currently
     // there is no stable way of handling this when extracting the captures, so
     // a static assert is made to fail for incompatible kernel lambdas.
+
+    // TODO remove the ifdef once the kernel size builtin is supported.
+#ifdef __INTEL_SYCL_USE_INTEGRATION_HEADERS
     static_assert(
         !KernelHasName ||
             sizeof(KernelFunc) == detail::getKernelSize<KernelName>(),
@@ -927,7 +930,7 @@ private:
         "In case of MSVC, passing "
         "-fsycl-host-compiler-options='/std:c++latest' "
         "might also help.");
-
+#endif
     // Empty name indicates that the compilation happens without integration
     // header, so don't perform things that require it.
     if (KernelHasName) {

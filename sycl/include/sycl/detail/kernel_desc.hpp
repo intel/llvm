@@ -15,6 +15,22 @@
 #include <vector>
 // This header file must not include any standard C++ header files.
 
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#if __has_builtin(__builtin_sycl_kernel_name)
+static_assert(__has_builtin(__builtin_sycl_kernel_param_count) &&
+              __has_builtin(__builtin_sycl_kernel_name) &&
+              __has_builtin(__builtin_sycl_kernel_param_access_target) &&
+              __has_builtin(__builtin_sycl_kernel_param_size) &&
+              __has_builtin(__builtin_sycl_kernel_param_offset) &&
+              __has_builtin(__builtin_sycl_kernel_file_name) &&
+              __has_builtin(__builtin_sycl_kernel_function_name) &&
+              __has_builtin(__builtin_sycl_kernel_line_number) &&
+              __has_builtin(__builtin_sycl_kernel_column_number));
+#else
+#define __INTEL_SYCL_USE_INTEGRATION_HEADERS 1
+#endif
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -152,14 +168,15 @@ template <class KernelNameType> struct KernelInfo {
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 
+// Built-ins use an object of this type to identify the kernel the information
+// is requested for.
 template <typename KNT> struct KernelIdentity {
   using type = KNT;
 };
 
 template <typename KernelNameType> constexpr unsigned getKernelNumParams() {
-#if __has_builtin(__builtin_sycl_kernel_param_count) &&                        \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
-  __builtin_sycl_kernel_param_count(KernelIdentity<KernelNameType>());
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+  return __builtin_sycl_kernel_param_count(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getNumParams();
 #endif
@@ -171,15 +188,11 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
   int NumParams = getKernelNumParams<KernelNameType>();
   Result.reserve(NumParams);
   for (int I = 0; I < NumParams; ++I) {
-#if __has_builtin(__builtin_sycl_kernel_name) &&                               \
-    __has_builtin(__builtin_sycl_kernel_param_access_target) &&                \
-    __has_builtin(__builtin_sycl_kernel_param_size) &&                         \
-    __has_builtin(__builtin_sycl_kernel_param_offset) &&                       \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
     kernel_param_desc_t ParamDesc;
     ParamDesc.kind =
         __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), I);
-    ParamDesc.info = Result.kind == kind_accessor
+    ParamDesc.info = ParamDesc.kind == kernel_param_kind_t::kind_accessor
                          ? __builtin_sycl_kernel_param_access_target(
                                KernelIdentity<KernelNameType>(), I)
                          : __builtin_sycl_kernel_param_size(
@@ -195,8 +208,7 @@ std::vector<kernel_param_desc_t> getKernelParamDescs() {
 }
 
 template <typename KernelNameType> constexpr const char *getKernelName() {
-#if __has_builtin(__builtin_sycl_kernel_name) &&                               \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
   return __builtin_sycl_kernel_name(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getName();
@@ -209,8 +221,7 @@ template <typename KernelNameType> constexpr bool isKernelESIMD() {
 }
 
 template <typename KernelNameType> constexpr const char *getKernelFileName() {
-#if __has_builtin(__builtin_sycl_kernel_file_name) &&                          \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
   return __builtin_sycl_kernel_file_name(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getFileName();
@@ -219,8 +230,7 @@ template <typename KernelNameType> constexpr const char *getKernelFileName() {
 
 template <typename KernelNameType>
 constexpr const char *getKernelFunctionName() {
-#if __has_builtin(__builtin_sycl_kernel_function_name) &&                      \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
   return __builtin_sycl_kernel_function_name(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getFunctionName();
@@ -228,30 +238,25 @@ constexpr const char *getKernelFunctionName() {
 }
 
 template <typename KernelNameType> constexpr unsigned getKernelLineNumber() {
-#if __has_builtin(__builtin_sycl_kernel_line_number) &&                        \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
-  __builtin_sycl_kernel_line_number(KernelIdentity<KernelNameType>());
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+  return __builtin_sycl_kernel_line_number(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getLineNumber();
 #endif
 }
 
 template <typename KernelNameType> constexpr unsigned getKernelColumnNumber() {
-#if __has_builtin(__builtin_sycl_kernel_column_number) &&                      \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
-  __builtin_sycl_kernel_column_number(KernelIdentity<KernelNameType>());
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+  return __builtin_sycl_kernel_column_number(KernelIdentity<KernelNameType>());
 #else
   return KernelInfo<KernelNameType>::getColumnNumber();
 #endif
 }
 
 template <typename KernelNameType> constexpr int64_t getKernelSize() {
-#if __has_builtin(__builtin_sycl_kernel_size) &&                               \
-    !defined(__INTEL_SYCL_USE_INTEGRATION_HEADERS)
-  __builtin_sycl_kernel_size(KernelIdentity<KernelNameType>());
-#else
+  // TODO needs a builtin counterpart, but is currently only used for checking
+  // cases with external host compiler, which use integration headers.
   return KernelInfo<KernelNameType>::getKernelSize();
-#endif
 }
 } // namespace detail
 } // namespace _V1
