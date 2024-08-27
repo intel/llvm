@@ -577,40 +577,40 @@ bool run_all() {
   printString("Running 3D float\n");
   valid &= run_test<3, float, 1, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::r, class fp32_3d_c1>(
-      {64, 16, 2}, {2, 2, 2}, seed);
+      {1024, 1024, 16}, {16, 16, 1}, seed);
 
   printString("Running 3D half2\n");
   valid &= run_test<3, sycl::half, 2, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rg, class fp16_3d_c2>(
-      {64, 16, 2}, {2, 2, 2}, seed);
+      {1920, 1080, 8}, {16, 8, 2}, seed);
 
   printString("Running 3D half4\n");
   valid &= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rgba, class fp16_3d_c4>(
-      {64, 16, 2}, {2, 2, 2}, seed);
+      {2048, 2048, 4}, {16, 16, 1}, seed);
 
   printString("Running 3D unorm_int8_c4\n");
   valid &= run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
                     sycl::image_channel_order::rgba, class unorm_int8_3d_c4>(
-      {64, 16, 2}, {2, 2, 2}, seed);
+      {2048, 2048, 2}, {16, 16, 1}, seed);
 
   printString("Running 2D float\n");
   valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::r, class fp32_2d_c1>(
-      {32, 32}, {2, 2}, seed);
+      {1024, 1024}, {16, 16}, seed);
   printString("Running 2D half2\n");
   valid &= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rg, class fp16_2d_c2>(
-      {32, 32}, {2, 2}, seed);
+      {1920, 1080}, {16, 8}, seed);
   printString("Running 2D half4\n");
   valid &= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
                     sycl::image_channel_order::rgba, class fp16_2d_c4>(
-      {32, 32}, {2, 2}, seed);
+      {2048, 2048}, {16, 16}, seed);
 
   printString("Running 2D unorm_int8_c4\n");
   valid &= run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
                     sycl::image_channel_order::rgba, class unorm_int8_2d_c4>(
-      {32, 32}, {2, 2}, seed);
+      {2048, 2048}, {2, 2}, seed);
 #else
   printString("Running 3D uint4\n");
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
