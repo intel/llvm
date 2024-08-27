@@ -74,5 +74,5 @@ PreservedAnalyses SYCLProcessJointMatrixPass::run(Module &M,
       ModuleChanged |= transformAccessChain(&F);
   }
 
-  return ModuleChanged ? PreservedAnalyses::all() : PreservedAnalyses::none();
+  return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
