@@ -1140,13 +1140,15 @@ ur_device_handle_t_::useImmediateCommandLists() {
     return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
-  if (ImmediateCommandlistsSetting == -1)
-  // Change this to PerQueue as default after more testing.
-#ifdef _WIN32
-    return NotUsed;
-#else
-    return isPVC() ? PerQueue : NotUsed;
-#endif
+  if (ImmediateCommandlistsSetting == -1) {
+    bool isDG2SupportedDriver =
+        this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    if ((isDG2SupportedDriver && isDG2()) || isPVC()) {
+      return PerQueue;
+    } else {
+      return NotUsed;
+    }
+  }
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
