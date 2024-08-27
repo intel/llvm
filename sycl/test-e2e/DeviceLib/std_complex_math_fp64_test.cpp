@@ -1,5 +1,5 @@
 // REQUIRES: aspect-fp64
-// UNSUPPORTED: gpu
+// UNSUPPORTED: hip || cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -82,8 +82,16 @@ complex<double> ref1_results[] = {complex<double>(-1., 1.),
                                   complex<double>(0, 0.761594155955765),
                                   complex<double>(M_PI_2, 0.),
                                   complex<double>(M_PI_2, 0.549306144334055),
+// The MSVC implementation of tanh does not obey
+// tanh(-inf + nan * i)  == 1 + 0*i or
+// tanh(-inf + -inf * i) == 1 + 0*i.
+#ifndef _WIN32
                                   complex<double>(-1., 0.),
                                   complex<double>(-1., 0.),
+#else
+                                  0.,
+                                  0.,
+#endif
                                   complex<double>(-1., 0.),
                                   complex<double>(INFINITY, 0.),
                                   complex<double>(INFINITY, INFINITY),
@@ -177,9 +185,17 @@ int device_complex_test(s::queue &deviceQueue) {
         buf_out1_access[index++] = std::tan(complex<double>(0., 1.));
         buf_out1_access[index++] = std::asin(complex<double>(1., 0.));
         buf_out1_access[index++] = std::atan(complex<double>(0., 2.));
+        // The MSVC implementation of tanh does not obey
+        // tanh(-inf + nan * i)  == 1 + 0*i or
+        // tanh(-inf + -inf * i) == 1 + 0*i.
+#ifndef _WIN32
         buf_out1_access[index++] = std::tanh(complex<double>(-INFINITY, NAN));
         buf_out1_access[index++] =
             std::tanh(complex<double>(-INFINITY, -INFINITY));
+#else
+        buf_out1_access[index++] = 0.;
+        buf_out1_access[index++] = 0.;
+#endif
         buf_out1_access[index++] = std::tanh(complex<double>(-INFINITY, -2.));
         buf_out1_access[index++] = std::exp(complex<double>(1e6, 0.));
         buf_out1_access[index++] = std::exp(complex<double>(1e6, 0.1));
