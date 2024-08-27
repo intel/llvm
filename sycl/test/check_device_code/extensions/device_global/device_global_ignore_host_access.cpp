@@ -18,7 +18,7 @@ SYCL_EXTERNAL void ignore_host_access() {
   DeviceGlobalDeviceImageScoped = 42;
 }
 
-// CHECK-DAG: @_ZL29DeviceGlobalDeviceImageScoped = {{.*}} #[[DISAttrs:[0-9]+]]
-// CHECK-DAG: @_ZL22DeviceGlobalFullScoped = {{.*}} #[[FSAttrs:[0-9]+]]
+// CHECK-DAG: @{{[A-Za-z0-9_]*}}_ZL29DeviceGlobalDeviceImageScoped = {{.*}} #[[DISAttrs:[0-9]+]]
+// CHECK-DAG: @{{[A-Za-z0-9_]*}}_ZL22DeviceGlobalFullScoped = {{.*}} #[[FSAttrs:[0-9]+]]
 // CHECK-DAG: attributes #[[DISAttrs:[0-9]+]] = { {{.*}}"sycl-host-access"
 // CHECK-NOT: attributes #[[FSAttrs:[0-9]+]] = { {{.*}}"sycl-host-access"

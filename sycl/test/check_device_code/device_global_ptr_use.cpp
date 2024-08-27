@@ -11,6 +11,6 @@ using namespace sycl::ext::oneapi::experimental;
 const device_global<int> DeviceGlobalVar;
 
 SYCL_EXTERNAL void global_ptr_use() {
-  // CHECK: load {{.*}} @_ZL15DeviceGlobalVar
+  // CHECK: load {{.*}} @__{{[A-Za-z0-9]*}}____ZL15DeviceGlobalVar
   volatile int ReadVal = DeviceGlobalVar;
 }
