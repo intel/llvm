@@ -226,6 +226,7 @@ def err_module_map_not_found : Error<"module map file '%0' not found">,
 def err_missing_module_name : Error<
   "no module name provided; specify one with -fmodule-name=">,
   DefaultFatal;
+def err_file_is_not_module : Error<"file '%0' is not a module file">, DefaultFatal;
 def err_missing_module : Error<
   "no module named '%0' declared in module map file '%1'">, DefaultFatal;
 def err_no_submodule : Error<"no submodule named %0 in module '%1'">;
@@ -307,6 +308,16 @@ def note_sycl_aspect_propagated_from_call
 def err_target_unsupported_type_for_abi
     : Error<"%0 requires %1 type support, but ABI '%2' does not support it">;
 }
+
+def err_sycl_illegal_virtual_call
+    : Error<"kernel '%0' performs a virtual function call and they are illegal "
+            "per the core SYCL 2020 specification. To enable their support, "
+            "submit a kernel using the 'calls_indirectly' property, see "
+            "the sycl_ext_oneapi_virtual_functions extension for more "
+            "information">,
+      BackendInfo;
+def note_sycl_virtual_call_done_from : Note<"performed by function '%1'">,
+                                       BackendInfo;
 
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "

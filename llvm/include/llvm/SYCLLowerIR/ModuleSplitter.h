@@ -82,6 +82,11 @@ struct EntryPointGroup {
       // Scope remains global
       return Res;
     }
+
+    // Indicates that this group holds definitions of virtual functions - they
+    // are outlined into separate device images and should be removed from all
+    // other modules. The flag is used in ModuleDesc::cleanup
+    bool HasVirtualFunctionDefinitions = false;
   };
 
   std::string GroupId;

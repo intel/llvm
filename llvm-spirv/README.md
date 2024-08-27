@@ -140,7 +140,9 @@ There are several options for accessing the header file:
   Headers - if you have the headers downloaded somewhere in your
   system and want to use that version, simply extend your CMake
   command with `-DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers"
-  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`.
+  -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>` for in-tree
+  builds and just `-DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=</path/to/headers_dir>`
+  for out-of-tree builds.
 
 ## Test instructions
 
@@ -203,7 +205,7 @@ the version of the SPIR-V file which is being generated/consumed.
   the input file and emit an error if the SPIR-V version in it is higher than
   one specified via this option.
 
-Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, and `1.5`.
+Allowed values are `1.0`, `1.1`, `1.2`, `1.3`, `1.4`, `1.5` and `1.6`.
 
 More information can be found in
 [SPIR-V versions and extensions handling](docs/SPIRVVersionsAndExtensionsHandling.rst)

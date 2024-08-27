@@ -9,6 +9,10 @@
 #include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
+#include <sycl/feature_test.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
@@ -94,10 +98,10 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    bool EventNeeded, sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+    bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
-  const CG::CGTYPE Type = CommandGroup->getType();
+  const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<std::shared_ptr<const void>> AuxiliaryResources;
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
@@ -109,12 +113,12 @@ EventImplPtr Scheduler::addCG(
 
     Command *NewCmd = nullptr;
     switch (Type) {
-    case CG::UpdateHost:
+    case CGType::UpdateHost:
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
       NewEvent = NewCmd->getEvent();
       break;
-    case CG::CodeplayHostTask: {
+    case CGType::CodeplayHostTask: {
       auto Result = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
                                         AuxiliaryCmds, EventNeeded);
       NewCmd = Result.NewCmd;
@@ -214,27 +218,40 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   }
 
   std::vector<Command *> ToCleanUp;
+  // EnqueueCommand will try to enqueue dependencies (previous operations on the
+  // buffer). If any dep kernel failed it would be reported as sync exception or
+  // async exception on host task completion and enqueue attempt.
+  // No need to report those failures again in copy back submission. So report
+  // only copy back auxiliary and main command failures.
+  bool CopyBackCmdsFailed = false;
   try {
     ReadLockT Lock = acquireReadLock();
     EnqueueResultT Res;
-    bool Enqueued;
+    bool Enqueued = false;
 
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+        CopyBackCmdsFailed |= Res.MCmd == Cmd;
         throw exception(make_error_code(errc::runtime),
                         "Enqueue process failed.");
+      }
     }
 
     Enqueued =
         GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+      CopyBackCmdsFailed |= Res.MCmd == NewCmd;
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
+    }
   } catch (...) {
-    auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
-    assert(WorkerQueue && "WorkerQueue for CopyBack command must be not null");
-    WorkerQueue->reportAsyncException(std::current_exception());
+    if (CopyBackCmdsFailed) {
+      auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
+      assert(WorkerQueue &&
+             "WorkerQueue for CopyBack command must be not null");
+      WorkerQueue->reportAsyncException(std::current_exception());
+    }
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
@@ -603,6 +620,21 @@ void Scheduler::cancelFusion(QueueImplPtr Queue) {
   enqueueCommandForCG(nullptr, ToEnqueue);
 }
 
+ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
+    [[maybe_unused]] QueueImplPtr Queue,
+    [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
+    [[maybe_unused]] const std::string &KernelName,
+    [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  return detail::jit_compiler::get_instance().materializeSpecConstants(
+      Queue, BinImage, KernelName, SpecConstBlob);
+#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  printFusionWarning(
+      "Materialization of spec constants not supported by this build");
+  return nullptr;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+}
+
 EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
                                        const property_list &PropList) {
   std::vector<Command *> ToEnqueue;
@@ -707,7 +739,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
   if (SyclEventImplPtr->getContextImpl() != Context)
     return false;
 
-  // A nullptr here means that the commmand does not produce a PI event or it
+  // A nullptr here means that the commmand does not produce a UR event or it
   // hasn't been enqueued yet.
   return SyclEventImplPtr->getHandleRef() != nullptr;
 }

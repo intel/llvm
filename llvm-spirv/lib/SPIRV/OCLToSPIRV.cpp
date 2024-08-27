@@ -36,7 +36,6 @@
 // friendly IR form for further translation into SPIR-V
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "ocl-to-spv"
 
 #include "OCLToSPIRV.h"
 #include "OCLTypeToSPIRV.h"
@@ -54,6 +53,8 @@
 #include <algorithm>
 #include <regex>
 #include <set>
+
+#define DEBUG_TYPE "ocl-to-spv"
 
 using namespace llvm;
 using namespace PatternMatch;

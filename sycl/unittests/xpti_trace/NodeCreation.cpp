@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/xpti_registry.hpp>
 
@@ -42,7 +42,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::PiMock MockPlugin;
+  sycl::unittest::UrMock<> MockPlugin;
 
   static constexpr char FileName[] = "NodeCreation.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";

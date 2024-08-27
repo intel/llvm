@@ -2,6 +2,7 @@
 // reduction as well as a sub-graph.
 
 #include "../graph_common.hpp"
+#include <sycl/reduction.hpp>
 
 int main() {
   queue Queue{};

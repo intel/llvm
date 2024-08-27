@@ -51,15 +51,9 @@ template <template <typename> typename CallableT> void runTest(sycl::queue Q) {
   sycl::accessor PAcc1D{Buf1D, sycl::read_write};
   sycl::accessor PAcc2D{Buf2D, sycl::read_write};
   sycl::accessor PAcc3D{Buf3D, sycl::read_write};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D;
   sycl::host_accessor<int, 1> HAcc1D_2020;
   sycl::host_accessor<int, 2> HAcc2D_2020;
   sycl::host_accessor<int, 3> HAcc3D_2020;
@@ -202,24 +196,12 @@ void runTestMulti(sycl::queue Q1) {
   sycl::accessor PAcc2D2{Buf2D2, sycl::read_write};
   sycl::accessor PAcc3D1{Buf3D1, sycl::read_write};
   sycl::accessor PAcc3D2{Buf3D2, sycl::read_write};
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D1;
-  sycl::accessor<int, 1, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc1D2;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D1;
-  sycl::accessor<int, 2, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc2D2;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D1;
-  sycl::accessor<int, 3, sycl::access::mode::read_write,
-                 sycl::access::target::host_buffer>
-      HAcc3D2;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D1;
+  sycl::host_accessor<int, 1, sycl::access::mode::read_write> HAcc1D2;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D1;
+  sycl::host_accessor<int, 2, sycl::access::mode::read_write> HAcc2D2;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D1;
+  sycl::host_accessor<int, 3, sycl::access::mode::read_write> HAcc3D2;
   sycl::host_accessor<int, 1> HAcc1D1_2020;
   sycl::host_accessor<int, 2> HAcc2D1_2020;
   sycl::host_accessor<int, 3> HAcc3D1_2020;

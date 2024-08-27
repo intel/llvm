@@ -8,8 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrImage.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -19,20 +19,18 @@
 
 size_t GBufferCreateCounter = 0;
 
-static pi_result
-redefinedMemBufferCreate(pi_context context, pi_mem_flags flags, size_t size,
-                         void *host_ptr, pi_mem *ret_mem,
-                         const pi_mem_properties *properties = nullptr) {
+static ur_result_t redefinedMemBufferCreate(void *pParams) {
+  auto params = *static_cast<ur_mem_buffer_create_params_t *>(pParams);
   ++GBufferCreateCounter;
-  *ret_mem = nullptr;
-  return PI_SUCCESS;
+  **params.pphBuffer = nullptr;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
-      redefinedMemBufferCreate);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                           &redefinedMemBufferCreate);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

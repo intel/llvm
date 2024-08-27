@@ -12,7 +12,11 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
   DiscardEvent.cpp
+  ProfilingTag.cpp
+  KernelProperties.cpp
 )
 
 add_subdirectory(CommandGraph)
-add_subdirectory(VirtualFunctions)
+
+# Disabled pending UR fix adding setDataAs to mock dummy handle.
+#add_subdirectory(VirtualFunctions)

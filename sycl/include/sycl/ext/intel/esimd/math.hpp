@@ -1851,6 +1851,39 @@ __ESIMD_API uint64_t rdtsc() {
 #endif
 }
 
+/// Performs clamping of values in a vector between min and max values.
+/// @tparam T type of the vectors.
+/// @tparam N size of the vectors.
+/// @param src vector containing an input.
+/// @param min_val vector containing minimum values.
+/// @param max_val vector containing maximum values.
+/// @return vector containing clamped input values between minimum and maximum.
+template <typename T, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src,
+                                         __ESIMD_NS::simd<T, N> min_val,
+                                         __ESIMD_NS::simd<T, N> max_val) {
+  __ESIMD_NS::simd<T, N> Result = src;
+  Result.merge(min_val, src < min_val);
+  Result.merge(max_val, src > max_val);
+  return Result;
+}
+
+/// Performs clamping of values in a vector between min and max values.
+/// This variant of the API uses scalars for minimum and maximum values.
+/// @tparam T type of the vectors.
+/// @tparam N size of the vectors.
+/// @param src vector containing an input.
+/// @param min_val minimum value.
+/// @param max_val maximum values.
+/// @return vector containing clamped input values between minimum and maximum.
+template <typename T, int N>
+__ESIMD_API __ESIMD_NS::simd<T, N> clamp(__ESIMD_NS::simd<T, N> src, T min_val,
+                                         T max_val) {
+  __ESIMD_NS::simd<T, N> MinVal = min_val;
+  __ESIMD_NS::simd<T, N> MaxVal = max_val;
+  return clamp(src, MinVal, MaxVal);
+}
+
 /// @} sycl_esimd_math
 
 } // namespace ext::intel::esimd

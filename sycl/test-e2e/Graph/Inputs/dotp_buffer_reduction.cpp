@@ -1,6 +1,7 @@
 // Tests creating a dotp operation which uses a sycl reduction with buffers.
 
 #include "../graph_common.hpp"
+#include <sycl/reduction.hpp>
 
 int main() {
   queue Queue{};

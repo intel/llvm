@@ -9,15 +9,15 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/buffer_impl.hpp>
 
 using namespace sycl;
 
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   MockScheduler MS;
   buffer<int, 1> BufA(range<1>(1));
@@ -59,8 +59,8 @@ TEST_F(SchedulerTest, MemObjCommandCleanupAllocaUsers) {
 }
 
 TEST_F(SchedulerTest, MemObjCommandCleanupAllocaDeps) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   MockScheduler MS;
   buffer<int, 1> Buf(range<1>(1));

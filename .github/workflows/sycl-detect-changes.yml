@@ -30,9 +30,9 @@ jobs:
             clang: &clang
               - *llvm
               - 'clang/**'
-            sycl_fusion: &sycl-fusion
+            sycl_jit: &sycl-jit
               - *llvm
-              - 'sycl-fusion/**'
+              - 'sycl-jit/**'
             xptifw: &xptifw
               - 'xptifw/**'
             libclc: &libclc
@@ -41,7 +41,7 @@ jobs:
               - 'libclc/**'
             sycl: &sycl
               - *clang
-              - *sycl-fusion
+              - *sycl-jit
               - *llvm_spirv
               - *xptifw
               - *libclc
@@ -84,7 +84,7 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_jit", "xptifw", "libclc", "sycl", "ci", "esimd"];
 
       - run: echo '${{ steps.result.outputs.result }}'
      

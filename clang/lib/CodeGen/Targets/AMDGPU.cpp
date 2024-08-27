@@ -317,12 +317,6 @@ public:
   bool shouldEmitStaticExternCAliases() const override;
   bool shouldEmitDWARFBitFieldSeparators() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
-
-private:
-  // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
-  // resulting MDNode to the amdgcn.annotations MDNode.
-  static void addAMDGCNMetadata(llvm::GlobalValue *GV, StringRef Name,
-                                int Operand);
 };
 }
 
@@ -404,33 +398,6 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   }
 }
 
-/// Helper function for AMDGCN and NVVM targets, adds a NamedMDNode with GV,
-/// Name, and Operand as operands, and adds the resulting MDNode to the
-/// AnnotationName MDNode.
-static void addAMDGCOrNVVMMetadata(const char *AnnotationName,
-                                   llvm::GlobalValue *GV, StringRef Name,
-                                   int Operand) {
-  llvm::Module *M = GV->getParent();
-  llvm::LLVMContext &Ctx = M->getContext();
-
-  // Get annotations metadata node.
-  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata(AnnotationName);
-
-  llvm::Metadata *MDVals[] = {
-      llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
-      llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
-  // Append metadata to annotations node.
-  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
-}
-
-
-void AMDGPUTargetCodeGenInfo::addAMDGCNMetadata(llvm::GlobalValue *GV,
-                                                StringRef Name, int Operand) {
-  addAMDGCOrNVVMMetadata("amdgcn.annotations", GV, Name, Operand);
-}
-
-
 /// Emits control constants used to change per-architecture behaviour in the
 /// AMDGPU ROCm device libraries.
 void AMDGPUTargetCodeGenInfo::emitTargetGlobals(
@@ -482,12 +449,6 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
   if (FD)
     setFunctionDeclAttributes(FD, F, M);
-
-  // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
-  const bool IsSYCLKernel =
-      FD && M.getLangOpts().SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>();
-  if (IsSYCLKernel)
-    addAMDGCNMetadata(F, "kernel", 1);
 
   if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
     F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");

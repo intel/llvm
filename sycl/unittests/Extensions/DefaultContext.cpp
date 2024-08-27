@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sycl/platform.hpp"
 #include <sycl/sycl.hpp>
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -19,11 +20,11 @@ inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
 void test_default_context_enabled() {
-  sycl::unittest::PiMock Mock1;
-  sycl::platform Plt1 = Mock1.getPlatform();
+  sycl::unittest::UrMock<> Mock1;
+  sycl::platform Plt1 = sycl::platform();
 
-  sycl::unittest::PiMock Mock2;
-  sycl::platform Plt2 = Mock2.getPlatform();
+  sycl::unittest::UrMock<> Mock2;
+  sycl::platform Plt2 = sycl::platform();
 
   const sycl::device Dev1 = Plt1.get_devices()[0];
   const sycl::device Dev2 = Plt2.get_devices()[0];
@@ -38,8 +39,8 @@ void test_default_context_enabled() {
 }
 
 void test_default_context_disabled() {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   bool catchException = false;
   try {
@@ -81,8 +82,8 @@ TEST(DefaultContextTest, DefaultContextCanBeDisabledEnabled) {
 TEST(DefaultContextTest, DefaultContextValueChangedAfterQueueCreated) {
   sycl::detail::enable_ext_oneapi_default_context(false);
 
-  sycl::unittest::PiMock Mock1;
-  sycl::platform Plt = Mock1.getPlatform();
+  sycl::unittest::UrMock<> Mock1;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev1 = Plt.get_devices()[0];
   const sycl::device Dev2 = Plt.get_devices()[0];

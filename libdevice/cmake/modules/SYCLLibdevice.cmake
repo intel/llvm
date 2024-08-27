@@ -167,7 +167,7 @@ if (NOT MSVC)
     sycl-compiler)
 endif()
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   if (NOT DEFINED NATIVE_CPU_DIR)
     message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
   endif()

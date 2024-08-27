@@ -2,6 +2,7 @@
 // operation which uses a sycl reduction with USM memory.
 
 #include "../graph_common.hpp"
+#include <sycl/reduction.hpp>
 
 int main() {
   queue Queue{};

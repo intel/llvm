@@ -3,8 +3,7 @@
 // [[intel::device_indirectly_callable]] attribute or SYCL_EXTERNAL macro.
 //
 // RUN: %clang_cc1 -emit-llvm -o - -fsycl-is-device \
-// RUN:     -fsycl-allow-virtual-functions -internal-isystem %S/Inputs \
-// RUN:     -triple spir64 %s -o %t.ll
+// RUN:     -internal-isystem %S/Inputs -triple spir64 %s -o %t.ll
 // RUN: FileCheck %s --input-file %t.ll --implicit-check-not host \
 // RUN:     --implicit-check-not _ZN8Derived416maybe_device_barEv
 //
