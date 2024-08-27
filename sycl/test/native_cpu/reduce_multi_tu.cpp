@@ -112,8 +112,8 @@ int main() {
   } else {
     printf("test failed!\n");
   }
-  assert(fails == 0);
   free(x, ctx);
   free(r, ctx);
+  return fails;
 }
 #endif
