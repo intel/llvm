@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 40a790fa5edaa635f49ce2e7342bfa5e5b359694
-  # Merge: 2f67b38d 5e240cf8
+  # commit 76361a88a0af6502fe655144655b381260ea9706
+  # Merge: b4195cb 0db57da
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Aug 22 14:04:32 2024 +0100
-  #    Merge pull request #1995 from kswiecicki/refcount-clear
-  #    Coverity fixes
-  set(UNIFIED_RUNTIME_TAG 40a790fa5edaa635f49ce2e7342bfa5e5b359694)
+  # Date:   Wed, 31 Jul 2024 14:26:38 +0100
+  #    Merge pull request #1961 from DBDuncan/duncan/num-channels-mipmap-fix 
+  #    [Bindless][Exp] Fix urBindlessImagesImageGetInfoExp failing with mipmap images
+  set(UNIFIED_RUNTIME_TAG 76361a88a0af6502fe655144655b381260ea9706)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
