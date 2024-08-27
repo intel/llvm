@@ -1798,8 +1798,10 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
-  // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
-  // order).
+  // Add the SYCL header search locations in the specified order.
+  //   ../include/sycl
+  //   ../include/sycl/stl_wrappers
+  //   ../include
   SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");

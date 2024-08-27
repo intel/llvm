@@ -327,8 +327,8 @@ public:
  
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(bool InitFromUserData, void *&HostPtr,
-                        bool &HostPtrReadOnly);
+  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+                        void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
   std::unique_ptr<SYCLMemObjAllocator> MAllocator;

@@ -12485,14 +12485,6 @@ def err_sycl_invalid_aspect_argument : Error<
 def warn_sycl_pass_by_value_deprecated 
     : Warning<"passing kernel functions by value is deprecated in SYCL 2020">,
       InGroup<Sycl2020Compat>, ShowInSystemHeader;
-def warn_sycl_pass_by_reference_future 
-    : Warning<"passing of kernel functions by reference is a SYCL 2020 extension">,
-      InGroup<Sycl2017Compat>, ShowInSystemHeader;
-def warn_sycl_implicit_decl
-    : Warning<"SYCL 1.2.1 specification requires an explicit forward "
-              "declaration for a kernel type name; your program may not "
-              "be portable">,
-      InGroup<SyclStrict>, ShowInSystemHeader, DefaultIgnore;
 def warn_sycl_potentially_invalid_as_cast : Warning<
   "explicit cast from %0 to %1 potentially leads to an invalid address space"
   " cast in the resulting code">, InGroup<SyclStrict>,
@@ -12528,9 +12520,6 @@ def err_sycl_mismatch_group_size
 def note_sycl_kernel_declared_here : Note<"kernel declared here">;
 def err_sycl_expected_finalize_method : Error<
   "expected a 'finalize' method for the 'stream' class">;
-def ext_sycl_2020_attr_spelling : ExtWarn<
-  "use of attribute %0 is a SYCL 2020 extension">,
-  InGroup<Sycl2017Compat>;
 def err_sycl_esimd_not_supported_for_type : Error<
   "type %0 is not supported in ESIMD context">;
 def err_sycl_taking_address_of_wrong_function : Error<

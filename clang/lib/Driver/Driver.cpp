@@ -841,17 +841,16 @@ static bool addSYCLDefaultTriple(Compilation &C,
     return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
+  llvm::Triple DefaultTriple =
+      C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
   for (const auto &SYCLTriple : SYCLTriples) {
-    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIROrSPIRV())
+    if (SYCLTriple == DefaultTriple)
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
   // Add the default triple as it was not found.
-  llvm::Triple DefaultTriple =
-      C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -1069,9 +1068,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   //
   // SYCL
   //
-  // We need to generate a SYCL toolchain if the user specified targets with
-  // the -fsycl-targets. If -fsycl is supplied without any of these we will
-  // assume SPIR-V.
+  // We need to generate a SYCL toolchain if the user specified -fsycl.
+  // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
@@ -1099,7 +1097,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   };
 
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
-  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
@@ -1121,7 +1118,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!HasValidSYCLRuntime)
       return;
     if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
-      Diag(clang::diag::err_drv_fsycl_unsupported_with_opt)
+      Diag(clang::diag::err_drv_unsupported_opt_sycl)
           << IncompatArg->getSpelling();
   };
   // -static-libstdc++ is not compatible with -fsycl.
@@ -1147,9 +1144,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
   };
+
+  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
+  checkSingleArgValidity(SYCLLink, {"early", "image"});
+
   Arg *DeviceCodeSplit =
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
-  checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
@@ -1276,8 +1276,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             << SYCLTargetsValues->getAsString(C.getInputArgs());
     }
   } else {
-    // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
-    // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
+    // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.
     if (HasValidSYCLRuntime) {
       StringRef SYCLTargetArch = getDefaultSYCLArch(C);
@@ -1295,10 +1294,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (auto &TT : UniqueSYCLTriplesVec) {
       if (TT.isNVPTX() || TT.isAMDGCN()) {
         Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
-      } else {
-        Diag(diag::warn_drv_unsupported_option_for_target)
-            << "-fno-sycl-libspirv" << TT.getTriple();
+        continue;
       }
+      Diag(diag::warn_drv_unsupported_option_for_target)
+          << "-fno-sycl-libspirv" << TT.getTriple();
     }
   }
   // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
