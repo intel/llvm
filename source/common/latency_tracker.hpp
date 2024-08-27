@@ -94,14 +94,16 @@ class latency_printer {
 
         for (auto &[name, histogram] : values) {
             auto value = getValues(histogram.get());
-            logger.log(logger::Level::INFO,
-                       "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
-                       value.mean, value.percentileValues[0],
-                       value.percentileValues[1], value.percentileValues[2],
-                       value.percentileValues[3], value.percentileValues[4],
-                       value.percentileValues[5], value.percentileValues[6],
-                       value.count, value.count * value.mean, value.min,
-                       value.max, value.stddev);
+            auto f = groupDigits<int64_t>;
+            logger.log(
+                logger::Level::INFO,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
+                f(value.mean), f(value.percentileValues[0]),
+                f(value.percentileValues[1]), f(value.percentileValues[2]),
+                f(value.percentileValues[3]), f(value.percentileValues[4]),
+                f(value.percentileValues[5]), f(value.percentileValues[6]),
+                f(value.count), f(value.count * value.mean), f(value.min),
+                f(value.max), value.stddev);
         }
     }
 
