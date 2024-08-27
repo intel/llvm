@@ -4,9 +4,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date: 08 May 2024
-    # Fix warning from switch
-    set(LLVMGenXIntrinsics_GIT_TAG b2565a03eb3cac07f5e8000fde971f95dc782c75)
+    # Date: Jul 25, 2024
+    # Support MMX removal in LLVM upstream
+    set(LLVMGenXIntrinsics_GIT_TAG e1e2f81165ae75576a0201f342e7f1ea2ca40273)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
