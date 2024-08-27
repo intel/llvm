@@ -225,6 +225,32 @@ Table {counter: tableNumber}. Terminology.
 
 |===
 
+==== Event Terminology  [[event-terminology]]
+
+:events-spec: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:interface.event
+
+For the purposes of clarity when talking about events in this specification we
+will split events into two categories:
+
+- *Graph-limited events*: These are events returned from a queue submission
+which is recorded to a `command_graph`. These events are only valid for defining
+dependencies for other nodes inside a `command_graph`. These events cannot be
+waited on or used as dependencies for eager SYCL operations. They also cannot
+be used with <<dynamic-events, Dynamic Events>>. See the section on
+<<event-limitations, Event Limitations>> for a more detailed overview of the
+limitations of these events.
+
+- *Regular SYCL events*: These are normal SYCL events as defined in the SYCL
+specification. See {events-spec}[the SYCL specification] for reference. These
+include eager submissions to a SYCL queue, events returned from submitting an
+executable `command_graph` for execution and events obtained via
+`command_graph<graph_state::executable>::get_event()`.
+
+Please note that these definitions are only for clarity within this
+specification. There are no distinct event object types, and all events
+referenced in this specification are of the type `sycl::event`. Errors will be
+thrown on invalid usage of graph-limited events.
+
 ==== Explicit Graph Building API
 
 When using the explicit graph building API to construct a graph, nodes and
@@ -245,14 +271,59 @@ represents either a command-group or an empty operation.
 through newly added interfaces. This is either using the `make_edge()` function
 to define an edge between existing nodes, or using a
 `property::node::depends_on` property list when adding a new node to the graph.
+Nodes or <<event-terminology, graph-limited events>> passed to this property
+that are from the same graph will create edges within the graph.
 
 Edges can also be created when explicitly adding nodes to the graph through
 existing SYCL mechanisms for expressing dependencies. Data dependencies from
-accessors to existing nodes in the graph are captured as an edge. Using
-`handler::depends_on()` will also create a graph edge when passed an event
-returned from a queue submission captured by a queue recording to the same
-graph.
+accessors to existing nodes in the graph are captured as an edge. 
+
+Using `handler::depends_on()` inside the node's command-group function can also
+be used for defining graph edges. However, for an event passed to
+`handler::depends_on()` to create an edge, it must be an event returned from a
+queue submission captured by the same graph (a <<event-terminology,
+graph-limited event>>). 
+
+| External Dependencies | Graph nodes may have dependencies on operations
+outside of the graph they belong to. These can be dependencies on nodes from
+<<inter-graph-dependencies, another graph>> or on eager SYCL operations. Passing
+<<event-terminology, graph-limited events>> from another graph or
+<<event-terminology, regular SYCL events>> to `handler::depends_on()`, as well
+as passing nodes from another graph to the `property::node::depends_on`
+property, will create external dependencies for graph nodes that will be
+respected when the graph is executed.
+
 |===
+
+===== Explicit API Example
+
+Simple example that shows using the explicit API to add two nodes to a graph
+with the <<depends-on-property, depends_on node property>> used to define the
+graph edge between them.
+
+[source, c++]
+----
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+sycl_ext::command_graph Graph {SyclContext, SyclDevice};
+
+sycl_ext::node NodeA = Graph.add(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  }
+);
+
+Graph.add(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  },
+  sycl_ext::property::node::depends_on{NodeA}  
+);
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.finalize();
+
+SyclQueue.ext_oneapi_graph(ExecGraph);
+----
 
 ==== Queue Recording API
 
@@ -280,13 +351,53 @@ dependencies in one of three ways. Firstly, through buffer accessors that
 represent data dependencies between two command groups captured as nodes.
 Secondly, by using the `handler::depends_on()` mechanism inside a command group
 captured as a node. However, for an event passed to `handler::depends_on()` to
-create an edge, it must be an event returned from a queue
-submission captured by the same graph. Otherwise, a synchronous error will be
-thrown with error code `invalid`. `handler::depends_on()` can be
-used to express edges when a user is working with USM memory rather than SYCL
-buffers. Thirdly, for a graph recorded with an in-order queue, an edge is added
-automatically between two sequential command groups submitted to the in-order queue.
+create an edge, it must be an event returned from a queue submission captured to
+the same graph (a <<event-terminology, graph-limited event>>). For a graph
+recorded with an in-order queue, an edge is added automatically between two
+sequential command groups submitted to the in-order queue.
+
+| External Dependencies
+| Graph nodes may have dependencies on operations outside of the graph they
+belong to. These can be dependencies on nodes from <<inter-graph-dependencies,
+another graph>> or on eager SYCL operations. Passing <<event-terminology,
+graph-limited events>> from another graph or <<event-terminology, regular SYCL
+events>> to `handler::depends_on()` will create external dependencies for
+graph nodes that will be respected when the graph is executed.
+
 |===
+
+===== Queue Recording API Example
+
+Simple example that shows using the Queue Recording API to add two nodes to a
+graph with a `sycl::event` used to define the graph edge between them.
+
+[source, c++]
+----
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
+sycl_ext::command_graph Graph {SyclContext, SyclDevice};
+
+Graph.begin_recording(SyclQueue);
+
+sycl::event EventA = SyclQueue.submit(
+  [&](sycl::handler& CGH){
+    CGH.parallel_for(...);
+  }
+);
+
+SyclQueue.submit(
+  [&](sycl::handler& CGH){
+    CGH.depends_on(EventA);
+    CGH.parallel_for(...);
+  }
+);
+
+Graph.end_recording();
+
+sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.finalize();
+
+SyclQueue.ext_oneapi_graph(ExecGraph);
+----
 
 ==== Sub-Graph
 
@@ -313,10 +424,15 @@ Table {counter: tableNumber}. Device Support Aspect.
 |`aspect::ext_oneapi_graph`
 | Indicates that the device supports all the APIs described in this extension.
 |`aspect::ext_oneapi_limited_graph`
-| Indicates that the device supports all the APIs described in this extension
-except for those described in the <<executable-graph-update, Executable Graph
-Update>> section. This is a temporary aspect that we intend to remove once
-devices with full graph support are more prevalent.
+a| Indicates that the device supports all the APIs described in this extension
+except for the following:
+
+  * <<executable-graph-update, Executable Graph
+    Update>>
+  * <<dynamic-events, Dynamic Events>>
+
+This is a temporary aspect that we intend to remove once devices with full graph
+support are more prevalent.
 
 |===
 
@@ -403,13 +519,12 @@ std::vector<node> get_successors() const;
 ----
 static node get_node_from_event(event nodeEvent);
 ----
-|Finds the node associated with an event created from a submission to a queue
- in the recording state.
+|Finds the node associated with a <<event-terminology, graph-limited event>>
+created from a submission to a queue in the recording state.
 
 Parameters:
 
-* `nodeEvent` - Event returned from a submission to a queue in the recording
-  state.
+* `nodeEvent` - A graph-limited event from a recorded submission to this graph.
 
 Returns: Graph node that was created when the command that returned
 `nodeEvent` was submitted.
@@ -475,7 +590,7 @@ Exceptions:
 
 |===
 
-==== Dynamic Parameters
+==== Dynamic Parameters [[dynamic-parameters]]
 
 [source,c++]
 ----
@@ -556,7 +671,7 @@ Parameters:
 
 |===
 
-==== Depends-On Property
+==== Depends-On Property [[depends-on-property]]
 
 [source,c++]
 ----
@@ -565,16 +680,31 @@ class depends_on {
   public:
     template<typename... NodeTN>
     depends_on(NodeTN... nodes);
+
+    template<typename... EventTN>
+    depends_on(EventTN... events);
 };
 }
 ----
 
 The API for explicitly adding nodes to a `command_graph` includes a
 `property_list` parameter. This extension defines the `depends_on` property to
-be passed here. `depends_on` defines any `node` objects for the created node to
-be dependent on, and therefore form an edge with. These nodes are in addition to
-the dependent nodes identified from the command-group requisites of the created
-node.
+be passed here. `depends_on` may be used in two ways:
+
+* Passing nodes from the same `command_graph` which will create dependencies and
+graph edges between those nodes and the node being added. 
+
+* Passing SYCL events, including <<dynamic-events, Dynamic Events>>. If an event
+is a <<event-terminology, graph-limited event>> from the same `command_graph`,
+then a graph edge is created between this node and the other node. For dynamic
+events, graph-limited events from a different graph or <<event-terminology,
+regular SYCL events>>, an external dependency is created between this node and
+the command that is associated with the event. Passing a default constructed
+`dynamic_event` with no associated SYCL event will result in a synchronous error
+being thrown.
+
+The only permitted types for `NodeTN` and `EventTN` are `node` and
+`event`/`dynamic_event` respectively.
 
 ==== Depends-On-All-Leaves Property
 [source,c++]
@@ -647,6 +777,8 @@ public:
     void update(node& node);
     void update(const std::vector<node>& nodes);
     void update(const command_graph<graph_state::modifiable>& graph);
+
+    event get_event(const node& node);
 };
 
 }  // namespace sycl::ext::oneapi::experimental
@@ -668,12 +800,12 @@ structure. After finalization the graph can be submitted for execution on a
 queue one or more times with reduced overhead.
 
 A `command_graph` can be submitted to both in-order and out-of-order queues. Any
-dependencies between the graph and other command-groups submitted to the same 
-queue will be respected. However, the in-order and out-of-order properties of the
-queue have no effect on how the nodes within the graph are executed (e.g. the graph
-nodes without dependency edges may execute out-of-order even when using an in-order
-queue). For further information about how the properties of a queue affect graphs
-<<Queue Properties, see the section on Queue Properties>>
+dependencies between the graph and other command-groups submitted to the same
+queue will be respected. However, the in-order and out-of-order properties of
+the queue have no effect on how the nodes within the graph are executed (e.g.
+the graph nodes without dependency edges may execute out-of-order even when
+using an in-order queue). For further information about how the properties of a
+queue affect graphs <<Queue Properties, see the section on Queue Properties>>
 
 ==== Graph State
 
@@ -700,6 +832,85 @@ graph LR
     Modifiable -->|Finalize| Executable
 ....
 
+==== Defining Dependencies Between Graphs [[inter-graph-dependencies]]
+
+It may be desirable in an application to create multiple distinct graphs with
+runtime dependencies between specific nodes in each graph rather than creating
+one single graph. This can be accomplished in the following ways:
+
+* Passing <<event-terminology, graph-limited events>> from a recorded submission
+to one graph as a dependency in another graph node, via `handler::depends_on()`
+or the <<depends-on-property, `depends_on` property>>.
+
+* Passing a `node` object from one graph as a dependency to another graph node
+with the <<depends-on-property, `depends_on` property>>.
+
+These types of dependencies may allow more fine-grained control to the
+application when using multiple graphs than can be achieved just using events
+returned from submitting a graph for execution. Since these dependencies are on
+the node level it may allow both graphs to execute some commands in parallel.
+
+Consider the following example of two graphs which have some dependency between
+them. Without node-to-node dependencies, execution of the second graph must
+depend on completion of the first graph:
+[source, mermaid]
+....
+graph LR
+    subgraph GraphA
+        direction TB
+        NodeA --> NodeB
+        NodeB --> NodeC
+    end
+    subgraph GraphB
+        direction TB
+        NodeA2 --> NodeB2
+        NodeB2 --> NodeC2
+    end
+    GraphA -->|"sycl::event\n returned from\n queue::ext_oneapi_graph()"| GraphB
+....
+
+However consider in this example case that only `NodeC2` actually depends on the
+work done in `GraphA`, thus we can instead define node dependencies between the
+graphs like so:
+
+[source, c++]
+....
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+...
+// Define a dependency between the last node in GraphA and the last node in GraphB
+sycl_ext::node NodeC = GraphA.add(...);
+// depends_on here creates an external dependency, not a graph edge (since these
+// are different graphs)
+sycl_ext::node NodeC2 = GraphB.add(..., {sycl_ext::property::depends_on{NodeC}});
+...
+....
+
+Now the runtime execution looks as follows:
+[source, mermaid]
+....
+graph TB
+    subgraph GraphA
+        direction TB
+        NodeA --> NodeB
+        NodeB --> NodeC
+    end
+    subgraph GraphB
+        direction TB
+        NodeA2 --> NodeB2
+        NodeB2 --> NodeC2
+    end
+    NodeC --> NodeC2
+....
+
+It is now possible for `NodeA2` and `NodeB2` to execute immediately after
+submitting `GraphB` for execution, while `NodeC2` will not execute until
+`GraphA`/ `NodeC` have finished executing.
+
+It can also allow more fine-grained execution of the graph, for
+example submitting individual graphs to different SYCL queues.
+
+Once these dependencies have been created they are fixed and cannot be updated.
+
 ==== Executable Graph Update [[executable-graph-update]]
 
 A graph in the executable state can have the configuration of its nodes modified
@@ -711,13 +922,15 @@ Updates to a graph will be scheduled after any in-flight executions of the same
 graph and will not affect previous submissions of the same graph. The user is
 not required to wait on any previous submissions of a graph before updating it.
 
-The only type of nodes that are currently able to be updated in a graph are
-kernel execution nodes.
-
 The aspects of a kernel execution node that can be configured during update are:
 
 * Parameters to the kernel.
 * Execution ND-Range of the kernel.
+
+All node types may have the following aspects configured during update:
+
+* Dependent events which were specified using <<dynamic-events, Dynamic
+Events>>.
 
 To update an executable graph, the `property::graph::updatable` property must
 have been set when the graph was created during finalization. Otherwise, an
@@ -779,7 +992,7 @@ conditions:
   topologically identical when:
 
 ** Both graphs must have the same number of nodes and edges.
-** Internal edges must be between corresponding nodes in each graph.
+** Edges must be between corresponding nodes in each graph.
 ** Nodes must be added in the same order in the two graphs. Nodes may be added
    via `command_graph::add`, or for a recorded queue via `queue::submit` or
    queue shortcut functions.
@@ -807,6 +1020,16 @@ If a node containing a dynamic parameter is updated through the whole graph
 update API, then any previous updates to the dynamic parameter will be reflected
 in the new graph.
 
+===== Node Event Dependency Update
+
+External event dependencies for nodes can be updated using <<dynamic-events,
+Dynamic Events>> in a similar usage to <<dynamic-parameters, Dynamic
+Parameters>>.
+
+Event updates are performed using a `dynamic_event` instance and calling
+`dynamic_event::update()` to update all the associated event dependencies of
+nodes which the `dynamic_event` is associated with.
+
 ==== Graph Properties [[graph-properties]]
 
 ===== No-Cycle-Check Property
@@ -822,7 +1045,7 @@ class no_cycle_check {
 ----
 
 The `property::graph::no_cycle_check` property disables any checks if a newly
-added dependency will lead to a cycle in a specific `command_graph` and can be
+added graph edge will lead to a cycle in a specific `command_graph` and can be
 passed to a `command_graph` on construction via the property list parameter.
 As a result, no errors are reported when a function tries to create a cyclic
 dependency. Thus, it's the user's responsibility to create an acyclic graph
@@ -886,6 +1109,32 @@ implies disabling certain optimizations. As a result, the execution time of a
 graph finalized with profiling enabled is longer than that of a graph without
 profiling capability. An error will be thrown when attempting to profile an
 event from a graph submission that was created without this property.
+
+==== Requires-Execution-Event Property [[requires-execution-event]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class requires_execution_event {
+  public:
+    requires_execution_event() = default;
+};
+}
+----
+
+The `property::graph::requires_execution_event` property is used to indicate
+that the user intends to obtain events for the execution of specific nodes in an
+executable-state graph using `command_graph::get_event()`.
+
+This property can be used with the following functions:
+
+* All overloads of `command_graph<graph_state::modifiable>::add()` - this will
+allow obtaining an execution event for the specific node added by this
+function call.
+
+* All overloads of `command_graph<graph_state::modifiable>::begin_recording()` -
+this will allowing obtaining an execution event for every node added to this
+queue before `end_recording()` is called.
 
 ==== Graph Member Functions
 
@@ -986,7 +1235,7 @@ Parameters:
 
 * `propList` - Zero or more properties can be provided to the constructed node
   via an instance of `property_list`. The `property::node::depends_on` property
-  can be passed here with a list of nodes to create dependency edges on.
+  can be passed here with a list of nodes to create dependencies on.
 
 
 Returns: The empty node which has been added to the graph.
@@ -996,6 +1245,13 @@ Exceptions:
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
 
+  * Throws synchronously with error code `invalid` if an `event` dependency is
+  passed via the `depends_on` property and that dependency is a
+  <<node-execution-events, node-level execution event>>.
+
+  * Throws synchronously with error code `invalid` if an `event` dependency is
+  passed via `handler::depends_on()` and that dependency is a
+  <<node-execution-events, node-level execution event>>.
 |
 [source,c++]
 ----
@@ -1031,21 +1287,32 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
+
 * Throws synchronously with error code `invalid` if the graph wasn't created with
   the `property::graph::assume_buffer_outlives_graph` property and this command
   uses a buffer. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
+
 * Throws with error code `invalid` if the type of the command-group is not a
   kernel execution and a `dynamic_parameter` was registered inside `cgf`.
 
+  * Throws synchronously with error code `invalid` if an `event` dependency is
+  passed via the `depends_on` property and that dependency is a
+  <<node-execution-events, node-level execution event>>.
+
+  * Throws synchronously with error code `invalid` if an `event` dependency is
+  passed via `handler::depends_on()` and that dependency is a
+  <<node-execution-events, node-level execution event>>.
+  
 |
 [source,c++]
 ----
 void make_edge(node& src, node& dest);
 ----
 
-|Creates a dependency between two nodes representing a happens-before relationship.
+|Creates a dependency between two nodes in the same graph representing a
+happens-before relationship.
 
 Constraints:
 
@@ -1141,6 +1408,42 @@ were added.
 std::vector<node> get_root_nodes() const;
 ----
 |Returns a list of all nodes in the graph which have no dependencies.
+
+|
+[source,c++]
+----
+event get_event(const node& node);
+----
+|Returns a <<event-terminology, regular SYCL event>> which represents the
+completion of `node` and is valid only for the most recent execution of the
+graph. This event can be used as a dependency in the same way as normal SYCL
+events. Nodes must have been created using the <<requires-execution-event,
+`requires_execution_event`>> property to allow obtaining an event here.
+
+For more information on using these events see the <<node-execution-events,
+Node-Level Execution Events>> section.
+
+These events cannot be used as dependencies for other graph nodes, dependencies
+between graphs should instead be defined as described in
+<<inter-graph-dependencies, this section>>.
+
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `node` - The node to get the associated event for.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `node` is not a node within
+the graph.
+
+* Throws synchronously with error code `invalid` if `node` was not created with
+`property::graph::requires_execution_event`. 
 
 |===
 
@@ -1284,8 +1587,11 @@ begin_recording(queue& recordingQueue,
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::recording` state. This operation is a no-op if `recordingQueue`
-is already in the `queue_state::recording` state.
+`queue_state::recording` state. If `recordingQueue` is already in the
+`queue_state::recording` state calling this function will not change the state,
+but will reflect any changes in the properties passed via `propList`. Queues
+which are in the recording state will return <<event-terminology, graph-limited
+events>> from submissions to that queue.
 
 Parameters:
 
@@ -1294,7 +1600,10 @@ Parameters:
   instance.
 
 * `propList` - Optional parameter for passing properties. Properties for
-  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+  the `command_graph` class are defined in <<graph-properties, Graph
+  Properties>>. When `begin_recording()` has been called multiple times for the
+  same queue, only the most recently passed property list will apply to
+  subsequent queue operations.
 
 Exceptions:
 
@@ -1314,8 +1623,11 @@ begin_recording(const std::vector<queue>& recordingQueues,
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state. This operation is a no-op for any queue in
-`recordingQueues` that is already in the `queue_state::recording` state.
+`queue_state::recording` state. If any of `recordingQueues` is already in the
+`queue_state::recording` state calling this function will not change the state,
+but will reflect any changes in the properties passed via `propList`. Queues
+which are in the recording state will return <<event-terminology, graph-limited
+events>> from submissions to that queue.
 
 Parameters:
 
@@ -1324,7 +1636,10 @@ Parameters:
   instance.
 
 * `propList` - Optional parameter for passing properties. Properties for
-  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+  the `command_graph` class are defined in <<graph-properties, Graph
+  Properties>>. When `begin_recording()` has been called multiple times for the
+  same queue, only the most recently passed property list will apply to
+  subsequent queue operations.
 
 Exceptions:
 
@@ -1387,7 +1702,7 @@ Exceptions:
 
 |===
 
-=== Queue Class Modifications
+=== Queue Class Modifications [[queue-class-modifications]]
 
 [source, c++]
 ----
@@ -1418,6 +1733,10 @@ public:
                    event depEvent);
   event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
                    const std::vector<event>& depEvents);
+
+  // Overload of ext_oneapi_barrier which takes a list of dynamic events
+  event ext_oneapi_barrier(const std::vector<dynamic_event>& waitList);
+
 };
 } // namespace sycl
 ----
@@ -1440,10 +1759,12 @@ submitted command-groups being immediately scheduled for asynchronous execution.
 
 The alternative `queue_state::recording` state is used for graph construction.
 Instead of being scheduled for execution, command-groups submitted to the queue
-are recorded to a graph object as new nodes for each submission. After recording
-has finished and the queue returns to the executing state, the recorded commands are
-not executed, they are transparent to any following queue operations. The state
-of a queue can be queried with `queue::ext_oneapi_get_state()`.
+are recorded to a graph object as new nodes for each submission. Queues which
+are in the recording state will return <<event-terminology, graph-limited
+events>> from submissions to that queue. After recording has finished and the
+queue returns to the executing state, the recorded commands are not executed,
+they are transparent to any following queue operations. The state of a queue can
+be queried with `queue::ext_oneapi_get_state()`.
 
 .Queue State Diagram
 [source, mermaid]
@@ -1617,6 +1938,24 @@ all the nodes have finished execution.
 
 The queue should be associated with a device and context that are the same
 as the device and context used on creation of the graph.
+
+|
+[source,c++]
+----
+event
+queue::ext_oneapi_barrier(const std::vector<dynamic_event>& waitList);
+----
+
+|Queue shortcut function for enqueuing a barrier which takes a list of
+<<dynamic-event, Dynamic Events>> that all following commands must wait on.
+
+This function has the same semantics as `ext_oneapi_barrier(const
+std::vector<event>&)`.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if any of `waitList` is a
+default constructed `dynamic_event` with no associated SYCL event.
 |===
 
 ==== New Handler Member Functions
@@ -1672,7 +2011,7 @@ Exceptions:
 a command-group submitted to a queue with is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
@@ -1702,11 +2041,305 @@ Exceptions:
 a command-group submitted to a queue with is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
 different from the one with which the dynamic_parameter was created.
+
+|
+[source,c++]
+----
+void handler::ext_oneapi_barrier(const std::vector<dynamic_event>& waitList);
+----
+
+|Overload of `ext_oneapi_barrier` that takes a list of dynamic events to wait
+on.
+
+This function has the same semantics as `ext_oneapi_barrier(const
+std::vector<event>&)`.
+
+Parameters:
+
+* `waitList` - List of dynamic event dependencies for this barrier.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+an eager SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if any of the events associated
+with `waitList` came from the same graph that the graph node resulting from this
+command-group submission is associated with.
+
+* Throws synchronously with error code `invalid` if any of `waitList` is a
+default constructed `dynamic_event` with no underlying SYCL event.
+
+|
+[source,c++]
+----
+void handler::depends_on(dynamic_event depEvent);
+----
+
+|Overload of `depends_on()` which takes a dynamic event dependency.
+
+This function has the same semantics as `depends_on(event)`.
+
+Parameters:
+
+* `depEvent` - Dynamic event dependency.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+an eager SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the `sycl::event` associated
+with `depEvent` came from the same graph that the graph node resulting from this
+command-group submission is associated with.
+
+* Throws synchronously with error code `invalid` if `depEvent` is a default
+constructed `dynamic_event` with no underlying SYCL event.
+
+|
+[source,c++]
+----
+void handler::depends_on(const std::vector<dynamic_event>& depEvents);
+----
+
+|Overload of `depends_on()` which takes a list of dynamic event dependencies.
+
+This function has the same semantics as `depends_on(const std::vector<event>&)`.
+
+Parameters:
+
+* `depEvents` - List of dynamic event dependencies.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+an eager SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if any of the `sycl::event`
+objects associated with `depEvents` came from the same graph that the graph node
+resulting from this command-group submission is associated with.
+
+* Throws synchronously with error code `invalid` if any of `depEvents` is a
+default constructed `dynamic_event` with no underlying SYCL event.
+|===
+
+=== Events
+
+Events can be used with graphs in the following ways:
+
+- Defining dependencies between nodes in the same graph.
+- Defining dependencies between <<inter-graph-dependencies, different graphs>>.
+- Obtaining <<node-execution-events, execution events for invidual nodes>>
+within an executable graph, which can be waited on or used as dependencies for
+eager SYCL operations.
+- Creating external event dependencies for a graph, either
+<<external-event-dependencies, one-time>> or <<dynamic-events, updatable between
+executions>>.
+
+==== Node-Level Execution Events [[node-execution-events]]
+
+Events representing the completion of an individual node inside a given
+executable graph can be obtained using
+`command_graph<graph_state::executable>::get_event(node)`. These events can then
+be waited on or used as dependencies for eager SYCL operations outside of
+graphs. These events may be useful for operations which may be infrequent and
+depend only on some intermediate results of work being done in the graph.
+
+[source, c++]
+....
+sycl::event ExecutionEvent = ExecGraph.get_event(SomeNode);
+
+Queue.submit((sycl::handler& CGH)
+  {
+    CGH.depends_on(ExecutionEvent);
+    CGH.parallel_for(...);
+  });
+
+// The above operation will only execute once SomeNode has finished executing
+// inside ExecGraph
+Queue.ext_oneapi_graph(ExecGraph);
+....
+
+These events represent only the current execution of a given executable graph on
+a device. These events are not unique per execution of a graph. If a graph is
+enqueued multiple times before using one of these events (for example as a
+dependency to an eager SYCL operation or a host wait), it is undefined which
+specific execution of a graph the event will represent. If a dependency on a
+specific graph execution is required this ordering must be enforced by the
+application to ensure there is only a single graph execution in flight when
+using these events.
+
+For example:
+
+[source, c++]
+----
+
+sycl::event NodeExecutionEvent;
+sycl::event GraphCompletionEvent;
+
+for (size_t i = 0; i < GraphIterations; i++){
+  // Obtain the node execution event for the graph
+  NodeExecutionEvent = ExecGraph.get_event(SomeNode);
+
+  // Enqueue the graph for execution
+  sycl::event GraphCompletionEvent = Queue.ext_oneapi_graph(ExecGraph);
+  // Use the event, to wait on the host and perform some intermediate
+  // host-work once that node has completed
+  ExecutionEvent.wait();
+  DoSomethingOnHost();
+  // Wait on the graph finishing to ensure it is complete before the next use of
+  // a node-level execution event
+  GraphCompletionEvent.wait_and_throw();
+}
+----
+
+These events cannot be used to define dependencies between graphs. These should
+instead be defined as described in <<inter-graph-dependencies, this section>>.
+
+==== Adding External Event Dependencies To Graphs [[external-event-dependencies]]
+
+<<event-terminology, Regular SYCL events>> can be passed as dependencies to
+graph nodes to create runtime dependencies at graph execution time on regular,
+eager SYCL operations. This is done in the same way as creating dependencies
+between graph nodes using events, for example:
+
+[source, c++]
+----
+// Submit an eager SYCL operation
+event ExternalEvent = SyclQueue.submit(...);
+
+// Record a graph node which depends on this external event
+Graph.begin_recording(SyclQueue);
+
+SyclQueue.submit(
+  [&](handler& CGH){
+    CGH.depends_on(ExternalEvent);
+    CGH.parallel_for(...);
+  }
+);
+
+Graph.end_recording();
+----
+
+This can be useful for things such as one-time warmups which must be executed
+before a given graph node executes. For external dependencies which need to be
+updated between graph execution, <<dynamic-events, Dynamic Events>> should be
+used instead.
+
+==== Dynamic Events [[dynamic-events]]
+
+[source,c++]
+----
+namespace ext::oneapi::experimental {
+  class dynamic_event {
+    dynamic_event();
+    dynamic_event(const event& syclEvent);
+
+    void update(const event& syclEvent);
+  };
+}
+----
+
+Dynamic events represent <<event-terminology, regular SYCL events>> from outside
+of a given `command_graph` which nodes in that graph may depend on. These events
+are either obtained from normal SYCL operations or from another `command_graph`
+via `get_event()`. The `dynamic_event` object enables these dependent events to
+be updated between graph executions.
+
+Dynamic events can be used to add dependencies to a graph node in the same way
+that regular SYCL events can, by passing them as parameters to
+`handler::depends_on()` inside the CGF which represents the node.
+
+[source,c++]
+----
+// Obtain an event from a normal queue submission
+event OutsideEvent = queue.submit(...);
+
+// Create a dynamic event to wrap that event
+ext::oneapi::experimental::dynamic_event DynEvent {OutsideEvent};
+
+// Add a graph node which depends on that dynamic event
+Graph.add([&](handler& CGH){
+  CGH.depends_on(DynEvent);
+  CGH.parallel_for(...);
+});
+----
+Dynamic events created with a regular SYCL event from a `command_graph` cannot
+then be associated with other nodes in that same graph as this could be used
+change the topology of the graph. Attempting to call `handler::depends_on()`
+with such a `dynamic_event` in that situation will result in an error.
+
+Dynamic events can be created with no event but must be updated with a valid
+event before any executable graph which depends on that event is executed.
+Failing to do so will result in an error.
+
+The `dynamic_event` class provides the {crs}[common reference semantics].
+
+Table {counter: tableNumber}. Member functions of the `dynamic_event` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+dynamic_event();
+----
+
+| Constructs a default `dynamic_event` which is not associated with any SYCL
+event.
+
+|
+[source,c++]
+----
+dynamic_event(const event& syclEvent);
+----
+
+| Constructs a `dynamic_event` which is associated with the SYCL event
+`syclEvent`.
+
+Parameters:
+
+* `syclEvent` - The SYCL event to associate this `dynamic_event` with.
+
+Exceptions:
+
+
+* Throws synchronously with error code `invalid` if `syclEvent` is an event
+returned from enqueuing a `host_task`. 
+
+|
+[source,c++]
+----
+void update(const event& syclEvent);
+----
+
+| Updates the SYCL event associated with this `dynamic_event`. This update will
+be reflected immediately in the associated modifiable graph nodes. An executable
+graph can then be updated to reflect these new event dependencies using
+<<executable-graph-update, Executable Graph Update>>.
+
+Parameters:
+
+* `syclEvent` - The new SYCL event to update this `dynamic_event` with.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, regular SYCL event>> obtained from the same executable
+graph any of the `node` objects associated with this `dynamic_event` are from.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is an event
+returned from enqueuing a `host_task`.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>>.
+
 
 |===
 
@@ -1783,25 +2416,20 @@ of failure. The following list describes the behavior that changes during
 recording mode. Features not listed below behave the same in recording mode as
 they do in non-recording mode.
 
-==== Event Limitations
+==== Event Limitations [[event-limitations]]
 
-For queue submissions that are being recorded to a modifiable `command_graph`,
-the only events that can be used as parameters to `handler::depends_on()`, or
-as dependent events for queue shortcuts like `queue::parallel_for()`, are events
-that have been returned from queue submissions recorded to the same modifiable
-`command_graph`.
-
-Other limitations on the events returned from a submission to a queue in the
-recording state are:
+The limitations on the <<event-terminology, graph-limited events>> returned
+from a submission to a queue in the recording state are:
 
 - Calling `event::get_info<info::event::command_execution_status>()` or
-`event::get_profiling_info()` will throw synchronously with error code `invalid`.
-
-- A host-side wait on the event will throw synchronously with error
-code `invalid`.
-
-- Using the event outside of the recording scope will throw synchronously with error code
+`event::get_profiling_info()` will throw synchronously with error code
 `invalid`.
+
+- A host-side wait on the event will throw synchronously with error code
+`invalid`.
+
+- Using the event as a dependency outside of a graph recording scope or explicit
+graph creation APIs will throw synchronously with error code `invalid`.
 
 ==== Queue Limitations
 
@@ -1870,17 +2498,13 @@ passed an invalid event.
 
 The new handler methods, and queue shortcuts, defined by
 link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
-can only be used in graph nodes created using the Record & Replay API, as
-barriers rely on events to enforce dependencies.
-
-A synchronous exception will be thrown with error code `invalid` if a user
-tries to add a barrier command to a graph using the explicit API. Empty nodes
-created with the `node::depends_on_all_leaves` property can be used instead of
-barriers when a user is building a graph with the explicit API.
+are supported for use in graphs.
 
 The semantics of barriers are defined in `sycl_ext_oneapi_enqueue_barrier` for
 a single command-queue, and correlate as follows to a graph that may contain
 nodes that are recorded from multiple queues and/or added by the explicit API:
+
+For barriers captured via a recorded queue submission:
 
 * Barriers with an empty wait list parameter will only depend on the leaf nodes
   that were added to the graph from the queue the barrier command is being
@@ -1888,6 +2512,17 @@ nodes that are recorded from multiple queues and/or added by the explicit API:
 
 * The only commands which have an implicit dependency on the barrier command
   are those recorded from the same queue the barrier command was submitted to.
+
+For barriers added via the explicit graph creation APIs:
+
+* Barriers with an empty wait list parameter will depend on all leaf nodes in
+the graph.
+
+These barrier functions have also been extended to allow passing
+<<dynamic-events, Dynamic Events>> which allows these dependencies to be updated
+using <<executable-graph-update, Executable Graph Update>>. Overloads for these
+methods are detailed in the section on <<queue-class-modifications, queue class
+modifications>>.
 
 ==== sycl_ext_oneapi_memcpy2d
 
@@ -1993,7 +2628,7 @@ Removing this restriction is something we may look at for future revisions of
 == Examples and Usage Guide
 
 Detailed code examples and usage guidelines are provided in the
-link:../../SYCLGraphUsageGuide.md[SYCL Graph Usage Guide].
+link:../../syclgraph/SYCLGraphUsageGuide.md[SYCL Graph Usage Guide].
 
 == Future Direction [[future-direction]]
 
