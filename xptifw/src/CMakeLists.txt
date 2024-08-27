@@ -40,7 +40,7 @@ function(add_xpti_library LIB_NAME)
   endif()
 
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
-
+  target_compile_options(${LIB_NAME} PRIVATE -Wno-reinterpret-base-class)
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
     $<BUILD_INTERFACE:${XPTIFW_EMHASH_HEADERS}>
