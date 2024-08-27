@@ -1624,10 +1624,9 @@ void modifiable_command_graph::end_recording(queue &RecordingQueue) {
     impl->removeQueue(QueueImpl);
   }
   if (QueueImpl->getCommandGraph() != nullptr)
-    throw sycl::exception(
-        sycl::make_error_code(errc::invalid),
-        "end_recording called for a queue which is recording "
-        "to a different graph.");
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "end_recording called for a queue which is recording "
+                          "to a different graph.");
 }
 
 void modifiable_command_graph::end_recording(
