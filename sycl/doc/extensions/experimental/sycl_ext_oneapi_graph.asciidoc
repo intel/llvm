@@ -235,14 +235,14 @@ will split events into two categories:
 - *Graph-limited events*: These are events returned from a queue submission
 which is recorded to a `command_graph`. These events are only valid for defining
 dependencies for other nodes inside a `command_graph`. These events cannot be
-waited on or used as dependencies for normal SYCL operations. They also cannot
+waited on or used as dependencies for eager SYCL operations. They also cannot
 be used with <<dynamic-events, Dynamic Events>>. See the section on
 <<event-limitations, Event Limitations>> for a more detailed overview of the
 limitations of these events.
 
 - *Regular SYCL events*: These are normal SYCL events as defined in the SYCL
 specification. See {events-spec}[the SYCL specification] for reference. These
-include normal submissions to a SYCL queue, events returned from submitting an
+include eager submissions to a SYCL queue, events returned from submitting an
 executable `command_graph` for execution and events obtained via
 `command_graph<graph_state::executable>::get_event()`.
 
@@ -2011,7 +2011,7 @@ Exceptions:
 a command-group submitted to a queue with is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
@@ -2041,7 +2041,7 @@ Exceptions:
 a command-group submitted to a queue with is currently recording to a graph.
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
@@ -2066,7 +2066,7 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if any of the events associated
 with `waitList` came from the same graph that the graph node resulting from this
@@ -2092,7 +2092,7 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the `sycl::event` associated
 with `depEvent` came from the same graph that the graph node resulting from this
@@ -2118,7 +2118,7 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if this function is called from
-a normal SYCL command-group submission.
+an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if any of the `sycl::event`
 objects associated with `depEvents` came from the same graph that the graph node
