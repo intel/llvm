@@ -1990,6 +1990,12 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
+==== sycl_ext_oneapi_enqueue_functions
+
+The command submission functions defined in
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+can be used to add nodes to a graph when creating a graph from queue recording.
+
 == Examples and Usage Guide
 
 Detailed code examples and usage guidelines are provided in the
