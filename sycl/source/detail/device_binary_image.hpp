@@ -288,6 +288,9 @@ public:
     RTDeviceBinaryImage::print();
     std::cerr << "    COMPRESSED\n";
   }
+
+private:
+  std::unique_ptr<char> m_DecompressedData;
 };
 
 } // namespace detail

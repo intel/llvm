@@ -1132,13 +1132,15 @@ private:
             errs() << " Compressing device image\n";
 
           size_t dstSize;
-          void *dst = compressBlob(Bin->getBufferStart(), Bin->getBufferSize(),
-                                   dstSize, SYCLCompressLevel);
+          auto CompressedBuffer =
+              std::move(sycl_compress::ZSTDCompressor::CompressBlob(
+                  Bin->getBufferStart(), Bin->getBufferSize(), dstSize,
+                  SYCLCompressLevel));
 
-          if (!dstSize) {
+          if (sycl_compress::ZSTDCompressor::GetLastError()) {
             if (Verbose) {
-              errs() << " Compression failed with error:" << (char *)dst
-                     << "\n";
+              errs() << " Compression failed with error:"
+                     << (char *)CompressedBuffer.get() << "\n";
               errs() << " Falling back to uncompressed image\n";
             }
 
@@ -1153,7 +1155,7 @@ private:
                      << " Compressed image size:" << dstSize << "\n";
 
             Fbin = addDeviceImageToModule(
-                ArrayRef<char>((const char *)dst, dstSize),
+                ArrayRef<char>((const char *)CompressedBuffer.get(), dstSize),
                 Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
                 Img.Tgt);
 

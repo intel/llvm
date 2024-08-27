@@ -238,9 +238,9 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
   size_t DecompressedSize = 0;
   size_t compressedDataSize = static_cast<size_t>(CompressedBin->BinaryEnd -
                                                   CompressedBin->BinaryStart);
-  char *DecompressedData =
-      decompressBlob(reinterpret_cast<const char *>(CompressedBin->BinaryStart),
-                     compressedDataSize, DecompressedSize);
+  m_DecompressedData = std::move(sycl_compress::ZSTDCompressor::DecompressBlob(
+      reinterpret_cast<const char *>(CompressedBin->BinaryStart),
+      compressedDataSize, DecompressedSize));
 
   if (!DecompressedSize) {
     std::cerr << "Failed to decompress device binary image\n";
@@ -248,7 +248,8 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
   }
 
   Bin = new sycl_device_binary_struct(*CompressedBin);
-  Bin->BinaryStart = reinterpret_cast<unsigned char *>(DecompressedData);
+  Bin->BinaryStart =
+      reinterpret_cast<unsigned char *>(m_DecompressedData.get());
   Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
   // Get the new format.
@@ -275,8 +276,7 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
-  // De-allocate the decompressed image.
-  delete Bin->BinaryStart;
+  // De-allocate device binary struct.
   delete Bin;
   Bin = nullptr;
 }
