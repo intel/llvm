@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b4195cbb694b6e7c6216bf42a757ed700a325855
-  # Merge: 5482621c ab77d020
+  # commit 76361a88a0af6502fe655144655b381260ea9706
+  # Merge: b4195cb 0db57da
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Aug 26 14:00:04 2024 +0100
-  #    Merge pull request #2006 from zhaomaosu/devsan-fix-cxxlib-mismatch
-  #    [DeviceSanitizer] Fix libstdc++ and libc++ mismatch problem
-  set(UNIFIED_RUNTIME_TAG b4195cbb694b6e7c6216bf42a757ed700a325855)
+  # Date:   Wed, 31 Jul 2024 14:26:38 +0100
+  #    Merge pull request #1961 from DBDuncan/duncan/num-channels-mipmap-fix 
+  #    [Bindless][Exp] Fix urBindlessImagesImageGetInfoExp failing with mipmap images
+  set(UNIFIED_RUNTIME_TAG 76361a88a0af6502fe655144655b381260ea9706)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
