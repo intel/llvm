@@ -12,10 +12,17 @@
 #include "common.hpp"
 #include "ur_api.h"
 #include "ze_api.h"
+#include "zes_api.h"
 
 struct ur_device_handle_t_;
 
 typedef size_t DeviceId;
+
+struct ur_zes_device_handle_data_t {
+  zes_device_handle_t ZesDevice;
+  uint32_t SubDeviceId;
+  ze_bool_t SubDevice = false;
+};
 
 struct ur_platform_handle_t_ : public _ur_platform {
   ur_platform_handle_t_(ze_driver_handle_t Driver)
@@ -26,6 +33,11 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // Level Zero lacks the notion of a platform, but there is a driver, which is
   // a pretty good fit to keep here.
   ze_driver_handle_t ZeDriver;
+
+  // Cache of the ZesDevices mapped to the ZeDevices for use in zes apis calls
+  // based on a ze device handle.
+  std::unordered_map<ze_device_handle_t, ur_zes_device_handle_data_t>
+      ZedeviceToZesDeviceMap;
 
   // Given a multi driver scenario, the driver handle must be translated to the
   // internal driver handle to allow calls to driver experimental apis.
