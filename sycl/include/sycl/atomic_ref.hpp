@@ -10,6 +10,7 @@
 
 #include <sycl/access/access.hpp> // for address_space
 #include <sycl/bit_cast.hpp>      // for bit_cast
+#include <sycl/half_type.hpp>     // for half
 #include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -36,7 +37,7 @@ template <typename T> struct IsValidAtomicRefType {
        std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
        std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
        std::is_same_v<T, float> || std::is_same_v<T, double> ||
-       std::is_pointer_v<T> || std::is_same_v<T, half>);
+       std::is_pointer_v<T> || std::is_same_v<T, sycl::half>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
@@ -420,7 +421,8 @@ private:
 template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
 class atomic_ref_impl<T, SizeOfT, DefaultOrder, DefaultScope, AddressSpace,
-                      typename std::enable_if_t<detail::is_floating_point_v<T>>>
+                      typename std::enable_if_t<std::is_floating_point_v<T> ||
+                                                std::is_same_v<T, sycl::half>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -553,7 +555,8 @@ class atomic_ref_impl<
 class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 8, DefaultOrder, DefaultScope, AddressSpace,
-    typename std::enable_if_t<detail::is_floating_point_v<T>>>
+    typename std::enable_if_t<std::is_floating_point_v<T> ||
+                              std::is_same_v<T, sycl::half>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:
@@ -574,7 +577,8 @@ class
     [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]] atomic_ref_impl<
 #endif
     T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
-    typename std::enable_if_t<detail::is_floating_point_v<T>>>
+    typename std::enable_if_t<std::is_floating_point_v<T> ||
+                              std::is_same_v<T, sycl::half>>>
     : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
                              AddressSpace> {
 public:
