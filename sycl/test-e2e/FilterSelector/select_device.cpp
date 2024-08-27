@@ -21,7 +21,13 @@ using namespace sycl;
 using namespace std;
 
 int main() {
+#ifdef _WIN32
+  char* envVal;
+  size_t Size = 0;
+  _dupenv_s(&envVal, &Size, "ONEAPI_DEVICE_SELECTOR");
+#else
   const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+#endif
   std::string forcedPIs;
   if (envVal) {
     forcedPIs = envVal;

@@ -22,7 +22,15 @@ int main() {
   int data = 5;
   buffer<int, 1> buf(&data, range<1>(1));
   queue myQueue;
+#ifdef _WIN32
+  char* EnvVar;
+  size_t Size = 0;
+  _dupenv_s(&EnvVar, &Size, "SHOULD_CRASH");
+  free(EnvVar);
+  bool shouldCrash = Size != 0;
+#else
   bool shouldCrash = getenv("SHOULD_CRASH");
+#endif
   try {
     myQueue.submit([&](handler &cgh) {
       auto B = buf.get_access<access::mode::read_write>(cgh);

@@ -33,7 +33,15 @@ static void replaceSpecialCharacters(std::string &Str) {
 int main() {
 
   // Expected that the allowlist filter is not set
+#ifdef _WIN32
+  char* EnvVar;
+  size_t Size = 0;
+  _dupenv_s(&EnvVar, &Size, "PRINT_PLATFORM_INFO");
+  free(EnvVar);
+  if (Size) {
+#else
   if (getenv("PRINT_PLATFORM_INFO")) {
+#endif
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();

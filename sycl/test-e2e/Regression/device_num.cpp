@@ -132,6 +132,25 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
 }
 
 int main() {
+#ifdef _WIN32
+  // Expected that the sycl device filter is not set
+  char *envVal;
+  size_t Size = 0;
+  _dupenv_s(&envVal, &Size, "PRINT_FULL_DEVICE_INFO");
+  if (Size) {
+    PrintSystemConfiguration();
+    return 0;
+  }
+  free(envVal);
+
+  _dupenv_s(&envVal, &Size, "TEST_DEV_CONFIG_FILE_NAME");
+  DevInfoMap unfilteredDevices;
+  assert(ReadInitialSystemConfiguration(envVal, unfilteredDevices) &&
+         "Failed to parse file with initial system configuration data");
+  free(envVal);
+
+  _dupenv_s(&envVal, &Size, "ONEAPI_DEVICE_SELECTOR");
+#else
   // Expected that the sycl device filter is not set
   if (getenv("PRINT_FULL_DEVICE_INFO")) {
     PrintSystemConfiguration();
@@ -144,6 +163,7 @@ int main() {
          "Failed to parse file with initial system configuration data");
 
   const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+#endif
   int deviceNum;
   std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
   deviceNum = std::atoi(std::string(envVal).substr(2).c_str());

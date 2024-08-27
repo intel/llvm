@@ -35,9 +35,19 @@ using namespace sycl;
 // Specified in the RUN line.
 static constexpr int NumCSlices = 4;
 static const bool ExposeCSliceInAffinityPartitioning = [] {
+#ifdef _WIN32
+  char* Flag;
+  size_t Size = 0;
+  _dupenv_s(&Flag, &Size, 
+      "SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  bool result Flag ? std::atoi(flag) != 0 : false;
+  free(Flag);
+  return result;
+#else
   const char *Flag =
       std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
   return Flag ? std::atoi(Flag) != 0 : false;
+#endif
 }();
 
 template <typename RangeTy, typename ElemTy>

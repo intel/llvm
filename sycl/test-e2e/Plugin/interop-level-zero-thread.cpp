@@ -144,7 +144,14 @@ void worker() {
                          sycl::info::event::command_execution_status>() ==
                      sycl::info::event_command_status::complete;
 
-      if (getenv("QUERY_STATUS") != nullptr) {
+#ifdef _WIN32
+      char* envVal;
+      size_t Size = 0;
+      _dupenv_s(&envVal, &Size, "QUERY_STATUS");
+#else
+      const char *envVal = std::getenv("QUERY_STATUS");
+#endif
+      if (envVal) {
         auto ev1 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
             op.sycl_event_sync);
         auto ev2 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
@@ -152,6 +159,7 @@ void worker() {
         status1 = (zeEventQueryStatus(ev1) == ZE_RESULT_SUCCESS);
         status2 = (zeEventQueryStatus(ev2) == ZE_RESULT_SUCCESS);
       }
+      free(envVal);
 
       if (status1 && status2)
         break;
