@@ -824,7 +824,7 @@ public:
 
     xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
     if (xpti::is_valid_event(&TP->MEvent))
-      return reinterpret_cast<xpti_trace_event_t *>(TP);
+      return dynamic_cast<xpti_trace_event_t *>(TP);
     else
       return nullptr;
   }
