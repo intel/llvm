@@ -416,6 +416,10 @@ private:
   /// A queue of (optional) vtables to consider emitting.
   std::vector<const CXXRecordDecl*> DeferredVTables;
 
+  /// A queue of static SYCL device global vars to rename once module has been
+  /// parsed
+  llvm::StringMap<llvm::GlobalVariable*> SYCLStaticDeviceGlobalsToRename;
+
   /// A queue of (optional) vtables that may be emitted opportunistically.
   std::vector<const CXXRecordDecl *> OpportunisticVTables;
 
@@ -1800,6 +1804,10 @@ private:
   /// is not allowed to create new references to things that need to be emitted
   /// lazily.
   void EmitVTablesOpportunistically();
+
+  // SYCL static device global vars need to be renamed at the end of module
+  // codegen
+  void RenameSYCLStaticDeviceGlobalVariablesDeferred();
 
   /// Call replaceAllUsesWith on all pairs in Replacements.
   void applyReplacements();

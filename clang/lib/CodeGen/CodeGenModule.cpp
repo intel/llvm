@@ -905,6 +905,7 @@ void CodeGenModule::Release() {
   DeferredDecls.insert(EmittedDeferredDecls.begin(),
                        EmittedDeferredDecls.end());
   EmittedDeferredDecls.clear();
+  RenameSYCLStaticDeviceGlobalVariablesDeferred();
   EmitVTablesOpportunistically();
   applyGlobalValReplacements();
   applyReplacements();
@@ -3551,6 +3552,11 @@ void CodeGenModule::EmitVTablesOpportunistically() {
   OpportunisticVTables.clear();
 }
 
+void CodeGenModule::RenameSYCLStaticDeviceGlobalVariablesDeferred() {
+  for (auto &Entry : SYCLStaticDeviceGlobalsToRename)
+    Entry.second->setName(Entry.first());
+}
+
 void CodeGenModule::EmitGlobalAnnotations() {
   for (const auto& [MangledName, VD] : DeferredAnnotations) {
     llvm::GlobalValue *GV = GetGlobalValue(MangledName);
@@ -6193,10 +6199,12 @@ void CodeGenModule::EmitGlobalVarDefinition(const VarDecl *D,
           // being linked externally by prefixing the symbol with a UID string.
           //
           // Also prefix the symbol with __ so the symbol is not in user space.
+          //
+          // Global vars will be renamed at the end of module codegen in
+          // RenameSYCLStaticDeviceGlobalVariablesDeferred()
           auto builtinString =
               "__" + SYCLUniqueStableIdExpr::ComputeName(Context, D);
-          GV->setName(builtinString);
-
+          SYCLStaticDeviceGlobalsToRename[builtinString] = GV;
           Linkage = llvm::GlobalValue::ExternalLinkage;
         }
         // SYCL device globals are initialized externally
