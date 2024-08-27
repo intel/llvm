@@ -13,7 +13,7 @@
 #if defined(__has_include_next)
 #include_next <assert.h>
 #else
-#include <../include/assert.h>
+#include <../ucrt/assert.h>
 #endif
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -33,12 +33,12 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
 #define assert(e) ((void)0)
 #else
 #define assert(e)                                                              \
-  (e) ? void(0)                                                                \
-      : __devicelib_assert_fail(                                               \
-            #e, __FILE__, __LINE__, nullptr, __spirv_GlobalInvocationId_x(),   \
-            __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),    \
-            __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),      \
-            __spirv_LocalInvocationId_z());
+  ((e) ? void(0)                                                               \
+       : __devicelib_assert_fail(                                              \
+             #e, __FILE__, __LINE__, nullptr, __spirv_GlobalInvocationId_x(),  \
+             __spirv_GlobalInvocationId_y(), __spirv_GlobalInvocationId_z(),   \
+             __spirv_LocalInvocationId_x(), __spirv_LocalInvocationId_y(),     \
+             __spirv_LocalInvocationId_z()))
 #endif
 #endif
 #endif
