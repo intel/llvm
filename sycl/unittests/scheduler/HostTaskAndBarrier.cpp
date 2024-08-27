@@ -63,16 +63,16 @@ protected:
           [&](handler &CGH) {
             CGH.host_task(BlockHostTask ? CustomHostLambda : [] {});
           },
-          QueueDevImpl, nullptr, {});
+          QueueDevImpl, nullptr, {}, true);
     } else if (Type == TestCGType::KERNEL_TASK) {
       return QueueDevImpl->submit(
           [&](handler &CGH) { CGH.single_task<TestKernel<>>([] {}); },
-          QueueDevImpl, nullptr, {});
+          QueueDevImpl, nullptr, {}, true);
     } else // (Type == TestCGType::BARRIER)
     {
       return QueueDevImpl->submit(
           [&](handler &CGH) { CGH.ext_oneapi_barrier(); }, QueueDevImpl,
-          nullptr, {});
+          nullptr, {}, true);
     }
   }
 
@@ -80,7 +80,7 @@ protected:
   InsertBarrierWithWaitList(const std::vector<sycl::event> &WaitList) {
     return QueueDevImpl->submit(
         [&](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); }, QueueDevImpl,
-        nullptr, {});
+        nullptr, {}, true);
   }
 
   void BuildAndCheckInnerQueueState(std::vector<EventImplPtr> &Events) {

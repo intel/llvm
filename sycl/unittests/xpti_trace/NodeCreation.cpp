@@ -89,6 +89,28 @@ TEST_F(NodeCreation, QueueParallelForWithNoGraphNode) {
   EXPECT_THAT(Message, HasSubstr("TestKernel"));
 }
 
+TEST_F(NodeCreation, QueueParallelForWithUserCodeLoc) {
+  sycl::queue Q;
+  try {
+    sycl::buffer<int, 1> buf(sycl::range<1>(1));
+    sycl::detail::tls_code_loc_t myLoc({"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
+    Q.submit(
+        [&](handler &Cgh) {
+          sycl::accessor acc(buf, Cgh, sycl::read_write);
+          Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
+        },
+        TestCodeLocation);
+  } catch (sycl::exception &e) {
+    std::ignore = e;
+  }
+  Q.wait();
+  uint16_t TraceType = 0;
+  std::string Message;
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_node_create);
+  EXPECT_THAT(Message, HasSubstr("LOCAL_CODELOC_NAME"));
+}
+
 TEST_F(NodeCreation, QueueMemcpyNode) {
   sycl::queue Q;
 
