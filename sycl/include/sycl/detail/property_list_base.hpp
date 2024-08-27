@@ -129,13 +129,11 @@ protected:
 
   void
   convertPropertiesToKinds(std::set<std::pair<int, bool>> &PropKinds) const {
-    for (size_t it = 0; it < MDataLessProps.size(); it++)
-    {
+    for (size_t it = 0; it < MDataLessProps.size(); it++) {
       if (MDataLessProps[it])
-        PropKinds.insert(std::pair{ int(it), false});
+        PropKinds.insert(std::pair{int(it), false});
     }
-    for (auto & Prop: MPropsWithData)
-    {
+    for (auto &Prop : MPropsWithData) {
       PropKinds.insert(std::pair{Prop->getKind(), true});
     }
   }
