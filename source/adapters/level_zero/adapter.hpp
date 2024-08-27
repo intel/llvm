@@ -27,6 +27,7 @@ struct ur_adapter_handle_t_ {
   std::mutex Mutex;
 
   std::optional<ze_result_t> ZeResult;
+  std::optional<ze_result_t> ZesResult;
   ZeCache<Result<PlatformVec>> PlatformCache;
   logger::Logger &logger;
 };
