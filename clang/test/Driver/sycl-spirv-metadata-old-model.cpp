@@ -9,7 +9,7 @@
 // RUN:  FileCheck -check-prefix CHECK-WITHOUT %s
 
 // CHECK-WITH: llvm-spirv{{.*}} "--spirv-preserve-auxdata"
-// CHECK-WITH-SAME: "-spirv-ext=-all,{{.*}},+SPV_INTEL_memory_access_aliasing"
+// CHECK-WITH-SAME: "-spirv-ext=-all,{{.*}},+SPV_KHR_cooperative_matrix"
 
 // CHECK-WITHOUT: "{{.*}}llvm-spirv"
 // CHECK-WITHOUT-NOT: --spirv-preserve-auxdata

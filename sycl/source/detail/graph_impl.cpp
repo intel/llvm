@@ -450,6 +450,16 @@ graph_impl::add(node_type NodeType,
                           "Graph construction.");
   }
 
+  if (CommandGroup->getType() == sycl::detail::CGType::Kernel) {
+    auto CGKernel =
+        static_cast<sycl::detail::CGExecKernel *>(CommandGroup.get());
+    if (CGKernel->hasStreams()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Using sycl streams in a graph node is unsupported.");
+    }
+  }
+
   for (auto &Req : Requirements) {
     // Track and mark the memory objects being used by the graph.
     auto MemObj = static_cast<sycl::detail::SYCLMemObjT *>(Req->MSYCLMemObj);
@@ -1576,6 +1586,14 @@ void modifiable_command_graph::begin_recording(
 
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
+
+  auto QueueGraph = QueueImpl->getCommandGraph();
+  if (QueueGraph != nullptr) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording cannot be called for a queue which "
+                          "is already in the recording state.");
+  }
+
   if (QueueImpl->get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose context "
@@ -1591,13 +1609,6 @@ void modifiable_command_graph::begin_recording(
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "SYCL queue in kernel in fusion mode "
                           "can NOT be recorded.");
-  }
-
-  auto QueueGraph = QueueImpl->getCommandGraph();
-  if (QueueGraph != nullptr && QueueGraph != impl) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue which is already "
-                          "recording to a different graph.");
   }
 
   impl->beginRecording(QueueImpl);

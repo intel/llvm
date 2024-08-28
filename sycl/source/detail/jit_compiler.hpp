@@ -25,6 +25,7 @@ struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
+using JITEnvVar = DynArray<char>;
 } // namespace jit_compiler
 
 namespace sycl {
