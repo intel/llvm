@@ -35,6 +35,25 @@ public:
 inline size_t getWorkGroupMemoryOwnSize(detail::work_group_memory_impl *wgm) {
   return wgm->wgm_size;
 }
+
+// The following 3 functions help us get the address of the first element of a multi-dimensional
+// array, be it bounded or unbounded. A scalar is also included. In that case, it just returns
+// the address of the scalar.
+template <typename DataT>
+auto getData(DataT& scalar) {
+	return &scalar;
+}
+
+template <typename DataT, size_t N>
+auto getData(DataT (&bounded_arr)[N]) {
+        return getData(bounded_arr[0]);
+}
+
+template<typename DataT>
+auto getData(DataT (&unbounded_arr)[]) {
+	return getData(unbounded_arr[0]);
+}
+
 } // namespace detail
 
 namespace ext::oneapi::experimental {
@@ -67,7 +86,7 @@ public:
   multi_ptr<value_type, access::address_space::local_space, IsDecorated>
   get_multi_ptr() const {
     return sycl::address_space_cast<access::address_space::local_space,
-                                    IsDecorated, value_type>(ptr);
+                                    IsDecorated, value_type>(sycl::detail::getData(*ptr));
   }
   DataT *operator&() const { return ptr; }
   operator DataT &() const { return *(this->operator&()); }
