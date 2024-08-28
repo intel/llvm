@@ -19,7 +19,6 @@
 #include <cassert>
 #include <condition_variable>
 #include <optional>
-#include <shared_mutex>
 
 namespace sycl {
 inline namespace _V1 {

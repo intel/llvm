@@ -49,8 +49,11 @@ int main() {
   // Let host task thread to work which will result in kernel_event's handle to
   // be created at some random moment.
   std::this_thread::yield();
-  for (int i = 0; i < 10000; i++) {
-    (void)kernel_event.get_info<sycl::info::event::command_execution_status>();
+  // Use number of iterations large enough to catch the moment when handle is
+  // modifed.
+  for (int i = 0; i < 100000; i++) {
+    std::ignore =
+        kernel_event.get_info<sycl::info::event::command_execution_status>();
   }
 
   kernel_event.wait();
