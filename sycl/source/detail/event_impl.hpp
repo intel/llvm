@@ -131,7 +131,7 @@ public:
   ur_event_handle_t getHandle() const;
 
   /// Set event handle for this event object.
-  void setHandle(const ur_event_handle_t& UREvent);
+  void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
   ///
