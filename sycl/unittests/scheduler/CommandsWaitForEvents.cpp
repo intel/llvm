@@ -190,7 +190,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
-    EventImpl->getHandleRef() = UREvent;
+    EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
 
