@@ -19,6 +19,18 @@
 #include <string>
 #include <sycl/detail/core.hpp>
 
+bool checkEnvVar(const char* name){
+  char *buf=nullptr;
+#ifdef _WIN32
+  size_t sz;
+  _dupenv_s(&buf, &sz, name);
+  free(buf);
+#else
+  buf=getenv(name);
+#endif
+  return buf != nullptr;
+}
+
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
   std::replace_if(
@@ -33,15 +45,7 @@ static void replaceSpecialCharacters(std::string &Str) {
 int main() {
 
   // Expected that the allowlist filter is not set
-#ifdef _WIN32
-  char* EnvVar;
-  size_t Size = 0;
-  _dupenv_s(&EnvVar, &Size, "PRINT_PLATFORM_INFO");
-  free(EnvVar);
-  if (Size) {
-#else
-  if (getenv("PRINT_PLATFORM_INFO")) {
-#endif
+  if (checkEnvVar("PRINT_PLATFORM_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();
@@ -59,7 +63,7 @@ int main() {
   }
 
   // Expected that the allowlist filter is not set
-  if (getenv("PRINT_DEVICE_INFO")) {
+  if (checkEnvVar("PRINT_DEVICE_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       const sycl::device Dev = Platform.get_devices().at(0);
       std::string Name = Dev.get_info<sycl::info::device::name>();
@@ -79,7 +83,7 @@ int main() {
   }
 
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
-  if (getenv("TEST_DEVICE_AVAILABLE")) {
+  if (checkEnvVar("TEST_DEVICE_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       if (Platform.get_devices().size() != 1)
         throw std::runtime_error("Expected only one device.");
@@ -90,13 +94,13 @@ int main() {
   }
 
   // Expected the allowlist to be set but empty
-  if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
+  if (checkEnvVar("TEST_DEVICE_IS_NOT_AVAILABLE")) {
     if (!sycl::platform::get_platforms().empty())
       throw std::runtime_error("Expected no device is available");
     return 0;
   }
 
-  if (getenv("TEST_INCORRECT_VALUE")) {
+  if (checkEnvVar("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
     } catch (sycl::exception &E) {

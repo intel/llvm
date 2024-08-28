@@ -49,8 +49,8 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
 
   char* envVar;
   size_t shouldCrash = 0;
-  _dupenv_s(&EnvVar, &shouldCrash, "SHOULD_CRASH");
-  free(EnvVar);
+  _dupenv_s(&envVar, &shouldCrash, "SHOULD_CRASH");
+  free(envVar);
 
   sycl::range<1> numOfItems{N};
   sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);

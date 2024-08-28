@@ -40,7 +40,7 @@ static const bool ExposeCSliceInAffinityPartitioning = [] {
   size_t Size = 0;
   _dupenv_s(&Flag, &Size, 
       "SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  bool result Flag ? std::atoi(flag) != 0 : false;
+  bool result = Flag ? std::atoi(Flag) != 0 : false;
   free(Flag);
   return result;
 #else
