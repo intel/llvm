@@ -116,14 +116,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
-  # Merge: 608e9184 c3c57284
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 27 16:30:04 2024 +0100
-  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
-  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
-  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/wenju-he/unified-runtime.git")
+  # commit 024a0f2b4b20f7c6ffb6cc81561685f2b1d12d2c (HEAD -> L0-bindless-image-device-query, wenju/L0-bindless-image-device-query)
+  # Author: Wenju He <wenju.he@intel.com>
+  # Date:   Tue Aug 27 18:47:11 2024 -0700
+  #   [L0] Fix device query of bindless image support
+  #   Bindless image support is only supported on intel DG2 or newer GPU.
+  set(UNIFIED_RUNTIME_TAG 024a0f2b4b20f7c6ffb6cc81561685f2b1d12d2c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

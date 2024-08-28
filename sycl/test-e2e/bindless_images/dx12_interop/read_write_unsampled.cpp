@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
 
 // RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
