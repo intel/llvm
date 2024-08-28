@@ -2217,8 +2217,17 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   llvm::PointerType *PtrTy = llvm::PointerType::get(
       getLLVMContext(), TheModule.getDataLayout().getProgramAddressSpace());
 
+  llvm::PointerType *TargetType = PtrTy;
+  // Get target type when templated global variables are used,
+  // to emit them correctly in the target (default) address space and avoid
+  // emitting them in a private address space.
+  if (getLangOpts().SYCLIsDevice)
+    TargetType = llvm::PointerType::get(
+        getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
+
+
   // Get the type of a ctor entry, { i32, ptr, ptr }.
-  llvm::StructType *CtorStructTy = llvm::StructType::get(Int32Ty, PtrTy, PtrTy);
+  llvm::StructType *CtorStructTy = llvm::StructType::get(Int32Ty, PtrTy, TargetType);
 
   // Construct the constructor and destructor arrays.
   ConstantInitBuilder Builder(*this);
@@ -2244,9 +2253,10 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
       Ctor.add(I.Initializer);
     }
     if (I.AssociatedData)
-      Ctor.add(I.AssociatedData);
+      Ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+          I.AssociatedData, TargetType));
     else
-      Ctor.addNullPointer(PtrTy);
+      Ctor.addNullPointer(TargetType);
     Ctor.finishAndAddTo(Ctors);
   }
 
