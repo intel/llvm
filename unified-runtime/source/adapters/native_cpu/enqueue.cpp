@@ -171,7 +171,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         }
         // Peel the remaining work items. Since the local size is 1, we iterate
         // over the work groups.
-        for (unsigned g0 = new_num_work_groups_0 * itemsPerThread; g0 < numWG0;
+        for (size_t g0 = new_num_work_groups_0 * itemsPerThread; g0 < numWG0;
              g0++) {
           state.update(g0, g1, g2);
           kernel->_subhandler(kernel->getArgs().data(), &state);
@@ -202,6 +202,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // Split dimension 0 across the threadpool
       // Here we try to create groups of workgroups in order to reduce
       // synchronization overhead
+      groups.reserve(numWG2 * numWG1 * numWG0);
       for (unsigned g2 = 0; g2 < numWG2; g2++) {
         for (unsigned g1 = 0; g1 < numWG1; g1++) {
           for (unsigned g0 = 0; g0 < numWG0; g0++) {
