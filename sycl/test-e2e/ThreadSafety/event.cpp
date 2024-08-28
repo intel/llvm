@@ -20,7 +20,7 @@ int main() {
     return 0;
 
   // Define the size of the buffers
-  const size_t size = 1024;
+  static constexpr size_t size = 1024;
 
   // Allocate USM memory for source and destination buffers
   int *src = sycl::malloc_shared<int>(size, queue);
@@ -35,14 +35,14 @@ int main() {
     cgh.host_task([=]() {
       // Do some work in the host task
       std::cout << "Host task is executing." << std::endl;
-      memcpy(dst, src, 1024 * sizeof(int));
+      memcpy(dst, src, size * sizeof(int));
       std::cout << "Host task completed." << std::endl;
     });
   });
 
   sycl::event kernel_event = queue.submit([&](sycl::handler &cgh) {
     cgh.depends_on(host_task_event);
-    cgh.memcpy(dst, src, 1024 * sizeof(int));
+    cgh.memcpy(dst, src, size * sizeof(int));
   });
 
   // Let host task thread to work which will result in kernel_event's handle to
