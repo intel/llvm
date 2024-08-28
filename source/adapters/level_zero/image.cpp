@@ -108,22 +108,23 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   case ZE_IMAGE_FORMAT_LAYOUT_8_8_8:
   case ZE_IMAGE_FORMAT_LAYOUT_16_16_16:
   case ZE_IMAGE_FORMAT_LAYOUT_32_32_32:
-    if (ZeImageFormat.x != ZE_IMAGE_FORMAT_SWIZZLE_R &&
-        ZeImageFormat.y != ZE_IMAGE_FORMAT_SWIZZLE_G) {
+    if (ZeImageFormat.x == ZE_IMAGE_FORMAT_SWIZZLE_R &&
+        ZeImageFormat.y == ZE_IMAGE_FORMAT_SWIZZLE_G) {
+      switch (ZeImageFormat.z) {
+      case ZE_IMAGE_FORMAT_SWIZZLE_B:
+        ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
+        break;
+      case ZE_IMAGE_FORMAT_SWIZZLE_X:
+        ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
+        break;
+      default:
+        logger::error(
+            "ze2urImageFormat: unexpected image format channel z: z = {}\n",
+            ZeImageFormat.z);
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+    } else {
       logger::error("ze2urImageFormat: unexpected image format channel");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-    switch (ZeImageFormat.z) {
-    case ZE_IMAGE_FORMAT_SWIZZLE_B:
-      ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
-      break;
-    case ZE_IMAGE_FORMAT_SWIZZLE_X:
-      ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
-      break;
-    default:
-      logger::error(
-          "ze2urImageFormat: unexpected image format channel z: z = {}\n",
-          ZeImageFormat.z);
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
