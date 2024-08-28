@@ -239,7 +239,9 @@ descriptor against the limitations outlined below. If the given descriptor is
 deemed invalid, then a `sycl::exception` will be thrown with error code 
 `sycl::errc::invalid`.
 
-For all image types, the value of `num_channels` must be `1`, `2`, or `4`.
+The value of `num_channels` supported by all image types and backends
+is  `1`, `2`, or `4`.
+Some backends also support `num_channels` to be `3`.
 
 For the `standard` image type, the value of `num_levels` and `array_size` must
 both be `1`.
@@ -2884,4 +2886,5 @@ These features still need to be handled:
                     handles and the imported `interop_xxx_handle`.
 |5.17|2024-07-30| - Add support for mapping external memory to linear USM using
                     `map_external_linear_memory`.
+|5.18|2024-08-27| - Allow 3-channel image formats on some backends.
 |======================
