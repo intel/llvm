@@ -102,3 +102,21 @@ OutputIterator inclusive_scan(InputIterator first, InputIterator last,
   return result;
 }
 } // namespace emu
+
+namespace env {
+  bool isDefined(const char* name){
+    char *buf=nullptr;
+#ifdef _WIN32
+    size_t sz;
+    _dupenv_s(&buf, &sz, name);
+    free(buf);
+#else
+    buf=getenv(name);
+#endif
+    return buf != nullptr;
+  }
+
+  std::string getVal(const char* name){
+    return "";
+  }
+} // namespace env

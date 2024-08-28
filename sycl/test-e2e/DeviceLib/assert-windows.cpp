@@ -26,6 +26,7 @@
 #include <assert.h>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include "../helpers.hpp"
 
 using namespace sycl;
 
@@ -47,10 +48,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     }
   });
 
-  char* envVar;
-  size_t shouldCrash = 0;
-  _dupenv_s(&envVar, &shouldCrash, "SHOULD_CRASH");
-  free(envVar);
+  bool shouldCrash = env::isDefined("SHOULD_CRASH");
 
   sycl::range<1> numOfItems{N};
   sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);
