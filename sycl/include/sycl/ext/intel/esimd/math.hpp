@@ -1476,14 +1476,16 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_prod {
 template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_max {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
-    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(__ESIMD_NS::max(v1,v2).data());
+    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(
+        __ESIMD_NS::max(v1, v2).data());
   }
 };
 
 template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_min {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
-    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(__ESIMD_NS::min(v1,v2).data());
+    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(
+        __ESIMD_NS::min(v1, v2).data());
   }
 };
 
