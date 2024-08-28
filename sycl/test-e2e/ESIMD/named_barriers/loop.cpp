@@ -9,7 +9,10 @@
 // REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
