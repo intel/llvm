@@ -22,6 +22,5 @@ an application instrumented with XPTI, the following steps must be performed.
   case is `libsyclur_collector.[so,dll,dylib]`.
 
      `XPTI_SUBSCRIBERS=/path/to/libxpti_syclur_collector.[so,dll,dylib]`
-CHECK THIS!!!
 For more detail on the framework, the tests that are provided and their usage,
 please consult the [XPTI Framework library documentation](doc/XPTI_Framework.md).

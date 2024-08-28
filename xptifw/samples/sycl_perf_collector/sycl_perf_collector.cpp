@@ -41,7 +41,7 @@ event_instances_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
 constexpr const char *GStreamBasic = "sycl";
-constexpr const char *GStreamPI = "sycl.pi";
+constexpr const char *GStreamPI = "ur.call";
 constexpr const char *GStreamMemory = "sycl.experimental.mem_alloc";
 constexpr const char *GStreamL0 = "sycl.experimental.level_zero.call";
 constexpr const char *GStreamCuda = "sycl.experimental.cuda.call";
@@ -219,7 +219,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // characteristics that can be encapsulated in a launcher application
     //
     // 1. XPTI_SYCL_PERF_OUTPUT=[json,csv,table,stack,all]
-    // 2. XPTI_STREAMS=[all] or [sycl,sycl.pi,sycl.perf,sycl.perf.detail,...]
+    // 2. XPTI_STREAMS=[all] or [sycl,ur.call,sycl.perf,sycl.perf.detail,...]
     // 3. XPTI_STDOUT_USE_COLOR=[1,0]
     // 4. XPTI_IGNORE_LIST=piPlatformsGet,piProgramBuild
     // 5. XPTI_SIMULATION=10,20,50,100

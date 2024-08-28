@@ -34,7 +34,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // streams from anyone as an example. In this collector, we will accept
   // streams from just the SYCL Unified Runtime (UR) layer.
   printf("Stream Name: %s\n", stream_name);
-  if (std::string("sycl.pi") == stream_name) {
+  if (std::string("ur.call") == stream_name) {
     // Register this stream to get the stream ID; This stream may already have
     // been registered by the framework and will return the previously
     // registered stream ID. In this sample, we subscribe to only the events
