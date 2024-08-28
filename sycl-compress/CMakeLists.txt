@@ -79,3 +79,8 @@ install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl-compress
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT sycl-compress
 )
+
+# sycl-compress tests can be run using the check-sycl-compress target
+add_custom_target(check-sycl-compress)
+# Add tests
+add_subdirectory(unit-test/functional)

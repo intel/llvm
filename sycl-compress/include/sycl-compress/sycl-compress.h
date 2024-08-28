@@ -36,7 +36,7 @@ public:
   static int GetLastError();
 
   // Returns a string representation of the error code.
-  // If the eror code is 0, it returns an empty string.
+  // If the error code is 0, it returns "No error detected".
   static std::string GetErrorString(int code);
 
   // Blob (de)compression do not assume format/structure of the input buffer.
