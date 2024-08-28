@@ -3862,6 +3862,7 @@
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
+?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADAEBV?$vector@Ukernel_param_desc_t@detail@_V1@sycl@@V?$allocator@Ukernel_param_desc_t@detail@_V1@sycl@@@std@@@std@@_N@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
 ?fill_impl@handler@_V1@sycl@@AEAAXPEAXPEBX_K2@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
@@ -4254,6 +4255,7 @@
 ?supportsUSMMemset2D@handler@_V1@sycl@@AEAA_NXZ
 ?sycl_category@_V1@sycl@@YAAEBVerror_category@std@@XZ
 ?throwIfActionIsCreated@handler@_V1@sycl@@AEAAXXZ
+?throwOnLocalAccessorMisuse@handler@_V1@sycl@@AEBAXAEBV?$vector@Ukernel_param_desc_t@detail@_V1@sycl@@V?$allocator@Ukernel_param_desc_t@detail@_V1@sycl@@@std@@@std@@@Z
 ?throw_asynchronous@queue@_V1@sycl@@QEAAXXZ
 ?unmap@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?unsampledImageConstructorNotification@detail@_V1@sycl@@YAXPEAX0AEBV?$optional@W4image_target@_V1@sycl@@@std@@W4mode@access@23@PEBXIAEBUcode_location@123@@Z
