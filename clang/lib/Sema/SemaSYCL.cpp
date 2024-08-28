@@ -862,7 +862,6 @@ class SingleDeviceFunctionTracker {
           CallStack.back()->hasAttr<SYCLKernelAttr>()) {
         assert(!KernelBody && "inconsistent call graph - only one kernel body "
                               "function can be called");
-        Parent.SemaSYCLRef.addUserProvidedSYCLKernelFunction(CurrentDecl);
         KernelBody = CurrentDecl;
       } else if (CallStack.size() == 2 && KernelBody == CallStack.back()) {
         // To implement rounding-up of a parallel-for range the
@@ -879,9 +878,10 @@ class SingleDeviceFunctionTracker {
         // Hence this test.
         // FIXME: We need to be more selective here, this can be hit by simply
         // having a kernel lambda with a lambda call inside of it.
-        Parent.SemaSYCLRef.addUserProvidedSYCLKernelFunction(CurrentDecl);
         KernelBody = CurrentDecl;
       }
+      if(KernelBody)
+        Parent.SemaSYCLRef.addUserProvidedSYCLKernelFunction(KernelBody);
     }
 
     // Recurse.
@@ -6849,55 +6849,49 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
 }
 
 void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
-
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
 
-  if (const SYCLReqdWorkGroupSizeAttr *Attr =
-          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    bool IsDependent = false;
-    for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
-      IsDependent = IsDependent ||
-                    (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-    if (!IsDependent)
+  auto isDependent = [](const auto *Attr, const std::initializer_list<const ConstantExpr *> &Exprs) {
+    return std::any_of(Exprs.begin(), Exprs.end(), [](const ConstantExpr *CE) {
+      return CE && (CE->isValueDependent() || CE->isTypeDependent());
+    });
+  };
+
+  if (const SYCLReqdWorkGroupSizeAttr *Attr = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
+                            dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                            dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
+    }
   }
 
-  if (const IntelReqdSubGroupSizeAttr *Attr =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    bool IsDependent = false;
-    if (const auto *CE = dyn_cast<ConstantExpr>(Attr->getValue()))
-      IsDependent = (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-
-    if (!IsDependent)
+  if (const IntelReqdSubGroupSizeAttr *Attr = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getValue())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
+    }
   }
 
-  if (const SYCLWorkGroupSizeHintAttr *Attr =
-          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-    bool IsDependent = false;
-    for (const auto *CE : {dyn_cast<ConstantExpr>(Attr->getXDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})
-      IsDependent = IsDependent ||
-                    (CE && (CE->isValueDependent() || CE->isTypeDependent()));
-    if (!IsDependent)
+  if (const SYCLWorkGroupSizeHintAttr *Attr = FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
+                            dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                            dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
+    }
   }
 
-  if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
+   if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
     const QualType QT = Attr->getTypeHint();
-    if (!QT->isDependentType())
+    if (!QT->isDependentType()) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
+    }
   }
 }

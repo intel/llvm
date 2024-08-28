@@ -1863,7 +1863,7 @@ public:
     auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
 
-    if (!Caller)
+    if (!Caller && S.LangOpts.SYCLIsDevice)
       S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
 
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||

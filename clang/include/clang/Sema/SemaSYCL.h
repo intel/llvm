@@ -302,8 +302,8 @@ public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
-  void addUserProvidedSYCLKernelFunction(const FunctionDecl *fd) {
-    UserProvidedSYCLKernelFunctions.insert(fd);
+  void addUserProvidedSYCLKernelFunction(const FunctionDecl *FD) {
+    UserProvidedSYCLKernelFunctions.insert(FD);
   }
 
   /// Lazily creates and returns SYCL integration header instance.
