@@ -89,16 +89,16 @@ int main(int, char **argv) {
                                          Spirv.data(),
                                          nullptr,
                                          nullptr};
-          ze_module_handle_t hModule;
-          status = zeModuleCreate(ZeContext, ZeDevice, &moduleDesc, &hModule,
+          ze_module_handle_t ZeModule;
+          status = zeModuleCreate(ZeContext, ZeDevice, &moduleDesc, &ZeModule,
                                   nullptr);
           assert(status == ZE_RESULT_SUCCESS);
 
           ze_kernel_desc_t kernelDesc = {
               ZE_STRUCTURE_TYPE_KERNEL_DESC, nullptr, 0,
               "_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E5saxpy"};
-          ze_kernel_handle_t hKernel;
-          status = zeKernelCreate(hModule, &kernelDesc, &hKernel);
+          ze_kernel_handle_t ZeKernel;
+          status = zeKernelCreate(ZeModule, &kernelDesc, &ZeKernel);
           assert(status == ZE_RESULT_SUCCESS);
 
           auto ZeCommandQueueDesc =
@@ -115,23 +115,32 @@ int main(int, char **argv) {
               ZeContext, ZeDevice, &ZeCommandQueueDesc, &ZeCommandList);
           assert(status == ZE_RESULT_SUCCESS);
 
-          status = zeKernelSetArgumentValue(hKernel, 0, Size * sizeof(uint32_t),
-                                            &MemZ);
+          status = zeKernelSetArgumentValue(ZeKernel, 0,
+                                            Size * sizeof(uint32_t), &MemZ);
           assert(status == ZE_RESULT_SUCCESS);
-          status = zeKernelSetArgumentValue(hKernel, 1, Size * sizeof(uint32_t),
-                                            &MemX);
+          status = zeKernelSetArgumentValue(ZeKernel, 1,
+                                            Size * sizeof(uint32_t), &MemX);
           assert(status == ZE_RESULT_SUCCESS);
           ze_group_count_t ZeGroupCount{Size, 1, 1};
 
-          zeKernelSetGroupSize(hKernel, 1024, 1, 1);
+          zeKernelSetGroupSize(ZeKernel, 1024, 1, 1);
           assert(status == ZE_RESULT_SUCCESS);
 
           status = zeCommandListAppendLaunchKernel(
-              ZeCommandList, hKernel, &ZeGroupCount, nullptr, 0, nullptr);
+              ZeCommandList, ZeKernel, &ZeGroupCount, nullptr, 0, nullptr);
 
           assert(status == ZE_RESULT_SUCCESS);
 
           status = zeCommandListHostSynchronize(ZeCommandList, 0);
+          assert(status == ZE_RESULT_SUCCESS);
+
+          status = zeCommandListDestroy(ZeCommandList);
+          assert(status == ZE_RESULT_SUCCESS);
+
+          status = zeKernelDestroy(ZeKernel);
+          assert(status == ZE_RESULT_SUCCESS);
+
+          status = zeModuleDestroy(ZeModule);
           assert(status == ZE_RESULT_SUCCESS);
         });
       },
