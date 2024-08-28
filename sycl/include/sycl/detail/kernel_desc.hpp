@@ -168,8 +168,10 @@ template <class KernelNameType> struct KernelInfo {
 };
 #endif //__SYCL_UNNAMED_LAMBDA__
 
-// Built-ins use an object of this type to identify the kernel the information
-// is requested for.
+// Built-ins accept an object due to lacking infrastructure support for
+// accepting types. The kernel name type itself isn't used because it might be
+// incomplete, cv-qualified, or not default constructible. Passing an object
+// also allows future extension for SYCL kernels defined as free functions.
 template <typename KNT> struct KernelIdentity {
   using type = KNT;
 };
