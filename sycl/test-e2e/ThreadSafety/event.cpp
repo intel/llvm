@@ -50,9 +50,7 @@ int main() {
   // be created at some random moment.
   std::this_thread::yield();
   for (int i = 0; i < 10000; i++) {
-    std::cout << (int64_t)kernel_event
-                     .get_info<sycl::info::event::command_execution_status>()
-              << std::endl;
+    (void)kernel_event.get_info<sycl::info::event::command_execution_status>();
   }
 
   kernel_event.wait();
