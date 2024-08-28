@@ -1,12 +1,13 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This test checks thread safety of sycl::event's handle.
+// This test checks thread-safety of sycl::event's native handle data member.
 // To do that we create a host task and a kernel task which depends on the host
-// task. We yield in the main thread to let the host task to work and create the
-// event's handle and start checking the status of the event's handle in a loop
-// to catch the moment when event's handle is modified. If read and modification
-// if event's handle is not thread safe this results in a segfault.
+// task. After submissions we yield in the main thread to let the host task to
+// work and result in creation of kernel event's handle and start checking the
+// status of the kernel event in a loop to catch the moment when handle is
+// modified. If read and modification of sycl::event's handle is not thread-safe
+// then this results in a segfault.
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

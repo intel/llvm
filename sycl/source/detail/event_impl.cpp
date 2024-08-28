@@ -120,7 +120,7 @@ static uint64_t inline getTimestamp() {
 
 ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
 
-void event_impl::setHandle(const ur_event_handle_t UREvent) {
+void event_impl::setHandle(const ur_event_handle_t& UREvent) {
   MEvent.store(UREvent);
 }
 
