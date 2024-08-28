@@ -880,7 +880,7 @@ class SingleDeviceFunctionTracker {
         // having a kernel lambda with a lambda call inside of it.
         KernelBody = CurrentDecl;
       }
-      if(KernelBody)
+      if (KernelBody)
         Parent.SemaSYCLRef.addUserProvidedSYCLKernelFunction(KernelBody);
     }
 
@@ -6852,13 +6852,17 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
 
-  auto isDependent = [](const auto *Attr, const std::initializer_list<const ConstantExpr *> &Exprs) {
-    return std::any_of(Exprs.begin(), Exprs.end(), [](const ConstantExpr *CE) {
-      return CE && (CE->isValueDependent() || CE->isTypeDependent());
-    });
-  };
+  auto isDependent =
+      [](const auto *Attr,
+         const std::initializer_list<const ConstantExpr *> &Exprs) {
+        return std::any_of(
+            Exprs.begin(), Exprs.end(), [](const ConstantExpr *CE) {
+              return CE && (CE->isValueDependent() || CE->isTypeDependent());
+            });
+      };
 
-  if (const SYCLReqdWorkGroupSizeAttr *Attr = FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
+  if (const SYCLReqdWorkGroupSizeAttr *Attr =
+          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
     if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
@@ -6868,7 +6872,8 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
     }
   }
 
-  if (const IntelReqdSubGroupSizeAttr *Attr = FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
+  if (const IntelReqdSubGroupSizeAttr *Attr =
+          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
     if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getValue())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
@@ -6876,7 +6881,8 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
     }
   }
 
-  if (const SYCLWorkGroupSizeHintAttr *Attr = FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
+  if (const SYCLWorkGroupSizeHintAttr *Attr =
+          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
@@ -6886,7 +6892,7 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
     }
   }
 
-   if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
+  if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
     const QualType QT = Attr->getTypeHint();
     if (!QT->isDependentType()) {
       Diag(Attr->getLoc(),
