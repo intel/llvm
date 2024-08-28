@@ -961,8 +961,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
 
+  CUarray hCUarray;
+  CUresult Err = cuMipmappedArrayGetLevel(
+      &hCUarray, reinterpret_cast<CUmipmappedArray>(hImageMem), 0);
+
+  // If cuMipmappedArrayGetLevel failed, hImageMem is already CUarray.
+  if (Err != CUDA_SUCCESS) {
+    hCUarray = reinterpret_cast<CUarray>(hImageMem);
+  }
+
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
-  UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, (CUarray)hImageMem));
+  UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, hCUarray));
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
     if (pPropValue) {
