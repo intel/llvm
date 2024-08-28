@@ -126,16 +126,11 @@ public:
   /// Marks this event as completed.
   void setComplete();
 
-  /// Returns raw interoperability event handle. Returned reference will be
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a reference to an instance of plug-in event handle.
-  ur_event_handle_t &getHandleRef();
-  /// Returns raw interoperability event handle. Returned reference will be
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a const reference to an instance of plug-in event handle.
-  const ur_event_handle_t &getHandleRef() const;
+  /// Returns raw interoperability event handle.
+  ur_event_handle_t getHandle() const;
+
+  /// Set event handle for this event object.
+  void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
   ///
@@ -240,7 +235,7 @@ public:
   /// have native handle.
   ///
   /// @return true if no associated command and no event handle.
-  bool isNOP() { return !MCommand && !getHandleRef(); }
+  bool isNOP() { return !MCommand && !getHandle(); }
 
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
@@ -344,7 +339,7 @@ protected:
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
 
-  ur_event_handle_t MEvent = nullptr;
+  std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;

@@ -796,9 +796,10 @@ protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    ur_event_handle_t UREvent = nullptr;
     getPlugin()->call(urEnqueueEventsWaitWithBarrier,
-                      Handler.MQueue->getHandleRef(), 0, nullptr,
-                      &ResEvent->getHandleRef());
+                      Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+    ResEvent->setHandle(UREvent);
     return ResEvent;
   }
 

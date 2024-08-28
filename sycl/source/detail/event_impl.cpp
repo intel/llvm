@@ -44,17 +44,19 @@ void event_impl::initContextIfNeeded() {
 
 event_impl::~event_impl() {
   try {
-    if (MEvent)
-      getPlugin()->call(urEventRelease, MEvent);
+    auto Handle = this->getHandle();
+    if (Handle)
+      getPlugin()->call(urEventRelease, Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
 }
 
 void event_impl::waitInternal(bool *Success) {
-  if (!MIsHostEvent && MEvent) {
+  auto Handle = this->getHandle();
+  if (!MIsHostEvent && Handle) {
     // Wait for the native event
-    ur_result_t Err = getPlugin()->call_nocheck(urEventWait, 1, &MEvent);
+    ur_result_t Err = getPlugin()->call_nocheck(urEventWait, 1, &Handle);
     // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
     // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
     // closed).
@@ -89,7 +91,7 @@ void event_impl::waitInternal(bool *Success) {
 }
 
 void event_impl::setComplete() {
-  if (MIsHostEvent || !MEvent) {
+  if (MIsHostEvent || !this->getHandle()) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
@@ -116,8 +118,11 @@ static uint64_t inline getTimestamp() {
       .count();
 }
 
-const ur_event_handle_t &event_impl::getHandleRef() const { return MEvent; }
-ur_event_handle_t &event_impl::getHandleRef() { return MEvent; }
+ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
+
+void event_impl::setHandle(const ur_event_handle_t &UREvent) {
+  MEvent.store(UREvent);
+}
 
 const ContextImplPtr &event_impl::getContextImpl() {
   initContextIfNeeded();
@@ -141,7 +146,7 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
-  getPlugin()->call(urEventGetInfo, MEvent, UR_EVENT_INFO_CONTEXT,
+  getPlugin()->call(urEventGetInfo, this->getHandle(), UR_EVENT_INFO_CONTEXT,
                     sizeof(ur_context_handle_t), &TempContext, nullptr);
 
   if (MContext->getHandleRef() != TempContext) {
@@ -186,7 +191,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", MEvent);
+  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", this->getHandle());
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -243,9 +248,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
-  if (MEvent)
-    // presence of MEvent means the command has been enqueued, so no need to
-    // go via the slow path event waiting in the scheduler
+  auto EventHandle = getHandle();
+  if (EventHandle)
+    // presence of the native handle means the command has been enqueued, so no
+    // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self, Success);
@@ -288,7 +294,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
     // For profiling tag events we rely on the submission time reported as
     // the start time has undefined behavior.
     return get_event_profiling_info<info::event_profiling::command_submit>(
-        this->getHandleRef(), this->getPlugin());
+        this->getHandle(), this->getPlugin());
   }
 
   // The delay between the submission and the actual start of a CommandBuffer
@@ -305,10 +311,11 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // made by forcing the re-sync of submit time to start time is less than
   // 0.5ms. These timing values were obtained empirically using an integrated
   // Intel GPU).
-  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && MEvent) {
+  auto Handle = this->getHandle();
+  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && Handle) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
-            this->getHandleRef(), this->getPlugin());
+            Handle, this->getPlugin());
     if (StartTime < MSubmitTime)
       MSubmitTime = StartTime;
   }
@@ -320,16 +327,17 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MIsHostEvent) {
-    if (MEvent) {
+    auto Handle = getHandle();
+    if (Handle) {
       auto StartTime =
           get_event_profiling_info<info::event_profiling::command_start>(
-              this->getHandleRef(), this->getPlugin());
+              Handle, this->getPlugin());
       if (!MFallbackProfiling) {
         return StartTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                Handle, this->getPlugin());
         return MHostBaseTime - DeviceBaseTime + StartTime;
       }
     }
@@ -347,16 +355,17 @@ template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MIsHostEvent) {
-    if (MEvent) {
+    auto Handle = this->getHandle();
+    if (Handle) {
       auto EndTime =
           get_event_profiling_info<info::event_profiling::command_end>(
-              this->getHandleRef(), this->getPlugin());
+              Handle, this->getPlugin());
       if (!MFallbackProfiling) {
         return EndTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                Handle, this->getPlugin());
         return MHostBaseTime - DeviceBaseTime + EndTime;
       }
     }
@@ -371,8 +380,9 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
-  if (!MIsHostEvent && MEvent) {
-    return get_event_info<info::event::reference_count>(this->getHandleRef(),
+  auto Handle = this->getHandle();
+  if (!MIsHostEvent && Handle) {
+    return get_event_info<info::event::reference_count>(Handle,
                                                         this->getPlugin());
   }
   return 0;
@@ -386,9 +396,10 @@ event_impl::get_info<info::event::command_execution_status>() {
 
   if (!MIsHostEvent) {
     // Command is enqueued and UrEvent is ready
-    if (MEvent)
+    auto Handle = this->getHandle();
+    if (Handle)
       return get_event_info<info::event::command_execution_status>(
-          this->getHandleRef(), this->getPlugin());
+          Handle, this->getPlugin());
     // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
@@ -465,17 +476,20 @@ ur_native_handle_t event_impl::getNative() {
   initContextIfNeeded();
 
   auto Plugin = getPlugin();
-  if (MIsDefaultConstructed && !MEvent) {
+  auto Handle = getHandle();
+  if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
+    ur_event_handle_t UREvent = nullptr;
     Plugin->call(urEventCreateWithNativeHandle, 0, TempContext,
-                 &NativeProperties, &MEvent);
+                 &NativeProperties, &UREvent);
+    this->setHandle(UREvent);
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin->call(urEventRetain, getHandleRef());
-  ur_native_handle_t Handle;
-  Plugin->call(urEventGetNativeHandle, getHandleRef(), &Handle);
-  return Handle;
+    Plugin->call(urEventRetain, Handle);
+  ur_native_handle_t OutHandle;
+  Plugin->call(urEventGetNativeHandle, Handle, &OutHandle);
+  return OutHandle;
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
@@ -499,7 +513,8 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   // Some events might not have a native handle underneath even at this point,
   // e.g. those produced by memset with 0 size (no UR call is made).
-  if (MIsFlushed || !MEvent)
+  auto Handle = this->getHandle();
+  if (MIsFlushed || !Handle)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
@@ -514,7 +529,7 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   // Check if the task for this event has already been submitted.
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getPlugin()->call(urEventGetInfo, MEvent,
+  getPlugin()->call(urEventGetInfo, Handle,
                     UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
                     sizeof(ur_event_status_t), &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {

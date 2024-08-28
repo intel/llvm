@@ -891,7 +891,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       }
 
       NewEvent = CreateNewEvent();
-      ur_event_handle_t *OutEvent = &NewEvent->getHandleRef();
+      ur_event_handle_t UREvent = nullptr;
       // Merge requirements from the nodes into requirements (if any) from the
       // handler.
       CGData.MRequirements.insert(CGData.MRequirements.end(),
@@ -908,7 +908,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         }
         ur_result_t Res = Queue->getPlugin()->call_nocheck(
             urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
-            nullptr, OutEvent);
+            nullptr, &UREvent);
+        NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
               make_error_code(errc::invalid),
