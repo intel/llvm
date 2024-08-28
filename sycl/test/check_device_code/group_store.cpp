@@ -146,7 +146,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[AGG_TMP2_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11]]
 // CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
-// CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[AGG_TMP2_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP2_SROA_2_0_COPYLOAD]]
+// CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP2_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP2_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(4) [[ADD_PTR_I_I_I]] to i64
@@ -201,7 +201,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19:![0-9]+]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
@@ -227,7 +227,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
@@ -264,7 +264,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
@@ -290,7 +290,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
@@ -318,7 +318,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
@@ -350,7 +350,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM4EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
@@ -381,7 +381,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM7EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
@@ -417,7 +417,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    ret void
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP0]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP0]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I:%.*]] = mul nuw nsw i32 [[TMP2]], [[I_0]]
 // CHECK-NEXT:    [[ADD_I:%.*]] = add i32 [[TMP1]], [[MUL_I]]
@@ -454,7 +454,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
@@ -481,7 +481,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
@@ -517,7 +517,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
@@ -544,7 +544,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
@@ -579,7 +579,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
@@ -605,7 +605,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[AGG_TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11]]
 // CHECK-NEXT:    [[AGG_TMP_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TMP_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
-// CHECK-NEXT:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[AGG_TMP_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP_SROA_2_0_COPYLOAD]]
+// CHECK-NEXT:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(4) [[ADD_PTR_I_I]] to i64
@@ -629,7 +629,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
@@ -656,7 +656,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
@@ -693,7 +693,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
@@ -720,7 +720,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
 // CHECK-NEXT:    [[TMP8:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
 // CHECK-NEXT:    store i16 [[TMP8]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
@@ -748,7 +748,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
@@ -780,7 +780,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM16EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
@@ -812,7 +812,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM11EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]

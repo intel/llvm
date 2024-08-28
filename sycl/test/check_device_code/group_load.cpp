@@ -114,7 +114,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[AGG_TMP1_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[IN_PTR]], align 8, !tbaa [[TBAA11]]
 // CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_IN_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[IN_PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TMP1_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP1_SROA_2_0_IN_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
-// CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[AGG_TMP1_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP1_SROA_2_0_COPYLOAD]]
+// CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP1_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP1_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvi(ptr addrspace(4) noundef nonnull [[ADD_PTR_I_I_I]], i32 noundef 5) #[[ATTR5:[0-9]+]]
@@ -197,7 +197,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA20:![0-9]+]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP22:![0-9]+]]
@@ -235,7 +235,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP29:![0-9]+]]
@@ -267,7 +267,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP33:![0-9]+]]
@@ -298,7 +298,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP37:![0-9]+]]
@@ -335,7 +335,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM:%.*]] = sext i32 [[ADD_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM]]
 // CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP2]], i64 [[CONV]]
+// CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV]]
 // CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
 // CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP46:![0-9]+]]
@@ -399,7 +399,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[CONV3_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[TMP4]], i64 [[CONV3_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP53:![0-9]+]]
@@ -419,7 +419,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[AGG_TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[IN_PTR]], align 8, !tbaa [[TBAA11]]
 // CHECK-NEXT:    [[AGG_TMP_SROA_2_0_IN_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[IN_PTR]], i64 8
 // CHECK-NEXT:    [[AGG_TMP_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP_SROA_2_0_IN_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
-// CHECK-NEXT:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[AGG_TMP_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP_SROA_2_0_COPYLOAD]]
+// CHECK-NEXT:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPKvi(ptr addrspace(4) noundef nonnull [[ADD_PTR_I_I]], i32 noundef 5) #[[ATTR5]]
@@ -443,7 +443,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[CONV3_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[ADD_PTR_I_I]], i64 [[CONV3_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP60:![0-9]+]]
@@ -490,7 +490,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i8, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i8, ptr addrspace(1) [[ARRAYIDX_I]], align 1, !tbaa [[TBAA15]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i8, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i8 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 1, !tbaa [[TBAA15]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP67:![0-9]+]]
@@ -537,7 +537,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA20]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP76:![0-9]+]]
@@ -576,7 +576,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP83:![0-9]+]]
@@ -608,7 +608,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP90:![0-9]+]]
@@ -640,7 +640,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[IN_PTR]], i64 [[IDXPROM_I]]
 // CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
 // CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
 // CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP97:![0-9]+]]
