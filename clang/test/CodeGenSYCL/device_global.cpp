@@ -480,8 +480,7 @@ void bar() {
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @counter15, ptr addrspace(1) [[ANN_register]]{{.*}}, i32 314, ptr addrspace(1) null
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper, ptr addrspace(1) [[ANN_memory4_numbanks4_register4]]{{.*}}i32 336, ptr addrspace(1) null
 // CHECK-INTELFPGA-SAME: ptr addrspace(1) @global_wrapper1, ptr addrspace(1) [[ANN_private_copies5_simple_dual_port5_register5]]{{.*}}i32 358, ptr addrspace(1) null
-// CHECK: @llvm.used = appending addrspace(1) global [1 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @[[TEMPL_DEV_GLOB]] to ptr addrspace(4))], section "llvm.metadata"
-// CHECK: @llvm.compiler.used = appending addrspace(1) global [2 x ptr addrspace(4)]
+// CHECK: @llvm.used = appending addrspace(1) global [3 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1)
 // CHECK-SAME: @_ZL1B
 // CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
