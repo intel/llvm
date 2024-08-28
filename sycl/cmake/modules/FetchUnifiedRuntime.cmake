@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2184e803c2f34b35ef66b2a9d28529a17b1e5853
-  # Merge: 320f633e 85c2c04f
+  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
+  # Merge: 608e9184 c3c57284
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Aug 21 16:35:37 2024 +0100
-  #    Merge pull request #1873 from PietroGhg/pietro/max_alloc
-  #    [NATIVECPU] Support UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE
-  set(UNIFIED_RUNTIME_TAG 2184e803c2f34b35ef66b2a9d28529a17b1e5853)
+  # Date:   Tue Aug 27 16:30:04 2024 +0100
+  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
+  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
+  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

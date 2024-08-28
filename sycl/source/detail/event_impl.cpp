@@ -178,9 +178,6 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
-  // Use a thread-safe counter to get a unique instance ID for the wait() on the
-  // event
-  static std::atomic<uint64_t> InstanceID = {1};
   xpti::trace_event_data_t *WaitEvent = nullptr;
 
   // Create a string with the event address so it
@@ -195,11 +192,20 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     Command *Cmd = (Command *)MCommand;
     WaitEvent = Cmd->MTraceEvent ? static_cast<xpti_td *>(Cmd->MTraceEvent)
                                  : GSYCLGraphEvent;
-  } else
-    WaitEvent = GSYCLGraphEvent;
-
+  } else {
+    // If queue.wait() is used, we want to make sure the information about the
+    // queue is available with the wait events. We check to see if the
+    // TraceEvent is available in the Queue object.
+    void *TraceEvent = nullptr;
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      TraceEvent = Queue->getTraceEvent();
+      WaitEvent =
+          (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
+    } else
+      WaitEvent = GSYCLGraphEvent;
+  }
   // Record the current instance ID for use by Epilog
-  IId = InstanceID++;
+  IId = xptiGetUniqueId();
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
