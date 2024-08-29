@@ -38,7 +38,7 @@
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
-#include "llvm/SYCLLowerIR/SYCLProcessJointMatrix.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
@@ -798,7 +798,7 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
-  Modified |= runModulePass<SYCLProcessJointMatrixPass>(*M);
+  Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)

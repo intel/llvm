@@ -1,7 +1,7 @@
 ; Test checks if spirv.CooperativeMatrixKHR type is extracted from
 ; joint_matrix struct when it's used in AccessChain function call
 
-; RUN: opt -passes=sycl-process-joint-matrix < %s -S | FileCheck %s
+; RUN: opt -passes=sycl-joint-matrix-transform < %s -S | FileCheck %s
 
 ; CHECK: %[[#Alloca:]] = alloca target("spirv.CooperativeMatrixKHR", i8, 3, 16, 64, 0)
 ; CHECK: %[[#Cast:]] = addrspacecast ptr %[[#Alloca]] to ptr addrspace(4)

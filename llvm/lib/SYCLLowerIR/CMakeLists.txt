@@ -64,7 +64,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLDeviceLibReqMask.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
-  SYCLProcessJointMatrix.cpp
+  SYCLJointMatrixTransform.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLVirtualFunctionsAnalysis.cpp

@@ -1,4 +1,4 @@
-//===- SYCLProcessJointMatrix.cpp - SYCL Joint Matrix transformation Pass -===//
+//=== SYCLJointMatrixTransform.cpp - SYCL Joint Matrix transformation Pass ===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/SYCLProcessJointMatrix.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 
 #include "llvm/IR/IRBuilder.h"
 
@@ -64,8 +64,8 @@ bool transformAccessChain(Function *F) {
 }
 } // namespace
 
-PreservedAnalyses SYCLProcessJointMatrixPass::run(Module &M,
-                                                  ModuleAnalysisManager &MAM) {
+PreservedAnalyses
+SYCLJointMatrixTransformPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   for (Function &F : M) {
     if (!F.isDeclaration())

@@ -1,4 +1,4 @@
-//===- SYCLProcessJointMatrix.h - SYCLProcessJointMatrixPass --------===//
+//===--- SYCLJointMatrixTransform.h - SYCLJointMatrixTransformPass --------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,19 +7,19 @@
 //===----------------------------------------------------------------------===//
 //
 // A transformation pass which mutates Joint Matrix builtin calls to make them
-// conformat with SPIR-V friendly LLVM IR specification.
+// conformant with SPIR-V friendly LLVM IR specification.
 //
 //===----------------------------------------------------------------------===//
 //
-#ifndef LLVM_SYCL_PROCESS_JOINT_MATRIX_H
-#define LLVM_SYCL_PROCESS_JOINT_MATRIX_H
+#ifndef LLVM_SYCL_JOINT_MATRIX_TRANSFORM_H
+#define LLVM_SYCL_JOINT_MATRIX_TRANSFORM_H
 
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
 
-class SYCLProcessJointMatrixPass
-    : public PassInfoMixin<SYCLProcessJointMatrixPass> {
+class SYCLJointMatrixTransformPass
+    : public PassInfoMixin<SYCLJointMatrixTransformPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
@@ -28,4 +28,4 @@ public:
 
 } // namespace llvm
 
-#endif // LLVM_SYCL_PROCESS_JOINT_MATRIX_H
+#endif // LLVM_SYCL_JOINT_MATRIX_TRANSFORM_H
