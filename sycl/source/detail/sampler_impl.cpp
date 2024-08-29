@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/context_impl.hpp>
+#include <detail/property_check.hpp>
 #include <detail/sampler_impl.hpp>
 #include <sycl/property_list.hpp>
 
@@ -19,7 +20,9 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
                            filtering_mode filteringMode,
                            const property_list &propList)
     : MCoordNormMode(normalizationMode), MAddrMode(addressingMode),
-      MFiltMode(filteringMode), MPropList(propList) {}
+      MFiltMode(filteringMode), MPropList(propList) {
+  verifyProps(MPropList);
+}
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
@@ -151,6 +154,12 @@ filtering_mode sampler_impl::get_filtering_mode() const { return MFiltMode; }
 coordinate_normalization_mode
 sampler_impl::get_coordinate_normalization_mode() const {
   return MCoordNormMode;
+}
+
+void sampler_impl::verifyProps(const property_list &Props) const {
+  // no valid props for sampler now
+  static const std::set<std::pair<int, bool>> AllowedPropList;
+  checkPropsAndThrow(Props, AllowedPropList);
 }
 
 } // namespace detail
