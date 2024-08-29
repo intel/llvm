@@ -113,12 +113,16 @@ std::vector<platform> platform_impl::getPluginPlatforms(PluginPtr &Plugin,
   for (const auto &UrPlatform : UrPlatforms) {
     platform Platform = detail::createSyclObjFromImpl<platform>(
         getOrMakePlatformImpl(UrPlatform, Plugin));
+    const bool IsBanned = IsBannedPlatform(Platform);
+    const bool HasAnyDevices =
+        !Platform.get_devices(info::device_type::all).empty();
+
     if (!Supported) {
-      if (IsBannedPlatform(Platform)) {
+      if (IsBanned || !HasAnyDevices) {
         Platforms.push_back(Platform);
       }
     } else {
-      if (IsBannedPlatform(Platform)) {
+      if (IsBanned) {
         continue; // bail as early as possible, otherwise banned platforms may
                   // mess up device counting
       }
@@ -126,7 +130,7 @@ std::vector<platform> platform_impl::getPluginPlatforms(PluginPtr &Plugin,
       // The SYCL spec says that a platform has one or more devices. ( SYCL
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
-      if (!Platform.get_devices(info::device_type::all).empty()) {
+      if (HasAnyDevices) {
         Platforms.push_back(Platform);
       }
     }
