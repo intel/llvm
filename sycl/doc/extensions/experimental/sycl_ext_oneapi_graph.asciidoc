@@ -850,6 +850,19 @@ application when using multiple graphs than can be achieved just using events
 returned from submitting a graph for execution. Since these dependencies are on
 the node level it may allow both graphs to execute some commands in parallel.
 
+Inter-graph dependencies may also be defined using <<dynamic-events, Dynamic
+Events>> which allows these dependencies to be updated between graph executions.
+
+The following restrictions apply when creating dependencies between graphs:
+
+* A graph must have been finalized before a dependency can be created between it
+and another modifiable graph.
+
+* Graphs which have dependencies between them must be finalized only once.
+Defining a dependency from a graph which has previously been finalized more than
+once or attempting to finalize a graph with inter-graph dependencies more
+than once, will result in an error being thrown.
+
 Consider the following example of two graphs which have some dependency between
 them. Without node-to-node dependencies, execution of the second graph must
 depend on completion of the first graph:
@@ -879,8 +892,12 @@ namespace sycl_ext = sycl::ext::oneapi::experimental;
 ...
 // Define a dependency between the last node in GraphA and the last node in GraphB
 sycl_ext::node NodeC = GraphA.add(...);
-// depends_on here creates an external dependency, not a graph edge (since these
-// are different graphs)
+
+// Finalize GraphA so it is available to use as a dependency for another graph
+auto ExecGraphA = GraphA.finalize();
+
+// depends_on here creates an inter-graph dependency, not a graph edge (since
+// these are different graphs)
 sycl_ext::node NodeC2 = GraphB.add(..., {sycl_ext::property::depends_on{NodeC}});
 ...
 ....
@@ -909,7 +926,9 @@ submitting `GraphB` for execution, while `NodeC2` will not execute until
 It can also allow more fine-grained execution of the graph, for
 example submitting individual graphs to different SYCL queues.
 
-Once these dependencies have been created they are fixed and cannot be updated.
+Graphs must be executed in order such that a graph which depends on a node in
+another graph is not enqueued before the graph it depends on has been enqueued.
+Failing to do so may result in incorrect behaviour or deadlocks.
 
 ==== Executable Graph Update [[executable-graph-update]]
 
@@ -1956,6 +1975,11 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if any of `waitList` is a
 default constructed `dynamic_event` with no associated SYCL event.
+
+* Throws synchronously with error code `invalid` if any `sycl::event` associated
+with any of `waitList` is a <<event-terminology, graph-limited event>> which
+came from the same graph that the graph node resulting from this command-group
+submission is associated with.
 |===
 
 ==== New Handler Member Functions
@@ -2068,9 +2092,11 @@ Exceptions:
 * Throws synchronously with error code `invalid` if this function is called from
 an eager SYCL command-group submission.
 
-* Throws synchronously with error code `invalid` if any of the events associated
-with `waitList` came from the same graph that the graph node resulting from this
-command-group submission is associated with.
+
+* Throws synchronously with error code `invalid` if any `sycl::event` associated
+with any of `waitList` is a <<event-terminology, graph-limited event>> which
+came from the same graph that the graph node resulting from this command-group
+submission is associated with.
 
 * Throws synchronously with error code `invalid` if any of `waitList` is a
 default constructed `dynamic_event` with no underlying SYCL event.
@@ -2095,8 +2121,9 @@ Exceptions:
 an eager SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the `sycl::event` associated
-with `depEvent` came from the same graph that the graph node resulting from this
-command-group submission is associated with.
+with `depEvent` is a <<event-terminology, graph-limited event>> which came from
+the same graph that the graph node resulting from this command-group submission
+is associated with.
 
 * Throws synchronously with error code `invalid` if `depEvent` is a default
 constructed `dynamic_event` with no underlying SYCL event.
@@ -2245,11 +2272,15 @@ namespace ext::oneapi::experimental {
 }
 ----
 
-Dynamic events represent <<event-terminology, regular SYCL events>> from outside
-of a given `command_graph` which nodes in that graph may depend on. These events
-are either obtained from normal SYCL operations or from another `command_graph`
-via `get_event()`. The `dynamic_event` object enables these dependent events to
-be updated between graph executions.
+Dynamic events represent events from outside of a given `command_graph` which
+nodes in that graph may depend on. These can be either events obtained from
+eager SYCL operations or <<event-terminology, graph-limited events>> from
+another `command_graph`. Using graph-limited events with a `dynamic_event` will
+create <<inter-graph-dependencies, inter-graph dependencies>> with the same
+restrictions as those dependencies have outside of dynamic event usage. 
+
+The `dynamic_event` object enables these dependent events to be updated between
+graph executions through <<executable-graph-update, Executable Graph Update>>.
 
 Dynamic events can be used to add dependencies to a graph node in the same way
 that regular SYCL events can, by passing them as parameters to
@@ -2257,7 +2288,7 @@ that regular SYCL events can, by passing them as parameters to
 
 [source,c++]
 ----
-// Obtain an event from a normal queue submission
+// Obtain an event from an eager queue submission
 event OutsideEvent = queue.submit(...);
 
 // Create a dynamic event to wrap that event
@@ -2269,14 +2300,16 @@ Graph.add([&](handler& CGH){
   CGH.parallel_for(...);
 });
 ----
-Dynamic events created with a regular SYCL event from a `command_graph` cannot
-then be associated with other nodes in that same graph as this could be used
-change the topology of the graph. Attempting to call `handler::depends_on()`
-with such a `dynamic_event` in that situation will result in an error.
+
 
 Dynamic events can be created with no event but must be updated with a valid
 event before any executable graph which depends on that event is executed.
 Failing to do so will result in an error.
+
+Dynamic events cannot be updated with a <<event-terminology, graph-limited
+event>> which comes from the same graph as any of the nodes already associated
+with it, as this would change the structure of the graph. Attempting to do so
+will result in an error.
 
 The `dynamic_event` class provides the {crs}[common reference semantics].
 
@@ -2309,6 +2342,17 @@ Parameters:
 
 Exceptions:
 
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, regular SYCL event>> obtained from a graph using
+`command_graph::get_event()`.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>> from a graph which has not been
+finalized.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>> from a graph which has been finalized
+more than once.
 
 * Throws synchronously with error code `invalid` if `syclEvent` is an event
 returned from enqueuing a `host_task`. 
@@ -2331,14 +2375,23 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if `syclEvent` is a
-<<event-terminology, regular SYCL event>> obtained from the same executable
-graph any of the `node` objects associated with this `dynamic_event` are from.
+<<event-terminology, regular SYCL event>> obtained from a graph using
+`command_graph::get_event()`.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>> obtained from the same graph that any
+of the `node` objects associated with this `dynamic_event` are from.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>> from a graph which has not been
+finalized.
+
+* Throws synchronously with error code `invalid` if `syclEvent` is a
+<<event-terminology, graph-limited event>> from a graph which has been finalized
+more than once.
 
 * Throws synchronously with error code `invalid` if `syclEvent` is an event
 returned from enqueuing a `host_task`.
-
-* Throws synchronously with error code `invalid` if `syclEvent` is a
-<<event-terminology, graph-limited event>>.
 
 
 |===
@@ -2579,8 +2632,8 @@ which is layered ontop of `sycl_ext_oneapi_graph`.
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-can be used in graph nodes in the same way as they are used in normal queue
-submission. 
+can be used in graph nodes in the same way as they are used in eager queue
+submissions. 
 
 ==== sycl_ext_oneapi_prod
 

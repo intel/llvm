@@ -684,6 +684,9 @@ sycl_ext::node nodeC = graphA.add((handler& CGH){
     CGH.parallel_for(...);
 }, {sycl_ext::property::node::depends_on{nodeB}});
 
+// Finalize graphA so its nodes are available as use for dependencies in graphB
+auto execGraphA = graphA.finalize();
+
 // Add some nodes to graphB
 sycl_ext::node nodeA2 = graphB.add((handler& CGH){
     CGH.parallel_for(...);
@@ -700,11 +703,10 @@ sycl_ext::node nodeC2 = graphB.add((handler& CGH){
     CGH.parallel_for(...);
 }, {sycl_ext::property::node::depends_on{nodeB2, nodeC}});
 
-auto execGraphA = graphA.finalize();
 auto execGraphB = graphB.finalize();
 
-// Submit both graphs for execution, now that we have set up the correct
-// dependencies between them
+// Submit both graphs for execution in the correct order, now that we have set
+// up the correct dependencies between them
 Queue.ext_oneapi_graph(execGraphA);
 Queue.ext_oneapi_graph(execGraphB);
 
