@@ -37,9 +37,7 @@ int main() {
     } catch (...) {
     }
   }
-  {
-    device d(cpu_selector_v);
-  }
+  { device d(cpu_selector_v); }
   {
     try {
       device d(accelerator_selector_v);
