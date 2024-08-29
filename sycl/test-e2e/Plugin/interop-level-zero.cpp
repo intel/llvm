@@ -67,7 +67,7 @@ int main() {
       DefaultEventInteropInput = {DefaultZeEvent};
   DefaultEventInteropInput.Ownership =
       sycl::ext::oneapi::level_zero::ownership::keep;
-  auto DeafaultEventInterop = make_event<backend::ext_oneapi_level_zero>(
+  auto DefaultEventInterop = make_event<backend::ext_oneapi_level_zero>(
       DefaultEventInteropInput, ContextInterop);
 
   // Check native handles
@@ -79,7 +79,7 @@ int main() {
   assert(ZeQueue == get_native<backend::ext_oneapi_level_zero>(QueueInterop));
   assert(ZeEvent == get_native<backend::ext_oneapi_level_zero>(EventInterop));
   assert(DefaultZeEvent ==
-         get_native<backend::ext_oneapi_level_zero>(DeafaultEventInterop));
+         get_native<backend::ext_oneapi_level_zero>(DefaultEventInterop));
 
   // Verify re-created objects
   int Arr[] = {2};
