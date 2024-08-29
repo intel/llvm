@@ -68,6 +68,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
             [[intel::reqd_sub_group_size(SG_SZ)]]
 #endif // SG_SZ
         {
+          // sg::load and sg::store expect decorations to be ON
           auto pA =
               address_space_cast<sycl::access::address_space::global_space,
                                  sycl::access::decorated::yes>(A);
@@ -161,6 +162,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #endif // SLM
           for (unsigned int k2 = 0; k2 < colsA / KCache2; k2++) {
 #ifdef SLM
+// OpenCL builtins give better perfromance so far as some vectorization is
+// missing in the sg::load/store version
 #ifdef OCL
             slm_read_write_OCL<rowsA, colsA, rowsB, colsB, MCache2, NCache2,
                                KCache2, vnniFactor, SGs>(A, B, tileA, tileB, sg,
