@@ -1,9 +1,6 @@
-// RUN: %{build} -o %{t.out}
-// RUN: %{run} %{t.out}
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-#include <type_traits>
-#include <cstdlib>
-#include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/usm.hpp>

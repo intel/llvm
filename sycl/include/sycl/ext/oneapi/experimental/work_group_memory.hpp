@@ -22,7 +22,7 @@ inline constexpr bool is_unbounded_array_v = is_unbounded_array<T>::value;
 
 class work_group_memory_impl {
 public:
-  work_group_memory_impl() = default;
+  work_group_memory_impl() : wgm_size{ 0 }, buffer_size{ 0 } {}
   work_group_memory_impl(const work_group_memory_impl &rhs) = default;
   work_group_memory_impl &
   operator=(const work_group_memory_impl &rhs) = default;
