@@ -323,12 +323,6 @@ ur_result_t urEventGetProfilingInfo(ur_event_handle_t hEvent,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
                                    ur_native_handle_t *phNativeEvent) {
   logger::error("{} function not implemented!", __FUNCTION__);

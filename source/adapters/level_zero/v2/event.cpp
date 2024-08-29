@@ -51,4 +51,13 @@ ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
 ur_result_t urEventRelease(ur_event_handle_t hEvent) {
   return hEvent->release();
 }
+
+ur_result_t urEventWait(uint32_t numEvents,
+                        const ur_event_handle_t *phEventWaitList) {
+  for (uint32_t i = 0; i < numEvents; ++i) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (phEventWaitList[i]->getZeEvent(), UINT64_MAX));
+  }
+  return UR_RESULT_SUCCESS;
+}
 } // namespace ur::level_zero
