@@ -56,17 +56,15 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
 int ESIMD_selector_v(const device &device) {
-  if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
-    std::string filter_string(dev_filter);
-    if (filter_string.find("gpu") != std::string::npos)
-      return device.is_gpu() ? 1000 : -1;
-    std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
-                 "'*:gpu' and  '"
-              << filter_string << "' does not contain such substrings.\n";
-    return -1;
-  }
+  std::string filter_string = env::getVal("ONEAPI_DEVICE_SELECTOR");
   // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-  return device.is_gpu() ? 1000 : -1;
+  if (filter_string.empty()) return device.is_gpu() ? 1000 : -1;
+  if (filter_string.find("gpu") != std::string::npos)
+    return device.is_gpu() ? 1000 : -1;
+  std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
+               "'*:gpu' and  '"
+            << filter_string << "' does not contain such substrings.\n";
+  return -1;
 }
 
 inline auto createExceptionHandler() {

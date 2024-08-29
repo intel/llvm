@@ -101,6 +101,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include "../helpers.hpp"
 
 using namespace sycl;
 
@@ -128,7 +129,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
   if (sycl::opencl::has_extension(dev, "cl_intel_devicelib_assert")) {
     unsupported = false;
   }
-  if (unsupported && getenv("SKIP_IF_NO_EXT")) {
+  if (unsupported && env::isDefined("SKIP_IF_NO_EXT")) {
     fprintf(stderr, "Device has no support for cl_intel_devicelib_assert, "
                     "skipping the test\n");
     exit(EXIT_SKIP_TEST);
@@ -160,7 +161,7 @@ int main() {
     if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SKIP_TEST) {
       return 0;
     }
-    if (getenv("SHOULD_CRASH")) {
+    if (env::isDefined("SHOULD_CRASH")) {
       if (!WIFSIGNALED(status)) {
         fprintf(stderr, "error: process did not terminate by a signal\n");
         return 1;
@@ -176,12 +177,12 @@ int main() {
     }
     int sig = WTERMSIG(status);
     int expected = 0;
-    if (const char *env = getenv("EXPECTED_SIGNAL")) {
-      if (0 == strcmp(env, "SIGABRT")) {
+    if (const std::string envVal = env::getVal("EXPECTED_SIGNAL")) {
+      if (envVal == "SIGABRT") {
         expected = SIGABRT;
-      } else if (0 == strcmp(env, "SIGSEGV")) {
+      } else if (envVal == "SIGSEGV") {
         expected = SIGSEGV;
-      } else if (0 == strcmp(env, "SIGIOT")) {
+      } else if (envVal == "SIGIOT") {
         expected = SIGIOT;
       }
       if (!expected) {

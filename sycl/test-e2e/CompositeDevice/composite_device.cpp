@@ -5,6 +5,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
+#include "../helpers.hpp"
 
 #ifdef SYCL_EXT_ONEAPI_COMPOSITE_DEVICE
 
@@ -15,18 +16,7 @@ bool isL0Backend(sycl::backend backend) {
 }
 
 bool isCombinedMode() {
-  char *Mode = nullptr;
-  bool Res = false;
-#ifdef _WIN32
-  size_t Size = 0;
-  auto Err = _dupenv_s(&Mode, &Size, "ZE_FLAT_DEVICE_HIERARCHY");
-  Res = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-  free(Mode);
-#else
-  Mode = std::getenv("ZE_FLAT_DEVICE_HIERARCHY");
-  Res = (Mode != nullptr) && (std::strcmp(Mode, "COMBINED") == 0);
-#endif
-  return Res;
+  return env::getVal("ZE_FLAT_DEVICE_HIERARCHY") == "COMBINED";
 }
 
 int main() {
