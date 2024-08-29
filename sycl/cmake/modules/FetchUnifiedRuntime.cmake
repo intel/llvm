@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e02d78ba74efd21219b18f4083cf9afc14a16759
-  # Merge: e50a4ddc c12957bd
+  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
+  # Merge: 608e9184 c3c57284
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Aug 9 15:41:55 2024 +0100
-  #     Merge pull request #1933 from nrspruit/fix_driver_version_check
-  #     [L0] Fix Driver Version check to use extension and tuple check
-  set(UNIFIED_RUNTIME_TAG e02d78ba74efd21219b18f4083cf9afc14a16759)
+  # Date:   Tue Aug 27 16:30:04 2024 +0100
+  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
+  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
+  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

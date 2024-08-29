@@ -728,7 +728,7 @@ static void EmitAtomicOp(CodeGenFunction &CGF, AtomicExpr *E, Address Dest,
 
   llvm::Value *LoadVal1 = CGF.Builder.CreateLoad(Val1);
   llvm::AtomicRMWInst *RMWI =
-      CGF.Builder.CreateAtomicRMW(Op, Ptr, LoadVal1, Order, Scope);
+      CGF.emitAtomicRMWInst(Op, Ptr, LoadVal1, Order, Scope);
   RMWI->setVolatile(E->isVolatile());
 
   // For __atomic_*_fetch operations, perform the operation again to
@@ -2033,6 +2033,17 @@ std::pair<RValue, llvm::Value *> CodeGenFunction::EmitAtomicCompareExchange(
 
   return Atomics.EmitAtomicCompareExchange(Expected, Desired, Success, Failure,
                                            IsWeak);
+}
+
+llvm::AtomicRMWInst *
+CodeGenFunction::emitAtomicRMWInst(llvm::AtomicRMWInst::BinOp Op, Address Addr,
+                                   llvm::Value *Val, llvm::AtomicOrdering Order,
+                                   llvm::SyncScope::ID SSID) {
+
+  llvm::AtomicRMWInst *RMW =
+      Builder.CreateAtomicRMW(Op, Addr, Val, Order, SSID);
+  getTargetHooks().setTargetAtomicMetadata(*this, *RMW);
+  return RMW;
 }
 
 void CodeGenFunction::EmitAtomicUpdate(

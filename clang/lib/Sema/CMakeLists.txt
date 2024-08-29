@@ -45,6 +45,7 @@ add_clang_library(clangSema
   SemaAvailability.cpp
   SemaBPF.cpp
   SemaBase.cpp
+  SemaBoundsSafety.cpp
   SemaCXXScopeSpec.cpp
   SemaCast.cpp
   SemaChecking.cpp
@@ -87,6 +88,7 @@ add_clang_library(clangSema
   SemaStmtAsm.cpp
   SemaStmtAttr.cpp
   SemaSYCL.cpp
+  SemaSYCLDeclAttr.cpp
   SemaSwift.cpp
   SemaSystemZ.cpp
   SemaTemplate.cpp

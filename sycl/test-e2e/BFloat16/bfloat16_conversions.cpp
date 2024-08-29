@@ -1,9 +1,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14764
-// UNSUPPORTED: windows
-
 // Currently the feature is supported only on CPU and GPU, natively or by
 // software emulation.
 // UNSUPPORTED: accelerator
