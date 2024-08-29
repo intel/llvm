@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp> // for address_space
 #include <sycl/bit_cast.hpp>      // for bit_cast
-#include <sycl/half_type.hpp>     // for half
 #include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -26,6 +25,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+// forward declarartion
+namespace detail::half_impl {
+class half;
+}
+using half = detail::half_impl::half;
+
 namespace detail {
 
 using memory_order = sycl::memory_order;
