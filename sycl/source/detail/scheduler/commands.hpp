@@ -199,7 +199,7 @@ public:
   void emitEdgeEventForEventDependence(Command *Cmd,
                                        ur_event_handle_t &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr);
+  void emitEnqueuedEventSignal(const ur_event_handle_t UrEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -363,8 +363,6 @@ public:
   std::string MCommandName;
   /// Flag to indicate if makeTraceEventProlog() has been run.
   bool MTraceEventPrologComplete = false;
-  /// Flag to indicate if this is the first time we are seeing this payload.
-  bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
   /// Represents code location of command submission to SYCL API, assigned with
