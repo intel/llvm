@@ -177,7 +177,8 @@ int main() {
     }
     int sig = WTERMSIG(status);
     int expected = 0;
-    if (const std::string envVal = env::getVal("EXPECTED_SIGNAL")) {
+    const std::string envVal = env::getVal("EXPECTED_SIGNAL");
+    if (!envVal.empty()) {
       if (envVal == "SIGABRT") {
         expected = SIGABRT;
       } else if (envVal == "SIGSEGV") {
