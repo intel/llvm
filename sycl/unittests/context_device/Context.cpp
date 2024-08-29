@@ -61,3 +61,16 @@ TEST_F(ContextTest, CopyAssignmentOperator) {
   ASSERT_EQ(hash, std::hash<context>()(WillContextCopy));
   ASSERT_EQ(Context, WillContextCopy);
 }
+
+TEST_F(ContextTest, Properties) {
+  try {
+    sycl::context Context(sycl::property::queue::in_order{});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}
