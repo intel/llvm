@@ -215,8 +215,11 @@ public:
     // is used to provide more information on deprecated API
     // https://docs.microsoft.com/en-us/cpp/c-runtime-library/security-features-in-the-crt
     // https://docs.microsoft.com/en-us/cpp/build/reference/sdl-enable-additional-security-checks
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     __XPTI_INSERT_IF_MSVC(__pragma(warning(suppress : 4996)))
     const char *val = std::getenv(var.c_str());
+#pragma GCC diagnostic pop
     return val ? val : "";
     // #endif
   }
