@@ -490,6 +490,7 @@ ur_native_handle_t event_impl::getNative() {
     Plugin->call(urEventCreateWithNativeHandle, 0, TempContext,
                  &NativeProperties, &UREvent);
     this->setHandle(UREvent);
+    Handle = UREvent;
   }
   if (MContext->getBackend() == backend::opencl)
     Plugin->call(urEventRetain, Handle);
