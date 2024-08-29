@@ -29,25 +29,15 @@
 // RUN:  UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 #include <sycl/detail/core.hpp>
+#include "../helpers.hpp"
 
 using namespace sycl;
 
 // Specified in the RUN line.
 static constexpr int NumCSlices = 4;
 static const bool ExposeCSliceInAffinityPartitioning = [] {
-#ifdef _WIN32
-  char* Flag;
-  size_t Size = 0;
-  _dupenv_s(&Flag, &Size, 
-      "SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  bool result = Flag ? std::atoi(Flag) != 0 : false;
-  free(Flag);
-  return result;
-#else
-  const char *Flag =
-      std::getenv("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
-  return Flag ? std::atoi(Flag) != 0 : false;
-#endif
+  std::string Flag = env::getVal("SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING");
+  return !Flag.empty() ? std::stoi(Flag) != 0 : false;
 }();
 
 template <typename RangeTy, typename ElemTy>

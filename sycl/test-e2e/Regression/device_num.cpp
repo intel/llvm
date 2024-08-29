@@ -77,7 +77,7 @@ void PrintSystemConfiguration() {
 
 using DevInfo = std::pair<info::device_type, backend>;
 using DevInfoMap = std::map<int, std::vector<DevInfo>>;
-bool ReadInitialSystemConfiguration(char *fileName, DevInfoMap &devices) {
+bool ReadInitialSystemConfiguration(const char *fileName, DevInfoMap &devices) {
   fstream confFile;
   confFile.open(fileName, ios::in);
   if (!confFile.is_open())
@@ -140,14 +140,14 @@ int main() {
   }
 
   DevInfoMap unfilteredDevices;
-  assert(ReadInitialSystemConfiguration(getenv("TEST_DEV_CONFIG_FILE_NAME"),
+  assert(ReadInitialSystemConfiguration(env::getVal("TEST_DEV_CONFIG_FILE_NAME").c_str(),
                                         unfilteredDevices) &&
          "Failed to parse file with initial system configuration data");
 
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   int deviceNum;
   std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
-  deviceNum = std::atoi(std::string(envVal).substr(2).c_str());
+  deviceNum = std::stoi(envVal.substr(2));
 
   auto devices = device::get_devices();
   std::cout << "Device count to analyze =" << devices.size() << std::endl;

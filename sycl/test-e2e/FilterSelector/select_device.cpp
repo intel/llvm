@@ -16,47 +16,42 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include "../helpers.hpp"
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-#ifdef _WIN32
-  char* envVal;
-  size_t Size = 0;
-  _dupenv_s(&envVal, &Size, "ONEAPI_DEVICE_SELECTOR");
-#else
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
-#endif
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("level_zero:gpu") != std::string::npos) {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
   }
-  if (envVal && forcedPIs != "*" &&
+  if (envVal.empty() && forcedPIs != "*" &&
       forcedPIs.find("opencl:gpu") != std::string::npos) {
     gpu_selector gs;
     device d = gs.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos);
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("cpu") != std::string::npos) {
     cpu_selector cs;
     device d = cs.select_device();
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("fpga") != std::string::npos) {
     accelerator_selector as;
     device d = as.select_device();
   }
-  if (envVal && (forcedPIs.find("cpu") == std::string::npos &&
+  if (envVal.empty() && (forcedPIs.find("cpu") == std::string::npos &&
                  forcedPIs.find("opencl") == std::string::npos &&
                  forcedPIs.find("*") == std::string::npos)) {
     try {
