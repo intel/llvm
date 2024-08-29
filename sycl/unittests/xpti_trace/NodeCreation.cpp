@@ -16,6 +16,7 @@
 #include <gtest/gtest.h>
 
 #include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 using ::testing::HasSubstr;
 using namespace sycl;
@@ -23,6 +24,7 @@ XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
                                                   std::string &Message);
 XPTI_CALLBACK_API void resetReceivedNotifications();
 XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t);
+XPTI_CALLBACK_API void clearAnalyzedTraceTypes();
 
 class NodeCreation : public ::testing::Test {
 protected:
@@ -34,6 +36,7 @@ protected:
 
   void TearDown() {
     resetReceivedNotifications();
+    clearAnalyzedTraceTypes();
     xptiForceSetTraceEnabled(false);
   }
 
@@ -140,4 +143,96 @@ TEST_F(NodeCreation, QueueMemsetNode) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_node_create);
   EXPECT_THAT(Message, HasSubstr("memory_transfer_node"));
+}
+
+TEST_F(NodeCreation, CommandGraphRecord) {
+  sycl::queue Q;
+  try {
+    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(), Q.get_device());
+
+    cmdGraph.begin_recording(Q);
+
+    {
+        sycl::detail::tls_code_loc_t myLoc({"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
+        Q.submit(
+            [&](handler &Cgh) {
+              Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
+            });
+    }
+
+    cmdGraph.end_recording(Q);
+
+    addAnalyzedTraceType(xpti::trace_task_begin);
+    addAnalyzedTraceType(xpti::trace_task_end);
+
+    auto exeGraph = cmdGraph.finalize();
+
+    // Notifications should have get generated during finalize
+    //
+    uint16_t TraceType = 0;
+    std::string Message;
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_node_create);
+    EXPECT_THAT(Message, HasSubstr("LOCAL_CODELOC_NAME"));
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_begin);
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_end);
+
+  } catch (sycl::exception &e) {
+    FAIL() << "sycl::exception what=" << e.what();
+  }
+}
+
+TEST_F(NodeCreation, CommandGraphAddAPI) {
+  sycl::queue Q;
+  try {
+    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(), Q.get_device());
+
+    auto doAddNode = [&](const sycl::detail::code_location &loc) {
+      sycl::detail::tls_code_loc_t codeLoc(loc);
+      return cmdGraph.add(
+            [&](handler &Cgh) {
+              Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
+            });
+    };
+
+    auto node1 = doAddNode({"LOCAL_CODELOC_FILE", "LOCAL_NODE_1", 1, 1});
+    auto node2 = doAddNode({"LOCAL_CODELOC_FILE", "LOCAL_NODE_2", 2, 1});
+    cmdGraph.make_edge(node1, node2);
+
+    addAnalyzedTraceType(xpti::trace_task_begin);
+    addAnalyzedTraceType(xpti::trace_task_end);
+
+    auto exeGraph = cmdGraph.finalize();
+
+    // Notifications should have get generated during finalize
+    //
+    uint16_t TraceType = 0;
+    std::string Message;
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_node_create);
+    EXPECT_THAT(Message, HasSubstr("LOCAL_NODE_1"));
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_begin);
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_end);
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_node_create);
+    EXPECT_THAT(Message, HasSubstr("LOCAL_NODE_2"));
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_begin);
+
+    ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+    EXPECT_EQ(TraceType, xpti::trace_task_end);
+
+  } catch (sycl::exception &e) {
+    FAIL() << "sycl::exception what=" << e.what();
+  }
 }
