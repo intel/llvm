@@ -75,15 +75,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    [[maybe_unused]] ur_queue_handle_t hQueue, [[maybe_unused]] void *pDst,
-    [[maybe_unused]] const void *pSrc,
-    [[maybe_unused]] const ur_image_format_t *pImageFormat,
-    [[maybe_unused]] const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] const void *pSrc, [[maybe_unused]] void *pDst,
+    [[maybe_unused]] const ur_image_desc_t *pSrcImageDesc,
+    [[maybe_unused]] const ur_image_desc_t *pDstImageDesc,
+    [[maybe_unused]] const ur_image_format_t *pSrcImageFormat,
+    [[maybe_unused]] const ur_image_format_t *pDstImageFormat,
+    [[maybe_unused]] ur_exp_image_copy_region_t *pCopyRegion,
     [[maybe_unused]] ur_exp_image_copy_flags_t imageCopyFlags,
-    [[maybe_unused]] ur_rect_offset_t srcOffset,
-    [[maybe_unused]] ur_rect_offset_t dstOffset,
-    [[maybe_unused]] ur_rect_region_t copyExtent,
-    [[maybe_unused]] ur_rect_region_t hostExtent,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {
@@ -118,8 +117,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice, [[maybe_unused]] size_t size,
     [[maybe_unused]] ur_exp_external_mem_type_t memHandleType,
-    [[maybe_unused]] ur_exp_interop_mem_desc_t *pInteropMemDesc,
-    [[maybe_unused]] ur_exp_interop_mem_handle_t *phInteropMem) {
+    [[maybe_unused]] ur_exp_external_mem_desc_t *pExternalMemDesc,
+    [[maybe_unused]] ur_exp_external_mem_handle_t *phExternalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -128,15 +127,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] const ur_image_format_t *pImageFormat,
     [[maybe_unused]] const ur_image_desc_t *pImageDesc,
-    [[maybe_unused]] ur_exp_interop_mem_handle_t hInteropMem,
+    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
     [[maybe_unused]] ur_exp_image_mem_native_handle_t *phImageMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_interop_mem_handle_t hInteropMem) {
+    [[maybe_unused]] uint64_t offset, [[maybe_unused]] uint64_t size,
+    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem,
+    [[maybe_unused]] void **phRetMem) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] ur_exp_external_mem_handle_t hExternalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -144,21 +152,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
     [[maybe_unused]] ur_exp_external_semaphore_type_t semHandleType,
-    [[maybe_unused]] ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc,
-    [[maybe_unused]] ur_exp_interop_semaphore_handle_t *phInteropSemaphore) {
+    [[maybe_unused]] ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
+    [[maybe_unused]] ur_exp_external_semaphore_handle_t
+        *phExternalSemaphoreHandle) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
+UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
     [[maybe_unused]] ur_context_handle_t hContext,
     [[maybe_unused]] ur_device_handle_t hDevice,
-    [[maybe_unused]] ur_exp_interop_semaphore_handle_t hInteropSemaphore) {
+    [[maybe_unused]] ur_exp_external_semaphore_handle_t hExternalSemaphore) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     [[maybe_unused]] ur_queue_handle_t hQueue,
-    [[maybe_unused]] ur_exp_interop_semaphore_handle_t hSemaphore,
+    [[maybe_unused]] ur_exp_external_semaphore_handle_t hSemaphore,
     [[maybe_unused]] bool hasValue, [[maybe_unused]] uint64_t waitValue,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
@@ -168,7 +177,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     [[maybe_unused]] ur_queue_handle_t hQueue,
-    [[maybe_unused]] ur_exp_interop_semaphore_handle_t hSemaphore,
+    [[maybe_unused]] ur_exp_external_semaphore_handle_t hSemaphore,
     [[maybe_unused]] bool hasValue, [[maybe_unused]] uint64_t signalValue,
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,

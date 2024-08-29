@@ -109,7 +109,7 @@ struct RefCountContext {
         // No more active adapters, so any references still held are leaked
         if (adapterCount == 0) {
             logInvalidReferences();
-            clear();
+            counts.clear();
         }
     }
 
@@ -133,9 +133,8 @@ struct RefCountContext {
         updateRefCount(handle, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
     }
 
-    void clear() { counts.clear(); }
-
     template <typename T> bool isReferenceValid(T handle) {
+        std::unique_lock<std::mutex> lock(mutex);
         auto it = counts.find(static_cast<void *>(handle));
         if (it == counts.end() || it->second.refCount < 1) {
             return false;

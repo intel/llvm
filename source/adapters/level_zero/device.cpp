@@ -963,14 +963,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(KernelArgUpdateSupport &&
                        Device->Platform->ZeMutableCmdListExt.Supported);
   }
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+    // On L0 bindless images are supported.
     return ReturnValue(true);
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
-  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP:
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
+    // On L0 1D bindless image USM are supported.
     return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
+    // On L0 2D bindless image USM are supported.
+    return ReturnValue(true);
+  }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
@@ -978,21 +986,78 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
     return UR_RESULT_ERROR_INVALID_VALUE;
-  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP:
-    return ReturnValue(true);
-  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
+    // L0 does not support mipmaps.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
+    // L0 does not support anisotropic filtering.
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
-  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP:
-  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP:
-  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
-  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
-  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
+    logger::error("Unsupported ParamName in urGetDeviceInfo");
+    logger::error("ParamName=%{}(0x{})", ParamName, logger::toHex(ParamName));
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
+    // L0 does not support creation of images from individual mipmap levels.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
+    // L0 does not support importing external memory.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    // L0 does not support importing external semaphores.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+    // L0 does not support cubemaps.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+    // L0 does not support cubemap seamless filtering.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM_EXP: {
+    // L0 does not support fetching 1D USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_EXP: {
+    // L0 does not not support fetching 1D non-USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM_EXP: {
+    // L0 does not support fetching 2D USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP: {
+    // L0 does not support fetching 2D non-USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
+    // L0 does not support fetching 3D non-USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
+    // L0 does not support image arrays
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+    // L0 does not support unique addressing per dimension
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+    // L0 does not support sampling 1D USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+    // L0 does not support sampling 1D USM sampled image data.
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(true);
-
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
@@ -1075,13 +1140,15 @@ ur_device_handle_t_::useImmediateCommandLists() {
     return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
-  if (ImmediateCommandlistsSetting == -1)
-  // Change this to PerQueue as default after more testing.
-#ifdef _WIN32
-    return NotUsed;
-#else
-    return isPVC() ? PerQueue : NotUsed;
-#endif
+  if (ImmediateCommandlistsSetting == -1) {
+    bool isDG2SupportedDriver =
+        this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    if ((isDG2SupportedDriver && isDG2()) || isPVC()) {
+      return PerQueue;
+    } else {
+      return NotUsed;
+    }
+  }
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1107,10 +1174,13 @@ bool ur_device_handle_t_::useRelaxedAllocationLimits() {
 bool ur_device_handle_t_::useDriverInOrderLists() {
   // Use in-order lists implementation from L0 driver instead
   // of adapter's implementation.
-  static const bool UseDriverInOrderLists = [] {
+
+  static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
-      return false;
+      return CompatibleDriver;
     return std::atoi(UrRet) != 0;
   }();
 
@@ -1532,14 +1602,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t Platform,   ///< [in] handle of the platform instance
-    const ur_device_native_properties_t
+    [[maybe_unused]] ur_adapter_handle_t
+        Adapter, ///< [in] handle of the platform instance
+    [[maybe_unused]] const ur_device_native_properties_t
         *Properties, ///< [in][optional] pointer to native device properties
                      ///< struct.
     ur_device_handle_t
         *Device ///< [out] pointer to the handle of the device object created.
 ) {
-  std::ignore = Properties;
   auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
@@ -1552,12 +1622,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
     for (const auto &p : *platforms) {
       Dev = p->getDeviceFromNativeHandle(ZeDevice);
-      if (Dev) {
-        // Check that the input Platform, if was given, matches the found one.
-        UR_ASSERT(!Platform || Platform == p.get(),
-                  UR_RESULT_ERROR_INVALID_PLATFORM);
-        break;
-      }
     }
   } else {
     return GlobalAdapter->PlatformCache->get_error();

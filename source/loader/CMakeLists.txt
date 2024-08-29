@@ -9,8 +9,13 @@ configure_file(
     @ONLY
 )
 
+set(LOADER_LIB_TYPE SHARED)
+if(UR_STATIC_LOADER)
+  set(LOADER_LIB_TYPE STATIC)
+endif()
+
 add_ur_library(ur_loader
-    SHARED
+    ${LOADER_LIB_TYPE}
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
@@ -18,7 +23,7 @@ add_ur_library(ur_loader
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
     string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
-    
+
     set(LOADER_VERSION_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/ur_loader.def)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/loader.def.in ${LOADER_VERSION_SCRIPT} @ONLY)
     set_target_properties(ur_loader PROPERTIES
@@ -137,6 +142,8 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/stacktrace.hpp
@@ -152,6 +159,35 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/backtrace.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/sanitizer_utils.cpp
     )
+
+    if(UR_ENABLE_SYMBOLIZER)
+        target_sources(ur_loader
+            PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
+        )
+        target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
+        target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
+        # In in-tree build, if LLVM is built with libc++, we also need to build
+        # symbolizer.cpp with libc++ abi and link libc++ in.
+        if(NOT UR_STANDALONE_BUILD AND LLVM_LIBCXX_USED)
+            execute_process(
+                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++.a
+                OUTPUT_VARIABLE LIBCXX_PATH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+            execute_process(
+                COMMAND ${CMAKE_CXX_COMPILER} --print-file-name=libc++abi.a
+                OUTPUT_VARIABLE LIBCXX_ABI_PATH
+                OUTPUT_STRIP_TRAILING_WHITESPACE)
+            set_property(SOURCE
+                ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
+                APPEND_STRING PROPERTY COMPILE_FLAGS
+                " -stdlib=libc++ ")
+            if(NOT EXISTS ${LIBCXX_PATH} OR NOT EXISTS ${LIBCXX_ABI_PATH})
+                message(FATAL_ERROR "libc++ is required but can't find the libraries")
+            endif()
+            target_link_libraries(ur_loader PRIVATE ${LIBCXX_PATH} ${LIBCXX_ABI_PATH})
+        endif()
+    endif()
 
     target_include_directories(ur_loader PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"

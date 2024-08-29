@@ -3,4 +3,6 @@ urProgramCreateWithNativeHandleTest.InvalidNullHandleContext/Intel_R__oneAPI_Uni
 urProgramCreateWithNativeHandleTest.InvalidNullPointerProgram/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urProgramGetBuildInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_UR_PROGRAM_BUILD_INFO_STATUS
 urProgramGetFunctionPointerTest.InvalidKernelName/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-Aborted
+urProgramGetNativeHandleTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urProgramLinkErrorTest.LinkFailure/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urProgramLinkErrorTest.SetOutputOnLinkError/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

@@ -20,6 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
+        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -36,8 +37,11 @@ jobs:
           - os: 'ubuntu-20.04'
             build_type: Release
             compiler: {c: gcc-7, cxx: g++-7}
-
-    runs-on: ${{matrix.os}}
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: clang, cxx: clang++}
+            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
+    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -46,6 +50,12 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y doxygen ${{matrix.compiler.c}}
+
+    - name: Install libhwloc
+      run: .github/scripts/install_hwloc.sh
+
+    - name: Setup PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     - name: Install g++-7
       if: matrix.compiler.cxx == 'g++-7'
@@ -87,6 +97,7 @@ jobs:
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Configure CMake
       if: matrix.os == 'ubuntu-20.04'
@@ -101,6 +112,7 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
@@ -121,37 +133,57 @@ jobs:
     uses: ./.github/workflows/build-fuzz-reusable.yml
     with:
       test_label: "fuzz-short"
-    
+
   level-zero:
     name: Level Zero
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: L0
+      adapter_name: L0
+      runner_name: L0
+
+  level-zero-v2:
+    name: Level Zero V2
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0_V2
+      runner_name: L0
+
+  level-zero-static:
+    name: Level Zero static
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      runner_name: L0
+      static_loader: ON
 
   opencl:
     name: OpenCL
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: OPENCL
+      adapter_name: OPENCL
+      runner_name: OPENCL
       platform: "Intel(R) OpenCL"
 
   cuda:
     name: CUDA
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: CUDA
+      adapter_name: CUDA
+      runner_name: CUDA
 
   hip:
     name: HIP
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: HIP
+      adapter_name: HIP
+      runner_name: HIP
 
   native-cpu:
     name: Native CPU
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: NATIVE_CPU
+      adapter_name: NATIVE_CPU
+      runner_name: NATIVE_CPU
 
   e2e-level-zero:
     name: E2E L0
@@ -183,14 +215,19 @@ jobs:
       matrix:
         os: ['windows-2019', 'windows-2022']
         adapter: [
-          {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+          {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'},
+          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
         ]
 
         # TODO: building level zero loader on windows-2019 and clang-cl is currently broken
         exclude:
          - os: 'windows-2019'
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+         - os: 'windows-2019'
+           adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+           compiler: {c: clang-cl, cxx: clang-cl}
+         - adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
 
         build_type: [Debug, Release]
@@ -217,11 +254,17 @@ jobs:
         Expand-Archive -Path "$WorkingDir\doxygen.zip"
         Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
 
+    - name: Install hwloc
+      run: vcpkg install hwloc:x64-windows
+
     - name: Configure CMake
+      env:
+        VCPKG_PATH: "C:/vcpkg/packages/hwloc_x64-windows"
       run: >
         cmake
         -B${{github.workspace}}/build
         ${{matrix.toolset}}
+        -DCMAKE_PREFIX_PATH="${{env.VCPKG_PATH}}"
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
         -DCMAKE_POLICY_DEFAULT_CMP0094=NEW
@@ -259,6 +302,9 @@ jobs:
 
     - name: Install prerequisites
       run: python3 -m pip install -r third_party/requirements.txt
+
+    - name: Install hwloc
+      run: brew install hwloc
 
     - name: Configure CMake
       run: >

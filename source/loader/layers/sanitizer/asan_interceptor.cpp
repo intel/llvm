@@ -16,6 +16,7 @@
 #include "asan_quarantine.hpp"
 #include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
+#include "asan_validator.hpp"
 #include "stacktrace.hpp"
 #include "ur_sanitizer_utils.hpp"
 
@@ -25,6 +26,15 @@ namespace {
 
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> ASAN_SHADOW_SCALE);
+}
+
+uptr MemToShadow_DG2(uptr USM_SHADOW_BASE, uptr UPtr) {
+    if (UPtr & 0xFFFF000000000000ULL) { // Device USM
+        return USM_SHADOW_BASE + 0x80000000000ULL +
+               ((UPtr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
+    } else { // Host/Shared USM
+        return USM_SHADOW_BASE + (UPtr >> ASAN_SHADOW_SCALE);
+    }
 }
 
 uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
@@ -56,6 +66,9 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
         return UR_RESULT_SUCCESS;
     }
     if (DeviceInfo->Type == DeviceType::CPU) {
+        ///
+        /// CPU Device: CPU needs to use a special memset function
+        ///
         uptr ShadowBegin = MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr);
         uptr ShadowEnd =
             MemToShadow_CPU(DeviceInfo->ShadowOffset, Ptr + Size - 1);
@@ -72,10 +85,25 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
             (void *)ShadowBegin, ShadowEnd - ShadowBegin + 1,
             (void *)(size_t)Value);
         MemSet((void *)ShadowBegin, Value, ShadowEnd - ShadowBegin + 1);
-    } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
-        uptr ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
-        uptr ShadowEnd =
-            MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+    } else {
+        ///
+        /// GPU Device: GPU needs to manually map physical memory before memset
+        ///
+        uptr ShadowBegin = 0, ShadowEnd = 0;
+
+        if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            ShadowBegin = MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr);
+            ShadowEnd =
+                MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+        } else if (DeviceInfo->Type == DeviceType::GPU_DG2) {
+            ShadowBegin = MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr);
+            ShadowEnd =
+                MemToShadow_DG2(DeviceInfo->ShadowOffset, Ptr + Size - 1);
+        } else {
+            getContext()->logger.error("Unsupport device type");
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+
         assert(ShadowBegin <= ShadowEnd);
         {
             static const size_t PageSize =
@@ -108,7 +136,9 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
                 if (URes != UR_RESULT_SUCCESS) {
-                    getContext()->logger.debug("urVirtualMemMap(): {}", URes);
+                    getContext()->logger.debug("urVirtualMemMap({}, {}): {}",
+                                               (void *)MappedPtr, PageSize,
+                                               URes);
                 }
 
                 // Initialize to zero
@@ -137,9 +167,6 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
             getContext()->logger.error("urEnqueueUSMFill(): {}", URes);
             return URes;
         }
-    } else {
-        getContext()->logger.error("Unsupport device type");
-        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
     return UR_RESULT_SUCCESS;
 }
@@ -158,6 +185,19 @@ SanitizerInterceptor::SanitizerInterceptor(logger::Logger &logger)
 SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
     DestroyShadowMemoryOnPVC();
+    DestroyShadowMemoryOnDG2();
+
+    // We must release these objects before releasing adapters, since
+    // they may use the adapter in their destructor
+    m_Quarantine = nullptr;
+    m_MemBufferMap.clear();
+    m_AllocationMap.clear();
+    m_KernelMap.clear();
+    m_ContextMap.clear();
+
+    for (auto Adapter : m_Adapters) {
+        getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
+    }
 }
 
 /// The memory chunk allocated from the underlying allocator looks like this:
@@ -390,6 +430,8 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
         UR_CALL(SetupShadowMemoryOnCPU(ShadowOffset, ShadowOffsetEnd));
     } else if (Type == DeviceType::GPU_PVC) {
         UR_CALL(SetupShadowMemoryOnPVC(Context, ShadowOffset, ShadowOffsetEnd));
+    } else if (Type == DeviceType::GPU_DG2) {
+        UR_CALL(SetupShadowMemoryOnDG2(Context, ShadowOffset, ShadowOffsetEnd));
     } else {
         getContext()->logger.error("Unsupport device type");
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -586,11 +628,8 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
 
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
-    // Query device type
-    DI->Type = GetDeviceType(Device);
-    if (DI->Type == DeviceType::UNKNOWN) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
+    DI->IsSupportSharedSystemUSM = GetDeviceUSMCapability(
+        Device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT);
 
     // Query alignment
     UR_CALL(getContext()->urDdiTable.Device.pfnGetInfo(
@@ -660,8 +699,25 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     auto Program = GetProgram(Kernel);
 
     do {
-        // Set membuffer arguments
         auto KernelInfo = getKernelInfo(Kernel);
+
+        // Validate pointer arguments
+        if (Options(logger).DetectKernelArguments) {
+            for (const auto &[ArgIndex, PtrPair] : KernelInfo->PointerArgs) {
+                auto Ptr = PtrPair.first;
+                if (Ptr == nullptr) {
+                    continue;
+                }
+                if (auto ValidateResult = ValidateUSMPointer(
+                        Context, DeviceInfo->Handle, (uptr)Ptr)) {
+                    ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
+                                                ValidateResult, PtrPair.second);
+                    exit(1);
+                }
+            }
+        }
+
+        // Set membuffer arguments
         for (const auto &[ArgIndex, MemBuffer] : KernelInfo->BufferArgs) {
             char *ArgPointer = nullptr;
             UR_CALL(MemBuffer->getHandle(DeviceInfo->Handle, ArgPointer));
@@ -709,7 +765,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         // Write debug
         // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-        uint64_t Debug = Options(logger).Debug ? 1 : 0;
+        // Because EnqueueWriteGlobal is a async write, so
+        // we need to extend its lifetime
+        static uint64_t Debug = Options(logger).Debug ? 1 : 0;
         EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
 
         // Write shadow memory offset for global memory
@@ -784,7 +842,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Write shadow memory offset for local memory
         if (Options(logger).DetectLocals) {
             // CPU needn't this
-            if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+                DeviceInfo->Type == DeviceType::GPU_DG2) {
                 const size_t LocalMemorySize =
                     GetDeviceLocalMemorySize(DeviceInfo->Handle);
                 const size_t LocalShadowMemorySize =
@@ -824,7 +883,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         if (Options(logger).DetectPrivates) {
             if (DeviceInfo->Type == DeviceType::CPU) {
                 LaunchInfo.Data->PrivateShadowOffset = DeviceInfo->ShadowOffset;
-            } else if (DeviceInfo->Type == DeviceType::GPU_PVC) {
+            } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
+                       DeviceInfo->Type == DeviceType::GPU_DG2) {
                 const size_t PrivateShadowMemorySize =
                     (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
 
@@ -905,8 +965,8 @@ ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
 USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
-        auto Type = GetDeviceType(Device);
-        if (Type == DeviceType::GPU_PVC) {
+        auto Type = GetDeviceType(Context, Device);
+        if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
             if (Data->PrivateShadowOffset) {
                 Result = getContext()->urDdiTable.USM.pfnFree(
                     Context, (void *)Data->PrivateShadowOffset);

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   weekly-prerelease:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
     permissions:
       contents: write
     steps:

@@ -24,8 +24,6 @@
 #include "ur_util.hpp"
 #include "ze_api.h"
 
-#include "v2/queue_factory.hpp"
-
 // Hard limit for the event completion batches.
 static const uint64_t CompletionBatchesMax = [] {
   // Default value chosen empirically to maximize the number of asynchronous
@@ -501,12 +499,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
-  // optimized path for immediate, in-order command lists
-  if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Flags);
-    return UR_RESULT_SUCCESS;
-  }
-
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
   std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
@@ -607,7 +599,7 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
       // internal reference count. When the External Reference count == 0, then
       // cleanup of the queue begins and the final decrement of the internal
       // reference count is completed.
-      Queue->RefCount.decrementAndTest();
+      static_cast<void>(Queue->RefCount.decrementAndTest());
       return UR_RESULT_SUCCESS;
     }
 
@@ -1177,12 +1169,10 @@ ur_queue_handle_legacy_t_::ur_queue_handle_legacy_t_(
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
-  static const bool useDriverCounterBasedEvents = [Device] {
+  static const bool useDriverCounterBasedEvents = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
     if (!UrRet) {
-      if (Device->isPVC())
-        return true;
-      return false;
+      return true;
     }
     return std::atoi(UrRet) != 0;
   }();

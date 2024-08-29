@@ -403,11 +403,8 @@ etors:
 - name: BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP
   desc: Enumerator for $xBindlessImagesMapExternalArrayExp
   value: '144'
-- name: BINDLESS_IMAGES_RELEASE_INTEROP_EXP
-  desc: Enumerator for $xBindlessImagesReleaseInteropExp
-  value: '145'
-- name: BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP
-  desc: Enumerator for $xBindlessImagesDestroyExternalSemaphoreExp
+- name: BINDLESS_IMAGES_RELEASE_EXTERNAL_SEMAPHORE_EXP
+  desc: Enumerator for $xBindlessImagesReleaseExternalSemaphoreExp
   value: '147'
 - name: BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesWaitExternalSemaphoreExp
@@ -595,6 +592,12 @@ etors:
 - name: LOADER_CONFIG_SET_MOCKING_ENABLED
   desc: Enumerator for $xLoaderConfigSetMockingEnabled
   value: '229'
+- name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
+  value: '230'
+- name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
+  desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
+  value: '231'
 ---
 type: enum
 desc: Defines structure types

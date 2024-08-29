@@ -846,9 +846,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    // On CUDA 1D bindless image USM is not supported.
+    // On CUDA 1D bindless image USM is supported, but sampling is not.
     // More specifically, linear filtering is not supported.
-    return ReturnValue(false);
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
     // On CUDA 2D bindless image USM is supported.
@@ -899,21 +899,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
 
-  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external memory.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
-    // CUDA does not support exporting it's own device memory.
-    return ReturnValue(false);
-  }
-  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP: {
     // CUDA supports importing external semaphores.
     return ReturnValue(true);
-  }
-  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
-    // CUDA does not support exporting semaphores or events.
-    return ReturnValue(false);
   }
   case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
     // CUDA supports cubemaps.
@@ -939,12 +931,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // CUDA does support fetching 2D non-USM sampled image data.
     return ReturnValue(true);
   }
-  case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP: {
-    // CUDA does not support 3D USM sampled textures
-    return ReturnValue(false);
-  }
   case UR_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP: {
     // CUDA does support fetching 3D non-USM sampled image data.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_IMAGE_ARRAY_SUPPORT_EXP: {
+    // CUDA does support image arrays
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP: {
+    // CUDA does support unique addressing per dimension
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_1D_USM_EXP: {
+    // CUDA does not support sampling 1D USM sampled image data.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_SAMPLE_2D_USM_EXP: {
+    // CUDA does support sampling 1D USM sampled image data.
     return ReturnValue(true);
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
@@ -1181,26 +1185,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 /// \return TBD
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
-    const ur_device_native_properties_t *pProperties,
+    ur_native_handle_t hNativeDevice,
+    [[maybe_unused]] ur_adapter_handle_t hAdapter,
+    [[maybe_unused]] const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
-  std::ignore = pProperties;
-
   CUdevice CuDevice = static_cast<CUdevice>(hNativeDevice);
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
   };
-
-  // If a platform is provided just check if the device is in it
-  if (hPlatform) {
-    auto SearchRes = std::find_if(begin(hPlatform->Devices),
-                                  end(hPlatform->Devices), IsDevice);
-    if (SearchRes != end(hPlatform->Devices)) {
-      *phDevice = SearchRes->get();
-      return UR_RESULT_SUCCESS;
-    }
-  }
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
