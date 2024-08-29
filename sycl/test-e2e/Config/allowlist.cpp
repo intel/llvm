@@ -12,13 +12,13 @@
 // RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
 // RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
 
+#include "../helpers.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <string>
 #include <sycl/detail/core.hpp>
-#include "../helpers.hpp"
 
 static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character

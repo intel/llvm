@@ -8,6 +8,7 @@
 //
 // REQUIRES: opencl,gpu,cpu,accelerator
 
+#include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 

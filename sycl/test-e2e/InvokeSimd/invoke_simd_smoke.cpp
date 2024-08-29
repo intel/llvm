@@ -5,6 +5,7 @@
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+#include "../helpers.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -58,7 +59,8 @@ float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 int ESIMD_selector_v(const device &device) {
   std::string filter_string = env::getVal("ONEAPI_DEVICE_SELECTOR");
   // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-  if (filter_string.empty()) return device.is_gpu() ? 1000 : -1;
+  if (filter_string.empty())
+    return device.is_gpu() ? 1000 : -1;
   if (filter_string.find("gpu") != std::string::npos)
     return device.is_gpu() ? 1000 : -1;
   std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "

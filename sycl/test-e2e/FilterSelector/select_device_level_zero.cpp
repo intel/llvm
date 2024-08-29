@@ -8,9 +8,9 @@
 //
 // REQUIRES: level_zero,gpu
 
+#include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include "../helpers.hpp"
 
 using namespace sycl;
 using namespace std;

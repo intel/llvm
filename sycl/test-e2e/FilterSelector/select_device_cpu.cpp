@@ -10,8 +10,8 @@
 
 #include <iostream>
 
-#include <sycl/ext/oneapi/filter_selector.hpp>
 #include "../helpers.hpp"
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -37,7 +37,9 @@ int main() {
     } catch (...) {
     }
   }
-  { device d(cpu_selector_v); }
+  {
+    device d(cpu_selector_v);
+  }
   {
     try {
       device d(accelerator_selector_v);

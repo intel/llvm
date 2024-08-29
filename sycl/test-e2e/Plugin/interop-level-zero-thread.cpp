@@ -23,6 +23,7 @@
 // CHECK: Running iteration 18
 // CHECK: Running iteration 19
 
+#include "../helpers.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <deque>

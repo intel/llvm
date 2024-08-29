@@ -8,12 +8,12 @@
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
 
+#include "../helpers.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <sstream>
 #include <sycl/detail/core.hpp>
-#include "../helpers.hpp"
 
 using namespace sycl;
 using namespace std;
@@ -140,8 +140,9 @@ int main() {
   }
 
   DevInfoMap unfilteredDevices;
-  assert(ReadInitialSystemConfiguration(env::getVal("TEST_DEV_CONFIG_FILE_NAME").c_str(),
-                                        unfilteredDevices) &&
+  assert(ReadInitialSystemConfiguration(
+             env::getVal("TEST_DEV_CONFIG_FILE_NAME").c_str(),
+             unfilteredDevices) &&
          "Failed to parse file with initial system configuration data");
 
   std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");

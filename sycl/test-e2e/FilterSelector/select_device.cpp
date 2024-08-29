@@ -15,8 +15,8 @@
 
 #include <iostream>
 
-#include <sycl/detail/core.hpp>
 #include "../helpers.hpp"
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -52,8 +52,8 @@ int main() {
     device d = as.select_device();
   }
   if (envVal.empty() && (forcedPIs.find("cpu") == std::string::npos &&
-                 forcedPIs.find("opencl") == std::string::npos &&
-                 forcedPIs.find("*") == std::string::npos)) {
+                         forcedPIs.find("opencl") == std::string::npos &&
+                         forcedPIs.find("*") == std::string::npos)) {
     try {
       cpu_selector cs;
       device d = cs.select_device();

@@ -10,8 +10,8 @@
 
 #include <iostream>
 
-#include <sycl/detail/core.hpp>
 #include "../helpers.hpp"
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;

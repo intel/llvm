@@ -22,11 +22,11 @@
 //
 // CHECK-FALLBACK: ---> urProgramLink
 
+#include "../helpers.hpp"
 #include <array>
 #include <assert.h>
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include "../helpers.hpp"
 
 using namespace sycl;
 

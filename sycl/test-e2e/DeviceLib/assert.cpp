@@ -91,6 +91,7 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
+#include "../helpers.hpp"
 #include "sycl/backend/opencl.hpp"
 #include <array>
 #include <assert.h>
@@ -101,7 +102,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "../helpers.hpp"
 
 using namespace sycl;
 
