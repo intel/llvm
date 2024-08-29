@@ -15,6 +15,7 @@
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
 // CHECK-NEXT:   "_ZTSZ4mainE8kernel_C"
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
 // CHECK: static constexpr

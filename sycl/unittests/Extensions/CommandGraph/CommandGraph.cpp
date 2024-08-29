@@ -131,11 +131,12 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   sycl::queue Queue2{Queue.get_context(), Dev};
 
   // Test throwing behaviour
-  // Check we can repeatedly begin recording on the same queues
+  // Check that repeatedly calling begin recording on the same queues is an
+  // error
   ASSERT_NO_THROW(Graph.begin_recording(Queue));
-  ASSERT_NO_THROW(Graph.begin_recording(Queue));
+  ASSERT_ANY_THROW(Graph.begin_recording(Queue));
   ASSERT_NO_THROW(Graph.begin_recording(Queue2));
-  ASSERT_NO_THROW(Graph.begin_recording(Queue2));
+  ASSERT_ANY_THROW(Graph.begin_recording(Queue2));
   // Check we can repeatedly end recording on the same queues
   ASSERT_NO_THROW(Graph.end_recording(Queue));
   ASSERT_NO_THROW(Graph.end_recording(Queue));
@@ -143,7 +144,7 @@ TEST_F(CommandGraphTest, BeginEndRecording) {
   ASSERT_NO_THROW(Graph.end_recording(Queue2));
   // Vector versions
   ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
-  ASSERT_NO_THROW(Graph.begin_recording({Queue, Queue2}));
+  ASSERT_ANY_THROW(Graph.begin_recording({Queue, Queue2}));
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
   ASSERT_NO_THROW(Graph.end_recording({Queue, Queue2}));
 

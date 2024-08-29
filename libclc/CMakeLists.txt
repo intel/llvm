@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20.0)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(libclc VERSION 0.2.0 LANGUAGES CXX C)
 endif()
+set(LLVM_SUBPROJECT_TITLE "libclc")
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -250,6 +251,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
+set_target_properties( "generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
   OUTPUT convert-core.cl
@@ -274,6 +276,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+set_target_properties( "clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 enable_testing()
 
