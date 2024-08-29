@@ -116,7 +116,7 @@ def generate_summary_table(chart_data: dict[str, list[Result]]):
             if key in results:
                 value = results[key].value
                 if key == best_key:
-                    row += f" `**{value}**` |"  # Highlight the best value
+                    row += f" <ins>{value}</ins> |"  # Highlight the best value
                 else:
                     row += f" {value} |"
             else:
@@ -132,6 +132,7 @@ def generate_markdown(chart_data: dict[str, list[Result]]):
 
     return f"""
 # Summary
+<ins>result</ins> is better\n
 {summary_table}
 # Charts
 {mermaid_script}
