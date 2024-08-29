@@ -25,6 +25,8 @@
 
 #include <umf_pools/disjoint_pool_config_parser.hpp>
 
+#include "logger/ur_logger.hpp"
+
 struct _ur_platform_handle_t;
 
 static auto getUrResultString = [](ur_result_t Result) {
@@ -168,7 +170,7 @@ static auto getUrResultString = [](ur_result_t Result) {
   }
 };
 
-// Trace an internal PI call; returns in case of an error.
+// Trace an internal UR call; returns in case of an error.
 #define UR_CALL(Call)                                                          \
   {                                                                            \
     if (PrintTrace)                                                            \
@@ -178,6 +180,18 @@ static auto getUrResultString = [](ur_result_t Result) {
       logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
     if (Result != UR_RESULT_SUCCESS)                                           \
       return Result;                                                           \
+  }
+
+// Trace an internal UR call; throw in case of an error.
+#define UR_CALL_THROWS(Call)                                                   \
+  {                                                                            \
+    if (PrintTrace)                                                            \
+      logger::always("UR ---> {}", #Call);                                     \
+    ur_result_t Result = (Call);                                               \
+    if (PrintTrace)                                                            \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
+    if (Result != UR_RESULT_SUCCESS)                                           \
+      throw Result;                                                            \
   }
 
 // Controls UR L0 calls tracing.
@@ -202,6 +216,15 @@ const int UrL0Debug = [] {
 
 const int UrL0LeaksDebug = [] {
   const char *UrRet = std::getenv("UR_L0_LEAKS_DEBUG");
+  if (!UrRet)
+    return 0;
+  return std::atoi(UrRet);
+}();
+
+// Enable for UR L0 Adapter to Init all L0 Drivers on the system with filtering
+// in place for only currently used Drivers.
+const int UrL0InitAllDrivers = [] {
+  const char *UrRet = std::getenv("UR_L0_INIT_ALL_DRIVERS");
   if (!UrRet)
     return 0;
   return std::atoi(UrRet);
@@ -506,3 +529,5 @@ extern thread_local int32_t ErrorAdapterNativeCode;
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode,
                                       int32_t AdapterErrorCode);
+
+#define L0_DRIVER_INORDER_MIN_VERSION 29534

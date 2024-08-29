@@ -42,9 +42,9 @@
 struct ur_exp_command_buffer_command_handle_t_ {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-      std::shared_ptr<CUgraphNode> &&Node, CUDA_KERNEL_NODE_PARAMS Params,
-      uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
-      const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr);
+      CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
+      const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
+      const size_t *LocalWorkSizePtr);
 
   void setGlobalOffset(const size_t *GlobalWorkOffsetPtr) {
     const size_t CopySize = sizeof(size_t) * WorkDim;
@@ -97,7 +97,7 @@ struct ur_exp_command_buffer_command_handle_t_ {
 
   ur_exp_command_buffer_handle_t CommandBuffer;
   ur_kernel_handle_t Kernel;
-  std::shared_ptr<CUgraphNode> Node;
+  CUgraphNode Node;
   CUDA_KERNEL_NODE_PARAMS Params;
 
   uint32_t WorkDim;
@@ -118,8 +118,8 @@ struct ur_exp_command_buffer_handle_t_ {
   ~ur_exp_command_buffer_handle_t_();
 
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
-                         std::shared_ptr<CUgraphNode> CuNode) {
-    SyncPoints[SyncPoint] = std::move(CuNode);
+                         CUgraphNode CuNode) {
+    SyncPoints[SyncPoint] = CuNode;
     NextSyncPoint++;
   }
 
@@ -130,8 +130,7 @@ struct ur_exp_command_buffer_handle_t_ {
   // Helper to register next sync point
   // @param CuNode Node to register as next sync point
   // @return Pointer to the sync that registers the Node
-  ur_exp_command_buffer_sync_point_t
-  addSyncPoint(std::shared_ptr<CUgraphNode> CuNode) {
+  ur_exp_command_buffer_sync_point_t addSyncPoint(CUgraphNode CuNode) {
     ur_exp_command_buffer_sync_point_t SyncPoint = NextSyncPoint;
     registerSyncPoint(SyncPoint, std::move(CuNode));
     return SyncPoint;
@@ -173,8 +172,7 @@ struct ur_exp_command_buffer_handle_t_ {
   std::atomic_uint32_t RefCountExternal;
 
   // Map of sync_points to ur_events
-  std::unordered_map<ur_exp_command_buffer_sync_point_t,
-                     std::shared_ptr<CUgraphNode>>
+  std::unordered_map<ur_exp_command_buffer_sync_point_t, CUgraphNode>
       SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)

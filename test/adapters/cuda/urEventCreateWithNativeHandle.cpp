@@ -4,23 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
-#include "uur/raii.h"
+#include "raii.h"
 
 using urCudaEventCreateWithNativeHandleTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCudaEventCreateWithNativeHandleTest);
-
-struct RAIICUevent {
-    CUevent handle = nullptr;
-
-    ~RAIICUevent() {
-        if (handle) {
-            cuEventDestroy(handle);
-        }
-    }
-
-    CUevent *ptr() { return &handle; }
-    CUevent get() { return handle; }
-};
 
 TEST_P(urCudaEventCreateWithNativeHandleTest, Success) {
     RAIICUevent cuda_event;

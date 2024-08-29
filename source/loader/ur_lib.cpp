@@ -57,7 +57,8 @@ void context_t::initLayers() const {
 }
 
 void context_t::tearDownLayers() const {
-    for (auto &[layer, destroy] : layers) {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+        auto [layer, destroy] = *it;
         layer->tearDown();
         destroy();
     }
@@ -212,7 +213,10 @@ ur_result_t urLoaderTearDown() {
         delete context;
     });
 
-    return ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;
+    ur_result_t result =
+        ret == 0 ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNINITIALIZED;
+    logger::info("---> urLoaderTearDown() -> {}", result);
+    return result;
 }
 
 ur_result_t

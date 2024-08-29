@@ -228,12 +228,15 @@ params:
       name: hNativeContext
       desc: |
             [in][nocheck] the native handle of the context.
+    - type: $x_adapter_handle_t
+      name: hAdapter
+      desc: "[in] handle of the adapter that owns the native handle"
     - type: uint32_t
       name: numDevices
       desc: "[in] number of devices associated with the context"
     - type: "const $x_device_handle_t*"
       name: phDevices
-      desc: "[in][range(0, numDevices)] list of devices associated with the context"
+      desc: "[in][optional][range(0, numDevices)] list of devices associated with the context"
     - type: "const $x_context_native_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to native context properties struct"

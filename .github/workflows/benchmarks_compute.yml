@@ -12,6 +12,7 @@ on:
         default: 'level_zero'
         options:
           - level_zero
+          - level_zero_v2
       unit:
         description: Test unit (cpu/gpu)
         type: choice
@@ -34,6 +35,16 @@ on:
         type: string
         required: false
         default: ''
+      sycl_repo:
+        description: 'Compiler repo'
+        type: string
+        required: true
+        default: 'intel/llvm'
+      sycl_commit:
+        description: 'Compiler commit'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -41,15 +52,14 @@ permissions:
 
 jobs:
   e2e-build-hw:
-    # Run only on upstream; forks will not have the HW
-    if: github.repository == 'oneapi-src/unified-runtime'
     name: Build SYCL, UR, run Compute Benchmarks
     strategy:
       matrix:
         adapter: [
           {str_name: "${{inputs.str_name}}",
           sycl_config: "${{inputs.sycl_config_params}}",
-          unit: "${{inputs.unit}}"}
+          unit: "${{inputs.unit}}"
+          }
         ]
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
@@ -88,6 +98,9 @@ jobs:
       with:
         path: ur-repo
 
+    - name: Install pip packages
+      run: pip install -r ${{github.workspace}}/ur-repo/third_party/requirements.txt
+
     # We need to fetch special ref for proper PR's merge commit. Note, this ref may be absent if the PR is already merged.
     - name: Fetch PR's merge commit
       if: ${{ inputs.pr_no != 0 }}
@@ -102,11 +115,18 @@ jobs:
     - name: Checkout SYCL
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       with:
-        repository: intel/llvm
+        repository: ${{inputs.sycl_repo}}
         ref: refs/heads/sycl
         path: sycl-repo
         fetch-depth: 1
         fetch-tags: false
+
+    - name: Fetch specific SYCL commit
+      if: inputs.sycl_commit != ''
+      working-directory: ./sycl-repo
+      run: |
+        git fetch --depth=1 origin ${{ inputs.sycl_commit }}
+        git checkout ${{ inputs.sycl_commit }}
 
     - name: Set CUDA env vars
       if: matrix.adapter.str_name == 'cuda'
@@ -123,52 +143,21 @@ jobs:
         --ci-defaults ${{matrix.adapter.sycl_config}}
         --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
         --cmake-opt="-DSYCL_PI_TESTS=OFF"
-        --cmake-opt="-DSYCL_PI_UR_USE_FETCH_CONTENT=OFF"
-        --cmake-opt="-DSYCL_PI_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
+        --cmake-opt="-DSYCL_UR_USE_FETCH_CONTENT=OFF"
+        --cmake-opt="-DSYCL_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
         --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
         --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
     - name: Build SYCL
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
-    - name: Set additional env. vars
-      run: |
-        echo "${{github.workspace}}/sycl_build/bin" >> $GITHUB_PATH
-        echo "LD_LIBRARY_PATH=${{github.workspace}}/sycl_build/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
-
-    # Running (newly built) sycl-ls sets up some extra variables
-    - name: Setup SYCL variables
-      run: |
-        which clang++ sycl-ls
-        SYCL_PI_TRACE=-1 sycl-ls
-
-    - name: Checkout Compute Benchmarks
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      with:
-        repository: intel/compute-benchmarks
-        path: compute-benchmarks-repo
-        submodules: recursive
-
-    - name: Configure Compute Benchmarks
-      run: >
-        cmake
-        -B ${{github.workspace}}/compute-benchmarks-build/
-        -S ${{github.workspace}}/compute-benchmarks-repo/
-        -DCMAKE_BUILD_TYPE=Release
-        -DBUILD_SYCL=ON
-        -DSYCL_COMPILER_ROOT=${{github.workspace}}/sycl_build
-        -DALLOW_WARNINGS=ON
-
-    - name: Build Compute Benchmarks
-      run: cmake --build ${{github.workspace}}/compute-benchmarks-build/ -j
-
     - name: Set oneAPI Device Selector
       run: |
         echo "ONEAPI_DEVICE_SELECTOR=${{ matrix.adapter.str_name }}:${{ matrix.adapter.unit }}" >> $GITHUB_ENV
 
-    - name: Run SYCL API Overhead benchmark
+    - name: Run benchmarks
       id: benchmarks
-      run: ${{ github.workspace }}/ur-repo/.github/scripts/compute_benchmarks.py ${{ github.workspace }}/compute-benchmarks-build/bin/ ${{ inputs.bench_script_params }}
+      run: numactl -N 0 ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py ~/bench_workdir ${{github.workspace}}/sycl_build ${{github.workspace}}/ur-repo ${{ matrix.adapter.str_name }} ${{ inputs.bench_script_params }}
 
     - name: Add comment to PR
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
@@ -188,7 +177,7 @@ jobs:
           const test_status = '${{ steps.benchmarks.outcome }}';
           const job_status = '${{ job.status }}';
           const params = '${{ inputs.bench_script_params }}';
-          const body = `Compute Benchmarks ${adapter} run (with params: ${params}):\n${url}\nJob status: ${job_status}. Test status: ${test_status}.\n ${markdown}`;
+          const body = `Compute Benchmarks ${adapter} run (${params}):\n${url}\nJob status: ${job_status}. Test status: ${test_status}.\n ${markdown}`;
 
           github.rest.issues.createComment({
             issue_number: pr_no,

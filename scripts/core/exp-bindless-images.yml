@@ -23,14 +23,14 @@ class: $xBindlessImages
 name: "$x_exp_image_mem_native_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
-desc: "Handle of interop memory"
+desc: "Handle of external memory"
 class: $xBindlessImages
-name: "$x_exp_interop_mem_handle_t"
+name: "$x_exp_external_mem_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle
-desc: "Handle of interop semaphore"
+desc: "Handle of external semaphore"
 class: $xBindlessImages
-name: "$x_exp_interop_semaphore_handle_t"
+name: "$x_exp_external_semaphore_handle_t"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -74,18 +74,12 @@ etors:
     - name: MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP
       value: "0x200B"
       desc: "[$x_bool_t] returns true if the device supports using images created from individual mipmap levels"
-    - name: INTEROP_MEMORY_IMPORT_SUPPORT_EXP
+    - name: EXTERNAL_MEMORY_IMPORT_SUPPORT_EXP
       value: "0x200C"
       desc: "[$x_bool_t] returns true if the device supports importing external memory resources"
-    - name: INTEROP_MEMORY_EXPORT_SUPPORT_EXP
-      value: "0x200D"
-      desc: "[$x_bool_t] returns true if the device supports exporting internal memory resources"
-    - name: INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP
+    - name: EXTERNAL_SEMAPHORE_IMPORT_SUPPORT_EXP
       value: "0x200E"
       desc: "[$x_bool_t] returns true if the device supports importing external semaphore resources"
-    - name: INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP
-      value: "0x200F"
-      desc: "[$x_bool_t] returns true if the device supports exporting internal event resources"
     - name: CUBEMAP_SUPPORT_EXP
       value: "0x2010"
       desc: "[$x_bool_t] returns true if the device supports allocating and accessing cubemap resources"
@@ -104,12 +98,21 @@ etors:
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
       value: "0x2015"
       desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 2D sampled image data."
-    - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
-      value: "0x2016"
-      desc: "[$x_bool_t] returns true if the device is capable of fetching USM backed 3D sampled image data."
     - name: BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
       value: "0x2017"
       desc: "[$x_bool_t] returns true if the device is capable of fetching non-USM backed 3D sampled image data."
+    - name: IMAGE_ARRAY_SUPPORT_EXP
+      value: "0x2019"
+      desc: "[$x_bool_t] returns true if the device supports allocating and accessing image array resources."
+    - name: BINDLESS_UNIQUE_ADDRESSING_PER_DIM_EXP
+      value: "0x201A"
+      desc: "[$x_bool_t] returns true if the device supports unique addressing per dimension."
+    - name: BINDLESS_SAMPLE_1D_USM_EXP
+      value: "0x201B"
+      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 1D sampled image data."
+    - name: BINDLESS_SAMPLE_2D_USM_EXP
+      value: "0x201C"
+      desc: "[$x_bool_t] returns true if the device is capable of sampling USM backed 2D sampled image data."
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -119,11 +122,11 @@ etors:
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
       value: "0x2000"
-    - name: EXP_INTEROP_MEM_DESC
-      desc: $x_exp_interop_mem_desc_t
+    - name: EXP_EXTERNAL_MEM_DESC
+      desc: $x_exp_external_mem_desc_t
       value: "0x2001"
-    - name: EXP_INTEROP_SEMAPHORE_DESC
-      desc: $x_exp_interop_semaphore_desc_t
+    - name: EXP_EXTERNAL_SEMAPHORE_DESC
+      desc: $x_exp_external_semaphore_desc_t
       value: "0x2002"
     - name: EXP_FILE_DESCRIPTOR
       desc: $x_exp_file_descriptor_t
@@ -137,16 +140,19 @@ etors:
     - name: EXP_SAMPLER_CUBEMAP_PROPERTIES
       desc: $x_exp_sampler_cubemap_properties_t
       value: "0x2006"
+    - name: EXP_IMAGE_COPY_REGION
+      desc: $x_exp_image_copy_region_t
+      value: "0x2007"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
 desc: "Command Type experimental enumerations."
 name: $x_command_t
 etors:
-    - name: INTEROP_SEMAPHORE_WAIT_EXP
+    - name: EXTERNAL_SEMAPHORE_WAIT_EXP
       value: "0x2000"
       desc: Event created by $xBindlessImagesWaitExternalSemaphoreExp
-    - name: INTEROP_SEMAPHORE_SIGNAL_EXP
+    - name: EXTERNAL_SEMAPHORE_SIGNAL_EXP
       value: "0x2001"
       desc: Event created by $xBindlessImagesSignalExternalSemaphoreExp
 --- #--------------------------------------------------------------------------
@@ -272,18 +278,33 @@ members:
       desc: "[in] enables or disables seamless cubemap filtering between cubemap faces"
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Describes an interop memory resource descriptor"
+desc: "Describes an external memory resource descriptor"
 class: $xBindlessImages
-name: $x_exp_interop_mem_desc_t
+name: $x_exp_external_mem_desc_t
 base: $x_base_desc_t
 members: []
 --- #--------------------------------------------------------------------------
 type: struct
-desc: "Describes an interop semaphore resource descriptor"
+desc: "Describes an external semaphore resource descriptor"
 class: $xBindlessImages
-name: $x_exp_interop_semaphore_desc_t
+name: $x_exp_external_semaphore_desc_t
 base: $x_base_desc_t
 members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes the (sub-)regions and the extent to be copied"
+name: $x_exp_image_copy_region_t
+base: $x_base_desc_t
+members:
+    - type: ur_rect_offset_t
+      name: srcOffset
+      desc: "[in] the offset into the source image"
+    - type: ur_rect_offset_t
+      name: dstOffset
+      desc: "[in] the offset into the destination image"
+    - type: ur_rect_region_t
+      name: copyExtent
+      desc: "[in] the extent (region) of the image to copy"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"
@@ -511,7 +532,7 @@ returns:
     - $X_RESULT_ERROR_ADAPTER_SPECIFIC
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Copy image data Host to Device or Device to Host"
+desc: "Copy image data Host to Device, Device to Host, or Device to Device"
 class: $xBindlessImages
 name: ImageCopyExp
 ordinal: "0"
@@ -524,33 +545,30 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: void*
-      name: pDst
-      desc: "[in] location the data will be copied to"
     - type: const void*
       name: pSrc
       desc: "[in] location the data will be copied from"
-    - type: "const $x_image_format_t*"
-      name: pImageFormat
-      desc: "[in] pointer to image format specification"
+    - type: void*
+      name: pDst
+      desc: "[in] location the data will be copied to"
     - type: "const $x_image_desc_t*"
-      name: pImageDesc
+      name: pSrcImageDesc
       desc: "[in] pointer to image description"
+    - type: "const $x_image_desc_t*"
+      name: pDstImageDesc
+      desc: "[in] pointer to image description"
+    - type: "const $x_image_format_t*"
+      name: pSrcImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "const $x_image_format_t*"
+      name: pDstImageFormat
+      desc: "[in] pointer to image format specification"
+    - type: "$x_exp_image_copy_region_t*"
+      name: pCopyRegion
+      desc: "[in] Pointer to structure describing the (sub-)regions of source and destination images"
     - type: $x_exp_image_copy_flags_t
       name: imageCopyFlags
       desc: "[in] flags describing copy direction e.g. H2D or D2H"
-    - type: $x_rect_offset_t
-      name: srcOffset
-      desc: "[in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_offset_t
-      name: dstOffset
-      desc: "[in] defines the (x,y,z) destination offset in pixels in the 1D, 2D, or 3D image"
-    - type: $x_rect_region_t
-      name: copyExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region to copy"
-    - type: $x_rect_region_t
-      name: hostExtent
-      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region on the host"    
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -568,7 +586,9 @@ returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pImageDesc->type`"
+      - "`pSrcImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pSrcImageDesc->type`"
+    - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+      - "`pDstImageDesc && UR_MEM_TYPE_IMAGE_CUBEMAP_EXP < pDstImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
 --- #--------------------------------------------------------------------------
@@ -672,19 +692,19 @@ params:
     - type: $x_exp_external_mem_type_t
       name: memHandleType
       desc: "[in] type of external memory handle"
-    - type: $x_exp_interop_mem_desc_t*
-      name: pInteropMemDesc
-      desc: "[in] the interop memory descriptor"
-    - type: $x_exp_interop_mem_handle_t*
-      name: phInteropMem
-      desc: "[out] interop memory handle to the external memory"
+    - type: $x_exp_external_mem_desc_t*
+      name: pExternalMemDesc
+      desc: "[in] the external memory descriptor"
+    - type: $x_exp_external_mem_handle_t*
+      name: phExternalMem
+      desc: "[out] external memory handle to the external memory"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Map an interop memory handle to an image memory handle"
+desc: "Map an external memory handle to an image memory handle"
 class: $xBindlessImages
 name: MapExternalArrayExp
 ordinal: "0"
@@ -701,9 +721,9 @@ params:
     - type: "const $x_image_desc_t*"
       name: pImageDesc
       desc: "[in] pointer to image description"
-    - type: $x_exp_interop_mem_handle_t
-      name: hInteropMem
-      desc: "[in] interop memory handle to the external memory"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
     - type: $x_exp_image_mem_native_handle_t*
       name: phImageMem
       desc: "[out] image memory handle to the externally allocated memory"
@@ -717,9 +737,40 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy interop memory"
+desc: "Map an external memory handle to a device memory region described by void*"
 class: $xBindlessImages
-name: ReleaseInteropExp
+name: MapExternalLinearMemoryExp
+ordinal: "0"
+params:
+    - type: $x_context_handle_t
+      name: hContext
+      desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: uint64_t
+      name: offset
+      desc: "[in] offset into memory region to map"
+    - type: uint64_t
+      name: size
+      desc: "[in] size of memory region to map"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in] external memory handle to the external memory"
+    - type: void**
+      name: ppRetMem
+      desc: "[out] pointer of the externally allocated memory"
+returns:
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
+    - $X_RESULT_ERROR_INVALID_OPERATION
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Release external memory"
+class: $xBindlessImages
+name: ReleaseExternalMemoryExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalMemory**"
@@ -730,9 +781,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_interop_mem_handle_t
-      name: hInteropMem
-      desc: "[in][release] handle of interop memory to be freed"
+    - type: $x_exp_external_mem_handle_t
+      name: hExternalMem
+      desc: "[in][release] handle of external memory to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -754,20 +805,20 @@ params:
     - type: $x_exp_external_semaphore_type_t
       name: semHandleType
       desc: "[in] type of external memory handle"
-    - type: $x_exp_interop_semaphore_desc_t*
-      name: pInteropSemaphoreDesc
-      desc: "[in] the interop semaphore descriptor"
-    - type: $x_exp_interop_semaphore_handle_t*
-      name: phInteropSemaphore
-      desc: "[out] interop semaphore handle to the external semaphore"
+    - type: $x_exp_external_semaphore_desc_t*
+      name: pExternalSemaphoreDesc
+      desc: "[in] the external semaphore descriptor"
+    - type: $x_exp_external_semaphore_handle_t*
+      name: phExternalSemaphore
+      desc: "[out] external semaphore handle to the external semaphore"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Destroy the external semaphore handle"
+desc: "Release the external semaphore"
 class: $xBindlessImages
-name: DestroyExternalSemaphoreExp
+name: ReleaseExternalSemaphoreExp
 ordinal: "0"
 analogue:
     - "**cuDestroyExternalSemaphore**"
@@ -778,9 +829,9 @@ params:
     - type: $x_device_handle_t
       name: hDevice
       desc: "[in] handle of the device object"
-    - type: $x_exp_interop_semaphore_handle_t
-      name: hInteropSemaphore
-      desc: "[in][release] handle of interop semaphore to be destroyed"
+    - type: $x_exp_external_semaphore_handle_t
+      name: hExternalSemaphore
+      desc: "[in][release] handle of external semaphore to be destroyed"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -796,9 +847,9 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: $x_exp_interop_semaphore_handle_t
+    - type: $x_exp_external_semaphore_handle_t
       name: hSemaphore
-      desc: "[in] interop semaphore handle"
+      desc: "[in] external semaphore handle"
     - type: bool
       name: hasWaitValue
       desc: |
@@ -835,9 +886,9 @@ params:
     - type: $x_queue_handle_t
       name: hQueue
       desc: "[in] handle of the queue object"
-    - type: $x_exp_interop_semaphore_handle_t
+    - type: $x_exp_external_semaphore_handle_t
       name: hSemaphore
-      desc: "[in] interop semaphore handle"
+      desc: "[in] external semaphore handle"
     - type: bool
       name: hasSignalValue
       desc: | 

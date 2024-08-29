@@ -7,6 +7,8 @@
 #define UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED
 
 #include "ur_api.h"
+#include "ur_ddi.h"
+
 #include <uur/checks.h>
 #include <uur/environment.h>
 #include <uur/utils.h>
@@ -33,9 +35,11 @@ namespace uur {
 struct urPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
+        adapter = uur::PlatformEnvironment::instance->adapter;
     }
 
     ur_platform_handle_t platform = nullptr;
+    ur_adapter_handle_t adapter = nullptr;
 };
 
 inline std::pair<bool, std::vector<ur_device_handle_t>>
@@ -155,15 +159,21 @@ struct urSamplerTest : urContextTest {
             UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
             UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+        auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        }
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        if (sampler) {
+            EXPECT_SUCCESS(urSamplerRelease(sampler));
+        }
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
-    ur_sampler_handle_t sampler;
+    ur_sampler_handle_t sampler = nullptr;
     ur_sampler_desc_t sampler_desc;
 };
 
@@ -259,15 +269,22 @@ template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
             UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressing mode */
             UR_SAMPLER_FILTER_MODE_LINEAR,    /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(this->context, &sampler_desc, &sampler));
+        auto ret = urSamplerCreate(this->context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        }
     }
 
     void TearDown() override {
-        EXPECT_SUCCESS(urSamplerRelease(sampler));
+        if (sampler) {
+            EXPECT_SUCCESS(urSamplerRelease(sampler));
+        }
+
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
 
-    ur_sampler_handle_t sampler;
+    ur_sampler_handle_t sampler = nullptr;
     ur_sampler_desc_t sampler_desc;
 };
 

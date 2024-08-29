@@ -465,7 +465,7 @@ def generate_level_zero_queue_api(path, section, namespace, tags, version, specs
 
     name = "queue_api"
     filename = "queue_api.cpp"
-    layer_dstpath = os.path.join(path, "adapters/level_zero")
+    layer_dstpath = os.path.join(path, "adapters", "level_zero", "v2")
     os.makedirs(layer_dstpath, exist_ok=True)
     fout = os.path.join(layer_dstpath, filename)
 

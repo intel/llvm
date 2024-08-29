@@ -955,17 +955,26 @@ ur_result_t urPrintExpSamplerCubemapProperties(
 }
 
 ur_result_t
-urPrintExpInteropMemDesc(const struct ur_exp_interop_mem_desc_t params,
-                         char *buffer, const size_t buff_size,
-                         size_t *out_size) {
+urPrintExpExternalMemDesc(const struct ur_exp_external_mem_desc_t params,
+                          char *buffer, const size_t buff_size,
+                          size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintExpInteropSemaphoreDesc(
-    const struct ur_exp_interop_semaphore_desc_t params, char *buffer,
+ur_result_t urPrintExpExternalSemaphoreDesc(
+    const struct ur_exp_external_semaphore_desc_t params, char *buffer,
     const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
+urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params,
+                          char *buffer, const size_t buff_size,
+                          size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);
@@ -1210,8 +1219,18 @@ ur_result_t urPrintBindlessImagesMapExternalArrayExpParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintBindlessImagesReleaseInteropExpParams(
-    const struct ur_bindless_images_release_interop_exp_params_t *params,
+ur_result_t urPrintBindlessImagesMapExternalLinearMemoryExpParams(
+    const struct ur_bindless_images_map_external_linear_memory_exp_params_t
+        *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintBindlessImagesReleaseExternalMemoryExpParams(
+    const struct ur_bindless_images_release_external_memory_exp_params_t
+        *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;
@@ -1227,8 +1246,8 @@ ur_result_t urPrintBindlessImagesImportExternalSemaphoreExpParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
-ur_result_t urPrintBindlessImagesDestroyExternalSemaphoreExpParams(
-    const struct ur_bindless_images_destroy_external_semaphore_exp_params_t
+ur_result_t urPrintBindlessImagesReleaseExternalSemaphoreExpParams(
+    const struct ur_bindless_images_release_external_semaphore_exp_params_t
         *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;

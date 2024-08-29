@@ -121,6 +121,7 @@ urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     [[maybe_unused]] ur_native_handle_t hNativeContext,
+    [[maybe_unused]] ur_adapter_handle_t hAdapter,
     [[maybe_unused]] uint32_t numDevices,
     [[maybe_unused]] const ur_device_handle_t *phDevices,
     [[maybe_unused]] const ur_context_native_properties_t *pProperties,

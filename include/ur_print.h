@@ -947,20 +947,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerAddrModes(const struct ur_e
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpSamplerCubemapProperties(const struct ur_exp_sampler_cubemap_properties_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_interop_mem_desc_t struct
+/// @brief Print ur_exp_external_mem_desc_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintExpInteropMemDesc(const struct ur_exp_interop_mem_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalMemDesc(const struct ur_exp_external_mem_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_exp_interop_semaphore_desc_t struct
+/// @brief Print ur_exp_external_semaphore_desc_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintExpInteropSemaphoreDesc(const struct ur_exp_interop_semaphore_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalSemaphoreDesc(const struct ur_exp_external_semaphore_desc_t params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_image_copy_region_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_command_buffer_info_t enum
@@ -2139,12 +2147,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalMemoryExp
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMapExternalArrayExpParams(const struct ur_bindless_images_map_external_array_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_release_interop_exp_params_t struct
+/// @brief Print ur_bindless_images_map_external_linear_memory_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseInteropExpParams(const struct ur_bindless_images_release_interop_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesMapExternalLinearMemoryExpParams(const struct ur_bindless_images_map_external_linear_memory_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_bindless_images_release_external_memory_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseExternalMemoryExpParams(const struct ur_bindless_images_release_external_memory_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_import_external_semaphore_exp_params_t struct
@@ -2155,12 +2171,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseInteropExpParams
 UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesImportExternalSemaphoreExpParams(const struct ur_bindless_images_import_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ur_bindless_images_destroy_external_semaphore_exp_params_t struct
+/// @brief Print ur_bindless_images_release_external_semaphore_exp_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesDestroyExternalSemaphoreExpParams(const struct ur_bindless_images_destroy_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+UR_APIEXPORT ur_result_t UR_APICALL urPrintBindlessImagesReleaseExternalSemaphoreExpParams(const struct ur_bindless_images_release_external_semaphore_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_bindless_images_wait_external_semaphore_exp_params_t struct
