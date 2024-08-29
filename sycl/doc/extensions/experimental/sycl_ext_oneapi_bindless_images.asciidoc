@@ -2683,6 +2683,12 @@ There are dimension specific limitations:
 * 3D - No support at the moment. Possible support in non CUDA backends in the 
        future.
 
+=== 3 channel format support
+
+The ability to create an image with 3 channels depends on the backend.
+There is currently no way to query a backend whether it supports this feature.
+This query should be added in a later revision of the proposal.
+
 === Not supported yet
 
 These features still need to be handled:
