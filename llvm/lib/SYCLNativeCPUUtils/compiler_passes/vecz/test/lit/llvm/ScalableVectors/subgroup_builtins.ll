@@ -51,7 +51,7 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 ; CHECK: [[MUL:%.*]] = mul i32 %call, [[SHL]]
 ; CHECK: [[SPLATINSERT:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[MUL]], i64 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[SPLATINSERT]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
-; CHECK: [[STEPVEC:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK: [[STEPVEC:%.*]] = call <vscale x 4 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv4i32()
 ; CHECK: [[LID:%.*]] = add <vscale x 4 x i32> [[SPLAT]], [[STEPVEC]]
 ; CHECK: [[EXT:%.*]] = sext i32 %call to i64
 ; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]

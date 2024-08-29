@@ -42,7 +42,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_u5nxv4j(<vscal
 ; CHECK-LABEL: define <vscale x 4 x i32> @__vecz_b_sub_group_scan_inclusive_add_u5nxv4j(<vscale x 4 x i32>{{.*}}) {
 ; CHECK: entry:
 ; CHECK:   %[[SHUFFLE_ALLOC:.+]] = alloca <vscale x 4 x i32>
-; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv4i32()
 ; CHECK:   %[[SCALE:.+]] = call i32 @llvm.vscale.i32()
 ; CHECK:   %[[SIZE:.+]] = mul i32 %[[SCALE]], 4
 ; CHECK:   br label %loop
@@ -77,7 +77,7 @@ declare <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_u5nxv4j(<vscal
 ; CHECK-LABEL: define <vscale x 4 x i32> @__vecz_b_sub_group_scan_exclusive_add_u5nxv4j(<vscale x 4 x i32>{{.*}}) {
 ; CHECK: entry:
 ; CHECK:   %[[SHUFFLE_ALLOC:.+]] = alloca <vscale x 4 x i32>
-; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK:   %[[STEP:.+]] = call <vscale x 4 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv4i32()
 ; CHECK:   %[[SCALE:.+]] = call i32 @llvm.vscale.i32()
 ; CHECK:   %[[SIZE:.+]] = mul i32 %[[SCALE]], 4
 ; CHECK:   br label %loop
