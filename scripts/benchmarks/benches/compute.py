@@ -82,7 +82,7 @@ class ComputeBenchmark(Benchmark):
 
         result = self.run_bench(command, env_vars)
         (label, mean) = self.parse_output(result)
-        return Result(label=label, value=mean, command=command, env=env_vars, stdout=result)
+        return Result(label=label, value=mean, command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better())
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)
