@@ -666,7 +666,7 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 }
 } // namespace ext::oneapi::experimental
 
-void verifyUSMAllocatorProperties(const property_list &PropList) {
+__SYCL_EXPORT void verifyUSMAllocatorProperties(const property_list &PropList) {
   // no valid props for usm_allocator now
   static const std::set<std::pair<int, bool>> AllowedPropList;
   checkPropsAndThrow(PropList, AllowedPropList);
