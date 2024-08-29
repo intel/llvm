@@ -49,20 +49,17 @@ declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v4_irreducible_loop
 ; CHECK: entry:
-; CHECK:   br label %irr.guard.outer
+; CHECK-LT20:   br label %irr.guard.outer
 
-; CHECK: irr.guard.outer:                                  ; preds = %irr.guard.pure_exit, %entry
+; CHECK-LT20: irr.guard.outer:                                  ; preds = %irr.guard.pure_exit, %entry
 ; CHECK:   br label %irr.guard
 
-; LLVM 16 re-orders the Basic Blocks, without any change to the CFG.
-; CHECK-LE15: irr.guard.pure_exit:                              ; preds = %irr.guard
-; CHECK-LE15:   br i1 %{{.+}}, label %do.end, label %irr.guard.outer
+; CHECK-LT20: do.end:                                           ; preds = %irr.guard.pure_exit
+; CHECK-LT20:   ret void
 
-; CHECK: do.end:                                           ; preds = %irr.guard.pure_exit
-; CHECK:   ret void
-
-; CHECK: irr.guard:                                        ; preds = %irr.guard, %irr.guard.outer
+; CHECK: irr.guard:
 ; CHECK:   br i1 %{{.+}}, label %irr.guard.pure_exit, label %irr.guard
 
-; CHECK-GT15: irr.guard.pure_exit:                              ; preds = %irr.guard
-; CHECK-GT15:   br i1 %{{.+}}, label %do.end, label %irr.guard.outer
+; CHECK: irr.guard.pure_exit:                              ; preds = %irr.guard
+; CHECK-LT20:   br i1 %{{.+}}, label %do.end, label %irr.guard.outer
+; CHECK-GE20:   ret void
