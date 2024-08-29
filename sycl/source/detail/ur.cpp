@@ -300,7 +300,7 @@ static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
 
   // End early if we do not have the expected number of section headers or
   // if the read section string header index is out-of-range.
-  if (ImgSize < SectionHeaderOffset + SectionHeaderNum * SectionHeaderSize ||
+  if (ImgSize < SectionHeaderOffset + (uint64_t) SectionHeaderNum * SectionHeaderSize ||
       SectionStringsHeaderIndex >= SectionHeaderNum)
     return false;
 
