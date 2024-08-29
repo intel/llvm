@@ -98,7 +98,7 @@ entry:
 ; IE-INDICES: [[ALLOC:%.*]] = alloca <vscale x 16 x float>, align 64
 ; IE-INDICES: [[VAL:%.*]] = uitofp <vscale x 4 x i64> {{%.*}} to <vscale x 4 x float>
 ; IE-INDICES: store <vscale x 16 x float> {{%.*}}, ptr [[ALLOC]], align 64
-; IE-INDICES: [[T1:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; IE-INDICES: [[T1:%.*]] = call <vscale x 4 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv4i32()
 ; IE-INDICES: [[T2:%.*]] = shl <vscale x 4 x i32> [[T1]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> {{(undef|poison)}}, i32 2, {{(i32|i64)}} 0), <vscale x 4 x i32> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
 
 ; LLVM 16 deduces add/or equivalence and uses `or` instead.

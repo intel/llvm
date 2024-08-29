@@ -43,7 +43,7 @@ entry:
 ; CHECK: [[cmp1:%.*]] = icmp slt <vscale x 4 x i32>
 ; CHECK: [[sext:%.*]] = sext <vscale x 4 x i1> [[cmp1]] to <vscale x 4 x i8>
 ; CHECK: store <vscale x 4 x i8> [[sext]], ptr [[alloc:%.*]], align 4
-; CHECK: [[idx0:%.*]] = call <vscale x 8 x i32> @llvm.experimental.stepvector.nxv8i32()
+; CHECK: [[idx0:%.*]] = call <vscale x 8 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv8i32()
 ; CHECK: [[idx1:%.*]] = lshr <vscale x 8 x i32> [[idx0]], shufflevector (<vscale x 8 x i32> insertelement (<vscale x 8 x i32> {{(undef|poison)}}, i32 1, {{(i32|i64)}} 0), <vscale x 8 x i32> {{(undef|poison)}}, <vscale x 8 x i32> zeroinitializer)
 
 ; Note that since we just did a lshr 1 on the input of the extend, it doesn't

@@ -107,7 +107,7 @@ entry:
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[FIXLEN_ALLOC:%.*]] = alloca <4 x float>, align 16
 ; CHECK-NEXT:    store <4 x float> [[ADDEND:%.*]], ptr [[FIXLEN_ALLOC]], align 16
-; CHECK-NEXT:    [[IDX0:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
+; CHECK-NEXT:    [[IDX0:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv16i32()
 ; CHECK-NEXT:    [[IDX1:%.*]] = and <vscale x 16 x i32> [[IDX0]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{(i32|i64)}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP0]]
@@ -143,7 +143,7 @@ entry:
 ; CHECK-NEXT:    [[FIXLEN_ALLOC:%.*]] = alloca <4 x i32>, align 16
 ; CHECK-NEXT:    [[FIXLEN_ALLOC1:%.*]] = alloca <4 x float>, align 16
 ; CHECK-NEXT:    store <4 x float> [[ADDEND:%.*]], ptr [[FIXLEN_ALLOC1]], align 16
-; CHECK-NEXT:    [[IDX03:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
+; CHECK-NEXT:    [[IDX03:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv16i32()
 ; CHECK-NEXT:    [[IDX14:%.*]] = and <vscale x 16 x i32> [[IDX03]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC5:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC1]], <vscale x 16 x i64> [[TMP0]]
@@ -168,7 +168,7 @@ entry:
 ; CHECK-LABEL: @__vecz_nxv4_vector_mask_broadcast(
 ; CHECK-NEXT:  entry:
 ; CHECK:    [[FIXLEN_MASK_ALLOC:%.*]] = alloca <4 x i8>, align 4
-; CHECK:    [[IDX0:%.*]] = call <vscale x 16 x i32> @llvm.experimental.stepvector.nxv16i32()
+; CHECK:    [[IDX0:%.*]] = call <vscale x 16 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv16i32()
 ; CHECK:    [[IDX1:%.*]] = and <vscale x 16 x i32> [[IDX0]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK:    [[SEXT:%.*]] = sext <4 x i1> [[INPUT:%.*]] to <4 x i8>
 ; CHECK:    store <4 x i8> [[SEXT]], ptr [[FIXLEN_MASK_ALLOC]], align 4

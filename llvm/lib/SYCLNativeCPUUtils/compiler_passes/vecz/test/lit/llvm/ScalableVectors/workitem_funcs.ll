@@ -37,5 +37,5 @@ entry:
 declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_nxv4_store_ult
-; CHECK:   [[step:%[0-9.a-z]+]] = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
+; CHECK:   [[step:%[0-9.a-z]+]] = call <vscale x 4 x i64> @llvm.{{(experimental\.)?}}stepvector.nxv4i64()
 ; CHECK:   %{{.*}} = add <vscale x 4 x i64> %{{.*}}, [[step]]

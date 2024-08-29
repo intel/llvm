@@ -58,7 +58,7 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 ; CHECK: entry:
 ; CHECK:   %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) %0, {{i32|i64}} 0
 ; CHECK:   %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
-; CHECK:   %3 = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
+; CHECK:   %3 = call <vscale x 4 x i64> @llvm.{{(experimental\.)?}}stepvector.nxv4i64()
 ; CHECK:   %4 = mul <vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 4, {{i32|i64}} 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer), %3
 ; CHECK:   %5 = getelementptr double, <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splat, <vscale x 4 x i64> %4
 ; CHECK:   %6 = call <vscale x 4 x double> @llvm.vp.gather.nxv4f64.nxv4p1(<vscale x 4 x ptr addrspace(1)> %5, <vscale x 4 x i1> %1, i32 %2)
@@ -72,7 +72,7 @@ declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double
 ; CHECK: entry:
 ; CHECK:  %BroadcastAddr.splatinsert = insertelement <vscale x 4 x ptr addrspace(1)> poison, ptr addrspace(1) %1, {{i32|i64}} 0
 ; CHECK:  %BroadcastAddr.splat = shufflevector <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splatinsert, <vscale x 4 x ptr addrspace(1)> poison, <vscale x 4 x i32> zeroinitializer
-; CHECK:  %4 = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()
+; CHECK:  %4 = call <vscale x 4 x i64> @llvm.{{(experimental\.)?}}stepvector.nxv4i64()
 ; CHECK:  %5 = mul <vscale x 4 x i64> shufflevector (<vscale x 4 x i64> insertelement (<vscale x 4 x i64> poison, i64 4, {{i32|i64}} 0), <vscale x 4 x i64> poison, <vscale x 4 x i32> zeroinitializer), %4
 ; CHECK:  %6 = getelementptr double, <vscale x 4 x ptr addrspace(1)> %BroadcastAddr.splat, <vscale x 4 x i64> %5
 ; CHECK:  call void @llvm.vp.scatter.nxv4f64.nxv4p1(<vscale x 4 x double> %0, <vscale x 4 x ptr addrspace(1)> %6, <vscale x 4 x i1> %2, i32 %3)
