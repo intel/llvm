@@ -824,7 +824,7 @@ public:
 
     xpti::TracePointImpl *TP = reinterpret_cast<xpti::TracePointImpl *>(UId);
     if (xpti::is_valid_event(&TP->MEvent))
-      return reinterpret_cast<xpti_trace_event_t *>(TP);
+      return dynamic_cast<xpti_trace_event_t *>(TP);
     else
       return nullptr;
   }
@@ -880,7 +880,7 @@ public:
 
     xpti::uid128_t UId = TP->MUId;
     {
-      std::unique_lock Lock(MTracepointMutex);
+      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
       // Find the event list for a given UID
       auto &Instances = MTracepoints[UId];
       MUID64Check.erase(UId.uid64);
@@ -1017,7 +1017,7 @@ public:
     // Check is Key is valid; If the payload is fully populated, then we will
     // have both Key.p1 and Key.p2 set. However, if only a function name is
     // provided, then we will have Key.p1 populated.
-    std::unique_lock Lock(MPayloadMutex);
+    std::unique_lock<std::shared_mutex> Lock(MPayloadMutex);
     auto &PayloadEntry = MPayloads[Key];
     if (PayloadEntry.first.flags == 0) {
 #ifdef XPTI_STATISTICS
@@ -1066,7 +1066,7 @@ public:
       return nullptr;
 
     // Lock the mutex to ensure thread-safe access to the tracepoints map
-    std::unique_lock Lock(MTracepointMutex);
+    std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
     // Access or create the tracepoint instance associated with the universal ID
     auto &Tracepoint = MTracepoints[UniversalId];
     // Access or create the specific instance of the tracepoint based on the
@@ -1101,7 +1101,7 @@ public:
     {
       xpti::uid128_t UId = TP->MUId;
       // Lock the mutex to ensure thread-safe access to the tracepoints map
-      std::unique_lock Lock(MTracepointMutex);
+      std::unique_lock<std::shared_mutex> Lock(MTracepointMutex);
       // Find the tracepoint for a given UID
       auto &Instances = MTracepoints[UId];
       // Now release the 64-bit UID associated with tracepoint instance
@@ -1458,7 +1458,7 @@ public:
 #endif
     // If reader-writer locks were emplyed, this is where the writer lock can
     // be used
-    std::unique_lock Lock(MCBsLock);
+    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
     auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
                                                // stream ID
     TraceFlags[TraceType] = true; // Set the trace type flag to true
@@ -1533,7 +1533,7 @@ public:
     // Since we do not remove the callback function when they are unregistered
     // and only reset the flag, the writer lock is not held for very long; use
     // writer lock here.
-    std::unique_lock Lock(MCBsLock);
+    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
     auto &TraceFlags = MStreamFlags[StreamID]; // Get the trace flags for the
                                                // stream ID
     TraceFlags[TraceType] = false; // Set the trace type flag to false
@@ -1587,7 +1587,7 @@ public:
     // If there are no callbacks registered for the requested stream ID, we
     // return not found; use reader lock here if the implementation moves to
     // reader-writer locks.
-    std::unique_lock Lock(MCBsLock);
+    std::unique_lock<std::shared_mutex> Lock(MCBsLock);
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
 
@@ -1699,7 +1699,7 @@ public:
       // the notification functions when the lock is held and then releases
       // the lock before calling the notification functions. When using
       // reader-writer locks, use reader lock here.
-      std::shared_lock Lock(MCBsLock);
+      std::shared_lock<std::shared_mutex> Lock(MCBsLock);
       cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
       Acc = Stream.find(TraceType);
       Success = (Acc != Stream.end());
