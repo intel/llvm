@@ -49,7 +49,7 @@ int main() {
     sycl::buffer<float> buf(out.data(), width);
 
     q.submit([&](sycl::handler &cgh) {
-      sycl::accessor outAcc{buf};
+      sycl::accessor outAcc{buf, cgh};
 
       cgh.parallel_for<image_kernel>(width, [=](sycl::id<1> id) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
