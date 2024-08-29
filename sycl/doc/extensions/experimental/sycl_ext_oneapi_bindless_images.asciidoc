@@ -114,11 +114,13 @@ implementation supports.
 
 [frame="none",options="header"]
 |======================
-|Rev |Description
-|1 |Initial draft of the proposal
-|2 |Second revision of the proposal
-|3 |Third revision of the proposal
-|4 |Fourth revision of the proposal
+|Rev | Description
+|1   | Initial draft of the proposal
+|2   | Second revision of the proposal
+|3   | Third revision of the proposal
+|4   | Fourth revision of the proposal
+|5   | Fifth revision of the proposal
+|6   | Sixth revision of the proposal
 |======================
 
 See the revision history at the bottom of this document for features added in 
@@ -2869,7 +2871,7 @@ These features still need to be handled:
                     funcs.
 |5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
                     `release_external_semaphore`.
-|5.15|2024-07-19 - Add missing device queries for image arrays, sampling USM 
+|5.15|2024-07-19| - Add missing device queries for image arrays, sampling USM 
                    images and unique addressing per dimension.
                  - Remove aspects for semaphore export, memory export and fetch 
                    3D USM images as they are not supported on any platform.
@@ -2884,4 +2886,6 @@ These features still need to be handled:
                     handles and the imported `interop_xxx_handle`.
 |5.17|2024-07-30| - Add support for mapping external memory to linear USM using
                     `map_external_linear_memory`.
+|6 |2024-08-05 | - Collated all changes since revision 5.
+                 - Bumped SYCL_EXT_ONEAPI_BINDLESS_IMAGES to number 6.
 |======================
