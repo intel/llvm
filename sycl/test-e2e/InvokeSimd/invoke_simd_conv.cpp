@@ -13,7 +13,6 @@
 // TODO: enable execution of test generated with -O0 once crash issue is
 // resolved
 
-#include "../helpers.hpp"
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
@@ -52,16 +51,17 @@ template <class SimdElemT>
 }
 
 int ESIMD_selector_v(const device &device) {
-  std::string filter_string = env::getVal("ONEAPI_DEVICE_SELECTOR");
+  if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
+    std::string filter_string(dev_filter);
+    if (filter_string.find("gpu") != std::string::npos)
+      return device.is_gpu() ? 1000 : -1;
+    std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
+                 "'*:gpu' and  '"
+              << filter_string << "' does not contain such substrings.\n";
+    return -1;
+  }
   // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-  if (filter_string.empty())
-    return device.is_gpu() ? 1000 : -1;
-  if (filter_string.find("gpu") != std::string::npos)
-    return device.is_gpu() ? 1000 : -1;
-  std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
-               "'*:gpu' and  '"
-            << filter_string << "' does not contain such substrings.\n";
-  return -1;
+  return device.is_gpu() ? 1000 : -1;
 }
 
 inline auto createExceptionHandler() {
