@@ -145,7 +145,7 @@ void worker() {
                          sycl::info::event::command_execution_status>() ==
                      sycl::info::event_command_status::complete;
 
-      if (env::isDefined("QUERY_STATUS") {
+      if (env::isDefined("QUERY_STATUS")) {
         auto ev1 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
             op.sycl_event_sync);
         auto ev2 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
