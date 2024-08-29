@@ -788,7 +788,10 @@ processInputModule(std::unique_ptr<Module> M) {
   // its purpose, these device_global variables can be removed. If they are not
   // used inside the device code after they have been removed from
   // "llvm.compiler.used" they can be erased safely.
-  Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
+  if (auto Triple = M->getTargetTriple();
+      Triple.find("nvptx") != std::string::npos &&
+      Triple.find("amdgcn") != std::string::npos)
+    Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
   // Instrument each image scope device globals if the module has been
   // instrumented by sanitizer pass.
