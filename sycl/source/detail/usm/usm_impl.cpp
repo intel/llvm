@@ -6,6 +6,7 @@
 //
 // ===--------------------------------------------------------------------=== //
 
+#include <detail/property_check.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/usm/usm_impl.hpp>
 #include <sycl/context.hpp>
@@ -664,6 +665,12 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
   release_from_usm_device_copy(Ptr, Queue.get_context());
 }
 } // namespace ext::oneapi::experimental
+
+void verifyUSMAllocatorProperties(const property_list &PropList) {
+  // no valid props for usm_allocator now
+  static const std::set<std::pair<int, bool>> AllowedPropList;
+  checkPropsAndThrow(PropList, AllowedPropList);
+}
 
 } // namespace _V1
 } // namespace sycl

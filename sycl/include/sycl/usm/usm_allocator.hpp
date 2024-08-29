@@ -21,6 +21,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+/// Validates usm_allocator properties
+/// Throws sycl::exception if incorrect property is passed.
+__SYCL_EXPORT void verifyUSMAllocatorProperties(const property_list &PropList);
+
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -41,10 +46,14 @@ public:
   usm_allocator() = delete;
   usm_allocator(const context &Ctxt, const device &Dev,
                 const property_list &PropList = {})
-      : MContext(Ctxt), MDevice(Dev), MPropList(PropList) {}
+      : MContext(Ctxt), MDevice(Dev), MPropList(PropList) {
+    verifyUSMAllocatorProperties(MPropList);
+  }
   usm_allocator(const queue &Q, const property_list &PropList = {})
       : MContext(Q.get_context()), MDevice(Q.get_device()),
-        MPropList(PropList) {}
+        MPropList(PropList) {
+    verifyUSMAllocatorProperties(MPropList);
+  }
   usm_allocator(const usm_allocator &) = default;
   usm_allocator(usm_allocator &&) noexcept = default;
   usm_allocator &operator=(const usm_allocator &Other) {
