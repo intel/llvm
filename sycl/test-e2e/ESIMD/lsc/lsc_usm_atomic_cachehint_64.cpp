@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // TODO : Test uses 'kernel_bundle' that is not supported in ESIMD_EMULATOR
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

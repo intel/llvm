@@ -2,10 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Hangs on that platform (at least on gpu-intel-pvc),
-// https://github.com/intel/llvm/issues/7330.
-// UNSUPPORTED: opencl && gpu
-
 #include <iostream>
 #include <stdlib.h>
 

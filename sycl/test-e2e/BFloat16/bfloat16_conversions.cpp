@@ -5,9 +5,6 @@
 // software emulation.
 // UNSUPPORTED: accelerator
 
-// FIXME: enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu
-
 //==---------- bfloat16_conversions.cpp - SYCL bfloat16 type test ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

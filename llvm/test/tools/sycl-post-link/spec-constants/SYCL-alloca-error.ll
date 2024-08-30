@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -spec-const=emulation %s 2>&1 | FileCheck %s
+; RUN: sycl-post-link -properties -spec-const=emulation %s 2>&1 | FileCheck %s
 
 ; This test checks the `-spec-const` pass on SPIR-V targets and emulation mode,
 ; i.e., on AOT SPIR-V targets. In this scenario, 'llvm.sycl.alloca' intrinsics

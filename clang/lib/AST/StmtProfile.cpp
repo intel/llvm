@@ -624,7 +624,7 @@ void OMPClauseProfiler::VisitOMPFilterClause(const OMPFilterClause *C) {
 
 template<typename T>
 void OMPClauseProfiler::VisitOMPClauseList(T *Node) {
-  for (auto *E : Node->varlists()) {
+  for (auto *E : Node->varlist()) {
     if (E)
       Profiler->VisitStmt(E);
   }
@@ -918,7 +918,7 @@ void OMPClauseProfiler::VisitOMPUsesAllocatorsClause(
 void OMPClauseProfiler::VisitOMPAffinityClause(const OMPAffinityClause *C) {
   if (const Expr *Modifier = C->getModifier())
     Profiler->VisitStmt(Modifier);
-  for (const Expr *E : C->varlists())
+  for (const Expr *E : C->varlist())
     Profiler->VisitStmt(E);
 }
 void OMPClauseProfiler::VisitOMPOrderClause(const OMPOrderClause *C) {}
@@ -982,6 +982,15 @@ void StmtProfiler::VisitOMPTileDirective(const OMPTileDirective *S) {
 }
 
 void StmtProfiler::VisitOMPUnrollDirective(const OMPUnrollDirective *S) {
+  VisitOMPLoopTransformationDirective(S);
+}
+
+void StmtProfiler::VisitOMPReverseDirective(const OMPReverseDirective *S) {
+  VisitOMPLoopTransformationDirective(S);
+}
+
+void StmtProfiler::VisitOMPInterchangeDirective(
+    const OMPInterchangeDirective *S) {
   VisitOMPLoopTransformationDirective(S);
 }
 
@@ -2340,6 +2349,8 @@ void StmtProfiler::VisitSourceLocExpr(const SourceLocExpr *E) {
   VisitExpr(E);
 }
 
+void StmtProfiler::VisitEmbedExpr(const EmbedExpr *E) { VisitExpr(E); }
+
 void StmtProfiler::VisitRecoveryExpr(const RecoveryExpr *E) { VisitExpr(E); }
 
 void StmtProfiler::VisitObjCStringLiteral(const ObjCStringLiteral *S) {
@@ -2616,6 +2627,13 @@ void OpenACCClauseProfiler::VisitWaitClause(const OpenACCWaitClause &Clause) {
 void OpenACCClauseProfiler::VisitDeviceTypeClause(
     const OpenACCDeviceTypeClause &Clause) {}
 
+void OpenACCClauseProfiler::VisitAutoClause(const OpenACCAutoClause &Clause) {}
+
+void OpenACCClauseProfiler::VisitIndependentClause(
+    const OpenACCIndependentClause &Clause) {}
+
+void OpenACCClauseProfiler::VisitSeqClause(const OpenACCSeqClause &Clause) {}
+
 void OpenACCClauseProfiler::VisitReductionClause(
     const OpenACCReductionClause &Clause) {
   for (auto *E : Clause.getVarList())
@@ -2626,6 +2644,14 @@ void OpenACCClauseProfiler::VisitReductionClause(
 void StmtProfiler::VisitOpenACCComputeConstruct(
     const OpenACCComputeConstruct *S) {
   // VisitStmt handles children, so the AssociatedStmt is handled.
+  VisitStmt(S);
+
+  OpenACCClauseProfiler P{*this};
+  P.VisitOpenACCClauseList(S->clauses());
+}
+
+void StmtProfiler::VisitOpenACCLoopConstruct(const OpenACCLoopConstruct *S) {
+  // VisitStmt handles children, so the Loop is handled.
   VisitStmt(S);
 
   OpenACCClauseProfiler P{*this};

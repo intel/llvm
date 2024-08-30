@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} %{embed-ir} -O2 -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:64 %{run} %t.out
 
 // Test complete fusion with private internalization specified on the

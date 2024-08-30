@@ -22,30 +22,24 @@ int main() {
     forcedPIs = envVal;
   }
   {
-    default_selector ds;
-    device d = ds.select_device();
+    device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos &&
            "default_selector failed to find cpu device");
   }
   {
-    gpu_selector gs;
     try {
-      device d = gs.select_device();
+      device d(gpu_selector_v);
       std::cerr << "GPU Device is found: " << std::boolalpha << d.is_gpu()
                 << std::endl;
       return -1;
     } catch (...) {
     }
   }
+  { device d(cpu_selector_v); }
   {
-    cpu_selector cs;
-    device d = cs.select_device();
-  }
-  {
-    accelerator_selector as;
     try {
-      device d = as.select_device();
+      device d(accelerator_selector_v);
       std::cerr << "ACC device is found in error: " << d.is_accelerator()
                 << std::endl;
       return -1;

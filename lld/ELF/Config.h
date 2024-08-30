@@ -27,6 +27,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GlobPattern.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/TarWriter.h"
 #include <atomic>
 #include <memory>
 #include <optional>
@@ -217,6 +218,7 @@ struct Config {
   bool allowMultipleDefinition;
   bool fatLTOObjects;
   bool androidPackDynRelocs = false;
+  bool armThumbPLTs = false;
   bool armHasBlx = false;
   bool armHasMovtMovw = false;
   bool armJ1J2BranchEncoding = false;
@@ -285,6 +287,7 @@ struct Config {
   bool relax;
   bool relaxGP;
   bool relocatable;
+  bool resolveGroups;
   bool relrGlibc = false;
   bool relrPackDynRelocs = false;
   llvm::DenseSet<llvm::StringRef> saveTempsArgs;
@@ -330,6 +333,7 @@ struct Config {
   bool zPacPlt;
   bool zRelro;
   bool zRodynamic;
+  bool zSectionHeader;
   bool zShstk;
   bool zStartStopGC;
   uint8_t zStartStopVisibility;
@@ -456,6 +460,15 @@ struct ConfigWrapper {
 
 LLVM_LIBRARY_VISIBILITY extern ConfigWrapper config;
 
+// Some index properties of a symbol are stored separately in this auxiliary
+// struct to decrease sizeof(SymbolUnion) in the majority of cases.
+struct SymbolAux {
+  uint32_t gotIdx = -1;
+  uint32_t pltIdx = -1;
+  uint32_t tlsDescIdx = -1;
+  uint32_t tlsGdIdx = -1;
+};
+
 struct DuplicateSymbol {
   const Symbol *sym;
   const InputFile *file;
@@ -473,6 +486,8 @@ struct Ctx {
   SmallVector<BitcodeFile *, 0> lazyBitcodeFiles;
   SmallVector<InputSectionBase *, 0> inputSections;
   SmallVector<EhInputSection *, 0> ehInputSections;
+
+  SmallVector<SymbolAux, 0> symAux;
   // Duplicate symbol candidates.
   SmallVector<DuplicateSymbol, 0> duplicates;
   // Symbols in a non-prevailing COMDAT group which should be changed to an
@@ -487,6 +502,9 @@ struct Ctx {
                  std::pair<const InputFile *, const InputFile *>>
       backwardReferences;
   llvm::SmallSet<llvm::StringRef, 0> auxiliaryFiles;
+  // If --reproduce is specified, all input files are written to this tar
+  // archive.
+  std::unique_ptr<llvm::TarWriter> tar;
   // InputFile for linker created symbols with no source location.
   InputFile *internalFile;
   // True if SHT_LLVM_SYMPART is used.

@@ -159,7 +159,22 @@ set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp im
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC)
-  set(sanitizer_obj_deps device.h atomic.hpp spirv_vars.h include/sanitizer_utils.hpp include/spir_global_var.hpp sycl-compiler)
+  set(sanitizer_obj_deps
+    device.h atomic.hpp spirv_vars.h
+    include/asan_libdevice.hpp
+    include/sanitizer_utils.hpp
+    include/spir_global_var.hpp
+    sycl-compiler)
+endif()
+
+if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
+  if (NOT DEFINED NATIVE_CPU_DIR)
+    message( FATAL_ERROR "Undefined UR variable NATIVE_CPU_DIR. The name may have changed." )
+  endif()
+  # Include NativeCPU UR adapter path to enable finding header file with state struct.
+  # libsycl-nativecpu_utils is only needed as BC file by NativeCPU.
+  # Todo: add versions for other targets (for cross-compilation)
+  add_devicelib_bc(libsycl-nativecpu_utils SRC nativecpu_utils.cpp DEP ${itt_obj_deps} EXTRA_ARGS -I ${NATIVE_CPU_DIR} -fsycl-targets=native_cpu)
 endif()
 
 add_devicelib(libsycl-itt-stubs SRC itt_stubs.cpp DEP ${itt_obj_deps})
@@ -218,9 +233,46 @@ set(imf_host_cxx_flags -c
   -D__LIBDEVICE_HOST_IMPL__
 )
 
+macro(mangle_name str output)
+  string(STRIP "${str}" strippedStr)
+  string(REGEX REPLACE "^/" "" strippedStr "${strippedStr}")
+  string(REGEX REPLACE "^-+" "" strippedStr "${strippedStr}")
+  string(REGEX REPLACE "-+$" "" strippedStr "${strippedStr}")
+  string(REPLACE "-" "_" strippedStr "${strippedStr}")
+  string(REPLACE "=" "_EQ_" strippedStr "${strippedStr}")
+  string(REPLACE "+" "X" strippedStr "${strippedStr}")
+  string(TOUPPER "${strippedStr}" ${output})
+endmacro()
+
+# Add a list of flags to 'imf_host_cxx_flags'.
+macro(add_imf_host_cxx_flags_compile_flags)
+  foreach(f ${ARGN})
+    list(APPEND imf_host_cxx_flags ${f})
+  endforeach()
+endmacro()
+
+# If 'condition' is true then add the specified list of flags to
+# 'imf_host_cxx_flags'
+macro(add_imf_host_cxx_flags_compile_flags_if condition)
+  if (${condition})
+    add_imf_host_cxx_flags_compile_flags(${ARGN})
+  endif()
+endmacro()
+
+# For each specified flag, add that flag to 'imf_host_cxx_flags' if the
+# flag is supported by the C++ compiler.
+macro(add_imf_host_cxx_flags_compile_flags_if_supported)
+  foreach(flag ${ARGN})
+      mangle_name("${flag}" flagname)
+      check_cxx_compiler_flag("${flag}" "CXX_SUPPORTS_${flagname}_FLAG")
+      add_imf_host_cxx_flags_compile_flags_if(CXX_SUPPORTS_${flagname}_FLAG ${flag})
+  endforeach()
+endmacro()
+
+
 if (NOT WIN32)
-  list(APPEND imf_host_cxx_flags -fPIC -fcf-protection=full)
-  list(APPEND imf_host_cxx_flags -fcf-protection=full)
+  list(APPEND imf_host_cxx_flags -fPIC)
+  add_imf_host_cxx_flags_compile_flags_if_supported("-fcf-protection=full")
 endif()
 
 add_custom_command(OUTPUT ${imf_fp32_fallback_src}

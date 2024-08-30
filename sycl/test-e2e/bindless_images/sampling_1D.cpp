@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -15,7 +15,7 @@ class image_addition;
 int main() {
 
 #if defined(SYCL_EXT_ONEAPI_BINDLESS_IMAGES)
-  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 1);
+  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 6);
 #if defined(VERBOSE_PRINT)
   std::cout << "SYCL_EXT_ONEAPI_BINDLESS_IMAGES is defined!" << std::endl;
 #endif

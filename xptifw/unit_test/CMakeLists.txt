@@ -68,14 +68,14 @@ if (DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
   target_link_libraries(XPTIFWUnitTests PRIVATE
     llvm_gtest
     llvm_gtest_main
-    xptifw
+    ${xptifw_lib}
     ${SUPPORT_LIB}
   )
 else()
   target_link_libraries(XPTIFWUnitTests PRIVATE
     gtest
     gtest_main
-    xptifw
+    ${xptifw_lib}
   )
 endif()
 

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -verify -Wno-sycl-2017-compat -emit-llvm-only %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -verify -emit-llvm-only %s
 // expected-no-diagnostics
 // Should never fail, since the type is never used in kernel code.
 

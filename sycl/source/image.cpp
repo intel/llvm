@@ -130,8 +130,8 @@ image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
 }
 #endif
 
-image_plain::image_plain(pi_native_handle MemObject, const context &SyclContext,
-                         event AvailableEvent,
+image_plain::image_plain(ur_native_handle_t MemObject,
+                         const context &SyclContext, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
                          uint8_t Dimensions, image_channel_order Order,
                          image_channel_type Type, bool OwnNativeHandle,
@@ -140,24 +140,6 @@ image_plain::image_plain(pi_native_handle MemObject, const context &SyclContext,
       MemObject, SyclContext, AvailableEvent, std::move(Allocator), Dimensions,
       Order, Type, OwnNativeHandle, Range3WithOnes);
 }
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool image_plain::has_property<param_type>() const noexcept {  \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type image_plain::get_property<param_type>() const {     \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
 
 range<3> image_plain::get_range() const { return impl->get_range(); }
 
@@ -223,6 +205,10 @@ void image_plain::unsampledImageConstructorNotification(
 
 void image_plain::unsampledImageDestructorNotification(void *UserObj) {
   impl->unsampledImageDestructorNotification(UserObj);
+}
+
+const property_list &image_plain::getPropList() const {
+  return impl->getPropList();
 }
 
 } // namespace detail

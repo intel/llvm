@@ -21,23 +21,11 @@
 namespace sycl {
 inline namespace _V1 {
 
-template <typename DataT, int NumElem> class vec;
+template <typename DataT, int NumElem> class __SYCL_EBO vec;
 
 namespace detail {
 
 template <typename VecT> class VecAccess;
-
-// Element type for relational operator return value.
-template <typename DataT>
-using rel_t = typename std::conditional_t<
-    sizeof(DataT) == sizeof(opencl::cl_char), opencl::cl_char,
-    typename std::conditional_t<
-        sizeof(DataT) == sizeof(opencl::cl_short), opencl::cl_short,
-        typename std::conditional_t<
-            sizeof(DataT) == sizeof(opencl::cl_int), opencl::cl_int,
-            typename std::conditional_t<sizeof(DataT) ==
-                                            sizeof(opencl::cl_long),
-                                        opencl::cl_long, bool>>>>;
 
 // Macros to populate binary operation on sycl::vec.
 #if defined(__SYCL_BINOP) || defined(BINOP_BASE)
@@ -299,7 +287,7 @@ protected:
   __SYCL_BINOP(<<, <<=, true, (!detail::is_vgenfloat_v<DataT>))
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 }; // class vec_arith<>
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -352,7 +340,7 @@ protected:
   __SYCL_BINOP(^, ^=, false, true)
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
@@ -395,7 +383,7 @@ protected:
 #endif
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 
 #undef __SYCL_BINOP

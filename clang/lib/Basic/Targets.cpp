@@ -714,8 +714,11 @@ std::unique_ptr<TargetInfo> AllocateTarget(const llvm::Triple &Triple,
   }
   case llvm::Triple::spirv64: {
     if (os != llvm::Triple::UnknownOS ||
-        Triple.getEnvironment() != llvm::Triple::UnknownEnvironment)
+        Triple.getEnvironment() != llvm::Triple::UnknownEnvironment) {
+      if (os == llvm::Triple::OSType::AMDHSA)
+        return std::make_unique<SPIRV64AMDGCNTargetInfo>(Triple, Opts);
       return nullptr;
+    }
     llvm::Triple HT(Opts.HostTriple);
     switch (HT.getOS()) {
     case llvm::Triple::Win32:

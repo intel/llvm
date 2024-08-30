@@ -12,8 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-    * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
-    * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
+    * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
     * [Deployment](#deployment)
@@ -44,6 +43,8 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
+* `hwloc` version 2.3 or later (Linux only)
+  * libhwloc-dev or hwloc-devel package on linux
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
@@ -302,41 +303,17 @@ as well as the CUDA Runtime API to be installed, see
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
 CUDA 11, and using a GeForce 1060 device.
 
-### Build DPC++ toolchain with support for ESIMD CPU Emulation
-
-There is experimental support for DPC++ for using ESIMD CPU Emulation.
-
-This feature supports ESIMD CPU Emulation using CM_EMU library
-[CM Emulation project](https://github.com/intel/cm-cpu-emulation). The library
-package will be generated from source codes downloaded from its open source
-project and installed in your deploy directory during toolchain build.
-
-To enable support for ESIMD CPU emulation, follow the instructions for the Linux
-DPC++ toolchain, but add the `--enable-esimd-emulator`.
-
-Enabling this flag requires following packages installed.
-
-* Ubuntu 22.04
-  * libva-dev / 2.7.0-2
-  * libffi-dev / 3.3-4
-  * libtool
-* RHEL 8.\*
-  * libffi
-  * libffi-devel
-  * libva
-  * libva-devel
-
-Currently, this feature was tested and verified on Ubuntu 22.04 environment.
-
-### Build DPC++ toolchain with support for runtime kernel fusion
+### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
 
 Support for the experimental SYCL extension for user-driven kernel fusion at
-runtime is enabled by default.
+runtime is enabled by default. The same mechanism is used to allow JIT
+compilation of AMD and Nvidia kernels.
 
-To disable support for this feature, follow the instructions for the Linux DPC++
-toolchain, but add the `--disable-fusion` flag.
+To disable support for these features, follow the instructions for the Linux
+DPC++ toolchain, but add the `--disable-jit` flag.
 
-Kernel fusion is currently not yet supported on the Windows platform.
+Both kernel fusion and JIT compilation of AMD and Nvidia kernels are currently
+not yet supported on the Windows platform.
 
 ### Build Doxygen documentation
 
@@ -371,22 +348,22 @@ specific repository URL and revision tag used can be found in the file
 In order to enable developers, a number of CMake variables are available to
 control which revision of Unified Runtime should be used when building DPC++:
 
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
   override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
   the Unified Runtime source code.
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
   override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
   the Unified Runtime source code.
-* `SYCL_PI_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
+* `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
   `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
   When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_PI_UR_SOURCE_DIR` will be used with
+  * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
     `add_directory()`. This can be used to point at an adjacent directory
     containing a clone of the Unified Runtime repository.
   * The path `sycl/plugins/unified_runtime/unified-runtime` will be used, if it
     exists. This can be used as-if an in-tree build.
-* `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
+* `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
+  Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 
@@ -439,17 +416,17 @@ run the following commands
     # Extract OpenCL CPU RT
     mkdir -p /opt/intel/oclcpuexp_<cpu_version>
     cd /opt/intel/oclcpuexp_<cpu_version>
-    tar -zxvf oclcpu_rt_<cpu_version>.tar.gz
+    tar -zxvf oclcpuexp_<cpu_version>.tar.gz
     ```
 
-2) Create ICD file pointing to the new runtime (requires root access)
+2) Create ICD file pointing to the new runtime (requires sudo access)
 
     ```bash
     # OpenCL FPGA emulation RT
-    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so >
+    echo  /opt/intel/oclfpgaemu_<fpga_version>/x64/libintelocl_emu.so | sudo tee
       /etc/OpenCL/vendors/intel_fpgaemu.icd
     # OpenCL CPU RT
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so >
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64/libintelocl.so | sudo tee
       /etc/OpenCL/vendors/intel_expcpu.icd
     ```
 
@@ -469,32 +446,32 @@ folder:
     ```bash
     # OpenCL FPGA emulation RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclfpgaemu_<fpga_version>/x64
+      /opt/intel/oclfpgaemu_<fpga_version>/x64/libtbbmalloc.so.2
     # OpenCL CPU RT
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbb.so.12
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbb.so.12
     ln -s /opt/intel/oneapi-tbb-<tbb_version>/lib/intel64/gcc4.8/libtbbmalloc.so.2
-      /opt/intel/oclcpuexp_<cpu_version>/x64
+      /opt/intel/oclcpuexp_<cpu_version>/x64/libtbbmalloc.so.2
     ```
 
-5) Configure library paths (requires root access)
+5) Configure library paths (requires sudo access)
 
     ```bash
-    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 >
+    echo /opt/intel/oclfpgaemu_<fpga_version>/x64 | sudo tee
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    echo /opt/intel/oclcpuexp_<cpu_version>/x64 >>
+    echo /opt/intel/oclcpuexp_<cpu_version>/x64 | sudo tee -a
       /etc/ld.so.conf.d/libintelopenclexp.conf
-    ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
+    sudo ldconfig -f /etc/ld.so.conf.d/libintelopenclexp.conf
     ```
 
 **Windows (64-bit)**:
@@ -807,7 +784,7 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
+if clang was built with the cmake option `SYCL_ENABLE_BACKENDS=cuda`.
 
 ### Build DPC++ application with CMake
 

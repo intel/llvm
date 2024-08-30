@@ -69,6 +69,21 @@ std::string getDeviceTypeName(const device &Device) {
   }
 }
 
+const char *getArchName(const device &Device) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  auto arch = Device.get_info<syclex::info::device::architecture>();
+  switch (arch) {
+#define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
+  case syclex::architecture::ARCH:                                             \
+    return #ARCH;
+#define __SYCL_ARCHITECTURE_ALIAS(ARCH, VAL)
+#include <sycl/ext/oneapi/experimental/architectures.def>
+#undef __SYCL_ARCHITECTURE
+#undef __SYCL_ARCHITECTURE_ALIAS
+  }
+  return "unknown";
+}
+
 template <typename RangeTy, typename ElemTy>
 bool contains(RangeTy &&Range, const ElemTy &Elem) {
   return std::find(Range.begin(), Range.end(), Elem) != Range.end();
@@ -153,6 +168,8 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     for (auto size : sg_sizes)
       std::cout << " " << size;
     std::cout << std::endl;
+    std::cout << Prepend << "Architecture: " << getArchName(Device)
+              << std::endl;
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;
@@ -329,6 +346,7 @@ int main(int argc, char **argv) {
   if (DiscardFilters && FilterEnvVars.size()) {
     return unsetFilterEnvVarsAndFork();
   }
+  SetErrorMode(SEM_FAILCRITICALERRORS); // no need to restore in sycl-ls
 #endif
 
   try {

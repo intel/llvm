@@ -8,20 +8,18 @@
 
 #include <iostream>
 
-class RejectEverything : public sycl::device_selector {
-public:
-  int operator()(const sycl::device &Device) const final {
-    // Negative value means that a device must not be selected
-    return -1;
-  }
-};
-
 int main() {
-  RejectEverything Selector;
+  auto RejectEverything = [](const sycl::device &) { return -1; };
   try {
-    sycl::device Device(Selector);
-  } catch (sycl::runtime_error &E) {
-    return 0;
+    sycl::device Device(RejectEverything);
+  } catch (sycl::exception &e) {
+    if (e.code() == sycl::errc::runtime &&
+        std::string(e.what()).find("No device of requested type available.") !=
+            std::string::npos) {
+      return 0;
+    }
+    std::cerr << "Error. Incorrect exception was thrown." << std::endl;
+    return 1;
   }
   std::cerr << "Error. A device is found." << std::endl;
   return 1;

@@ -1,5 +1,7 @@
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} %{embed-ir} -O2 -o %t.out
 // RUN: %{run} %t.out
+
+// XFAIL: *
 
 // Test complete fusion with private internalization specified on the
 // accessors for a device kernel with sycl::vec::load and sycl::vec::store.

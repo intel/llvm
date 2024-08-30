@@ -67,7 +67,8 @@ private:
 class online_compile_error : public sycl::exception {
 public:
   online_compile_error() = default;
-  online_compile_error(const std::string &Msg) : sycl::exception(Msg) {}
+  online_compile_error(const std::string &Msg)
+      : sycl::exception(make_error_code(errc::invalid), Msg) {}
 };
 
 /// Designates a source language for the online compiler.

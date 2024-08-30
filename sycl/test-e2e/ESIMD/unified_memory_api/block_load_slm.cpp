@@ -5,14 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES-INTEL-DRIVER: win: 101.4887
-// Somehow the driver version check above does not work, i.e. Windows CI runs
-// the test with 31.0.101.4502 (if opencl:gpu) and 1.3.26370 (if level-zero:gpu)
-// It seems the driver check infrastructure may need some fix/tuning.
-// TODO: Enable the test when Windows CI driver reaches 101.4887 version, or
-// driver version check is fixed/tuned.
-// UNSUPPORTED: windows
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

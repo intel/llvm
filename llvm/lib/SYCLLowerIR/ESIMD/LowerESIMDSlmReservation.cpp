@@ -360,6 +360,7 @@ public:
             continue;
           }
           if (CallInst *ScopeStartCI = IsScopeEnd(&I)) {
+            (void)ScopeStartCI;
             ScopeMet = true;
             // Scope end marker encountered - verify all enclosed scopes have
             // ended and truncate current scope path to the enclosing node.

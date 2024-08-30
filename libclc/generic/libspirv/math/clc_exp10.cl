@@ -150,3 +150,11 @@ _CLC_DEF _CLC_OVERLOAD double __clc_exp10(double x)
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_exp10, double)
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(half, __clc_exp10, __builtin_exp10, half)
+
+#endif

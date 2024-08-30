@@ -58,3 +58,30 @@ TEST_F(CommandGraphTest, AccessorModeRegression) {
   EXPECT_EQ(NodeC.get_predecessors().size(), 0ul);
   EXPECT_EQ(NodeC.get_successors().size(), 0ul);
 }
+
+TEST_F(CommandGraphTest, QueueRecordBarrierMultipleGraph) {
+  // Test that using barriers recorded from the same queue to
+  // different graphs.
+
+  Graph.begin_recording(Queue);
+  auto NodeKernel = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Queue.ext_oneapi_submit_barrier({NodeKernel});
+  Graph.end_recording(Queue);
+
+  experimental::command_graph<experimental::graph_state::modifiable> GraphB{
+      Queue};
+  GraphB.begin_recording(Queue);
+  auto NodeKernelB = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Queue.ext_oneapi_submit_barrier({NodeKernelB});
+  GraphB.end_recording(Queue);
+
+  experimental::command_graph<experimental::graph_state::modifiable> GraphC{
+      Queue};
+  GraphC.begin_recording(Queue);
+  auto NodeKernelC = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Queue.ext_oneapi_submit_barrier();
+  GraphC.end_recording(Queue);
+}
