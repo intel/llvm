@@ -184,6 +184,8 @@ algorithms, use of atomic operations, etc. _{endnote}_]
 
 [source,c++]
 ----
+using syclex = sycl::ext::oneapi::experimental;
+
 float sum(sycl::queue q, float* input, size_t N) {
 
   float result = 0;
@@ -191,7 +193,7 @@ float sum(sycl::queue q, float* input, size_t N) {
     sycl::buffer<float> buf{&result, 1};
 
     q.submit([&](sycl::handler& h) {
-      auto reduction = sycl::reduction(buf, h, sycl::plus<>(), sycl::properties(sycl::deterministic));
+      auto reduction = sycl::reduction(buf, h, sycl::plus<>(), syclex::properties(syclex::deterministic));
       h.parallel_for(N, reduction, [=](size_t i, auto& reducer) {
         reducer += input[i];
       });
