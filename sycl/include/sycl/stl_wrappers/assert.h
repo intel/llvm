@@ -26,8 +26,8 @@
 #if defined(_WIN32) && defined(assert)
 extern "C" __DPCPP_SYCL_EXTERNAL void
 __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
-                         uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                         uint64_t);
+                        uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                        uint64_t);
 #undef assert
 #if defined(NDEBUG)
 #define assert(e) ((void)0)
