@@ -167,7 +167,7 @@ inline constexpr initialize_to_identity_key::value_t initialize_to_identity;
 |Adds the requirement that any two calls to the reduction on the same device
 which use the same launch configuration (i.e., `range` or `nd_range`) and in
 which the same kernel instances contribute the same values to the reduction
-will produce results with the same value representation.
+will produce results with the same value.
 
 [_Note:_ Kernel instances may contribute different values to a reduction
 because of other potential sources of non-determinism, such as calls to group
@@ -207,6 +207,8 @@ float sum(sycl::queue q, float* input, size_t N) {
 
 float x = sum(q, array, 1024);
 float y = sum(q, array, 1024);
+
+// NB: determinism guarantees bitwise reproducible reductions for floats
 assert(sycl::bit_cast<unsigned int>(x) == sycl::bit_cast<unsigned int>(y));
 ----
 
@@ -223,6 +225,12 @@ that satisfy the constraints imposed by these new properties. Implementing
 support for these new constraints may therefore be as straightforward as
 providing a new overload of `sycl::reduction` that overrides the algorithm
 selection process.
+
+The steps necessary to guarantee deterministic results are type-dependent. For
+integers and built-in combination operators, all implementations should be
+deterministic by default. For floating-point numbers and/or custom combination
+operators, it becomes necessary to ensure that the intermediate results from
+each work-item are always combined in the same order.
 
 
 == Issues
