@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
-  # Merge: 608e9184 c3c57284
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 27 16:30:04 2024 +0100
-  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
-  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
-  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
+  # commit 05d3ea75ae995bdc91d47ceb3adfe792c9efe2f2 (HEAD, origin/main, origin/HEAD)
+  # Merge: b766009a 581a0d8d
+  # Author: Igor Chorążewicz <igor.chorazewicz@intel.com>
+  # Date:   Tue Aug 27 10:11:10 2024 -0700
+  #   Merge pull request #2007 from omarahmed1111/add-umfInit/umfTearDown-to-urAdapterGet/urAdapterRelease
+  #   Add umfInit/umfTearDown to urAdapterGet/urAdapterRelease
+  set(UNIFIED_RUNTIME_TAG 05d3ea75ae995bdc91d47ceb3adfe792c9efe2f2)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
