@@ -173,37 +173,10 @@ public:
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    // Using the instance override constructor for use with queues as queues
-    // maintain instance IDs in the object
-    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, MQueueID, "queue_create");
-    // Cache the trace event, stream id and instance IDs for the destructor
-    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
-                              NotificationTraceType)) {
-      MTraceEvent = (void *)PrepareNotify.traceEvent();
-      MStreamID = PrepareNotify.streamID();
-      MInstanceID = PrepareNotify.instanceID();
-      // Add the function to capture meta data for the XPTI trace event
-      PrepareNotify.addMetadata([&](auto TEvent) {
-        xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
-        if (MDevice) {
-          xpti::addMetadata(TEvent, "sycl_device_name",
-                            MDevice->getDeviceName());
-          xpti::addMetadata(TEvent, "sycl_device",
-                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
-        }
-        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-        xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        xpti::addMetadata(TEvent, "queue_handle",
-                          reinterpret_cast<size_t>(getHandleRef()));
-      });
-      // Also publish to TLS
-      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      PrepareNotify.notify();
-    }
+    // Emit a trace event for queue creation; we currently do not get code
+    // location information, so all queueus will have the same UID with a
+    // different instance ID until this gets added.
+    constructorNotification();
 #endif
   }
 
@@ -236,35 +209,10 @@ private:
     // is the prolog section and the epilog section will initiate the
     // notification.
 #if XPTI_ENABLE_INSTRUMENTATION
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, MQueueID, "queue_create");
-    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
-                              NotificationTraceType)) {
-      // Cache the trace event, stream id and instance IDs for the destructor
-      MTraceEvent = (void *)PrepareNotify.traceEvent();
-      MStreamID = PrepareNotify.streamID();
-      MInstanceID = PrepareNotify.instanceID();
-
-      // Add the function to capture meta data for the XPTI trace event
-      PrepareNotify.addMetadata([&](auto TEvent) {
-        xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
-        if (MDevice) {
-          xpti::addMetadata(TEvent, "sycl_device_name",
-                            MDevice->getDeviceName());
-          xpti::addMetadata(TEvent, "sycl_device",
-                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
-        }
-        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-        xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
-      });
-      // Also publish to TLS before notification
-      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      PrepareNotify.notify();
-    }
+    // Emit a trace event for queue creation; we currently do not get code
+    // location information, so all queueus will have the same UID with a
+    // different instance ID until this gets added.
+    constructorNotification();
 #endif
   }
 
@@ -306,20 +254,11 @@ public:
 
   ~queue_impl() {
     try {
-      // The trace event created in the constructor should be active through the
-      // lifetime of the queue object as member variables when ABI breakage is
-      // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
-      constexpr uint16_t NotificationTraceType =
-          static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
-      if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
-        // Used cached information in member variables
-        xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
-                              (xpti::trace_event_data_t *)MTraceEvent,
-                              MInstanceID,
-                              static_cast<const void *>("queue_destroy"));
-        xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
-      }
+      // The trace event created in the constructor should be active through the
+      // lifetime of the queue object as member variable. We will send a
+      // notification and destroy the trace event for this queue.
+      destructorNotification();
 #endif
       throw_asynchronous();
       cleanup_fusion_cmd();
@@ -748,6 +687,8 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void *getTraceEvent() { return MTraceEvent; }
+
   void setExternalEvent(const event &Event) {
     std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     MInOrderExternalEvent = Event;
@@ -796,9 +737,10 @@ protected:
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
+    ur_event_handle_t UREvent = nullptr;
     getPlugin()->call(urEnqueueEventsWaitWithBarrier,
-                      Handler.MQueue->getHandleRef(), 0, nullptr,
-                      &ResEvent->getHandleRef());
+                      Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+    ResEvent->setHandle(UREvent);
     return ResEvent;
   }
 
@@ -936,6 +878,13 @@ protected:
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
+
+  // We need to emit a queue_create notification when a queue object is created
+  void constructorNotification();
+
+  // We need to emit a queue_destroy notification when a queue object is
+  // destroyed
+  void destructorNotification();
 
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()

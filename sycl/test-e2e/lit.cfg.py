@@ -566,6 +566,9 @@ if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     arch_flag = (
         "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
     )
+    config.substitutions.append(
+        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+    )
 elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add("hip_nvidia")
     arch_flag = ""

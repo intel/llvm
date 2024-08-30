@@ -236,7 +236,8 @@ std::vector<ur_event_handle_t>
 Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
-    if (EventImpl->getHandleRef() == nullptr)
+    auto Handle = EventImpl->getHandle();
+    if (Handle == nullptr)
       continue;
 
     // Do not add redundant event dependencies for in-order queues.
@@ -247,7 +248,7 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetUrEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(Handle);
   }
 
   return RetUrEvents;
@@ -286,7 +287,7 @@ std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
         MWorkerQueue->isInOrder() && !isHostTask())
       continue;
 
-    RetUrEvents.push_back(EventImpl->getHandleRef());
+    RetUrEvents.push_back(EventImpl->getHandle());
   }
 
   return RetUrEvents;
@@ -669,6 +670,7 @@ void Command::emitEdgeEventForEventDependence(Command *Cmd,
     // this occasion is an OCL event; so we build a virtual node in the graph
     // with the event as the metadata for the node
     std::string NodeName = SH.nameWithAddressString("virtual_node", AddressStr);
+
     // Node name is "virtual_node[<event_addr>]"
     xpti::payload_t VNPayload(NodeName.c_str(), MAddress);
     uint64_t VNodeInstanceNo;
@@ -727,10 +729,11 @@ uint64_t Command::makeTraceEventProlog(void *MAddress) {
   if (CmdTraceEvent) {
     MTraceEvent = (void *)CmdTraceEvent;
     // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in this case, we must skip sending a notification to create a
-    // node as this node has already been created. We return this value so the
-    // epilog method can be called selectively.
-    MFirstInstance = (CommandInstanceNo == 1);
+    // than 1; in the previous implementation, we would skip sending a
+    // notifications for subsequent instances. With the new implementation, we
+    // will send a notification for each instance as this allows for mutable
+    // metadata entries for multiple visits to the same code location and
+    // maintaining data integrity.
   }
 #endif
   return CommandInstanceNo;
@@ -828,7 +831,7 @@ Command *Command::addDep(EventImplPtr Event,
   // We need this for just the instrumentation, so guarding it will prevent
   // unused variable warnings when instrumentation is turned off
   Command *Cmd = (Command *)Event->getCommand();
-  ur_event_handle_t &UrEventAddr = Event->getHandleRef();
+  ur_event_handle_t UrEventAddr = Event->getHandle();
   // Now make an edge for the dependent event
   emitEdgeEventForEventDependence(Cmd, UrEventAddr);
 #endif
@@ -837,7 +840,7 @@ Command *Command::addDep(EventImplPtr Event,
                          ToCleanUp);
 }
 
-void Command::emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr) {
+void Command::emitEnqueuedEventSignal(const ur_event_handle_t UrEventAddr) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentationGeneral(
       MStreamID, MInstanceID, static_cast<xpti_td *>(MTraceEvent),
@@ -926,7 +929,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   else {
     MEvent->setEnqueued();
     if (MShouldCompleteEventIfPossible &&
-        (MEvent->isHost() || MEvent->getHandleRef() == nullptr))
+        (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
     // Consider the command is successfully enqueued if return code is
@@ -942,7 +945,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   }
 
   // Emit this correlation signal before the task end
-  emitEnqueuedEventSignal(MEvent->getHandleRef());
+  emitEnqueuedEventSignal(MEvent->getHandle());
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentation(xpti::trace_task_end, nullptr);
 #endif
@@ -1039,8 +1042,13 @@ void AllocaCommandBase::emitInstrumentationData() {
   // emit a node_create
   MAddress = MRequirement.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
-  // Set the relevant meta data properties for this command
-  if (MTraceEvent && MFirstInstance) {
+  // Set the relevant meta data properties for this command; in the 64-bit key
+  // based implementation, we would notify the graph events only for the first
+  // instance as the trace event structure was invariant across all instances.
+  // Due to mutable metadata requirements, we now create and notify them for all
+  // instances. In addition to this, we have moved to 128-bit keys in the XPTI
+  // internal infrastructure to guarantee collision free universal IDs.
+  if (MTraceEvent) {
     xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
     addDeviceMetadata(TE, MQueue);
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
@@ -1081,10 +1089,7 @@ void AllocaCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  // Only if it is the first event, we emit a node create event
-  if (MFirstInstance) {
-    makeTraceEventEpilog();
-  }
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1092,14 +1097,15 @@ ur_result_t AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
 
   void *HostPtr = nullptr;
   if (!MIsLeaderAlloca) {
 
     if (!MQueue) {
       // Do not need to make allocation if we have a linked device allocation
-      Command::waitForEvents(MQueue, EventImpls, Event);
+      Command::waitForEvents(MQueue, EventImpls, UREvent);
+      MEvent->setHandle(UREvent);
 
       return UR_RESULT_SUCCESS;
     }
@@ -1109,8 +1115,8 @@ ur_result_t AllocaCommand::enqueueImp() {
   // delete it RawEvents below.
   MMemAllocation = MemoryManager::allocate(getContext(MQueue), getSYCLMemObj(),
                                            MInitFromUserData, HostPtr,
-                                           std::move(EventImpls), Event);
-
+                                           std::move(EventImpls), UREvent);
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1157,19 +1163,13 @@ void AllocaSubBufCommand::emitInstrumentationData() {
   if (!xptiCheckTraceEnabled(MStreamID))
     return;
 
-  // Only if it is the first event, we emit a node create event and any meta
-  // data that is available for the command
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
-    xpti::addMetadata(TE, "access_range_start",
-                      this->MRequirement.MAccessRange[0]);
-    xpti::addMetadata(TE, "access_range_end",
-                      this->MRequirement.MAccessRange[1]);
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  xpti::addMetadata(TE, "offset", this->MRequirement.MOffsetInBytes);
+  xpti::addMetadata(TE, "access_range_start",
+                    this->MRequirement.MAccessRange[0]);
+  xpti::addMetadata(TE, "access_range_end", this->MRequirement.MAccessRange[1]);
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1188,12 +1188,13 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 ur_result_t AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
       getContext(MQueue), MParentAlloca->getMemAllocation(),
       MRequirement.MElemSize, MRequirement.MOffsetInBytes,
-      MRequirement.MAccessRange, std::move(EventImpls), Event);
+      MRequirement.MAccessRange, std::move(EventImpls), UREvent);
+  MEvent->setHandle(UREvent);
 
   XPTIRegistry::bufferAssociateNotification(MParentAlloca->getSYCLMemObj(),
                                             MMemAllocation);
@@ -1235,17 +1236,14 @@ void ReleaseCommand::emitInstrumentationData() {
   MAddress = MAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(TE, MQueue);
-    xpti::addMetadata(TE, "allocation_type",
-                      commandToName(MAllocaCmd->getType()));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(TE, MQueue);
+  xpti::addMetadata(TE, "allocation_type",
+                    commandToName(MAllocaCmd->getType()));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1285,7 +1283,7 @@ ur_result_t ReleaseCommand::enqueueImp() {
     EventImplPtr UnmapEventImpl(new event_impl(Queue));
     UnmapEventImpl->setContextImpl(getContext(Queue));
     UnmapEventImpl->setStateIncomplete();
-    ur_event_handle_t &UnmapEvent = UnmapEventImpl->getHandleRef();
+    ur_event_handle_t UREvent = nullptr;
 
     void *Src = CurAllocaIsHost
                     ? MAllocaCmd->getMemAllocation()
@@ -1296,20 +1294,21 @@ ur_result_t ReleaseCommand::enqueueImp() {
                     : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
 
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
-                         RawEvents, UnmapEvent);
-
+                         RawEvents, UREvent);
+    UnmapEventImpl->setHandle(UREvent);
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
     EventImpls.push_back(UnmapEventImpl);
   }
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
   if (SkipRelease)
-    Command::waitForEvents(MQueue, EventImpls, Event);
+    Command::waitForEvents(MQueue, EventImpls, UREvent);
   else {
     MemoryManager::release(getContext(MQueue), MAllocaCmd->getSYCLMemObj(),
                            MAllocaCmd->getMemAllocation(),
-                           std::move(EventImpls), Event);
+                           std::move(EventImpls), UREvent);
   }
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1355,16 +1354,13 @@ void MapMemObject::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(TE, MQueue);
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(TE, MQueue);
+  xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1374,12 +1370,12 @@ ur_result_t MapMemObject::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
-
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), UREvent);
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1416,16 +1412,13 @@ void UnMapMemObject::emitInstrumentationData() {
   MAddress = MDstAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(TE, MQueue);
-    xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *TE = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(TE, MQueue);
+  xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1447,7 +1440,7 @@ bool UnMapMemObject::producesPiEvent() const {
   // restores the old behavior in this case until this is resolved.
   return MQueue && (MQueue->getDeviceImplPtr()->getBackend() !=
                         backend::ext_oneapi_level_zero ||
-                    MEvent->getHandleRef() != nullptr);
+                    MEvent->getHandle() != nullptr);
 }
 
 ur_result_t UnMapMemObject::enqueueImp() {
@@ -1456,10 +1449,11 @@ ur_result_t UnMapMemObject::enqueueImp() {
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
 
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
-                       std::move(RawEvents), Event);
+                       std::move(RawEvents), UREvent);
+  MEvent->setHandle(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
@@ -1509,21 +1503,18 @@ void MemCpyCommand::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(CmdTraceEvent, MQueue);
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
-                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-    xpti::addMetadata(CmdTraceEvent, "copy_to",
-                      MQueue ? deviceToID(MQueue->get_device()) : 0);
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(CmdTraceEvent, MQueue);
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  xpti::addMetadata(CmdTraceEvent, "copy_from",
+                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+  xpti::addMetadata(CmdTraceEvent, "copy_to",
+                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1552,14 +1543,14 @@ bool MemCpyCommand::producesPiEvent() const {
   return !MQueue ||
          MQueue->getDeviceImplPtr()->getBackend() !=
              backend::ext_oneapi_level_zero ||
-         MEvent->getHandleRef() != nullptr;
+         MEvent->getHandle() != nullptr;
 }
 
 ur_result_t MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
 
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
 
   auto RawEvents = getUrEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, MWorkerQueue);
@@ -1569,8 +1560,9 @@ ur_result_t MemCpyCommand::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, MEvent);
-
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), UREvent,
+      MEvent);
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1619,8 +1611,9 @@ void ExecCGCommand::clearAuxiliaryResources() {
 ur_result_t UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  ur_event_handle_t &Event = MEvent->getHandleRef();
-  Command::waitForEvents(MQueue, EventImpls, Event);
+  ur_event_handle_t UREvent = nullptr;
+  Command::waitForEvents(MQueue, EventImpls, UREvent);
+  MEvent->setHandle(UREvent);
 
   assert(MSrcAllocaCmd && "Expected valid alloca command");
   assert(MSrcAllocaCmd->getMemAllocation() && "Expected valid source pointer");
@@ -1680,21 +1673,18 @@ void MemCpyCommandHost::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(CmdTraceEvent, MQueue);
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "copy_from",
-                      MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
-    xpti::addMetadata(CmdTraceEvent, "copy_to",
-                      MQueue ? deviceToID(MQueue->get_device()) : 0);
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(CmdTraceEvent, MQueue);
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  xpti::addMetadata(CmdTraceEvent, "copy_from",
+                    MSrcQueue ? deviceToID(MSrcQueue->get_device()) : 0);
+  xpti::addMetadata(CmdTraceEvent, "copy_to",
+                    MQueue ? deviceToID(MQueue->get_device()) : 0);
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1710,13 +1700,13 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   std::vector<ur_event_handle_t> RawEvents = getUrEvents(EventImpls);
 
-  ur_event_handle_t &Event = MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
   // Omit copying if mode is discard one.
   // TODO: Handle this at the graph building time by, for example, creating
   // empty node instead of memcpy.
   if (MDstReq.MAccessMode == access::mode::discard_read_write ||
       MDstReq.MAccessMode == access::mode::discard_write) {
-    Command::waitForEvents(Queue, EventImpls, Event);
+    Command::waitForEvents(Queue, EventImpls, UREvent);
 
     return UR_RESULT_SUCCESS;
   }
@@ -1729,8 +1719,8 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
         MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
         MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
         MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-        MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(),
-        MEvent);
+        MDstReq.MElemSize, std::move(RawEvents), UREvent, MEvent);
+    MEvent->setHandle(UREvent);
   } catch (sycl::exception &e) {
     return static_cast<ur_result_t>(get_ur_error(e));
   }
@@ -1744,8 +1734,9 @@ EmptyCommand::EmptyCommand() : Command(CommandType::EMPTY_TASK, nullptr) {
 
 ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
-
+  ur_event_handle_t UREvent = nullptr;
+  waitForEvents(MQueue, MPreparedDepsEvents, UREvent);
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -1779,17 +1770,14 @@ void EmptyCommand::emitInstrumentationData() {
   MAddress = Req.MSYCLMemObj;
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(CmdTraceEvent, MQueue);
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(CmdTraceEvent, MQueue);
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -1848,17 +1836,14 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
   MAddress = MSrcAllocaCmd->getSYCLMemObj();
   makeTraceEventProlog(MAddress);
 
-  if (MFirstInstance) {
-    xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
-    addDeviceMetadata(CmdTraceEvent, MQueue);
-    xpti::addMetadata(CmdTraceEvent, "memory_object",
-                      reinterpret_cast<size_t>(MAddress));
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    makeTraceEventEpilog();
-  }
+  xpti_td *CmdTraceEvent = static_cast<xpti_td *>(MTraceEvent);
+  addDeviceMetadata(CmdTraceEvent, MQueue);
+  xpti::addMetadata(CmdTraceEvent, "memory_object",
+                    reinterpret_cast<size_t>(MAddress));
+  // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+  // as this data is mutable and the metadata is supposed to be invariant
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(MQueue));
+  makeTraceEventEpilog();
 #endif
 }
 
@@ -2059,6 +2044,7 @@ void instrumentationFillCommonData(const std::string &KernelName,
     // create the hash
     Payload = xpti::payload_t(KernelName.c_str());
   }
+
   uint64_t CGKernelInstanceNo;
   // Create event using the payload
   xpti_td *CmdTraceEvent =
@@ -2067,11 +2053,6 @@ void instrumentationFillCommonData(const std::string &KernelName,
   if (CmdTraceEvent) {
     OutInstanceID = CGKernelInstanceNo;
     OutTraceEvent = CmdTraceEvent;
-    // If we are seeing this event again, then the instance ID will be greater
-    // than 1; in this case, we will skip sending a notification to create a
-    // node as this node has already been created.
-    if (CGKernelInstanceNo > 1)
-      return;
 
     addDeviceMetadata(CmdTraceEvent, Queue);
     if (!KernelName.empty()) {
@@ -2434,13 +2415,19 @@ static ur_result_t SetKernelParamsAndLaunch(
                                launch_property_value_cooperative});
     }
 
-    return Plugin->call_nocheck(
+    ur_event_handle_t UREvent = nullptr;
+    ur_result_t Error = Plugin->call_nocheck(
         urEnqueueKernelLaunchCustomExp, Queue->getHandleRef(), Kernel,
         NDRDesc.Dims, &NDRDesc.GlobalSize[0], LocalSize, property_list.size(),
         property_list.data(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
-        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+        OutEventImpl ? &UREvent : nullptr);
+    if (OutEventImpl) {
+      OutEventImpl->setHandle(UREvent);
+    }
+    return Error;
   }
+  ur_event_handle_t UREvent = nullptr;
   ur_result_t Error =
       [&](auto... Args) {
         if (IsCooperative) {
@@ -2451,7 +2438,11 @@ static ur_result_t SetKernelParamsAndLaunch(
       }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
         &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0],
-        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+        OutEventImpl ? &UREvent : nullptr);
+  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
+    OutEventImpl->setHandle(UREvent);
+  }
+
   return Error;
 }
 
@@ -2709,7 +2700,8 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
   ur_queue_handle_t ur_q = Queue->getHandleRef();
   ur_result_t Error;
 
-  auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
+  ur_event_handle_t UREvent = nullptr;
+  auto OutEvent = OutEventImpl ? &UREvent : nullptr;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (read) {
@@ -2723,7 +2715,9 @@ ur_result_t enqueueReadWriteHostPipe(const QueueImplPtr &Queue,
         size, RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
         OutEvent);
   }
-
+  if (Error == UR_RESULT_SUCCESS && OutEventImpl) {
+    OutEventImpl->setHandle(UREvent);
+  }
   return Error;
 }
 
@@ -2742,14 +2736,6 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     MQueue->getPlugin()->call(urEventWait, RawEvents.size(), &RawEvents[0]);
   }
 
-  // We can omit creating a UR event and create a "discarded" event if either
-  // the queue has the discard property or the command has been explicitly
-  // marked as not needing an event, e.g. if the user did not ask for one, and
-  // if the queue supports discarded UR event and there are no requirements.
-  bool DiscardUrEvent = (MQueue->MDiscardEvents || !MEventNeeded) &&
-                        MQueue->supportsDiscardingPiEvents() &&
-                        MCommandGroup->getRequirements().size() == 0;
-  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
   ur_exp_command_buffer_sync_point_t OutSyncPoint;
   ur_exp_command_buffer_command_handle_t OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
@@ -2761,16 +2747,6 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
       return AllocaCmd->getMemAllocation();
     };
 
-    if (!Event) {
-      // Kernel only uses assert if it's non interop one
-      bool KernelUsesAssert =
-          !(ExecKernel->MSyclKernel && ExecKernel->MSyclKernel->isInterop()) &&
-          ProgramManager::getInstance().kernelUsesAssert(
-              ExecKernel->MKernelName);
-      if (KernelUsesAssert) {
-        Event = &MEvent->getHandleRef();
-      }
-    }
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
         *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
@@ -2904,7 +2880,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                         MQueue->supportsDiscardingPiEvents() &&
                         MCommandGroup->getRequirements().size() == 0;
 
-  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &MEvent->getHandleRef();
+  ur_event_handle_t UREvent = nullptr;
+  ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
@@ -2924,7 +2901,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
         Req->MElemSize, Copy->getDst(), nullptr, Req->MDims, Req->MAccessRange,
         Req->MAccessRange, /*DstOffset=*/{0, 0, 0}, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef(), MEvent);
+        std::move(RawEvents), UREvent, MEvent);
+    MEvent->setHandle(UREvent);
 
     return UR_RESULT_SUCCESS;
   }
@@ -2933,13 +2911,13 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     Requirement *Req = (Requirement *)(Copy->getDst());
     AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
 
-    MemoryManager::copy(
-        AllocaCmd->getSYCLMemObj(), Copy->getSrc(), nullptr, Req->MDims,
-        Req->MAccessRange, Req->MAccessRange,
-        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
-        MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
-
+    MemoryManager::copy(AllocaCmd->getSYCLMemObj(), Copy->getSrc(), nullptr,
+                        Req->MDims, Req->MAccessRange, Req->MAccessRange,
+                        /*SrcOffset*/ {0, 0, 0}, Req->MElemSize,
+                        AllocaCmd->getMemAllocation(), MQueue, Req->MDims,
+                        Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
+                        Req->MElemSize, std::move(RawEvents), UREvent, MEvent);
+    MEvent->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyAccToAcc: {
@@ -2955,9 +2933,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         ReqSrc->MDims, ReqSrc->MMemoryRange, ReqSrc->MAccessRange,
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
-        ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
-        MEvent->getHandleRef(), MEvent);
-
+        ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents), UREvent,
+        MEvent);
+    MEvent->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill: {
@@ -2969,8 +2947,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef(), MEvent);
-
+        std::move(RawEvents), UREvent, MEvent);
+    MEvent->setHandle(UREvent);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Kernel: {
@@ -3020,7 +2998,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
                             Copy->getDst(), std::move(RawEvents), Event,
                             MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::FillUSM: {
@@ -3028,7 +3007,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
                             Fill->getPattern(), std::move(RawEvents), Event,
                             MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::PrefetchUSM: {
@@ -3036,7 +3016,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
                                 Event, MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::AdviseUSM: {
@@ -3044,7 +3025,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
                               Advise->getAdvice(), std::move(RawEvents), Event,
                               MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Copy2DUSM: {
@@ -3053,6 +3035,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                                Copy->getDst(), Copy->getDstPitch(),
                                Copy->getWidth(), Copy->getHeight(),
                                std::move(RawEvents), Event, MEvent);
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Fill2DUSM: {
@@ -3061,6 +3045,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                                Fill->getWidth(), Fill->getHeight(),
                                Fill->getPattern(), std::move(RawEvents), Event,
                                MEvent);
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Memset2DUSM: {
@@ -3069,6 +3055,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                                  Memset->getWidth(), Memset->getHeight(),
                                  Memset->getValue(), std::move(RawEvents),
                                  Event, MEvent);
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CodeplayHostTask: {
@@ -3209,7 +3197,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                               InteropFreeFunc, &CustomOpData, ReqMems.size(),
                               ReqMems.data(), nullptr, RawEvents.size(),
                               RawEvents.data(), Event);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::Barrier: {
@@ -3219,7 +3208,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(), 0,
                  nullptr, Event);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::BarrierWaitlist: {
@@ -3236,7 +3226,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Plugin->call(urEnqueueEventsWaitWithBarrier, MQueue->getHandleRef(),
                  UrEvents.size(), &UrEvents[0], Event);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::ProfilingTag: {
@@ -3260,7 +3251,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
                  /*blocking=*/false,
                  /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr,
                  Event);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyToDeviceGlobal: {
@@ -3269,7 +3261,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
         std::move(RawEvents), Event, MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::CopyFromDeviceGlobal: {
@@ -3279,7 +3272,8 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
         std::move(RawEvents), Event, MEvent);
-
+    if (Event)
+      MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
   }
   case CGType::ReadWriteHostPipe: {
@@ -3304,10 +3298,14 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
-    return MQueue->getPlugin()->call_nocheck(
+    ur_result_t Err = MQueue->getPlugin()->call_nocheck(
         urCommandBufferEnqueueExp, CmdBufferCG->MCommandBuffer,
         MQueue->getHandleRef(), RawEvents.size(),
         RawEvents.empty() ? nullptr : &RawEvents[0], Event);
+    if (Event)
+      MEvent->setHandle(*Event);
+
+    return Err;
   }
   case CGType::CopyImage: {
     CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
@@ -3317,6 +3315,9 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         Copy->getDstDesc(), Copy->getSrcFormat(), Copy->getDstFormat(),
         Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
         Copy->getCopyExtent(), std::move(RawEvents), Event);
+    if (Event)
+      MEvent->setHandle(*Event);
+
     return UR_RESULT_SUCCESS;
   }
   case CGType::SemaphoreWait: {
@@ -3393,7 +3394,9 @@ bool KernelFusionCommand::producesPiEvent() const { return false; }
 
 ur_result_t KernelFusionCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  ur_event_handle_t UREvent = nullptr;
+  waitForEvents(MQueue, MPreparedDepsEvents, UREvent);
+  MEvent->setHandle(UREvent);
 
   // We need to release the queue here because KernelFusionCommands are
   // held back by the scheduler thus prevent the deallocation of the queue.
@@ -3438,22 +3441,17 @@ void KernelFusionCommand::emitInstrumentationData() {
   if (CmdTraceEvent) {
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     // If we are seeing this event again, then the instance ID
-    // will be greater
-    // than 1; in this case, we must skip sending a
-    // notification to create a node as this node has already
-    // been created. We return this value so the epilog method
-    // can be called selectively.
-    // See makeTraceEventProlog.
-    MFirstInstance = (CommandInstanceNo == 1);
-  }
+    // will be greater than 1; Previous implementations had the trace event be
+    // invariant during multiple visits to a tracepoint defined by its payload.
+    // Current imlementation allows metadata associated with the trace event to
+    // be mutable and this requires the framework to notify again as we have a
+    // new trace event for each instance.
 
-  // This function is called in the constructor of the command. At this point
-  // the kernel fusion list is still empty, so we don't have a terrible lot of
-  // information we could attach to this node here.
-  if (MFirstInstance && CmdTraceEvent)
+    // This function is called in the constructor of the command. At this point
+    // the kernel fusion list is still empty, so we don't have a terrible lot of
+    // information we could attach to this node here.
     addDeviceMetadata(CmdTraceEvent, MQueue);
 
-  if (MFirstInstance) {
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
     xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
@@ -3463,7 +3461,6 @@ void KernelFusionCommand::emitInstrumentationData() {
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,
                           static_cast<const void *>(MCommandNodeType.c_str()));
   }
-
 #endif
 }
 
@@ -3510,8 +3507,9 @@ UpdateCommandBufferCommand::UpdateCommandBufferCommand(
 ur_result_t UpdateCommandBufferCommand::enqueueImp() {
   waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
-  ur_event_handle_t &Event = MEvent->getHandleRef();
-  Command::waitForEvents(MQueue, EventImpls, Event);
+  ur_event_handle_t UREvent = nullptr;
+  Command::waitForEvents(MQueue, EventImpls, UREvent);
+  MEvent->setHandle(UREvent);
 
   for (auto &Node : MNodes) {
     auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
