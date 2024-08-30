@@ -4130,6 +4130,13 @@ void FunctionStackPoisoner::processStaticAllocas() {
   // Poison the stack red zones at the entry.
   Value *ShadowBase =
       ASan.memToShadow(LocalStackBase, IRB, kSpirOffloadPrivateAS);
+
+  if (TargetTriple.isSPIROrSPIRV()) {
+    SmallVector<uint8_t, 64> ShadowMask(ShadowAfterScope.size(), 1);
+    SmallVector<uint8_t, 64> ShadowBytes(ShadowAfterScope.size(), 0);
+    copyToShadow(ShadowMask, ShadowBytes, IRB, ShadowBase, true);
+  }
+
   // As mask we must use most poisoned case: red zones and after scope.
   // As bytes we can use either the same or just red zones only.
   copyToShadow(ShadowAfterScope, ShadowAfterScope, IRB, ShadowBase,
@@ -4203,7 +4210,10 @@ void FunctionStackPoisoner::processStaticAllocas() {
       IRBuilder<> IRBElse(ElseTerm);
       copyToShadow(ShadowAfterScope, ShadowClean, IRBElse, ShadowBase);
     } else {
-      copyToShadow(ShadowAfterScope, ShadowClean, IRBRet, ShadowBase,
+      copyToShadow(TargetTriple.isSPIROrSPIRV()
+                       ? SmallVector<uint8_t, 64>(ShadowAfterScope.size(), 1)
+                       : ShadowAfterScope,
+                   ShadowClean, IRBRet, ShadowBase,
                    TargetTriple.isSPIROrSPIRV());
     }
   }
