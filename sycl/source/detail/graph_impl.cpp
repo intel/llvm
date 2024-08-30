@@ -308,7 +308,6 @@ graph_impl::~graph_impl() {
 }
 
 std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::shared_ptr<graph_impl> &Impl,
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -327,7 +326,7 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   for (auto &NodeImpl : MNodeStorage) {
     if (NodeImpl->MSuccessors.size() == 0) {
       for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input, NodeImpl);
+        NodeImpl->registerSuccessor(Input);
       }
     }
   }
@@ -335,10 +334,10 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   // Add all the new nodes to the node storage
   for (auto &Node : NodeList) {
     MNodeStorage.push_back(Node);
-    addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), Node);
+    addEventForNode(std::make_shared<sycl::detail::event_impl>(), Node);
   }
 
-  return this->add(Impl, Outputs);
+  return this->add(Outputs);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -350,8 +349,7 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                const std::vector<std::shared_ptr<node_impl>> &Dep) {
+graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // Copy deps so we can modify them
   auto Deps = Dep;
 
@@ -361,17 +359,16 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
   return NodeImpl;
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                std::function<void(handler &)> CGF,
+graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   (void)Args;
-  sycl::handler Handler{Impl};
+  sycl::handler Handler{shared_from_this()};
   CGF(Handler);
 
   if (Handler.getType() == sycl::detail::CGType::Barrier) {
@@ -394,7 +391,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Dep);
   NodeImpl->MNDRangeUsed = Handler.impl->MNDRangeUsed;
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -414,8 +411,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                const std::vector<sycl::detail::EventImplPtr> Events) {
+graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
 
   std::vector<std::shared_ptr<node_impl>> Deps;
 
@@ -430,7 +426,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
     }
   }
 
-  return this->add(Impl, Deps);
+  return this->add(Deps);
 }
 
 std::shared_ptr<node_impl>
@@ -448,6 +444,16 @@ graph_impl::add(node_type NodeType,
                           "Cannot use buffers in a graph without passing the "
                           "assume_buffer_outlives_graph property on "
                           "Graph construction.");
+  }
+
+  if (CommandGroup->getType() == sycl::detail::CGType::Kernel) {
+    auto CGKernel =
+        static_cast<sycl::detail::CGExecKernel *>(CommandGroup.get());
+    if (CGKernel->hasStreams()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Using sycl streams in a graph node is unsupported.");
+    }
   }
 
   for (auto &Req : Requirements) {
@@ -584,7 +590,7 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   }
 
   // We need to add the edges first before checking for cycles
-  Src->registerSuccessor(Dest, Src);
+  Src->registerSuccessor(Dest);
 
   // We can skip cycle checks if either Dest has no successors (cycle not
   // possible) or cycle checks have been disabled with the no_cycle_check
@@ -900,7 +906,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       }
 
       NewEvent = CreateNewEvent();
-      ur_event_handle_t *OutEvent = &NewEvent->getHandleRef();
+      ur_event_handle_t UREvent = nullptr;
       // Merge requirements from the nodes into requirements (if any) from the
       // handler.
       CGData.MRequirements.insert(CGData.MRequirements.end(),
@@ -917,7 +923,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         }
         ur_result_t Res = Queue->getPlugin()->call_nocheck(
             urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
-            nullptr, OutEvent);
+            nullptr, &UREvent);
+        NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
               make_error_code(errc::invalid),
@@ -1050,7 +1057,7 @@ void exec_graph_impl::duplicateNodes() {
     // register those as successors with the current copied node
     for (auto &NextNode : OriginalNode->MSuccessors) {
       auto Successor = NodesMap.at(NextNode.lock());
-      NodeCopy->registerSuccessor(Successor, NodeCopy);
+      NodeCopy->registerSuccessor(Successor);
     }
   }
 
@@ -1092,7 +1099,7 @@ void exec_graph_impl::duplicateNodes() {
 
       for (auto &NextNode : SubgraphNode->MSuccessors) {
         auto Successor = SubgraphNodesMap.at(NextNode.lock());
-        NodeCopy->registerSuccessor(Successor, NodeCopy);
+        NodeCopy->registerSuccessor(Successor);
       }
     }
 
@@ -1126,7 +1133,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all input nodes from the subgraph as successors for this node
       // instead
       for (auto &Input : Inputs) {
-        PredNode->registerSuccessor(Input, PredNode);
+        PredNode->registerSuccessor(Input);
       }
     }
 
@@ -1146,7 +1153,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
       for (auto &Output : Outputs) {
-        Output->registerSuccessor(SuccNode, Output);
+        Output->registerSuccessor(SuccNode);
       }
     }
 
@@ -1520,7 +1527,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(impl, DepImpls);
+  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1533,8 +1540,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl =
-      impl->add(impl, CGF, {}, DepImpls);
+  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1576,6 +1582,14 @@ void modifiable_command_graph::begin_recording(
 
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
+
+  auto QueueGraph = QueueImpl->getCommandGraph();
+  if (QueueGraph != nullptr) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording cannot be called for a queue which "
+                          "is already in the recording state.");
+  }
+
   if (QueueImpl->get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose context "
@@ -1591,13 +1605,6 @@ void modifiable_command_graph::begin_recording(
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "SYCL queue in kernel in fusion mode "
                           "can NOT be recorded.");
-  }
-
-  auto QueueGraph = QueueImpl->getCommandGraph();
-  if (QueueGraph != nullptr && QueueGraph != impl) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue which is already "
-                          "recording to a different graph.");
   }
 
   impl->beginRecording(QueueImpl);

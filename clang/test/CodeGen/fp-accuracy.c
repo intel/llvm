@@ -97,15 +97,15 @@ double rsqrt(double);
 // CHECK: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_HIGH]]
 
 // CHECK-F1-LABEL: define dso_local void @f1
-// CHECK-F1: call double @acos(double {{.*}})
+// CHECK-F1: call double @llvm.acos.f64(double {{.*}})
 // CHECK-F1: call double @acosh(double {{.*}})
-// CHECK-F1: call double @asin(double {{.*}})
+// CHECK-F1: call double @llvm.asin.f64(double {{.*}})
 // CHECK-F1: call double @asinh(double {{.*}})
-// CHECK-F1: call double @atan(double {{.*}})
+// CHECK-F1: call double @llvm.atan.f64(double {{.*}})
 // CHECK-F1: call double @atan2(double {{.*}}, double {{.*}})
 // CHECK-F1: call double @atanh(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F1_HIGH:[0-9]+]]
-// CHECK-F1: call double @cosh(double {{.*}})
+// CHECK-F1: call double @llvm.cosh.f64(double {{.*}})
 // CHECK-F1: call double @erf(double {{.*}})
 // CHECK-F1: call double @erfc(double {{.*}})
 // CHECK-F1: call i32 (double, ...) @exp10(double {{.*}})
@@ -126,10 +126,10 @@ double rsqrt(double);
 // CHECK-F1: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-F1: call double @llvm.sin.f64(double {{.*}})
 // CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
-// CHECK-F1: call double @sinh(double {{.*}})
+// CHECK-F1: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-F1: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F1: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F1_LOW:[0-9]+]]
-// CHECK-F1: call double @tanh(double {{.*}})
+// CHECK-F1: call double @llvm.tanh.f64(double {{.*}})
 //
 // CHECK-F2-LABEL: define dso_local void @f1
 // CHECK-F2: call double @llvm.fpbuiltin.acos.f64(double {{.*}}) #[[ATTR_F2_MEDIUM:[0-9]+]]
@@ -259,15 +259,15 @@ double rsqrt(double);
 // CHECK-F4: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 //
 // CHECK-F5-LABEL: define dso_local void @f1
-// CHECK-F5: call double @acos(double {{.*}})
+// CHECK-F5: call double @llvm.acos.f64(double {{.*}})
 // CHECK-F5: call double @acosh(double {{.*}})
-// CHECK-F5: call double @asin(double {{.*}})
+// CHECK-F5: call double @llvm.asin.f64(double {{.*}})
 // CHECK-F5: call double @asinh(double {{.*}})
-// CHECK-F5: call double @atan(double {{.*}})
+// CHECK-F5: call double @llvm.atan.f64(double {{.*}})
 // CHECK-F5: call double @atan2(double {{.*}}, double {{.*}})
 // CHECK-F5: call double @atanh(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F5_MEDIUM:[0-9]+]]
-// CHECK-F5: call double @cosh(double {{.*}})
+// CHECK-F5: call double @llvm.cosh.f64(double {{.*}})
 // CHECK-F5: call double @erf(double {{.*}})
 // CHECK-F5: call double @erfc(double {{.*}})
 // CHECK-F5: call double @llvm.exp.f64(double {{.*}})
@@ -289,10 +289,10 @@ double rsqrt(double);
 // CHECK-F5: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.sin.f64(double {{.*}}) #[[ATTR_F5_HIGH:[0-9]+]]
 // CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
-// CHECK-F5: call double @sinh(double {{.*}})
+// CHECK-F5: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-F5: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-F5: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F5_HIGH]]
-// CHECK-F5: call double @tanh(double {{.*}})
+// CHECK-F5: call double @llvm.tanh.f64(double {{.*}})
 //
 //
 // CHECK-F6-LABEL: define dso_local void @f1
@@ -560,15 +560,15 @@ void f1(float a, float b) {
 // CHECK-SPIR: attributes #[[ATTR_SYCL8]] = {{.*}}"fpbuiltin-max-error"="2.0"
 
 // CHECK-DEFAULT-LABEL: define dso_local void @f1
-// CHECK-DEFAULT: call double @acos(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.acos.f64(double {{.*}})
 // CHECK-DEFAULT: call double @acosh(double {{.*}})
-// CHECK-DEFAULT: call double @asin(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.asin.f64(double {{.*}})
 // CHECK-DEFAULT: call double @asinh(double {{.*}})
-// CHECK-DEFAULT: call double @atan(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.atan.f64(double {{.*}})
 // CHECK-DEFAULT: call double @atan2(double {{.*}}, double {{.*}})
 // CHECK-DEFAULT: call double @atanh(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.cos.f64(double {{.*}})
-// CHECK-DEFAULT: call double @cosh(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.cosh.f64(double {{.*}})
 // CHECK-DEFAULT: call double @erf(double {{.*}})
 // CHECK-DEFAULT: call double @erfc(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.exp.f64(double {{.*}})
@@ -590,10 +590,10 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call i32 (double, ...) @rsqrt(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sin.f64(double {{.*}})
 // CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
-// CHECK-DEFAULT: call double @sinh(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.sinh.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.sqrt.f64(double {{.*}})
 // CHECK-DEFAULT: call double @llvm.tan.f64(double {{.*}})
-// CHECK-DEFAULT: call double @tanh(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.tanh.f64(double {{.*}})
 //
 // CHECK-DEFAULT-LABEL: define dso_local void @f2
 // CHECK-DEFAULT: call float @llvm.cos.f32(float {{.*}})
