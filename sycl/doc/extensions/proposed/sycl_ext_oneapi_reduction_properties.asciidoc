@@ -173,9 +173,9 @@ the same result when all of the following conditions hold:
 * The same values are contributed to each reduction.
 * The work-items in each reduction contribute those values in the same pattern
   and the same order. For example, if the first reduction contributes values
-  _V1_, _V2_, and _V3_ from one work-item (in that order); then the second
-  reduction must also contribute values _V1_, _V2_, and _V3_ from a work-item
-  (in that order).
+  _V1_, _V2_, and _V3_ (in that order) from a work-item with linear index _i_;
+  then the second reduction must also contribute values _V1_, _V2_, and _V3_
+  (in that order) from the work-item with linear index _i_.
 
 [_Note:_ Work-items may contribute different values to a reduction because of
 other potential sources of non-determinism, such as calls to group algorithms,
