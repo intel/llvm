@@ -4254,6 +4254,7 @@ __device__ void nvvm_atom(float *fp, float f, double *dfp, double df,
   // CHECK_SM70_LP64: call i64 @llvm.nvvm.atomic.cas.shared.i.acq.rel.cta.i64.p3
   // expected-error@+1 {{'__nvvm_atom_acq_rel_cta_cas_shared_l' needs target feature sm_70}}
   __nvvm_atom_acq_rel_cta_cas_shared_l((__attribute__((address_space(3))) long *)&dl, l, 0);
+#endif
 
 #if __CUDA_ARCH__ >= 700
   // CHECK_PTX63_SM70: cmpxchg ptr {{.*}} seq_cst seq_cst, align 2
