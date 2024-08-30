@@ -75,15 +75,7 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   return nullptr;
 }
 
-ur_code_location_t codeLocationCallback(void *) {
-  ur_code_location_t codeloc;
-  codeloc.columnNumber = GCodeLocTLS.columnNumber();
-  codeloc.lineNumber = GCodeLocTLS.lineNumber();
-  codeloc.functionName = GCodeLocTLS.functionName();
-  codeloc.sourceFile = GCodeLocTLS.fileName();
-
-  return codeloc;
-}
+ur_code_location_t codeLocationCallback(void *);
 
 namespace ur {
 bool trace(TraceLevel Level) {
