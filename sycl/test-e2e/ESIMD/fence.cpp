@@ -9,6 +9,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && igc-dev
+
 // This test verifies the intrinsic fence.
 // It is based on https://en.wikipedia.org/wiki/Memory_barrier#Example
 
