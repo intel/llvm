@@ -333,10 +333,10 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  enum class BlockReason : int { HostAccessor = 0, HostTask };
+  enum class BlockReason : int { Unset = -1, HostAccessor = 0, HostTask };
 
   // Only have reasonable value while MIsBlockable is true
-  BlockReason MBlockReason;
+  BlockReason MBlockReason = BlockReason::Unset;
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
