@@ -93,7 +93,8 @@ supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 
@@ -101,12 +102,12 @@ supports.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 template <typename Group, typename InputIterator, typename Function>
 Function joint_for_each(Group g, InputIterator first, InputIterator last, Function f);
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
@@ -135,12 +136,12 @@ _Returns_: `f`.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 template <typename Group, typename Integer, typename Function>
 Function joint_for(Group g, Integer first, Integer last, Function f);
 
-} // namespace sycl::ext::oneapi
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
