@@ -2,7 +2,7 @@
 /// Check if bfloat16 native and fallback libraries are added on Windows
 ///
 
-// REQUIRES: windows
+// REQUIRES: system-windows
 // UNSUPPORTED: cuda
 
 /// ###########################################################################
