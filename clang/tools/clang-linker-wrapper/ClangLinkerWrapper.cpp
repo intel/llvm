@@ -598,6 +598,79 @@ static Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
   return Error::success();
 }
 
+static bool isStaticArchiveFile(const StringRef Filename) {
+  if (!llvm::sys::path::has_extension(Filename))
+    // Any file with no extension should not be considered an Archive.
+    return false;
+  llvm::file_magic Magic;
+  llvm::identify_magic(Filename, Magic);
+  // Only archive files are to be considered.
+  // TODO: .lib check to be added
+  return (Magic == llvm::file_magic::archive);
+}
+
+// Find if section related to triple is present in a bundled file
+static Expected<bool> checkSection(StringRef Filename, llvm::Triple Triple,
+                                   const ArgList &Args) {
+  Expected<std::string> OffloadBundlerPath = findProgram(
+      "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
+  if (!OffloadBundlerPath)
+    return OffloadBundlerPath.takeError();
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str() + "-unknown-unknown");
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*OffloadBundlerPath);
+  CmdArgs.push_back(Target);
+  bool IsArchive = isStaticArchiveFile(Filename);
+  CmdArgs.push_back(IsArchive ? "-type=ao" : "-type=o");
+  CmdArgs.push_back(Saver.save("-input=" + Filename));
+  CmdArgs.push_back("-check-section");
+  return !(llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs));
+}
+
+// This routine is used to run the clang-offload-bundler tool and unbundle
+// device inputs that have been created with an older compiler where the
+// device object is bundled into a host object.
+static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args) {
+  Expected<std::string> OffloadBundlerPath = findProgram(
+      "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
+  if (!OffloadBundlerPath)
+    return OffloadBundlerPath.takeError();
+
+  llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  // Check if section with Triple is available in input bundle
+  // If no section is available, then we assume it's not a valid bundle and
+  // return original file.
+  auto CheckSection = checkSection(Filename, Triple, Args);
+  if (!CheckSection)
+    return CheckSection.takeError();
+  if (!(*CheckSection))
+    return Filename;
+  // Create a new file to write the unbundled file to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName), "bc");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*OffloadBundlerPath);
+  CmdArgs.push_back("-type=o");
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str() + "-unknown-unknown");
+  CmdArgs.push_back(Target);
+  CmdArgs.push_back(Saver.save("-input=" + Filename));
+  CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
+  CmdArgs.push_back("-unbundle");
+  CmdArgs.push_back("-allow-missing-bundles");
+  if (Error Err = executeCommands(*OffloadBundlerPath, CmdArgs))
+    return std::move(Err);
+  return *TempFileOrErr;
+}
+
 /// This routine is used to convert SPIR-V input files into LLVM IR files.
 /// 'llvm-spirv -r' command is used for this purpose.
 /// If input is not a SPIR-V file, then the original file is returned.
@@ -1195,6 +1268,25 @@ runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
   return *OutputFileOrErr;
 }
 
+// This routine is used to unbundle all device library files that will be
+// linked with input device codes.
+static Error
+unbundleSYCLDeviceLibs(const SmallVector<std::string, 16> &Files,
+                       SmallVector<std::string, 16> &UnbundledFiles,
+                       const ArgList &Args) {
+  for (auto &Filename : Files) {
+    assert(!sys::fs::is_directory(Filename) && "Filename cannot be directory");
+    if (!sys::fs::exists(Filename))
+      continue;
+    // Run unbundler
+    auto UnbundledFile = sycl::unbundle(Filename, Args);
+    if (!UnbundledFile)
+      return UnbundledFile.takeError();
+    UnbundledFiles.push_back((*UnbundledFile).str());
+  }
+  return Error::success();
+}
+
 /// Link all SYCL device input files into one before adding device library
 /// files. Device linking is performed using llvm-link tool.
 /// 'InputFiles' is the list of all LLVM IR device input files.
@@ -1267,6 +1359,55 @@ linkDeviceLibFiles(SmallVectorImpl<StringRef> &InputFiles,
   return *OutFileOrErr;
 }
 
+Error extractSYCLDeviceLibs(SmallVector<std::string, 16> &ExtractedDeviceLibFiles,
+                            const SmallVector<std::string, 16> &DeviceLibFiles,
+                            const Triple &Triple, const ArgList &Args) {
+  for (auto &File : DeviceLibFiles) {
+    auto BufferOrErr = MemoryBuffer::getFile(File);
+    if (!BufferOrErr)
+      return createFileError(File, BufferOrErr.getError());
+    auto Buffer = std::move(*BufferOrErr);
+    SmallVector<OffloadFile> Binaries;
+    if (Error Err = extractOffloadBinaries(Buffer->getMemBufferRef(), Binaries))
+      return std::move(Err);
+    bool CompatibleBinaryFound = false;
+    for (auto &Binary : Binaries) {
+      auto BinTriple = Binary.getBinary()->getTriple();
+      if (BinTriple == Triple.getTriple()) {
+        auto FileNameOrErr = writeOffloadFile(Binary);
+        if (!FileNameOrErr)
+          return FileNameOrErr.takeError();
+        ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
+        CompatibleBinaryFound = true;
+      }
+    }
+    if (!CompatibleBinaryFound)
+      WithColor::warning(errs(), LinkerExecutable)
+          << "Compatible SYCL device library binary not found\n";
+  }
+
+  if (Triple.isNVPTX()) {
+    if (Arg *A = Args.getLastArg(OPT_sycl_nvptx_device_lib_EQ)) {
+      if (A->getValues().size() == 0)
+        return createStringError(
+            inconvertibleErrorCode(),
+            "Number of device library files cannot be zero.");
+      for (StringRef Val : A->getValues()) {
+        SmallString<128> LibName(Val);
+        if (llvm::sys::fs::exists(LibName))
+          ExtractedDeviceLibFiles.emplace_back(std::string(LibName));
+        else
+          return createStringError(
+              inconvertibleErrorCode(),
+              std::string(LibName) +
+                  " SYCL device library file for NVPTX is not found.");
+      }
+    }
+  }
+
+  return Error::success();
+}
+
 /// This function is used to link all SYCL device input files into a single
 /// LLVM IR file. This file is in turn linked with all SYCL device library
 /// files.
@@ -1292,50 +1433,14 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   if (Error Err = sycl::getSYCLDeviceLibs(DeviceLibFiles, Args))
     reportError(std::move(Err));
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
+  SmallVector<std::string, 16> UnbundledDeviceLibFiles;
+  if (Error Err = sycl::unbundleSYCLDeviceLibs(DeviceLibFiles,
+                                               UnbundledDeviceLibFiles, Args))
+    reportError(std::move(Err));
   SmallVector<std::string, 16> ExtractedDeviceLibFiles;
-  for (auto &File : DeviceLibFiles) {
-    auto BufferOrErr = MemoryBuffer::getFile(File);
-    if (!BufferOrErr)
-      return createFileError(File, BufferOrErr.getError());
-    auto Buffer = std::move(*BufferOrErr);
-    SmallVector<OffloadFile> Binaries;
-    if (Error Err = extractOffloadBinaries(Buffer->getMemBufferRef(), Binaries))
-      return std::move(Err);
-    bool CompatibleBinaryFound = false;
-    for (auto &Binary : Binaries) {
-      auto BinTriple = Binary.getBinary()->getTriple();
-      if (BinTriple == Triple.getTriple()) {
-        auto FileNameOrErr = writeOffloadFile(Binary);
-        if (!FileNameOrErr)
-          return FileNameOrErr.takeError();
-        ExtractedDeviceLibFiles.emplace_back(*FileNameOrErr);
-        CompatibleBinaryFound = true;
-      }
-    }
-    if (!CompatibleBinaryFound)
-      WithColor::warning(errs(), LinkerExecutable)
-          << "Compatible SYCL device library binary not found\n";
-  }
-
-  // For NVPTX backend we need to also link libclc and CUDA libdevice.
-  if (Triple.isNVPTX()) {
-    if (Arg *A = Args.getLastArg(OPT_sycl_nvptx_device_lib_EQ)) {
-      if (A->getValues().size() == 0)
-        return createStringError(
-            inconvertibleErrorCode(),
-            "Number of device library files cannot be zero.");
-      for (StringRef Val : A->getValues()) {
-        SmallString<128> LibName(Val);
-        if (llvm::sys::fs::exists(LibName))
-          ExtractedDeviceLibFiles.emplace_back(std::string(LibName));
-        else
-          return createStringError(
-              inconvertibleErrorCode(),
-              std::string(LibName) +
-                  " SYCL device library file for NVPTX is not found.");
-      }
-    }
-  }
+  if (Error Err = extractSYCLDeviceLibs(ExtractedDeviceLibFiles, DeviceLibFiles,
+                                        Triple, Args))
+    reportError(std::move(Err));
 
   // Make sure that SYCL device library files are available.
   // Note: For AMD targets, we do not pass any SYCL device libraries.
@@ -2585,7 +2690,7 @@ Expected<bool> getSymbols(StringRef Image, OffloadKind Kind, bool IsArchive,
 /// libraries are only added to the input if they are used by an existing
 /// input file. Returns a list of input files intended for a single linking job.
 Expected<SmallVector<SmallVector<OffloadFile>>>
-getDeviceInput(const ArgList &Args) {
+getDeviceInput(const ArgList &Args, const ArgList &bundleArgs) {
   llvm::TimeTraceScope TimeScope("ExtractDeviceCode");
 
   // Skip all the input if the user is overriding the output.
@@ -2625,12 +2730,26 @@ getDeviceInput(const ArgList &Args) {
         sys::fs::is_directory(*Filename))
       continue;
 
+    // Some of the object files may be bundled using clang-offload-bundler
+    // Following code tries to unbundle these files.
+    auto UnbundledFile = sycl::unbundle(*Filename, bundleArgs);
+    if (!UnbundledFile)
+      return UnbundledFile.takeError();
+    // In some cases, fat objects are created with SPIR-V files embedded.
+    // e.g. when fat object is created using `-fsycl-device-obj=spirv` option.
+    auto IRFile = (*UnbundledFile == *Filename)
+                      ? *Filename
+                      : sycl::convertSPIRVToIR(*UnbundledFile, Args);
+    if (!IRFile)
+      return IRFile.takeError();
+
     ErrorOr<std::unique_ptr<MemoryBuffer>> BufferOrErr =
-        MemoryBuffer::getFile(*Filename);
+        MemoryBuffer::getFile(*IRFile);
     if (std::error_code EC = BufferOrErr.getError())
-      return createFileError(*Filename, EC);
+      return createFileError(*IRFile, EC);
 
     MemoryBufferRef Buffer = **BufferOrErr;
+    file_magic Magic = identify_magic(Buffer.getBuffer());
     if (identify_magic(Buffer.getBuffer()) == file_magic::elf_shared_object)
       continue;
     SmallVector<OffloadFile> Binaries;
@@ -2754,6 +2873,66 @@ int main(int Argc, char **Argv) {
     reportError(createStringError(Err));
   });
 
+
+  // Create a new set of arguments
+  std::vector<const char *> bundleArgv = {
+    Argv[0], // Keep the executable name
+    "--host-triple=x86_64-unknown-linux-gnu",
+    "--wrapper-verbose",
+    "--save-temps",
+    "--triple=spir64",
+    "-sycl-device-libraries=libsycl-crt.bc,libsycl-complex.bc,libsycl-complex-fp64.bc,libsycl-cmath.bc,libsycl-cmath-fp64.bc,libsycl-imf.bc,libsycl-imf-fp64.bc,libsycl-imf-bf16.bc,libsycl-itt-user-wrappers.bc,libsycl-itt-compiler-wrappers.bc,libsycl-itt-stubs.bc",
+    "-sycl-device-library-location=/localdisk2/jasonli/sycl_workspace/llvm/build/bin/../lib",
+    "--sycl-post-link-options=-O2 -spec-const=native -device-globals -split=auto -emit-only-kernels-as-entry-points -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd",
+    "--llvm-spirv-options=-spirv-max-version=1.4 -spirv-debug-info-version=nonsemantic-shader-200 -spirv-allow-unknown-intrinsics=llvm.genx. -spirv-ext=-all,+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max,+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls,+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io,+SPV_INTEL_device_side_avc_motion_estimation,+SPV_INTEL_fpga_loop_controls,+SPV_INTEL_unstructured_loop_controls,+SPV_INTEL_fpga_reg,+SPV_INTEL_blocking_pipes,+SPV_INTEL_function_pointers,+SPV_INTEL_kernel_attributes,+SPV_INTEL_io_pipes,+SPV_INTEL_inline_assembly,+SPV_INTEL_arbitrary_precision_integers,+SPV_INTEL_float_controls2,+SPV_INTEL_vector_compute,+SPV_INTEL_fast_composite,+SPV_INTEL_arbitrary_precision_fixed_point,+SPV_INTEL_arbitrary_precision_floating_point,+SPV_INTEL_variable_length_array,+SPV_INTEL_fp_fast_math_mode,+SPV_INTEL_long_constant_composite,+SPV_INTEL_arithmetic_fence,+SPV_INTEL_global_variable_decorations,+SPV_INTEL_cache_controls,+SPV_INTEL_fpga_buffer_location,+SPV_INTEL_fpga_argument_interfaces,+SPV_INTEL_fpga_invocation_pipelining_attributes,+SPV_INTEL_fpga_latency_control,+SPV_INTEL_task_sequence,+SPV_INTEL_token_type,+SPV_INTEL_bfloat16_conversion,+SPV_INTEL_joint_matrix,+SPV_INTEL_hw_thread_queries,+SPV_KHR_uniform_group_instructions,+SPV_INTEL_masked_gather_scatter,+SPV_INTEL_tensor_float32_conversion,+SPV_INTEL_optnone,+SPV_KHR_non_semantic_info",
+    "--linker-path=/usr/bin/ld",
+    "-z",
+    "relro",
+    "--hash-style=gnu",
+    "--eh-frame-hdr",
+    "-m",
+    "elf_x86_64",
+    "-dynamic-linker",
+    "/lib64/ld-linux-x86-64.so.2",
+    "-o",
+    "a.out",
+    "/lib/x86_64-linux-gnu/crt1.o",
+    "/lib/x86_64-linux-gnu/crti.o",
+    "/usr/lib/gcc/x86_64-linux-gnu/12/crtbegin.o",
+    "-L/usr/lib/gcc/x86_64-linux-gnu/12",
+    "-L/usr/lib/gcc/x86_64-linux-gnu/12/../../../../lib64",
+    "-L/lib/x86_64-linux-gnu",
+    "-L/lib/../lib64",
+    "-L/usr/lib/x86_64-linux-gnu",
+    "-L/usr/lib/../lib64",
+    "-L/localdisk2/jasonli/sycl_workspace/llvm/build/bin/../lib",
+    "-L/lib",
+    "-L/usr/lib",
+    "vector_add.o",
+    "-lstdc++",
+    "-lm",
+    "-lgcc_s",
+    "-lgcc",
+    "-lsycl",
+    "-lsycl-devicelib-host",
+    "-lc",
+    "-lgcc_s",
+    "-lgcc",
+    "/usr/lib/gcc/x86_64-linux-gnu/12/crtend.o",
+    "/lib/x86_64-linux-gnu/crtn.o",
+    "-verbose"
+  };
+
+  int NewArgc = bundleArgv.size();
+  char **bundleArgvCStr = const_cast<char **>(bundleArgv.data());
+
+
+  // Parse the new arguments
+  auto bundleArgs = Tbl.parseArgs(NewArgc, bundleArgvCStr, OPT_INVALID, Saver, [&](StringRef Err) {
+    reportError(createStringError(Err));
+  });
+  
+
   if (Args.hasArg(OPT_help) || Args.hasArg(OPT_help_hidden)) {
     Tbl.printHelp(
         outs(),
@@ -2840,8 +3019,10 @@ int main(int Argc, char **Argv) {
   {
     llvm::TimeTraceScope TimeScope("Execute linker wrapper");
 
+    auto t = Args.getLastArgValue(OPT_triple_EQ);
+
     // Extract the device input files stored in the host fat binary.
-    auto DeviceInputFiles = getDeviceInput(Args);
+    auto DeviceInputFiles = getDeviceInput(Args, bundleArgs);
     if (!DeviceInputFiles)
       reportError(DeviceInputFiles.takeError());
 
