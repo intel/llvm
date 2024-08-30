@@ -174,15 +174,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
   ur_device_handle_t Device = hKernel->getProgram()->getDevice();
   ScopedContext Active(Device);
   try {
+    // We need to calculate max num of work-groups using per-device semantics.
+
     int MaxNumActiveGroupsPerCU{0};
     UR_CHECK_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
         &MaxNumActiveGroupsPerCU, hKernel->get(), localWorkSize,
         dynamicSharedMemorySize));
     detail::ur::assertion(MaxNumActiveGroupsPerCU >= 0);
-
-    // Multiply by the number of SMs (CUs = compute units) on the device in
-    // order to retreive the total number of groups/blocks that can be launched.
-    *pGroupCountRet = Device->getNumComputeUnits() * MaxNumActiveGroupsPerCU;
+    // Handle the case where we can't have all SMs active with at least 1 group
+    // per SM. In that case, the device is still able to run 1 work-group, hence
+    // we will manually check if it is possible with the available HW resources.
+    if (MaxNumActiveGroupsPerCU == 0) {
+      size_t MaxWorkGroupSize{};
+      urKernelGetGroupInfo(
+          hKernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+          sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+      size_t MaxLocalSizeBytes{};
+      urDeviceGetInfo(Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE,
+                      sizeof(MaxLocalSizeBytes), &MaxLocalSizeBytes, nullptr);
+      if (localWorkSize > MaxWorkGroupSize ||
+          dynamicSharedMemorySize > MaxLocalSizeBytes ||
+          hasExceededMaxRegistersPerBlock(Device, hKernel, localWorkSize))
+        *pGroupCountRet = 0;
+      else
+        *pGroupCountRet = 1;
+    } else {
+      // Multiply by the number of SMs (CUs = compute units) on the device in
+      // order to retreive the total number of groups/blocks that can be
+      // launched.
+      *pGroupCountRet = Device->getNumComputeUnits() * MaxNumActiveGroupsPerCU;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
