@@ -290,7 +290,7 @@ public:
   }
 
   // Get the sync point associated with this event.
-  ur_exp_command_buffer_sync_point_t getSyncPoint() const { 
+  ur_exp_command_buffer_sync_point_t getSyncPoint() const {
     assert(MSyncPoint && "getSyncPoint(): No sync point set");
     return *MSyncPoint;
   }
