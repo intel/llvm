@@ -119,7 +119,7 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   {
     event E1 = submitKernel(Q1);
     event E2 = submitKernel(Q2);
-    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandleRef();
+    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
   }

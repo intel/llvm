@@ -1,6 +1,5 @@
 // REQUIRES: aspect-ext_intel_legacy_image
-// UNSUPPORTED: cuda || hip || (windows && level_zero)
-// unsupported on windows (level-zero) due to fail of Jenkins/pre-ci-windows
+// UNSUPPORTED: cuda || hip
 // CUDA cannot support SYCL 1.2.1 images.
 //
 // RUN: %{build} -o %t.out

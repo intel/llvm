@@ -293,7 +293,7 @@ event handler::finalize() {
         if (NewEvent != nullptr) {
           detail::emitInstrumentationGeneral(
               StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-              static_cast<const void *>(NewEvent->getHandleRef()));
+              static_cast<const void *>(NewEvent->getHandle()));
         }
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
@@ -324,7 +324,7 @@ event handler::finalize() {
         NewEvent->setSubmissionTime();
 
         EnqueueKernel();
-        if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
+        if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 

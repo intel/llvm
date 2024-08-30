@@ -16,14 +16,16 @@
 // REQUIRES: arch-intel_gpu_pvc
 //             invokes 'urProgramBuild'/'urKernelCreate'
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// Don't use SYCL_UR_TRACE as the output from the L0 adapter logging interferes
+// with the regular UR traces we are checking.
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_AUTO -o %t.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
 #if defined(USE_NEW_API) || defined(USE_AUTO)
