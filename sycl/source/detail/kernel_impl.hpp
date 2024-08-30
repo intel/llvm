@@ -230,32 +230,48 @@ kernel_impl::get_info(const device &Device,
 namespace syclex = ext::oneapi::experimental;
 
 template <>
-inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
     return_type
     kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        [[maybe_unused]] const queue &Queue, const range<3> &WorkGroupSize,
+        syclex::info::kernel_queue_specific::max_num_work_groups>(
+        const queue &Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
-  if (WorkGroupSize.size() == 0) {
+  if (WorkGroupSize.size() == 0)
     throw exception(sycl::make_error_code(errc::invalid),
                     "The launch work-group size cannot be zero.");
-  }
 
   const auto &Plugin = getPlugin();
   const auto &Handle = getHandleRef();
+  auto Device = Queue.get_device();
 
   uint32_t GroupCount{0};
   if (auto Result = Plugin->call_nocheck(
           urKernelSuggestMaxCooperativeGroupCountExp, Handle,
           WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    // The feature is not unsupported. Check for other errors and throw if any.
+    // The feature is supported. Check for other errors and throw if any.
     Plugin->checkUrResult(Result);
     return GroupCount;
   }
 
-  // Fallback to value of 1 for safety if a backend doesn't support the feature.
-  return 1;
+  // Fallback. If the backend API is unsupported, this query will return either
+  // 0 or 1 based on the kernel resource usage and the user-requested resources.
+  return exceedsOccupancyResourceLimits(Device, WorkGroupSize,
+                                        DynamicLocalMemorySize)
+             ? 0
+             : 1;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+        [[maybe_unused]] const queue &Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  return ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(
+      Queue, WorkGroupSize, DynamicLocalMemorySize);
 }
 
 template <>
@@ -264,55 +280,13 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_num_work_group_sync>(
         const queue &Queue) const {
-  const auto &Device = Queue.get_device();
+  auto Device = Queue.get_device();
   const auto MaxWorkGroupSize =
       get_info<info::kernel_device_specific::work_group_size>(Device);
   const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
   return ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_group_sync>(
       Queue, WorkGroupSize, /* DynamicLocalMemorySize */ 0);
-}
-
-template <>
-inline typename syclex::info::kernel_queue_specific::
-    recommended_num_work_groups::return_type
-    kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::recommended_num_work_groups>(
-        const queue &Queue, const range<3> &WorkGroupSize,
-        size_t DynamicLocalMemorySize) const {
-  if (WorkGroupSize.size() == 0) {
-    throw exception(sycl::make_error_code(errc::invalid),
-                    "The launch work-group size cannot be zero.");
-  }
-
-  const auto &Plugin = getPlugin();
-  const auto &Handle = getHandleRef();
-  const auto &Device = Queue.get_device();
-
-  uint32_t GroupCount{0};
-  if (auto Result = Plugin->call_nocheck(
-          urKernelSuggestMaxCooperativeGroupCountExp, Handle,
-          WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
-      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    // The feature is not unsupported. Check for other errors and throw if any.
-    Plugin->checkUrResult(Result);
-    // The suggested work-group count must be based on kernel occupancy limits.
-    // The implementation of this query in the Cuda adapter takes in account the
-    // occupancy limits and will already appropriately return 0 if exceeded.
-    if (Device.get_backend() != backend::ext_oneapi_cuda &&
-        exceedsOccupancyResourceLimits(Device, WorkGroupSize,
-                                       DynamicLocalMemorySize)) {
-      return 0;
-    }
-    return GroupCount;
-  }
-
-  // TODO: Fallback appropriately to the 'max_num_work_groups' query once it is
-  // implemented. Until then, we just return 1 group.
-  return exceedsOccupancyResourceLimits(Device, WorkGroupSize,
-                                        DynamicLocalMemorySize)
-             ? 0
-             : 1;
 }
 
 } // namespace detail

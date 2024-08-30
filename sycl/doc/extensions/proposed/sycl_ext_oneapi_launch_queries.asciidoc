@@ -217,8 +217,6 @@ and the specified amount of dynamic work-group local memory (in bytes),
 accounting for any kernel properties or features. This value is always less than
 or equal to the value returned by `max_num_work_groups` (when given the same
 query arguments).
-[Note: On CUDA backends, this query returns the number of work-groups that will
-maximize the occupancy of the device's compute units (Streaming Multiprocessors). -- end note]
 
 |===
 

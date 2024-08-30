@@ -1,2 +1,2 @@
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_group_sync, size_t,)
-__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, recommended_num_work_groups, size_t,)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t,)

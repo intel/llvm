@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstdint>
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
@@ -112,34 +113,31 @@ bool kernel_impl::exceedsOccupancyResourceLimits(
   // Respect occupancy limits for WorkGroupSize and DynamicLocalMemorySize.
   // Generally, exceeding hardware resource limits will yield in an error when
   // the kernel is launched.
-  const auto MaxWorkGroupSize =
+  const size_t MaxWorkGroupSize =
       get_info<info::kernel_device_specific::work_group_size>(Device);
-  const auto MaxLocalMemorySizeInBytes =
+  const size_t MaxLocalMemorySizeInBytes =
       Device.get_info<info::device::local_mem_size>();
 
-  if (WorkGroupSize.size() > MaxWorkGroupSize) {
+  if (WorkGroupSize.size() > MaxWorkGroupSize)
     return true;
-  }
 
   // Note: Checking "MaxLocalMemorySizeInBytes" from the device query returns
   // the maximum available on the device but we need to actually check the
   // maximum available to allocate for the kernel itself so it can execute.
-  // It may be preferrable to have a "kernel_device_specific" query for this.
-  if (DynamicLocalMemorySize > MaxLocalMemorySizeInBytes) {
+  // It might be preferrable to add a "kernel_device_specific" query for this.
+  if (DynamicLocalMemorySize > MaxLocalMemorySizeInBytes)
     return true;
-  }
 
   // It will be impossible to launch a kernel on Cuda when the hardware limit
   // for the 32-bit registers page file size is exceeded.
   if (Device.get_backend() == backend::ext_oneapi_cuda) {
-    const auto RegsPerWorkItem =
+    const uint32_t RegsPerWorkItem =
         get_info<info::kernel_device_specific::ext_codeplay_num_regs>(Device);
-    const auto MaxRegsPerWorkGroup =
+    const uint32_t MaxRegsPerWorkGroup =
         Device.get_info<ext::codeplay::experimental::info::device::
                             max_registers_per_work_group>();
-    if ((MaxWorkGroupSize * RegsPerWorkItem) > MaxRegsPerWorkGroup) {
+    if ((MaxWorkGroupSize * RegsPerWorkItem) > MaxRegsPerWorkGroup)
       return true;
-    }
   }
 
   return false;

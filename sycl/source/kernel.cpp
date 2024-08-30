@@ -133,7 +133,7 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 // kernel_queue_specific queries require the above-defined get_info interface.
 // clang-format off
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_group_sync, size_t)
-__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, recommended_num_work_groups, size_t)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
 // clang-format on
 #undef __SYCL_PARAM_TRAITS_SPEC
 
