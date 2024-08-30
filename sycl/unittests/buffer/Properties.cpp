@@ -163,3 +163,19 @@ TEST(ImageProps, SetUnsupportedParam) {
 
   FAIL() << "Test must exit in exception handler. Exception is not thrown.";
 }
+
+TEST(USMAllocator, Properties) {
+  sycl::unittest::UrMock<> Mock;
+  try {
+    sycl::queue Q;
+    sycl::usm_allocator<int, sycl::usm::alloc::shared> Allocator(
+        Q, sycl::property::buffer::use_host_ptr{});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}
