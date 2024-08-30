@@ -360,13 +360,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
-  return UR_RESULT_SUCCESS;
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] size_t localWorkSize,
+    [[maybe_unused]] size_t dynamicSharedMemorySize,
+    [[maybe_unused]] uint32_t *pGroupCountRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
