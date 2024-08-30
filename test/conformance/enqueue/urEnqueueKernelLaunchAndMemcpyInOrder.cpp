@@ -189,7 +189,7 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
 
     auto useEvents = std::get<1>(GetParam()).value;
 
-    std::vector<uur::raii::Event> Events(numOps * 2);
+    std::vector<uur::raii::Event> Events(numOps * 2 - 1);
     for (size_t i = 0; i < numOps; i++) {
         size_t waitNum = 0;
         ur_event_handle_t *lastEvent = nullptr;
@@ -202,7 +202,7 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
             lastEvent = i > 0 ? Events[i * 2 - 1].ptr() : nullptr;
 
             kernelEvent = Events[i * 2].ptr();
-            memcpyEvent = Events[i * 2 + 1].ptr();
+            memcpyEvent = i < numOps - 1 ? Events[i * 2 + 1].ptr() : nullptr;
         }
 
         // execute kernel that increments each element by 1
@@ -220,9 +220,7 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     }
 
     if (useEvents) {
-        // TODO: just wait on the last event, once urEventWait is implemented
-        // by V2 L0 adapter
-        urQueueFinish(queue);
+        urEventWait(1, Events.back().ptr());
     } else {
         urQueueFinish(queue);
     }
@@ -237,12 +235,26 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     }
 }
 
-struct VoidParam {};
+template <typename T>
+inline std::string
+printBoolParam(const testing::TestParamInfo<typename T::ParamType> &info) {
+    std::stringstream ss;
+    ss << (info.param.value ? "" : "No") << info.param.name;
+    return ss.str();
+}
+
 using urEnqueueKernelLaunchIncrementMultiDeviceTest =
-    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<VoidParam>;
+    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<uur::BoolTestParam>;
+
+INSTANTIATE_TEST_SUITE_P(
+    , urEnqueueKernelLaunchIncrementMultiDeviceTest,
+    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEventWait")),
+    printBoolParam<urEnqueueKernelLaunchIncrementMultiDeviceTest>);
 
 // Do a chain of kernelLaunch(dev0) -> memcpy(dev0, dev1) -> kernelLaunch(dev1) ... ops
-TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
+TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
+    auto waitOnEvent = GetParam().value;
+
     size_t returned_size;
     ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_EXTENSIONS, 0,
                                    nullptr, &returned_size));
@@ -265,14 +277,15 @@ TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
 
-    std::vector<uur::raii::Event> Events(devices.size() * 2);
+    std::vector<uur::raii::Event> Events(devices.size() * 2 - 1);
     for (size_t i = 0; i < devices.size(); i++) {
         // Events are: kernelEvent0, memcpyEvent0, kernelEvent1, ...
         size_t waitNum = i > 0 ? 1 : 0;
         ur_event_handle_t *lastEvent =
             i > 0 ? Events[i * 2 - 1].ptr() : nullptr;
         ur_event_handle_t *kernelEvent = Events[i * 2].ptr();
-        ur_event_handle_t *memcpyEvent = Events[i * 2 + 1].ptr();
+        ur_event_handle_t *memcpyEvent =
+            i < devices.size() - 1 ? Events[i * 2 + 1].ptr() : nullptr;
 
         // execute kernel that increments each element by 1
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
@@ -287,9 +300,13 @@ TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
         }
     }
 
-    // synchronize on the last queue only, this has to ensure all the operations
+    // synchronize on the last queue/event only, this has to ensure all the operations
     // are completed
-    urQueueFinish(queues.back());
+    if (waitOnEvent) {
+        urEventWait(1, Events.back().ptr());
+    } else {
+        urQueueFinish(queues.back());
+    }
 
     size_t ExpectedValue = InitialValue;
     for (size_t i = 0; i < devices.size(); i++) {
@@ -374,9 +391,11 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
                                    ArraySize * sizeof(uint32_t), useEvents,
                                    lastEvent, signalEvent));
 
-            urQueueFinish(queue);
-            // TODO: when useEvents is implemented for L0 v2 adapter
-            // wait on event instead
+            if (useEvents) {
+                urEventWait(1, Events.back().ptr());
+            } else {
+                urQueueFinish(queue);
+            }
 
             size_t ExpectedValue = InitialValue;
             ExpectedValue += numOpsPerThread;
