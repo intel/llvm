@@ -290,7 +290,10 @@ public:
   }
 
   // Get the sync point associated with this event.
-  ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
+  ur_exp_command_buffer_sync_point_t getSyncPoint() const { 
+    assert(MSyncPoint && "getSyncPoint(): No sync point set");
+    return *MSyncPoint;
+  }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -395,7 +398,7 @@ protected:
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
-  ur_exp_command_buffer_sync_point_t MSyncPoint;
+  std::optional<ur_exp_command_buffer_sync_point_t> MSyncPoint;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_command_handle_t the command-buffer command
