@@ -23,6 +23,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
+#include <ur_api.h>
 
 #include <bitset>
 #include <cstdarg>
@@ -72,6 +73,16 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
       make_error_code(errc::feature_not_supported),
       "This operation is not supported by any existing backends.");
   return nullptr;
+}
+
+ur_code_location_t codeLocationCallback(void *) {
+  ur_code_location_t codeloc;
+  codeloc.columnNumber = GCodeLocTLS.columnNumber();
+  codeloc.lineNumber = GCodeLocTLS.lineNumber();
+  codeloc.functionName = GCodeLocTLS.functionName();
+  codeloc.sourceFile = GCodeLocTLS.fileName();
+
+  return codeloc;
 }
 
 namespace ur {
