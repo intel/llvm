@@ -164,14 +164,22 @@ inline constexpr initialize_to_identity_key::value_t initialize_to_identity;
 |Property|Description
 
 |`deterministic`
-|Adds the requirement that any two calls to the reduction on the same device
-which use the same launch configuration (i.e., `range` or `nd_range`) and in
-which the same kernel instances contribute the same values to the reduction
-will produce results with the same value.
+a|When two reductions both have this property, they are guaranteed to produce
+the same result when all of the following conditions hold:
 
-[_Note:_ Kernel instances may contribute different values to a reduction
-because of other potential sources of non-determinism, such as calls to group
-algorithms, use of atomic operations, etc. _{endnote}_]
+* Both reductions run on the same device.
+* Both reductions are invoked with the same launch configuration (i.e., `range`
+  or `nd_range`).
+* The same values are contributed to each reduction.
+* The work-items in each reduction contribute those values in the same pattern
+  and the same order. For example, if the first reduction contributes values
+  _V1_, _V2_, and _V3_ from one work-item (in that order); then the second
+  reduction must also contribute values _V1_, _V2_, and _V3_ from a work-item
+  (in that order).
+
+[_Note:_ Work-items may contribute different values to a reduction because of
+other potential sources of non-determinism, such as calls to group algorithms,
+use of atomic operations, etc. _{endnote}_]
 
 |`initialize_to_identity`
 |Adds the same requirement as
