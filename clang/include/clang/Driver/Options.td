@@ -6981,19 +6981,6 @@ def : Flag<["-"], "fno-sycl-explicit-simd">,
   Flags<[Deprecated]>, Group<clang_ignored_legacy_options_Group>,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
 
-// CLI options of device image compression.
-// -fsycl-compress-dev-imgs
-// -fsycl-compress-level=<int>
-// -fsycl-compress-threshold=<int>
-def fsycl_compress_dev_imgs : Flag<["-"], "fsycl-compress-dev-imgs">,
-  HelpText<"Enables compression of device images.">;
-def fsycl_compress_level_EQ : Joined<["-"], "fsycl-compress-level=">,
-  HelpText<"ZSTD level to compress device images with. Should be used"
-           "only if -fsycl-compress-dev-imgs is enabled. (Default: 10)">;
-def fsycl_compress_threshold_EQ : Joined<["-"], "fsycl-compress-threshold=">,
-  HelpText<"Specify the minimum device image size (in bytes) for compression. Should be used"
-           "only if -fsycl-compress-dev-imgs is enabled. (Default: 1024)">;
-
 // OS-specific options
 let Flags = [TargetSpecific] in {
 defm android_pad_segment : BooleanFFlag<"android-pad-segment">, Group<f_Group>;

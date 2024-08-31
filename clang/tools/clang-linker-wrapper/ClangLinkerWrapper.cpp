@@ -67,8 +67,6 @@
 #include <atomic>
 #include <optional>
 
-#include <sycl-compress/sycl-compress.h>
-
 #define COMPILE_OPTS "compile-opts"
 #define LINK_OPTS "link-opts"
 

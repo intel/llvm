@@ -10,13 +10,12 @@ add_clang_tool(clang-offload-wrapper
 
 set(CLANG_OFFLOAD_WRAPPER_LIB_DEPS
   clangBasic
+  LLVMSupport
   )
 
-add_dependencies(clang-offload-wrapper sycl-compress)
 add_dependencies(clang clang-offload-wrapper)
 
 clang_target_link_libraries(clang-offload-wrapper
   PRIVATE
   ${CLANG_OFFLOAD_WRAPPER_LIB_DEPS}
-  sycl-compress
   )

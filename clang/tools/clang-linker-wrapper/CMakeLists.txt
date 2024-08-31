@@ -34,8 +34,6 @@ add_clang_tool(clang-linker-wrapper
   ${tablegen_deps}
   )
 
-add_dependencies(clang-linker-wrapper sycl-compress)
-
 set(CLANG_LINKER_WRAPPER_LIB_DEPS
   clangBasic
   )
@@ -43,7 +41,6 @@ set(CLANG_LINKER_WRAPPER_LIB_DEPS
 target_link_libraries(clang-linker-wrapper
   PRIVATE
   ${CLANG_LINKER_WRAPPER_LIB_DEPS}
-  sycl-compress
   )
 
 export_executable_symbols_for_plugins(clang-linker-wrapper)

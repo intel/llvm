@@ -10002,36 +10002,24 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Validate and propogate CLI options related to device image compression.
     {
-      // -fsycl-compress-dev-imgs
+      // -offload-compress
       bool isImgCompress = false;
-      if (C.getInputArgs().getLastArg(options::OPT_fsycl_compress_dev_imgs)) {
+      if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
         isImgCompress = true;
         WrapperArgs.push_back(
-            C.getArgs().MakeArgString(Twine("-sycl-compress-dev-imgs")));
+            C.getArgs().MakeArgString(Twine("-offload-compress")));
       }
 
-      // -fsycl-compress-level=<>
+      // -offload-compression-level=<>
       if (Arg *A = C.getInputArgs().getLastArg(
-              options::OPT_fsycl_compress_level_EQ)) {
+              options::OPT_offload_compression_level_EQ)) {
 
         if (!isImgCompress)
-          C.getDriver().Diag(diag::warn_sycl_compress_opt_ignored)
+          C.getDriver().Diag(diag::warn_compress_opt_ignored)
               << A->getAsString(C.getInputArgs());
         else
           WrapperArgs.push_back(C.getArgs().MakeArgString(
-              Twine("-sycl-compress-level=") + A->getValue()));
-      }
-
-      // -fsycl-compress-threshold=<>
-      if (Arg *A = C.getInputArgs().getLastArg(
-              options::OPT_fsycl_compress_threshold_EQ)) {
-
-        if (!isImgCompress)
-          C.getDriver().Diag(diag::warn_sycl_compress_opt_ignored)
-              << A->getAsString(C.getInputArgs());
-        else
-          WrapperArgs.push_back(C.getArgs().MakeArgString(
-              Twine("-sycl-compress-threshold=") + A->getValue()));
+              Twine("-offload-compression-level=") + A->getValue()));
       }
     }
 
