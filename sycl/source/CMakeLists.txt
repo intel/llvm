@@ -69,13 +69,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  # Add dependency on sycl-compress.
-  if (NOT DEFINED LLVM_EXTERNAL_SYCL_COMPRESS_SOURCE_DIR)
-    message (FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_COMPRESS_SOURCE_DIR variable: Must be set when using sycl-compress")
-  endif()
-  include_directories(${LLVM_EXTERNAL_SYCL_COMPRESS_SOURCE_DIR}/include)
-  add_dependencies(${LIB_NAME} sycl-compress)
-  target_link_libraries(${LIB_NAME} PRIVATE sycl-compress)
+  # Need LLVMSUpport for device image compression.
+  add_dependencies(${LIB_NAME} LLVMSupport)
+  target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
   
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 

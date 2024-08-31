@@ -9,7 +9,10 @@
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/ur.hpp>
 
-#include <sycl-compress/sycl-compress.h>
+// For device image compression.
+#include <llvm/Support/Compression.h>
+#include <llvm/Support/Endian.h>
+#include <llvm/Support/Error.h>
 
 #include <algorithm>
 #include <cstring>
@@ -234,43 +237,37 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
     : RTDeviceBinaryImage() {
 
-  // Decompress the binary image.
-  size_t DecompressedSize = 0;
   size_t compressedDataSize = static_cast<size_t>(CompressedBin->BinaryEnd -
                                                   CompressedBin->BinaryStart);
-  m_DecompressedData = std::move(sycl_compress::ZSTDCompressor::DecompressBlob(
-      reinterpret_cast<const char *>(CompressedBin->BinaryStart),
-      compressedDataSize, DecompressedSize));
 
-  if (!DecompressedSize) {
-    std::cerr << "Failed to decompress device binary image\n";
-    return;
+  // Get ArrayRef of compressed data.
+  llvm::ArrayRef<unsigned char> CompressedData(
+      reinterpret_cast<const unsigned char *>(CompressedBin->BinaryStart),
+      compressedDataSize);
+
+  // Decompress the binary image.
+  size_t DecompressedSize =
+      llvm::compression::zstd::getDecompressedSize(CompressedData);
+
+  m_DecompressedData =
+      std::unique_ptr<unsigned char>(new unsigned char[DecompressedSize]);
+
+  if (llvm::compression::zstd::isAvailable()) {
+
+    auto Err = llvm::compression::zstd::decompress(
+        CompressedData, m_DecompressedData.get(), DecompressedSize);
+
+    assert(!Err && "Failed to decompress ZSTD data");
+  } else {
+    assert(false && "ZSTD not available");
   }
 
   Bin = new sycl_device_binary_struct(*CompressedBin);
-  Bin->BinaryStart =
-      reinterpret_cast<unsigned char *>(m_DecompressedData.get());
+  Bin->BinaryStart = m_DecompressedData.get();
   Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-  // Get the new format.
-  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
-  switch (currFormat) {
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
-    currFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE:
-    currFormat = SYCL_DEVICE_BINARY_TYPE_NATIVE;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV:
-    currFormat = SYCL_DEVICE_BINARY_TYPE_SPIRV;
-    break;
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE:
-    currFormat = SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
-    break;
-  default:
-    break;
-  }
-  Bin->Format = currFormat;
+  // Set the new format to none and let RT determine the format.
+  Bin->Format = SYCL_DEVICE_BINARY_TYPE_NONE;
 
   init(Bin);
 }

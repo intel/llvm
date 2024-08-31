@@ -16,6 +16,9 @@
 
 #include <sycl/detail/iostream_proxy.hpp>
 
+#include <llvm/ADT/ArrayRef.h>
+#include <llvm/ADT/SmallVector.h>
+
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -290,7 +293,7 @@ public:
   }
 
 private:
-  std::unique_ptr<char> m_DecompressedData;
+  std::unique_ptr<unsigned char> m_DecompressedData;
 };
 
 } // namespace detail

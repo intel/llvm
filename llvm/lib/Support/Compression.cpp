@@ -224,6 +224,10 @@ Error zstd::decompress(ArrayRef<uint8_t> Input,
   return E;
 }
 
+uint32_t zstd::getDecompressedSize(ArrayRef<uint8_t> Input) {
+  return ZSTD_getFrameContentSize(Input.data(), Input.size());
+}
+
 #else
 bool zstd::isAvailable() { return false; }
 void zstd::compress(ArrayRef<uint8_t> Input,

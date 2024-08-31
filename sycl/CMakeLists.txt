@@ -368,7 +368,6 @@ add_custom_target(sycl-compiler
           spirv-to-ir-wrapper
           sycl-post-link
           opencl-aot
-          sycl-compress
 )
 
 add_custom_target( sycl-runtime-libraries
@@ -458,7 +457,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      level-zero-sycl-dev
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
-     sycl-compress
 )
 
 if (WIN32)

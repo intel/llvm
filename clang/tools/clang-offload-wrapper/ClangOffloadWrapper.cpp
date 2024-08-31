@@ -135,7 +135,7 @@ static cl::opt<std::string>
                    cl::value_desc("filename"),
                    cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<bool> Verbose("v", cl::init(true), cl::desc("verbose output"),
+static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
 
 static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,

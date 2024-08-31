@@ -173,12 +173,6 @@ static bool isDeviceBinaryTypeSupported(const context &C,
     return "LLVM IR";
   case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
     return "compressed none";
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE:
-    return "compressed native";
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV:
-    return "compressed SPIR-V";
-  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE:
-    return "compressed LLVM IR";
   }
   assert(false && "Unknown device image format");
   return "unknown";
@@ -2795,14 +2789,7 @@ inline bool
 ProgramManager::isDeviceImageCompressed(sycl_device_binary Bin) const {
 
   auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
-
-  if (currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE ||
-      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NATIVE ||
-      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_SPIRV ||
-      currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_LLVMIR_BITCODE)
-    return true;
-  else
-    return false;
+  return currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE;
 }
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
