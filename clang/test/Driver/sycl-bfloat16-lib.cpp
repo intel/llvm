@@ -2,7 +2,6 @@
 /// Check if bfloat16 native and fallback libraries are added on Linux
 ///
 
-// UNSUPPORTED: system-windows
 // UNSUPPORTED: cuda
 
 /// ###########################################################################
