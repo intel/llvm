@@ -244,4 +244,7 @@ Error zstd::decompress(ArrayRef<uint8_t> Input,
                        size_t UncompressedSize) {
   llvm_unreachable("zstd::decompress is unavailable");
 }
+uint32_t zstd::getDecompressedSize(ArrayRef<uint8_t> Input) {
+  llvm_unreachable("zstd::decompress is unavailable");
+}
 #endif
