@@ -88,7 +88,7 @@ jobs:
       - name: Attest Build Provenance
         if: github.event_name != 'pull_request'
         id: provenance
-        uses: actions/attest-build-provenance@897ed5eab6ed058a474202017ada7f40bfa52940 # v1.0.0
+        uses: actions/attest-build-provenance@6149ea5740be74af77f260b9db67e633f6b0a9a1 # v1.4.2
         with:
           subject-path: "*.xz"
       - if: github.event_name != 'pull_request'
