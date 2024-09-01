@@ -1,5 +1,5 @@
 ///
-/// Check if bfloat16 native and fallback libraries are added on Linux
+/// Check if bfloat16 native and fallback libraries are linked correctly.
 ///
 
 // UNSUPPORTED: cuda
