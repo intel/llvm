@@ -376,3 +376,15 @@ void test_simd_binop_honor_int_promo() SYCL_ESIMD_FUNCTION {
   static_assert(std::is_same<decltype(c + c), simd<int, 32>>::value, "");
   static_assert(std::is_same<decltype(d + d), simd<int, 32>>::value, "");
 }
+
+template <class T> bool test_simd_view_ctors() SYCL_ESIMD_FUNCTION {
+  simd<T, 8> vec8;
+  auto view4 = vec8.template select<4, 1>(0);
+
+  simd<T, 4> vec4 = view4;
+  simd vec41 = view4;
+  return true;
+}
+
+template bool test_simd_view_ctors<int>() SYCL_ESIMD_FUNCTION;
+template bool test_simd_view_ctors<sycl::half>() SYCL_ESIMD_FUNCTION;
