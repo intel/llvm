@@ -14,8 +14,8 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; REQUIRES: llvm-13+
-; RUN: veczc -k mask_varying -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %s
+; RUN: %pp-llvm-ver -o %t < %s --llvm-ver %LLVMVER
+; RUN: veczc -k mask_varying -vecz-scalable -vecz-simd-width=4 -vecz-choices=VectorPredication -S < %s | FileCheck %t
 
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
@@ -40,8 +40,10 @@ if.end:
 ; CHECK: define spir_kernel void @__vecz_nxv4_vp_mask_varying
 ; CHECK: [[CMP:%.*]] = icmp slt <vscale x 4 x i64> %{{.*}},
 ; CHECK: [[RED:%.*]] = call i1 @llvm.vp.reduce.or.nxv4i1(i1 false, <vscale x 4 x i1> [[CMP]], {{.*}}, i32 {{.*}})
-; CHECK: [[REINS:%.*]] = insertelement <4 x i1> poison, i1 [[RED]], {{(i32|i64)}} 0
-; CHECK: [[RESPLAT:%.*]] = shufflevector <4 x i1> [[REINS]], <4 x i1> poison, <4 x i32> zeroinitializer
+; CHECK-LT20: [[REINS:%.*]] = insertelement <4 x i1> poison, i1 [[RED]], {{(i32|i64)}} 0
+; CHECK-LT20: [[RESPLAT:%.*]] = shufflevector <4 x i1> [[REINS]], <4 x i1> poison, <4 x i32> zeroinitializer
+; CHECK-LT20: [[VAL:%.*]] = call <4 x i32> @__vecz_b_masked_load16_Dv4_ju3ptrDv4_b(ptr %aptr, <4 x i1> [[RESPLAT]])
+; CHECK-GE20: [[VAL:%.*]] = load <4 x i32>, ptr %aptr
 }
 
 declare i64 @__mux_get_global_id(i32)
