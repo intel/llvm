@@ -105,7 +105,7 @@ supports.
 namespace sycl::ext::oneapi::experimental {
 
 template <typename Group, typename InputIterator, typename Function>
-Function joint_for_each(Group g, InputIterator first, InputIterator last, Function f);
+void joint_for_each(Group g, InputIterator first, InputIterator last, Function f);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -132,14 +132,12 @@ If the range [`first`, `last`) is not evenly divisible by the number of
 work-items in group `g`, the number of times that `f` is invoked will differ
 across work-items.
 
-_Returns_: `f`.
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
 template <typename Group, typename Integer, typename Function>
-Function joint_for(Group g, Integer first, Integer last, Function f);
+void joint_for(Group g, Integer first, Integer last, Function f);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -166,8 +164,6 @@ If the range [`first`, `last`) is not evenly divisible by the number of
 work-items in group `g`, the number of times that `f` is invoked will differ
 across work-items.
 
-_Returns_: `f`.
-
 
 == Implementation notes
 
@@ -181,7 +177,7 @@ include the complexities of SFINAE and robust error checking, is given below:
 [source,c++]
 ----
 template <typename Group, typename InputIterator, typename Function>
-Function joint_for_each(Group g, InputIterator first, InputIterator last, Function f) {
+void joint_for_each(Group g, InputIterator first, InputIterator last, Function f) {
   sycl::group_barrier(g);
   typename std::iterator_traits<InputIterator>::difference_type offset = g.get_local_linear_id();
   typename std::iterator_traits<InputIterator>::difference_type stride = g:get_local_linear_range();
@@ -193,7 +189,7 @@ Function joint_for_each(Group g, InputIterator first, InputIterator last, Functi
 }
 
 template <typename Group, typename Integer, typename Function>
-std::enable_if_t<std::is_integral_v<Integer>, Function>
+std::enable_if_t<std::is_integral_v<Integer>>
 joint_for(Group g, Integer first, Integer last, Function f) {
   sycl::group_barrier(g);
   Integer offset = g.get_local_linear_id();
