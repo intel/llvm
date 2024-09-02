@@ -799,7 +799,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
 // RUN:   not %clang -### -fsycl --no-offload-new-driver -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
-// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
+// CHK-INCOMPATIBILITY: error: option '[[INCOMPATOPT]]' not supported with SYCL compilation
 
 /// Using -fsyntax-only with -fsycl --no-offload-new-driver should not emit IR
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsyntax-only %s 2>&1 \

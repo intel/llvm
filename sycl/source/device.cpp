@@ -39,7 +39,7 @@ device::device(cl_device_id DeviceId) {
   ur_device_handle_t Device;
   Plugin->call(urDeviceCreateWithNativeHandle,
                detail::ur::cast<ur_native_handle_t>(DeviceId),
-               Plugin->getUrPlatforms()[0], nullptr, &Device);
+               Plugin->getUrAdapter(), nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromUrDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
@@ -247,8 +247,11 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                           "Unrecognized peer access attribute.");
   }();
   auto Plugin = impl->getPlugin();
-  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, sizeof(int),
-               &value, &returnSize);
+  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, 0, nullptr,
+               &returnSize);
+
+  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, returnSize,
+               &value, nullptr);
 
   return value == 1;
 }

@@ -75,7 +75,10 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
 }
 
 namespace ur {
-bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
+bool trace(TraceLevel Level) {
+  auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
+  return (TraceLevelMask & Level) == Level;
+}
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig);
@@ -88,6 +91,13 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
   // std::call_once is blocking all other threads if a thread is already
   // creating a vector of plugins. So, no additional lock is needed.
   std::call_once(PluginsInitDone, [&]() {
+    // TODO: Remove this SYCL_PI_TRACE notification in the first patch release
+    // after the next ABI breaking window.
+    if (std::getenv("SYCL_PI_TRACE")) {
+      std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
+      std::exit(1);
+    }
+
     initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
   });
   return GlobalHandler::instance().getPlugins();
@@ -99,29 +109,29 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
 
   bool OwnLoaderConfig = false;
-  // If we weren't provided with a custom config handle create our own and
-  // enable full validation by default.
+  // If we weren't provided with a custom config handle create our own.
   if(!LoaderConfig) {
     CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig,
-                                               "UR_LAYER_PARAMETER_VALIDATION"))
     OwnLoaderConfig = true;
   }
 
-  auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
-  if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
-    const char *LogOptions = "level:info;output:stdout;flush:info";
+  const char *LogOptions = "level:info;output:stdout;flush:info";
+  if (trace(TraceLevel::TRACE_CALLS)) {
 #ifdef _WIN32
     _putenv_s("UR_LOG_TRACING", LogOptions);
-    _putenv_s("UR_LOG_LOADER", LogOptions);
 #else
     setenv("UR_LOG_TRACING", LogOptions, 1);
-    setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
+    CHECK_UR_SUCCESS(
+        urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
   }
 
-  if (std::getenv("UR_LOG_TRACING")) {
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+  if (trace(TraceLevel::TRACE_BASIC)) {
+#ifdef _WIN32
+    _putenv_s("UR_LOG_LOADER", LogOptions);
+#else
+    setenv("UR_LOG_LOADER", LogOptions, 1);
+#endif
   }
 
   CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(

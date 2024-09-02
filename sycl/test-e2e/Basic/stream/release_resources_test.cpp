@@ -2,7 +2,7 @@
 // to fail there. See comments in GlobalHandler::releaseDefaultContexts
 // UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // Check that buffer used by a stream object is released.
 

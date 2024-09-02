@@ -18,6 +18,7 @@ int main() {
 #ifdef SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   queue Queue{};
 
+  event DefaultEvent;
   auto Event = Queue.single_task([=]() {});
   auto Context = Queue.get_info<info::queue::context>();
   auto Device = Queue.get_info<info::queue::device>();
@@ -29,6 +30,8 @@ int main() {
   auto ZeContext = get_native<backend::ext_oneapi_level_zero>(Context);
   auto ZeQueue = get_native<backend::ext_oneapi_level_zero>(Queue);
   auto ZeEvent = get_native<backend::ext_oneapi_level_zero>(Event);
+  auto DefaultZeEvent =
+      get_native<backend::ext_oneapi_level_zero>(DefaultEvent);
 
   // Create native Level-Zero context.
   // It then will be owned/destroyed by SYCL RT.
@@ -60,6 +63,13 @@ int main() {
   auto EventInterop = make_event<backend::ext_oneapi_level_zero>(
       EventInteropInput, ContextInterop);
 
+  backend_input_t<backend::ext_oneapi_level_zero, event>
+      DefaultEventInteropInput = {DefaultZeEvent};
+  DefaultEventInteropInput.Ownership =
+      sycl::ext::oneapi::level_zero::ownership::keep;
+  auto DefaultEventInterop = make_event<backend::ext_oneapi_level_zero>(
+      DefaultEventInteropInput, ContextInterop);
+
   // Check native handles
   assert(ZePlatform ==
          get_native<backend::ext_oneapi_level_zero>(PlatformInterop));
@@ -68,6 +78,8 @@ int main() {
          get_native<backend::ext_oneapi_level_zero>(ContextInterop));
   assert(ZeQueue == get_native<backend::ext_oneapi_level_zero>(QueueInterop));
   assert(ZeEvent == get_native<backend::ext_oneapi_level_zero>(EventInterop));
+  assert(DefaultZeEvent ==
+         get_native<backend::ext_oneapi_level_zero>(DefaultEventInterop));
 
   // Verify re-created objects
   int Arr[] = {2};

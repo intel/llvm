@@ -2855,69 +2855,69 @@ static bool mergeDeclAttribute(Sema &S, NamedDecl *D,
   else if (const auto *INA = dyn_cast<WebAssemblyImportNameAttr>(Attr))
     NewAttr = S.Wasm().mergeImportNameAttr(D, *INA);
   else if (const auto *A = dyn_cast<SYCLIntelLoopFuseAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelLoopFuseAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelLoopFuseAttr(D, *A);
   else if (const auto *TCBA = dyn_cast<EnforceTCBAttr>(Attr))
     NewAttr = S.mergeEnforceTCBAttr(D, *TCBA);
   else if (const auto *TCBLA = dyn_cast<EnforceTCBLeafAttr>(Attr))
     NewAttr = S.mergeEnforceTCBLeafAttr(D, *TCBLA);
   else if (const auto *A = dyn_cast<IntelReqdSubGroupSizeAttr>(Attr))
-    NewAttr = S.MergeIntelReqdSubGroupSizeAttr(D, *A);
+    NewAttr = S.SYCL().mergeIntelReqdSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<IntelNamedSubGroupSizeAttr>(Attr))
-    NewAttr = S.MergeIntelNamedSubGroupSizeAttr(D, *A);
+    NewAttr = S.SYCL().mergeIntelNamedSubGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNumSimdWorkItemsAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelNumSimdWorkItemsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelESimdVectorizeAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelESimdVectorizeAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelESimdVectorizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelSchedulerTargetFmaxMhzAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelSchedulerTargetFmaxMhzAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNoGlobalWorkOffsetAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelNoGlobalWorkOffsetAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxReplicatesAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMaxReplicatesAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMaxReplicatesAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxConcurrencyAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMaxConcurrencyAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMaxConcurrencyAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelForcePow2DepthAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelForcePow2DepthAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelForcePow2DepthAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelInitiationIntervalAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelInitiationIntervalAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelInitiationIntervalAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLWorkGroupSizeHintAttr>(Attr))
-    NewAttr = S.MergeSYCLWorkGroupSizeHintAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLWorkGroupSizeHintAttr(D, *A);
   else if (const auto *A =
                dyn_cast<SYCLIntelMinWorkGroupsPerComputeUnitAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(D, *A);
   else if (const auto *A =
                dyn_cast<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxGlobalWorkDimAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMaxGlobalWorkDimAttr(D, *A);
   else if (const auto *BTFA = dyn_cast<BTFDeclTagAttr>(Attr))
     NewAttr = S.mergeBTFDeclTagAttr(D, *BTFA);
   else if (const auto *A = dyn_cast<SYCLIntelBankWidthAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelBankWidthAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelBankWidthAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelNumBanksAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelNumBanksAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelNumBanksAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLDeviceHasAttr>(Attr))
-    NewAttr = S.MergeSYCLDeviceHasAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLDeviceHasAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLUsesAspectsAttr>(Attr))
-    NewAttr = S.MergeSYCLUsesAspectsAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLUsesAspectsAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLTypeAttr>(Attr))
-    NewAttr = S.MergeSYCLTypeAttr(D, *A, A->getType());
+    NewAttr = S.SYCL().mergeSYCLTypeAttr(D, *A, A->getType());
   else if (const auto *A = dyn_cast<SYCLIntelPipeIOAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelPipeIOAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelPipeIOAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLIntelMaxWorkGroupSizeAttr>(Attr))
-    NewAttr = S.MergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLIntelMaxWorkGroupSizeAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attr))
-    NewAttr = S.MergeSYCLAddIRAttributesFunctionAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLAddIRAttributesFunctionAttr(D, *A);
   else if (const auto *A =
                dyn_cast<SYCLAddIRAttributesKernelParameterAttr>(Attr))
-    NewAttr = S.MergeSYCLAddIRAttributesKernelParameterAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLAddIRAttributesKernelParameterAttr(D, *A);
   else if (const auto *A =
                dyn_cast<SYCLAddIRAttributesGlobalVariableAttr>(Attr))
-    NewAttr = S.MergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLAddIRAttributesGlobalVariableAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLAddIRAnnotationsMemberAttr>(Attr))
-    NewAttr = S.MergeSYCLAddIRAnnotationsMemberAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLAddIRAnnotationsMemberAttr(D, *A);
   else if (const auto *A = dyn_cast<SYCLReqdWorkGroupSizeAttr>(Attr))
-    NewAttr = S.MergeSYCLReqdWorkGroupSizeAttr(D, *A);
+    NewAttr = S.SYCL().mergeSYCLReqdWorkGroupSizeAttr(D, *A);
   else if (const auto *NT = dyn_cast<HLSLNumThreadsAttr>(Attr))
     NewAttr = S.HLSL().mergeNumThreadsAttr(D, *NT, NT->getX(), NT->getY(),
                                            NT->getZ());
@@ -5946,7 +5946,7 @@ Sema::GetNameFromUnqualifiedId(const UnqualifiedId &Name) {
 
 static QualType getCoreType(QualType Ty) {
   do {
-    if (Ty->isPointerType() || Ty->isReferenceType())
+    if (Ty->isPointerOrReferenceType())
       Ty = Ty->getPointeeType();
     else if (Ty->isArrayType())
       Ty = Ty->castAsArrayTypeUnsafe()->getElementType();
@@ -6949,6 +6949,11 @@ static void checkAttributesAfterMerging(Sema &S, NamedDecl &ND) {
     }
   }
 
+  if (HybridPatchableAttr *Attr = ND.getAttr<HybridPatchableAttr>()) {
+    if (!ND.isExternallyVisible())
+      S.Diag(Attr->getLocation(),
+             diag::warn_attribute_hybrid_patchable_non_extern);
+  }
   if (const InheritableAttr *Attr = getDLLAttr(&ND)) {
     auto *VD = dyn_cast<VarDecl>(&ND);
     bool IsAnonymousNS = false;
@@ -7495,10 +7500,10 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     tryToFixVariablyModifiedVarType(TInfo, R, D.getIdentifierLoc(),
                                     /*DiagID=*/0);
 
-  if (const AutoType *AutoT = R->getAs<AutoType>())
-    CheckConstrainedAuto(
-        AutoT,
-        TInfo->getTypeLoc().getContainedAutoTypeLoc().getConceptNameLoc());
+  if (AutoTypeLoc TL = TInfo->getTypeLoc().getContainedAutoTypeLoc()) {
+    const AutoType *AT = TL.getTypePtr();
+    CheckConstrainedAuto(AT, TL.getConceptNameLoc());
+  }
 
   bool IsMemberSpecialization = false;
   bool IsVariableTemplateSpecialization = false;
@@ -9437,7 +9442,7 @@ static OpenCLParamType getOpenCLKernelParameterType(Sema &S, QualType PT) {
   if (PT->isDependentType())
     return InvalidKernelParam;
 
-  if (PT->isPointerType() || PT->isReferenceType()) {
+  if (PT->isPointerOrReferenceType()) {
     QualType PointeeType = PT->getPointeeType();
     if (PointeeType.getAddressSpace() == LangAS::opencl_generic ||
         PointeeType.getAddressSpace() == LangAS::opencl_private ||
@@ -10882,11 +10887,15 @@ Sema::ActOnFunctionDeclarator(Scope *S, Declarator &D, DeclContext *DC,
   for (const ParmVarDecl *Param : NewFD->parameters()) {
     QualType PT = Param->getType();
 
-    if (const PipeType *PipeTy = PT->getAs<PipeType>()) {
-      QualType ElemTy = PipeTy->getElementType();
-      if (ElemTy->isReferenceType() || ElemTy->isPointerType()) {
-        Diag(Param->getTypeSpecStartLoc(), diag::err_reference_pipe_type );
-        D.setInvalidType();
+    // OpenCL 2.0 pipe restrictions forbids pipe packet types to be non-value
+    // types.
+    if (getLangOpts().getOpenCLCompatibleVersion() >= 200) {
+      if(const PipeType *PipeTy = PT->getAs<PipeType>()) {
+        QualType ElemTy = PipeTy->getElementType();
+        if (ElemTy->isPointerOrReferenceType()) {
+          Diag(Param->getTypeSpecStartLoc(), diag::err_reference_pipe_type);
+          D.setInvalidType();
+        }
       }
     }
     // WebAssembly tables can't be used as function parameters.
@@ -11108,6 +11117,9 @@ static bool AttrCompatibleWithMultiVersion(attr::Kind Kind,
   switch (Kind) {
   default:
     return false;
+  case attr::ArmLocallyStreaming:
+    return MVKind == MultiVersionKind::TargetVersion ||
+           MVKind == MultiVersionKind::TargetClones;
   case attr::Used:
     return MVKind == MultiVersionKind::Target;
   case attr::NonNull:
@@ -11244,7 +11256,21 @@ bool Sema::areMultiversionVariantFunctionsCompatible(
     FunctionType::ExtInfo OldTypeInfo = OldType->getExtInfo();
     FunctionType::ExtInfo NewTypeInfo = NewType->getExtInfo();
 
-    if (OldTypeInfo.getCC() != NewTypeInfo.getCC())
+    const auto *OldFPT = OldFD->getType()->getAs<FunctionProtoType>();
+    const auto *NewFPT = NewFD->getType()->getAs<FunctionProtoType>();
+
+    bool ArmStreamingCCMismatched = false;
+    if (OldFPT && NewFPT) {
+      unsigned Diff =
+          OldFPT->getAArch64SMEAttributes() ^ NewFPT->getAArch64SMEAttributes();
+      // Arm-streaming, arm-streaming-compatible and non-streaming versions
+      // cannot be mixed.
+      if (Diff & (FunctionType::SME_PStateSMEnabledMask |
+                  FunctionType::SME_PStateSMCompatibleMask))
+        ArmStreamingCCMismatched = true;
+    }
+
+    if (OldTypeInfo.getCC() != NewTypeInfo.getCC() || ArmStreamingCCMismatched)
       return Diag(DiffDiagIDAt.first, DiffDiagIDAt.second) << CallingConv;
 
     QualType OldReturnType = OldType->getReturnType();
@@ -11264,9 +11290,8 @@ bool Sema::areMultiversionVariantFunctionsCompatible(
     if (!CLinkageMayDiffer && OldFD->isExternC() != NewFD->isExternC())
       return Diag(DiffDiagIDAt.first, DiffDiagIDAt.second) << LanguageLinkage;
 
-    if (CheckEquivalentExceptionSpec(
-            OldFD->getType()->getAs<FunctionProtoType>(), OldFD->getLocation(),
-            NewFD->getType()->getAs<FunctionProtoType>(), NewFD->getLocation()))
+    if (CheckEquivalentExceptionSpec(OldFPT, OldFD->getLocation(), NewFPT,
+                                     NewFD->getLocation()))
       return true;
   }
   return false;
@@ -16318,10 +16343,7 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
   // Handle free functions.
-  if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLDeviceAttr>() && Body &&
-      (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate ||
-       FD->getTemplatedKind() ==
-           FunctionDecl::TK_FunctionTemplateSpecialization))
+  if (LangOpts.SYCLIsDevice && Body && !FD->isDependentContext())
     SYCL().ProcessFreeFunction(FD);
 
   return dcl;
@@ -20290,8 +20312,10 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
     // be emitted, because (say) the definition could include "inline".
     const FunctionDecl *Def = FD->getDefinition();
 
-    return Def && !isDiscardableGVALinkage(
-                      getASTContext().GetGVALinkageForFunction(Def));
+    // We can't compute linkage when we skip function bodies.
+    return Def && !Def->hasSkippedBody() &&
+           !isDiscardableGVALinkage(
+               getASTContext().GetGVALinkageForFunction(Def));
   };
 
   if (LangOpts.OpenMPIsTargetDevice) {

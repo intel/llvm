@@ -86,7 +86,7 @@ static bool IsBannedPlatform(platform Platform) {
                                   name) != std::string::npos;
     const auto Backend = detail::getSyclObjImpl(Platform)->getBackend();
     const bool IsMatchingOCL = (HasNameMatch && Backend == backend::opencl);
-    if (detail::ur::trace() && IsMatchingOCL) {
+    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL) && IsMatchingOCL) {
       std::cout << "SYCL_UR_TRACE: " << name
                 << " OpenCL platform found but is not compatible." << std::endl;
     }

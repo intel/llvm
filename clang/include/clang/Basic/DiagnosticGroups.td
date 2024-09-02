@@ -103,6 +103,7 @@ def EnumConversion : DiagGroup<"enum-conversion",
                                 EnumFloatConversion,
                                 EnumCompareConditional]>;
 def DeprecatedNoRelaxedTemplateTemplateArgs : DiagGroup<"deprecated-no-relaxed-template-template-args">;
+def DeprecatedOFast : DiagGroup<"deprecated-ofast">;
 def ObjCSignedCharBoolImplicitIntConversion :
   DiagGroup<"objc-signed-char-bool-implicit-int-conversion">;
 def Shorten64To32 : DiagGroup<"shorten-64-to-32">;
@@ -230,6 +231,7 @@ def Deprecated : DiagGroup<"deprecated", [DeprecatedAnonEnumEnumConversion,
                                           DeprecatedPragma,
                                           DeprecatedRegister,
                                           DeprecatedNoRelaxedTemplateTemplateArgs,
+                                          DeprecatedOFast,
                                           DeprecatedThisCapture,
                                           DeprecatedType,
                                           DeprecatedVolatile,
@@ -453,6 +455,7 @@ def LogicalNotParentheses: DiagGroup<"logical-not-parentheses">;
 def ShiftOpParentheses: DiagGroup<"shift-op-parentheses">;
 def OverloadedShiftOpParentheses: DiagGroup<"overloaded-shift-op-parentheses">;
 def DanglingAssignment: DiagGroup<"dangling-assignment">;
+def DanglingAssignmentGsl : DiagGroup<"dangling-assignment-gsl">;
 def DanglingElse: DiagGroup<"dangling-else">;
 def DanglingField : DiagGroup<"dangling-field">;
 def DanglingInitializerList : DiagGroup<"dangling-initializer-list">;
@@ -461,6 +464,7 @@ def ReturnStackAddress : DiagGroup<"return-stack-address">;
 // Name of this warning in GCC
 def : DiagGroup<"return-local-addr", [ReturnStackAddress]>;
 def Dangling : DiagGroup<"dangling", [DanglingAssignment,
+                                      DanglingAssignmentGsl,
                                       DanglingField,
                                       DanglingInitializerList,
                                       DanglingGsl,
@@ -1375,9 +1379,8 @@ def OpenMP : DiagGroup<"openmp", [
   ]>;
 
 // SYCL warnings
-def Sycl2017Compat : DiagGroup<"sycl-2017-compat">;
 def Sycl2020Compat : DiagGroup<"sycl-2020-compat">;
-def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
+def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;

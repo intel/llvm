@@ -1,10 +1,10 @@
 // REQUIRES: gpu, level_zero
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x001 SYCL_UR_TRACE=1 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x010 SYCL_UR_TRACE=1 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=SHARED %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x100 SYCL_UR_TRACE=1 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=HOST %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x001 SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=DEVICE %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x010 SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=SHARED %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USM_RESIDENT=0x100 SYCL_UR_TRACE=2 UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=HOST %s
 
 // Test that USM is made resident at allocation as requested.
 
