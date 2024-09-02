@@ -2230,10 +2230,10 @@ instead be defined as described in <<inter-graph-dependencies, this section>>.
 
 ==== Adding External Event Dependencies To Graphs [[external-event-dependencies]]
 
-<<event-terminology, Regular SYCL events>> can be passed as dependencies to
-graph nodes to create runtime dependencies at graph execution time on regular,
-eager SYCL operations. This is done in the same way as creating dependencies
-between graph nodes using events, for example:
+Events from eager SYCL submissions can be passed as dependencies to graph nodes
+to create dependencies at graph execution time between these eager
+operations and specific graph nodes. This is done in the same way as creating
+dependencies between graph nodes using events, for example:
 
 [source, c++]
 ----
