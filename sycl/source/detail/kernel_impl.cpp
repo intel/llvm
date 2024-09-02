@@ -121,14 +121,10 @@ bool kernel_impl::exceedsOccupancyResourceLimits(
   if (WorkGroupSize.size() > MaxWorkGroupSize)
     return true;
 
-  // Note: Checking "MaxLocalMemorySizeInBytes" from the device query returns
-  // the maximum available on the device but we need to actually check the
-  // maximum available to allocate for the kernel itself so it can execute.
-  // It might be preferrable to add a "kernel_device_specific" query for this.
   if (DynamicLocalMemorySize > MaxLocalMemorySizeInBytes)
     return true;
 
-  // It will be impossible to launch a kernel on Cuda when the hardware limit
+  // It will be impossible to launch a kernel for Cuda when the hardware limit
   // for the 32-bit registers page file size is exceeded.
   if (Device.get_backend() == backend::ext_oneapi_cuda) {
     const uint32_t RegsPerWorkItem =

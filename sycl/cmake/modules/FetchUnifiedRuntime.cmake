@@ -148,7 +148,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # TODO: Revert that to default and update the UR merge-commit details above.
   fetch_adapter_source(cuda
     https://github.com/GeorgeWeb/unified-runtime.git
-    ac747c3464a4f8c4543397cb75ab7190aadba93c
+    9dcdc62e7154e95e382a472b3bbfd926e4122076
   )
 
   fetch_adapter_source(hip

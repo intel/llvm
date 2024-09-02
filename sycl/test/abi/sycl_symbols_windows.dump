@@ -15,7 +15,7 @@
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@@Z
 ??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@AEBV?$range@$02@12@_K@Z
-??$ext_oneapi_get_info@Urecommended_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@AEBV?$range@$02@12@_K@Z
+??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@AEBV?$range@$02@12@_K@Z
 ??$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ

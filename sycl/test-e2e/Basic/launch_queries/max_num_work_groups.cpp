@@ -143,8 +143,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   assert(maxWGs > 0 && "max_num_work_groups query failed");
   if (maxWGs == 0)
     return 1;
-  
-  ///*
+
   launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
                                    sycl::range<1>{workGroupSize}};
 
@@ -159,7 +158,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
      }
    }).wait();
   assert(sycl::host_accessor{buf}[0] == 42);
-  //*/
 
   // =============================== //
   // Test 4 - exceed resource limits //
