@@ -1,6 +1,7 @@
 add_library(xpti_syclpi_collector SHARED
   syclpi_collector.cpp
 )
+target_compile_definitions(xpti_syclpi_collector PUBLIC XPTI_CALLBACK_API_EXPORTS=1)
 target_link_libraries(xpti_syclpi_collector PRIVATE
   ${xptifw_lib}
   ${CMAKE_DL_LIBS}

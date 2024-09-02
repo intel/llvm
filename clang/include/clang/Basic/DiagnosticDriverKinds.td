@@ -167,6 +167,8 @@ def err_drv_unsupported_rtlib_for_platform : Error<
   "unsupported runtime library '%0' for platform '%1'">;
 def err_drv_invalid_unwindlib_name : Error<
   "invalid unwind library name in argument '%0'">;
+def err_drv_unsupported_unwind_for_platform : Error<
+  "unsupported unwind library '%0' for platform '%1'">;
 def err_drv_incompatible_unwindlib : Error<
   "--rtlib=libgcc requires --unwindlib=libgcc">;
 def err_drv_incompatible_fp_accuracy_options : Error<
@@ -217,7 +219,8 @@ def warn_drv_mismatch_fpga_archive : Warning<
 def warn_drv_sycl_native_cpu_and_targets: Warning<
   "-fsycl-targets=native_cpu overrides SYCL targets option">,
   InGroup<SyclNativeCPUTargets>;
-def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
+def err_drv_unsupported_opt_sycl : Error<
+  "option '%0' not supported with SYCL compilation">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_opt_unsupported_input_type : Error<
@@ -389,8 +392,6 @@ def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def err_drv_fsycl_with_pch : Error<
   "precompiled header generation is not supported with '-fsycl'">;
-def err_drv_fsycl_unsupported_with_opt
-  : Error<"'%0' is not supported with '-fsycl'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
@@ -505,6 +506,10 @@ def warn_drv_deprecated_arg : Warning<
 def warn_drv_deprecated_arg_no_relaxed_template_template_args : Warning<
   "argument '-fno-relaxed-template-template-args' is deprecated">,
   InGroup<DeprecatedNoRelaxedTemplateTemplateArgs>;
+def warn_drv_deprecated_arg_ofast : Warning<
+  "argument '-Ofast' is deprecated; use '-O3 -ffast-math' for the same behavior,"
+  " or '-O3' to enable only conforming optimizations">,
+  InGroup<DeprecatedOFast>;
 def warn_drv_deprecated_custom : Warning<
   "argument '%0' is deprecated, %1">, InGroup<Deprecated>;
 def warn_drv_assuming_mfloat_abi_is : Warning<

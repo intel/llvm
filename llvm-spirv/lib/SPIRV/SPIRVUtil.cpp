@@ -1848,9 +1848,13 @@ std::string decodeSPIRVTypeName(StringRef Name,
 // Returns true if type(s) and number of elements (if vector) is valid
 bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   switch (II->getIntrinsicID()) {
+  case Intrinsic::acos:
+  case Intrinsic::asin:
+  case Intrinsic::atan:
   case Intrinsic::ceil:
   case Intrinsic::copysign:
   case Intrinsic::cos:
+  case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
   case Intrinsic::fabs:
@@ -1870,8 +1874,10 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
   case Intrinsic::round:
   case Intrinsic::roundeven:
   case Intrinsic::sin:
+  case Intrinsic::sinh:
   case Intrinsic::sqrt:
   case Intrinsic::tan:
+  case Intrinsic::tanh:
   case Intrinsic::trunc: {
     // Although some of the intrinsics above take multiple arguments, it is
     // sufficient to check arg 0 because the LLVM Verifier will have checked

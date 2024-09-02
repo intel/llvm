@@ -81,7 +81,7 @@
 // RUN: %clangxx -### -fsycl-host-compiler=g++ -fsycl --no-offload-new-driver \
 // RUN:          -save-temps -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SAVE_TEMPS %s
-// CHECK_SAVE_TEMPS-NOT error: unsupported output type when using external host compiler
+// CHECK_SAVE_TEMPS-NOT: error: unsupported output type when using external host compiler
 // CHECK_SAVE_TEMPS: clang{{.*}} "-fsycl-is-device"
 // CHECK_SAVE_TEMPS-SAME: "-E" {{.*}} "-o" "[[PREPROC_OUT:.+sycl-spir64-unknown-unknown.ii]]"
 // CHECK_SAVE_TEMPS-NEXT: clang{{.*}} "-fsycl-is-device"

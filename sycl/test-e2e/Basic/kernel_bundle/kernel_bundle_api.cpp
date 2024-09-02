@@ -5,7 +5,7 @@
 // device image is statically linked against fallback libdevice.
 // RUN: %{build} %if cpu %{ -DSYCL_DISABLE_FALLBACK_ASSERT=1 %} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}
-// RUN: %if cpu %{ env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
