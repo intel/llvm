@@ -4265,6 +4265,7 @@
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBVnode@34567@@Z
 ?updateAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVAccessorBaseHost@267@@Z
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
+?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVraw_kernel_arg@34567@_K@Z
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?verifyUsedKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z

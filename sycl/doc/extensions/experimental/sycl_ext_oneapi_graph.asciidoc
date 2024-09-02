@@ -501,7 +501,7 @@ compile time using a template parameter. This underlying type can be an
 accessor, a pointer to a USM allocation, scalar passed by value, or a raw byte
 representation of the argument. The raw byte representation is intended to
 enable updating arguments set using
-link:../proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
 
 Dynamic parameters are registered with nodes in a modifiable graph, with each
 registration associating one or more node arguments to the dynamic parameter
