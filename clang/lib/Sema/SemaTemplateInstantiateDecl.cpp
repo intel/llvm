@@ -20,8 +20,8 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
-#include "clang/AST/TypeOrdering.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -30,6 +30,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaAMDGPU.h"
 #include "clang/Sema/SemaCUDA.h"
+#include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
@@ -1021,7 +1022,7 @@ static void instantiateDependentHLSLParamModifierAttr(
     const HLSLParamModifierAttr *Attr, Decl *New) {
   ParmVarDecl *P = cast<ParmVarDecl>(New);
   P->addAttr(Attr->clone(S.getASTContext()));
-  P->setType(S.getASTContext().getLValueReferenceType(P->getType()));
+  P->setType(S.HLSL().getInoutParameterType(P->getType()));
 }
 
 void Sema::InstantiateAttrsForDecl(
