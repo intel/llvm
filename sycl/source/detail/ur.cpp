@@ -87,10 +87,10 @@ bool XPTIInitDone = false;
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = [=]() {
     // TODO: Remove this SYCL_PI_TRACE notification in the first patch release
     // after the next ABI breaking window.
     if (std::getenv("SYCL_PI_TRACE")) {
@@ -99,7 +99,11 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
     }
 
     initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 
