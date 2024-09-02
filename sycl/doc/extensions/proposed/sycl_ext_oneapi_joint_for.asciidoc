@@ -165,6 +165,60 @@ work-items in group `g`, the number of times that `f` is invoked will differ
 across work-items.
 
 
+=== Usage example
+
+Both `joint_for_each` and `joint_for` can be used to distribute a loop over the
+work-items within a group.
+
+`joint_for_each` can be used to iterate over (and potentially modify) data when
+the range can be described using iterators:
+
+[source,c++]
+----
+using syclex = sycl::ext::oneapi::experimental;
+
+void scale(sycl::queue q, float* data, int N, float factor) {
+  q.parallel_for(sycl::nd_range<1>(G, L), [=](sycl::nd_item<1> it) {
+
+    // identify the data this group will operate on
+    auto g = it.get_group();
+    int per_group = N / g.get_group_linear_range();
+    float* offset = data + per_group * g.get_group_linear_id();
+
+    // distribute the data over work-items in the group
+    syclex::joint_for_each(g, offset, offset + per_group, [=](float& x) {
+      x *= factor;
+    });
+
+  });
+}
+----
+
+`joint_for` can be used when iterators are not available, and is a shortcut for
+migrating integer-based `for` loops:
+
+[source,c++]
+----
+using syclex = sycl::ext::oneapi::experimental;
+
+void scale(sycl::queue q, float* data, int N, float factor) {
+  q.parallel_for(sycl::nd_range<1>(G, L), [=](sycl::nd_item<1> it) {
+
+    // identify the data this group will operate on
+    auto g = it.get_group();
+    int per_group = N / g.get_group_linear_range();
+    float* offset = data + per_group * g.get_group_linear_id();
+
+    // distribute the data over work-items in the group
+    syclex::joint_for(g, 0, per_group, [=](int i) {
+      offset[i] *= factor;
+    });
+
+  });
+}
+----
+
+
 == Implementation notes
 
 This non-normative section provides information about one possible
