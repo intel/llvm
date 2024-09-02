@@ -18,8 +18,7 @@ bool PrintTrace = [] {
   const char *PiRet = std::getenv("SYCL_PI_TRACE");
   const char *Trace = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   const int TraceValue = Trace ? std::stoi(Trace) : 0;
-  if ((PiRet && (TraceValue == -1 || TraceValue == 2)) ||
-      (UrRet && TraceValue != 0)) {
+  if (TraceValue == -1 || TraceValue == 2) {
     return true;
   }
   return false;

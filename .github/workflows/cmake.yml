@@ -20,6 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
+        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -36,6 +37,10 @@ jobs:
           - os: 'ubuntu-20.04'
             build_type: Release
             compiler: {c: gcc-7, cxx: g++-7}
+          - os: 'ubuntu-22.04'
+            build_type: Release
+            compiler: {c: clang, cxx: clang++}
+            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
@@ -92,6 +97,7 @@ jobs:
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Configure CMake
       if: matrix.os == 'ubuntu-20.04'
@@ -106,6 +112,7 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
+        ${{matrix.latency_tracking}}
 
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
@@ -131,39 +138,52 @@ jobs:
     name: Level Zero
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: L0
+      adapter_name: L0
+      runner_name: L0
+
+  level-zero-v2:
+    name: Level Zero V2
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0_V2
+      runner_name: L0
 
   level-zero-static:
     name: Level Zero static
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: L0
+      adapter_name: L0
+      runner_name: L0
       static_loader: ON
 
   opencl:
     name: OpenCL
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: OPENCL
+      adapter_name: OPENCL
+      runner_name: OPENCL
       platform: "Intel(R) OpenCL"
 
   cuda:
     name: CUDA
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: CUDA
+      adapter_name: CUDA
+      runner_name: CUDA
 
   hip:
     name: HIP
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: HIP
+      adapter_name: HIP
+      runner_name: HIP
 
   native-cpu:
     name: Native CPU
     uses: ./.github/workflows/build-hw-reusable.yml
     with:
-      name: NATIVE_CPU
+      adapter_name: NATIVE_CPU
+      runner_name: NATIVE_CPU
 
   e2e-level-zero:
     name: E2E L0
@@ -195,14 +215,19 @@ jobs:
       matrix:
         os: ['windows-2019', 'windows-2022']
         adapter: [
-          {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+          {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'},
+          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
         ]
 
         # TODO: building level zero loader on windows-2019 and clang-cl is currently broken
         exclude:
          - os: 'windows-2019'
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+         - os: 'windows-2019'
+           adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
+           compiler: {c: clang-cl, cxx: clang-cl}
+         - adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
 
         build_type: [Debug, Release]

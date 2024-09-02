@@ -12,6 +12,72 @@
 
 #include "platform.hpp"
 
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
+#ifdef __linux__
+#include <sys/sysinfo.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <cstdlib>
+#endif
+
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#include <unistd.h>
+#endif
+
+#ifdef __MCOS_POSIX__
+#include <emcos/emcos_device_info.h>
+#endif
+
+uint64_t os_memory_total_size() {
+#if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
+  MEMORYSTATUSEX status;
+  status.dwLength = sizeof(status);
+  if (GlobalMemoryStatusEx(&status)) {
+    return static_cast<uint64_t>(status.ullTotalPhys);
+  } else {
+    return 0;
+  }
+#elif defined(__APPLE__)
+  // query the physical memory size by name, name documented in
+  // https://opensource.apple.com/source/xnu/xnu-792.12.6/libkern/libkern/sysctl.h
+  uint64_t memsize;
+  size_t size = sizeof(uint64_t);
+  if (sysctlbyname("hw.memsize", &memsize, &size, nullptr, 0)) {
+    return 0;
+  }
+  return memsize;
+#elif defined(__linux__)
+  struct sysinfo info;
+  if (0 == sysinfo(&info)) {
+    return static_cast<uint64_t>(info.totalram) *
+           static_cast<uint64_t>(info.mem_unit);
+  } else {
+    return 0;
+  }
+#elif defined(__MCOS_POSIX__)
+  return emcos::get_device_total_memory_size();
+#else
+#error Unknown platform!
+#endif
+}
+
+static uint64_t os_memory_bounded_size() {
+  const uint64_t size = os_memory_total_size();
+  // Limit the memory size to what fits in a size_t, this is necessary when
+  // compiling for 32 bits on a 64 bits host
+  return std::numeric_limits<size_t>::max() >= size
+             ? size
+             : std::numeric_limits<size_t>::max();
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
                                                 ur_device_type_t DeviceType,
                                                 uint32_t NumEntries,
@@ -223,8 +289,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
-    // TODO : CHECK
-    return ReturnValue(uint64_t{32768});
+    return ReturnValue(hDevice->mem_size);
   case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
     // TODO : CHECK
     return ReturnValue(uint64_t{32768});
@@ -252,9 +317,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(bool{false});
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
     return ReturnValue(ur_device_affinity_domain_flags_t{0});
-  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE:
-    // TODO : CHECK
-    return ReturnValue(uint64_t{0});
+  case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
+    size_t Global = hDevice->mem_size;
+
+    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
+
+    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
+                             32u * 1024u * 1024u);
+
+    return ReturnValue(uint64_t{MaxAlloc});
+  }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
     // TODO : CHECK
     return ReturnValue(ur_device_exec_capability_flags_t{
@@ -366,11 +438,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
+    ur_native_handle_t hNativeDevice, ur_adapter_handle_t hAdapter,
     const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
   std::ignore = hNativeDevice;
-  std::ignore = hPlatform;
+  std::ignore = hAdapter;
   std::ignore = pProperties;
   std::ignore = phDevice;
 
@@ -420,3 +492,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   // No image can be loaded for the given device
   return UR_RESULT_ERROR_INVALID_BINARY;
 }
+
+ur_device_handle_t_::ur_device_handle_t_(ur_platform_handle_t ArgPlt)
+    : mem_size(os_memory_bounded_size()), Platform(ArgPlt) {}

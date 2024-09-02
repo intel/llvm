@@ -15,20 +15,26 @@
 #include <ur_api.h>
 #include <ze_api.h>
 
+#include "common.hpp"
 #include "event_provider.hpp"
 
 namespace v2 {
+class event_pool;
+}
 
-class ur_event {
+struct ur_event_handle_t_ : _ur_object {
 public:
-  void attachZeHandle(event_allocation);
-  event_borrowed detachZeHandle();
+  ur_event_handle_t_(v2::event_allocation eventAllocation,
+                     v2::event_pool *pool);
 
-  ze_event_handle_t getZeEvent();
+  void reset();
+  ze_event_handle_t getZeEvent() const;
+
+  ur_result_t retain();
+  ur_result_t release();
 
 private:
-  event_type type;
-  event_borrowed zeEvent;
+  v2::event_type type;
+  v2::raii::cache_borrowed_event zeEvent;
+  v2::event_pool *pool;
 };
-
-} // namespace v2

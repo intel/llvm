@@ -9,7 +9,7 @@
 
 // We need a fake handle for the below adapter leak test.
 inline ur_result_t fakeAdapter_urAdapterGet(void *pParams) {
-    auto params = *static_cast<ur_adapter_get_params_t *>(pParams);
+    const auto &params = *static_cast<ur_adapter_get_params_t *>(pParams);
     **params.pphAdapters = reinterpret_cast<ur_adapter_handle_t>(0x1);
     return UR_RESULT_SUCCESS;
 }

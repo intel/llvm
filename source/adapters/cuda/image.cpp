@@ -455,21 +455,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 
   // Allocate a cuArray
   if (pImageDesc->numMipLevel == 1) {
-    CUarray ImageArray;
+    CUarray ImageArray{};
 
     try {
       UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &array_desc));
       *phImageMem = (ur_exp_image_mem_native_handle_t)ImageArray;
     } catch (ur_result_t Err) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return Err;
     } catch (...) {
-      cuArrayDestroy(ImageArray);
+      if (ImageArray != CUarray{}) {
+        UR_CHECK_ERROR(cuArrayDestroy(ImageArray));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   } else // Allocate a cuMipmappedArray
   {
-    CUmipmappedArray mip_array;
+    CUmipmappedArray mip_array{};
     array_desc.Flags = CUDA_ARRAY3D_SURFACE_LDST;
 
     try {
@@ -477,10 +481,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
                                             pImageDesc->numMipLevel));
       *phImageMem = (ur_exp_image_mem_native_handle_t)mip_array;
     } catch (ur_result_t Err) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return Err;
     } catch (...) {
-      cuMipmappedArrayDestroy(mip_array);
+      if (mip_array) {
+        UR_CHECK_ERROR(cuMipmappedArrayDestroy(mip_array));
+      }
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }
@@ -953,8 +961,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
 
+  CUarray hCUarray;
+  CUresult Err = cuMipmappedArrayGetLevel(
+      &hCUarray, reinterpret_cast<CUmipmappedArray>(hImageMem), 0);
+
+  // If cuMipmappedArrayGetLevel failed, hImageMem is already CUarray.
+  if (Err != CUDA_SUCCESS) {
+    hCUarray = reinterpret_cast<CUarray>(hImageMem);
+  }
+
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
-  UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, (CUarray)hImageMem));
+  UR_CHECK_ERROR(cuArray3DGetDescriptor(&ArrayDesc, hCUarray));
   switch (propName) {
   case UR_IMAGE_INFO_WIDTH:
     if (pPropValue) {

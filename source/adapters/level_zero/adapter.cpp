@@ -12,6 +12,14 @@
 #include "ur_level_zero.hpp"
 #include <iomanip>
 
+// As windows order of unloading dlls is reversed from linux, windows will call
+// umfTearDown before it could release umf objects in level_zero, so we call
+// umfInit on urAdapterGet and umfAdapterTearDown to enforce the teardown of umf
+// after umf objects are destructed.
+#if defined(_WIN32)
+#include <umf.h>
+#endif
+
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
 #if defined(_WIN32)
@@ -19,7 +27,12 @@ ur_adapter_handle_t_ *GlobalAdapter = new ur_adapter_handle_t_();
 #else
 ur_adapter_handle_t_ *GlobalAdapter;
 #endif
-
+// This is a temporary workaround on windows, where UR adapter is teardowned
+// before the UR loader, which will result in access violation when we use print
+// function as the overrided print function was already released with the UR
+// adapter.
+// TODO: Change adapters to use a common sink class in the loader instead of
+// using thier own sink class that inherit from logger::Sink.
 class ur_legacy_sink : public logger::Sink {
 public:
   ur_legacy_sink(std::string logger_name = "", bool skip_prefix = true)
@@ -32,7 +45,11 @@ public:
     fprintf(stderr, "%s", msg.c_str());
   }
 
-  ~ur_legacy_sink() = default;
+  ~ur_legacy_sink() {
+#if defined(_WIN32)
+    logger::isTearDowned = true;
+#endif
+  };
 };
 
 ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
@@ -43,22 +60,45 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   }
 
   std::vector<ze_driver_handle_t> ZeDrivers;
+  std::vector<ze_device_handle_t> ZeDevices;
   ZeDrivers.resize(ZeDriverCount);
 
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-    auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
-    UR_CALL(platform->initialize());
+    ze_device_properties_t device_properties{};
+    device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+    uint32_t ZeDeviceCount = 0;
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, nullptr));
+    ZeDevices.resize(ZeDeviceCount);
+    ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
+    // Check if this driver has GPU Devices
+    for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
+      ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
 
-    // Save a copy in the cache for future uses.
-    platforms.push_back(std::move(platform));
+      if (ZE_DEVICE_TYPE_GPU == device_properties.type) {
+        // If this Driver is a GPU, save it as a usable platform.
+        auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
+        UR_CALL(platform->initialize());
+
+        // Save a copy in the cache for future uses.
+        platforms.push_back(std::move(platform));
+        break;
+      }
+    }
   }
   return UR_RESULT_SUCCESS;
 } catch (...) {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t adapterStateInit() { return UR_RESULT_SUCCESS; }
+ur_result_t adapterStateInit() {
+
+#if defined(_WIN32)
+  umfInit();
+#endif
+
+  return UR_RESULT_SUCCESS;
+}
 
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("level_zero")) {
@@ -105,8 +145,16 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       // We must only initialize the driver once, even if urPlatformGet() is
       // called multiple times.  Declaring the return value as "static" ensures
       // it's only called once.
-      GlobalAdapter->ZeResult =
-          ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+
+      // Init with all flags set to enable for all driver types to be init in
+      // the application.
+      ze_init_flags_t L0InitFlags = ZE_INIT_FLAG_GPU_ONLY;
+      if (UrL0InitAllDrivers) {
+        L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
+      }
+      logger::debug("\nzeInit with flags value of {}\n",
+                    static_cast<int>(L0InitFlags));
+      GlobalAdapter->ZeResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
     }
     assert(GlobalAdapter->ZeResult !=
            std::nullopt); // verify that level-zero is initialized
@@ -234,6 +282,7 @@ ur_result_t adapterStateTeardown() {
     // Due to multiple DLLMain definitions with SYCL, register to cleanup the
     // Global Adapter after refcnt is 0
 #if defined(_WIN32)
+  umfTearDown();
   std::atexit(globalAdapterOnDemandCleanup);
 #endif
 

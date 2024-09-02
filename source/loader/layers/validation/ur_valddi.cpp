@@ -719,7 +719,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t
         hNativeDevice, ///< [in][nocheck] the native handle of the device.
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
+    ur_adapter_handle_t
+        hAdapter, ///< [in] handle of the adapter to which `hNativeDevice` belongs
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -733,7 +734,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     }
 
     if (getContext()->enableParameterValidation) {
-        if (NULL == hPlatform) {
+        if (NULL == hAdapter) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -742,7 +743,12 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         }
     }
 
-    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hPlatform,
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hAdapter)) {
+        getContext()->refCountContext->logInvalidReference(hAdapter);
+    }
+
+    ur_result_t result = pfnCreateWithNativeHandle(hNativeDevice, hAdapter,
                                                    pProperties, phDevice);
 
     if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
@@ -3350,6 +3356,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         *pProperties, ///< [in][optional] pointer to value properties.
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
+    ///< The data pointed to will be copied and therefore can be reused on return.
 ) {
     auto pfnSetArgValue = getContext()->urDdiTable.Kernel.pfnSetArgValue;
 
@@ -4822,9 +4829,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hBuffer, offset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, offset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -4902,9 +4911,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hBuffer, offset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, offset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5033,9 +5044,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = bounds(hBuffer, bufferOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, bufferOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5168,9 +5181,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = bounds(hBuffer, bufferOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, bufferOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5248,14 +5263,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hBufferSrc, srcOffset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBufferSrc, srcOffset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
-        if (auto boundsError = bounds(hBufferDst, dstOffset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBufferDst, dstOffset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5383,14 +5402,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = bounds(hBufferSrc, srcOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBufferSrc, srcOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
-        if (auto boundsError = bounds(hBufferDst, dstOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBufferDst, dstOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5492,9 +5515,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = bounds(hBuffer, offset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, offset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5579,9 +5604,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = boundsImage(hImage, origin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = boundsImage(hImage, origin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5667,9 +5694,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = boundsImage(hImage, origin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = boundsImage(hImage, origin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5756,14 +5785,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = boundsImage(hImageSrc, srcOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = boundsImage(hImageSrc, srcOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
-        if (auto boundsError = boundsImage(hImageDst, dstOrigin, region);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = boundsImage(hImageDst, dstOrigin, region);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -5850,9 +5883,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hBuffer, offset, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hBuffer, offset, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6012,9 +6047,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hQueue, pMem, 0, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pMem, 0, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6089,14 +6126,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hQueue, pDst, 0, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pDst, 0, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
-        if (auto boundsError = bounds(hQueue, pSrc, 0, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pSrc, 0, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6169,9 +6210,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hQueue, pMem, 0, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pMem, 0, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6230,9 +6273,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
 
-        if (auto boundsError = bounds(hQueue, pMem, 0, size);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pMem, 0, size);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
     }
 
@@ -6332,9 +6377,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hQueue, pMem, 0, pitch * height);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pMem, 0, pitch * height);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -6431,14 +6478,18 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
 
-        if (auto boundsError = bounds(hQueue, pDst, 0, dstPitch * height);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pDst, 0, dstPitch * height);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
-        if (auto boundsError = bounds(hQueue, pSrc, 0, srcPitch * height);
-            boundsError != UR_RESULT_SUCCESS) {
-            return boundsError;
+        if (getContext()->enableBoundsChecking) {
+            if (auto boundsError = bounds(hQueue, pSrc, 0, srcPitch * height);
+                boundsError != UR_RESULT_SUCCESS) {
+                return boundsError;
+            }
         }
 
         if (phEventWaitList != NULL && numEventsInWaitList > 0) {
@@ -10997,9 +11048,13 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
     if (enabledLayerNames.count(nameFullValidation)) {
         enableParameterValidation = true;
+        enableBoundsChecking = true;
         enableLeakChecking = true;
         enableLifetimeValidation = true;
     } else {
+        if (enabledLayerNames.count(nameBoundsChecking)) {
+            enableBoundsChecking = true;
+        }
         if (enabledLayerNames.count(nameParameterValidation)) {
             enableParameterValidation = true;
         }
@@ -11127,13 +11182,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 }
 
 ur_result_t context_t::tearDown() {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
     if (enableLeakChecking) {
         getContext()->refCountContext->logInvalidReferences();
-        getContext()->refCountContext->clear();
     }
-    return result;
+
+    return UR_RESULT_SUCCESS;
 }
 
 } // namespace ur_validation_layer

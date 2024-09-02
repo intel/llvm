@@ -45,7 +45,13 @@ LibLoader::loadAdapterLibrary(const char *name) {
     }
 #endif
     HMODULE handle = dlopen(name, mode);
-    logger::info("loaded adapter 0x{} ({})", handle, name);
+    if (!handle) {
+        char *err = dlerror();
+        logger::info("failed to load adapter '{}' with error: {}", name,
+                     err ? err : "unknown error");
+    } else {
+        logger::info("loaded adapter 0x{} ({})", handle, name);
+    }
     return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(handle);
 }
 

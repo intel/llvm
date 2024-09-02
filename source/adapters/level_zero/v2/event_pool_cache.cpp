@@ -8,8 +8,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include "event_pool_cache.hpp"
-#include "device.hpp"
-#include "platform.hpp"
+#include "../device.hpp"
+#include "../platform.hpp"
 
 namespace v2 {
 
@@ -21,7 +21,7 @@ event_pool_cache::event_pool_cache(size_t max_devices,
 
 event_pool_cache::~event_pool_cache() {}
 
-event_pool_borrowed event_pool_cache::borrow(DeviceId id) {
+raii::cache_borrowed_event_pool event_pool_cache::borrow(DeviceId id) {
   std::unique_lock<ur_mutex> Lock(mutex);
 
   if (id >= pools.size()) {
@@ -36,7 +36,7 @@ event_pool_borrowed event_pool_cache::borrow(DeviceId id) {
   auto pool = vec.back().release();
   vec.pop_back();
 
-  return event_pool_borrowed(pool, [this](event_pool *pool) {
+  return raii::cache_borrowed_event_pool(pool, [this](event_pool *pool) {
     std::unique_lock<ur_mutex> Lock(mutex);
     pools[pool->Id()].emplace_back(pool);
   });

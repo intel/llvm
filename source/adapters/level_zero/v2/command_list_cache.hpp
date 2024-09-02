@@ -12,6 +12,7 @@
 #include <functional>
 #include <stack>
 
+#include "latency_tracker.hpp"
 #include <ur/ur.hpp>
 #include <ur_api.h>
 #include <ze_api.h>

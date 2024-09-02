@@ -1033,6 +1033,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
         break;
       case UR_EXP_EXTERNAL_MEM_TYPE_OPAQUE_FD:
       default:
+        delete importWin32;
+        delete externalMemoryData;
         return UR_RESULT_ERROR_INVALID_VALUE;
       }
       importWin32->handle = Win32Handle->handle;

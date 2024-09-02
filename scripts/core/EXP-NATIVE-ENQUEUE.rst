@@ -32,13 +32,13 @@ within the native API through the function passed to
 ${x}EnqueueNativeCommandExp, the function argument must only use the native
 queue accessed through ${x}QueueGetNativeHandle. Use of a native queue that is
 not the native queue returned by ${x}QueueGetNativeHandle results in undefined
-behaviour.
+behavior.
 
-Any args that are needed by the func must be passed through a void* and unpacked
-within the func. If ${x}_mem_handle_t arguments are to be used within
-pfnNativeEnqueue, they must be accessed using ${x}MemGetNativeHandle.
-${x}_mem_handle_t arguments must be packed in the void* argument that will be
-used in pfnNativeEnqueue, as well as ${x}EnqueueNativeCommandExp's phMemList
+Any args that are needed by the func must be passed through a ``void*`` and unpacked
+within the func. If ``${x}_mem_handle_t`` arguments are to be used within
+``pfnNativeEnqueue``, they must be accessed using ${x}MemGetNativeHandle.
+``${x}_mem_handle_t`` arguments must be packed in the void* argument that will be
+used in ``pfnNativeEnqueue``, as well as ${x}EnqueueNativeCommandExp's ``phMemList``
 argument.
 
 API
@@ -65,20 +65,20 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+-------------------------+
-| Revision  | Changes                 |
-+===========+=========================+
-| 1.0       | Initial Draft           |
-+-----------+-------------------------+
-| 1.1       | Make `phEvent` optional |
-+-----------+-------------------------+
++-----------+---------------------------+
+| Revision  | Changes                   |
++===========+===========================+
+| 1.0       | Initial Draft             |
++-----------+---------------------------+
+| 1.1       | Make ``phEvent`` optional |
++-----------+---------------------------+
 
 
 Support
 --------------------------------------------------------------------------------
 
 Adapters which support this experimental feature *must* return true for the new
-`${X}_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP` device info query.
+``${X}_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP`` device info query.
 
 
 Contributors
@@ -86,3 +86,4 @@ Contributors
 
 * Hugh Delaney `hugh.delaney@codeplay.com <hugh.delaney@codeplay.com>`_
 * Kenneth Benzie (Benie) `k.benzie@codeplay.com <k.benzie@codeplay.com>`_
+* Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_

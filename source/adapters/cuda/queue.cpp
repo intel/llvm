@@ -45,7 +45,8 @@ CUstream ur_queue_handle_t_::getNextComputeStream(uint32_t *StreamToken) {
       // change NumComputeStreams after that
       if (NumComputeStreams < ComputeStreams.size()) {
         UR_CHECK_ERROR(cuStreamCreateWithPriority(
-            &ComputeStreams[NumComputeStreams++], Flags, Priority));
+            &ComputeStreams[NumComputeStreams], Flags, Priority));
+        ++NumComputeStreams;
       }
     }
     Token = ComputeStreamIndex++;
@@ -110,7 +111,8 @@ CUstream ur_queue_handle_t_::getNextTransferStream() {
     // change NumTransferStreams after that
     if (NumTransferStreams < TransferStreams.size()) {
       UR_CHECK_ERROR(cuStreamCreateWithPriority(
-          &TransferStreams[NumTransferStreams++], Flags, Priority));
+          &TransferStreams[NumTransferStreams], Flags, Priority));
+      ++NumTransferStreams;
     }
   }
   uint32_t StreamI = TransferStreamIndex++ % TransferStreams.size();
