@@ -21,10 +21,6 @@ constexpr int recurse(int x) {
 
 
 constexpr int variadic(int p, ...) {
-  // Usage of these is not yet allowed in constexpr in C++, still check that
-  // variadics are allowed in device code.
-  // __builtin_va_list args;
-  // __builtin_va_start(args, p);
   return p;
 }
 
