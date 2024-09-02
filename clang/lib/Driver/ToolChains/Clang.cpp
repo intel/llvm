@@ -10748,7 +10748,7 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
-static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
+static bool allowDeviceDependencies(const llvm::opt::ArgList &TCArgs) {
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
                      options::OPT_fno_sycl_allow_device_dependencies, false))
     return true;
@@ -10782,8 +10782,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
-  if (supportDynamicLinking(TCArgs))
-    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+  if (allowDeviceDependencies(TCArgs))
+    addArgs(PostLinkArgs, TCArgs, {"-allow-device-dependencies"});
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
@@ -10800,7 +10800,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
-  if (supportDynamicLinking(TCArgs))
+  if (allowDeviceDependencies(TCArgs))
     return false;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;
