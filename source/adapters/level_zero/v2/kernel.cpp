@@ -32,10 +32,12 @@ ur_result_t ur_single_device_kernel_t::release() {
   return UR_RESULT_SUCCESS;
 }
 
-ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_shared_handle_t hProgram,
+ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
                                          const char *kernelName)
     : hProgram(hProgram),
       deviceKernels(hProgram->Context->getPlatform()->getNumDevices()) {
+  urProgramRetain(hProgram);
+
   for (auto [zeDevice, zeModule] : hProgram->ZeModuleMap) {
     ZeStruct<ze_kernel_desc_t> zeKernelDesc;
     zeKernelDesc.pKernelName = kernelName;
@@ -78,7 +80,8 @@ ur_result_t ur_kernel_handle_t_::release() {
       singleDeviceKernelOpt.value().hKernel.reset();
     }
   }
-  hProgram.reset();
+
+  UR_CALL_THROWS(urProgramRelease(hProgram));
 
   return UR_RESULT_SUCCESS;
 }
@@ -190,14 +193,13 @@ ur_result_t ur_kernel_handle_t_::setArgPointer(
 }
 
 ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
-  return hProgram.get();
+  return hProgram;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
                ur_kernel_handle_t *phKernel) {
-  *phKernel = new ur_kernel_handle_t_(
-      ur_kernel_handle_t_::ur_program_shared_handle_t(hProgram), pKernelName);
+  *phKernel = new ur_kernel_handle_t_(hProgram, pKernelName);
   return UR_RESULT_SUCCESS;
 }
 
