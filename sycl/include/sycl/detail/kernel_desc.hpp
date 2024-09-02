@@ -186,17 +186,17 @@ template <typename KernelNameType> constexpr unsigned getKernelNumParams() {
 template <typename KernelNameType>
 kernel_param_desc_t getKernelParamDesc(int Idx) {
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-    kernel_param_desc_t ParamDesc;
-    ParamDesc.kind =
-        __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), Idx);
-    ParamDesc.info = ParamDesc.kind == kernel_param_kind_t::kind_accessor
-                         ? __builtin_sycl_kernel_param_access_target(
-                               KernelIdentity<KernelNameType>(), Idx)
-                         : __builtin_sycl_kernel_param_size(
-                               KernelIdentity<KernelNameType>(), Idx);
-    ParamDesc.offset = __builtin_sycl_kernel_param_offset(
-        KernelIdentity<KernelNameType>(), Idx);
-    return ParamDesc
+  kernel_param_desc_t ParamDesc;
+  ParamDesc.kind =
+      __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), Idx);
+  ParamDesc.info = ParamDesc.kind == kernel_param_kind_t::kind_accessor
+                       ? __builtin_sycl_kernel_param_access_target(
+                             KernelIdentity<KernelNameType>(), Idx)
+                       : __builtin_sycl_kernel_param_size(
+                             KernelIdentity<KernelNameType>(), Idx);
+  ParamDesc.offset =
+      __builtin_sycl_kernel_param_offset(KernelIdentity<KernelNameType>(), Idx);
+  return ParamDesc
 #else
   return KernelInfo<KernelNameType>::getParamDesc(Idx);
 #endif
