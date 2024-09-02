@@ -429,6 +429,17 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
+
+template <typename KernelNameType>
+std::vector<kernel_param_desc_t> getKernelParamDescs() {
+  std::vector<kernel_param_desc_t> Result;
+  int NumParams = getKernelNumParams<KernelNameType>();
+  Result.reserve(NumParams);
+  for (int I = 0; I < NumParams; ++I) {
+    Result.push_back(getKernelParamDesc<KernelNameType>(I));
+  }
+  return Result;
+}
 } // namespace detail
 
 /// Command group handler class.
@@ -1588,7 +1599,14 @@ private:
       nullptr,
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
-  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+  [[clang::sycl_kernel_entry_point(KernelName)]]
+#else
+  __SYCL_KERNEL_ATTR__
+#endif
+
+  void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else

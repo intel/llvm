@@ -12,7 +12,6 @@
 // uses the macro defined in this header, but it doesn't explicitly include it.
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <vector>
 // This header file must not include any standard C++ header files.
 
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
@@ -185,28 +184,22 @@ template <typename KernelNameType> constexpr unsigned getKernelNumParams() {
 }
 
 template <typename KernelNameType>
-std::vector<kernel_param_desc_t> getKernelParamDescs() {
-  std::vector<kernel_param_desc_t> Result;
-  int NumParams = getKernelNumParams<KernelNameType>();
-  Result.reserve(NumParams);
-  for (int I = 0; I < NumParams; ++I) {
+kernel_param_desc_t getKernelParamDesc(int Idx) {
 #ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
     kernel_param_desc_t ParamDesc;
     ParamDesc.kind =
-        __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), I);
+        __builtin_sycl_kernel_param_kind(KernelIdentity<KernelNameType>(), Idx);
     ParamDesc.info = ParamDesc.kind == kernel_param_kind_t::kind_accessor
                          ? __builtin_sycl_kernel_param_access_target(
-                               KernelIdentity<KernelNameType>(), I)
+                               KernelIdentity<KernelNameType>(), Idx)
                          : __builtin_sycl_kernel_param_size(
-                               KernelIdentity<KernelNameType>(), I);
-    ParamDesc.offset =
-        __builtin_sycl_kernel_param_offset(KernelIdentity<KernelNameType>(), I);
-    Result.push_back(ParamDesc);
+                               KernelIdentity<KernelNameType>(), Idx);
+    ParamDesc.offset = __builtin_sycl_kernel_param_offset(
+        KernelIdentity<KernelNameType>(), Idx);
+    return ParamDesc
 #else
-    Result.push_back(KernelInfo<KernelNameType>::getParamDesc(I));
+  return KernelInfo<KernelNameType>::getParamDesc(Idx);
 #endif
-  }
-  return Result;
 }
 
 template <typename KernelNameType> constexpr const char *getKernelName() {
