@@ -1140,13 +1140,15 @@ ur_device_handle_t_::useImmediateCommandLists() {
     return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
-  if (ImmediateCommandlistsSetting == -1)
-  // Change this to PerQueue as default after more testing.
-#ifdef _WIN32
-    return NotUsed;
-#else
-    return isPVC() ? PerQueue : NotUsed;
-#endif
+  if (ImmediateCommandlistsSetting == -1) {
+    bool isDG2SupportedDriver =
+        this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    if ((isDG2SupportedDriver && isDG2()) || isPVC()) {
+      return PerQueue;
+    } else {
+      return NotUsed;
+    }
+  }
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1173,12 +1175,10 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
   // Use in-order lists implementation from L0 driver instead
   // of adapter's implementation.
 
-  ze_driver_handle_t ZeDriver = this->Platform->ZeDriver;
-
   static const bool UseDriverInOrderLists = [&] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
-    bool CompatibleDriver = isDriverVersionNewerOrSimilar(
-        ZeDriver, 1, 3, L0_DRIVER_INORDER_MIN_VERSION);
+    bool CompatibleDriver = this->Platform->isDriverVersionNewerOrSimilar(
+        1, 3, L0_DRIVER_INORDER_MIN_VERSION);
     if (!UrRet)
       return CompatibleDriver;
     return std::atoi(UrRet) != 0;
@@ -1602,14 +1602,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t Platform,   ///< [in] handle of the platform instance
-    const ur_device_native_properties_t
+    [[maybe_unused]] ur_adapter_handle_t
+        Adapter, ///< [in] handle of the platform instance
+    [[maybe_unused]] const ur_device_native_properties_t
         *Properties, ///< [in][optional] pointer to native device properties
                      ///< struct.
     ur_device_handle_t
         *Device ///< [out] pointer to the handle of the device object created.
 ) {
-  std::ignore = Properties;
   auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
 
   // The SYCL spec requires that the set of devices must remain fixed for the
@@ -1622,12 +1622,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
     for (const auto &p : *platforms) {
       Dev = p->getDeviceFromNativeHandle(ZeDevice);
-      if (Dev) {
-        // Check that the input Platform, if was given, matches the found one.
-        UR_ASSERT(!Platform || Platform == p.get(),
-                  UR_RESULT_ERROR_INVALID_PLATFORM);
-        break;
-      }
     }
   } else {
     return GlobalAdapter->PlatformCache->get_error();

@@ -61,7 +61,7 @@ struct ur_device_handle_t_ : _ur_object {
   ur_device_handle_t_(ze_device_handle_t Device, ur_platform_handle_t Plt,
                       ur_device_handle_t ParentDevice = nullptr)
       : ZeDevice{Device}, Platform{Plt}, RootDevice{ParentDevice},
-        ZeDeviceProperties{}, ZeDeviceComputeProperties{} {
+        ZeDeviceProperties{}, ZeDeviceComputeProperties{}, Id(std::nullopt) {
     // NOTE: one must additionally call initialize() to complete
     // UR device creation.
   }
@@ -229,5 +229,5 @@ struct ur_device_handle_t_ : _ur_object {
       ZeOffsetToImageHandleMap;
 
   // unique ephemeral identifer of the device in the adapter
-  DeviceId Id;
+  std::optional<DeviceId> Id;
 };

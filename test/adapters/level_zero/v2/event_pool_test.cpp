@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "command_list_cache.hpp"
-#include "common.hpp"
+
+#include "level_zero/common.hpp"
+#include "level_zero/device.hpp"
 
 #include "context.hpp"
-#include "device.hpp"
-
 #include "event_pool.hpp"
 #include "event_pool_cache.hpp"
 #include "event_provider.hpp"
@@ -136,23 +136,25 @@ TEST_P(EventPoolTest, InvalidDevice) {
 
 TEST_P(EventPoolTest, Basic) {
     {
-        ur_event *first;
+        ur_event_handle_t first;
         ze_event_handle_t zeFirst;
         {
-            auto pool = cache->borrow(device->Id);
+            auto pool = cache->borrow(device->Id.value());
 
             first = pool->allocate();
             zeFirst = first->getZeEvent();
-            pool->free(first);
+
+            urEventRelease(first);
         }
-        ur_event *second;
+        ur_event_handle_t second;
         ze_event_handle_t zeSecond;
         {
-            auto pool = cache->borrow(device->Id);
+            auto pool = cache->borrow(device->Id.value());
 
             second = pool->allocate();
             zeSecond = second->getZeEvent();
-            pool->free(second);
+
+            urEventRelease(second);
         }
         ASSERT_EQ(first, second);
         ASSERT_EQ(zeFirst, zeSecond);
@@ -165,13 +167,13 @@ TEST_P(EventPoolTest, Threaded) {
     for (int iters = 0; iters < 3; ++iters) {
         for (int th = 0; th < 10; ++th) {
             threads.emplace_back([&] {
-                auto pool = cache->borrow(device->Id);
-                std::vector<ur_event *> events;
+                auto pool = cache->borrow(device->Id.value());
+                std::vector<ur_event_handle_t> events;
                 for (int i = 0; i < 100; ++i) {
                     events.push_back(pool->allocate());
                 }
                 for (int i = 0; i < 100; ++i) {
-                    pool->free(events[i]);
+                    urEventRelease(events[i]);
                 }
             });
         }
@@ -183,14 +185,14 @@ TEST_P(EventPoolTest, Threaded) {
 }
 
 TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
-    auto pool = cache->borrow(device->Id);
-    std::list<ur_event *> events;
+    auto pool = cache->borrow(device->Id.value());
+    std::list<ur_event_handle_t> events;
     for (int i = 0; i < 128; ++i) {
         events.push_back(pool->allocate());
     }
     auto frontZeHandle = events.front()->getZeEvent();
     for (int i = 0; i < 8; ++i) {
-        pool->free(events.front());
+        urEventRelease(events.front());
         events.pop_front();
     }
     for (int i = 0; i < 8; ++i) {
@@ -202,6 +204,6 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
     ASSERT_EQ(frontZeHandle, events.back()->getZeEvent());
 
     for (auto e : events) {
-        pool->free(e);
+        urEventRelease(e);
     }
 }

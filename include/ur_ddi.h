@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_ddi.h
- * @version v0.10-r0
+ * @version v0.11-r0
  *
  */
 #ifndef UR_DDI_H_INCLUDED
@@ -2373,7 +2373,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnDeviceGetNativeHandle_t)(
 /// @brief Function-pointer for urDeviceCreateWithNativeHandle
 typedef ur_result_t(UR_APICALL *ur_pfnDeviceCreateWithNativeHandle_t)(
     ur_native_handle_t,
-    ur_platform_handle_t,
+    ur_adapter_handle_t,
     const ur_device_native_properties_t *,
     ur_device_handle_t *);
 

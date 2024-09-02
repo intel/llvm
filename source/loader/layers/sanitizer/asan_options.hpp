@@ -38,6 +38,7 @@ struct AsanOptions {
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
     bool DetectPrivates = true;
+    bool DetectKernelArguments = true;
 
   private:
     AsanOptions(logger::Logger &logger) {
@@ -93,10 +94,11 @@ struct AsanOptions {
         SetBoolOption("debug", Debug);
         SetBoolOption("detect_locals", DetectLocals);
         SetBoolOption("detect_privates", DetectPrivates);
+        SetBoolOption("detect_kernel_arguments", DetectKernelArguments);
 
         auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 auto temp_long = std::stoul(Value);
                 if (temp_long > UINT32_MAX) {
@@ -112,7 +114,7 @@ struct AsanOptions {
 
         KV = OptionsEnvMap->find("redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MinRZSize = std::stoul(Value);
                 if (MinRZSize < 16) {
@@ -127,7 +129,7 @@ struct AsanOptions {
 
         KV = OptionsEnvMap->find("max_redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MaxRZSize = std::stoul(Value);
                 if (MaxRZSize > 2048) {

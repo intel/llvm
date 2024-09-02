@@ -25,8 +25,10 @@
 
 namespace v2 {
 
-using event_pool_borrowed =
+namespace raii {
+using cache_borrowed_event_pool =
     std::unique_ptr<event_pool, std::function<void(event_pool *)>>;
+} // namespace raii
 
 class event_pool_cache {
 public:
@@ -36,7 +38,7 @@ public:
   event_pool_cache(size_t max_devices, ProviderCreateFunc);
   ~event_pool_cache();
 
-  event_pool_borrowed borrow(DeviceId);
+  raii::cache_borrowed_event_pool borrow(DeviceId);
 
 private:
   ur_mutex mutex;

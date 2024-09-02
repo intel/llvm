@@ -36,6 +36,9 @@ ur_context_handle_t GetContext(ur_kernel_handle_t Kernel);
 ur_device_handle_t GetDevice(ur_queue_handle_t Queue);
 DeviceType GetDeviceType(ur_context_handle_t Context,
                          ur_device_handle_t Device);
+ur_device_handle_t GetParentDevice(ur_device_handle_t Device);
+bool GetDeviceUSMCapability(ur_device_handle_t Device,
+                            ur_device_info_t Feature);
 std::string GetKernelName(ur_kernel_handle_t Kernel);
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);

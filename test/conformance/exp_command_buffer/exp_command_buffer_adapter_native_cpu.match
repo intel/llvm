@@ -25,3 +25,4 @@
 {{OPT}}InvalidUpdateTest.GlobalLocalSizeMistach/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}InvalidUpdateTest.ImplToUserDefinedLocalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}InvalidUpdateTest.UserToImplDefinedLocalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}urCommandBufferAppendKernelLaunchExpTest.Basic/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

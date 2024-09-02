@@ -130,8 +130,8 @@ jobs:
         --ci-defaults ${{matrix.adapter.config}}
         --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
         --cmake-opt="-DSYCL_PI_TESTS=OFF"
-        --cmake-opt="-DSYCL_PI_UR_USE_FETCH_CONTENT=OFF"
-        --cmake-opt="-DSYCL_PI_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
+        --cmake-opt="-DSYCL_UR_USE_FETCH_CONTENT=OFF"
+        --cmake-opt="-DSYCL_UR_SOURCE_DIR=${{github.workspace}}/ur-repo/"
         --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache
         --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
@@ -157,7 +157,7 @@ jobs:
     - name: Setup SYCL variables
       run: |
         which clang++ sycl-ls
-        SYCL_PI_TRACE=-1 sycl-ls
+        SYCL_UR_TRACE=-1 sycl-ls
 
     - name: Build e2e tests
       run: >

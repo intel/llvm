@@ -15,9 +15,10 @@
 
 extern "C" {
 
-__attribute__((weak)) bool SymbolizeCode(const std::string ModuleName,
+__attribute__((weak)) void SymbolizeCode(const char *ModuleName,
                                          uint64_t ModuleOffset,
-                                         std::string &Result);
+                                         char *ResultString, size_t ResultSize,
+                                         size_t *RetSize);
 }
 
 namespace ur_sanitizer_layer {
@@ -49,7 +50,7 @@ void ParseBacktraceInfo(BacktraceInfo BI, std::string &ModuleName,
 // Parse symbolizer output in the following formats:
 //   <function_name>
 //   <file_name>:<line_number>[:<column_number>]
-SourceInfo ParseSymbolizerOutput(std::string Output) {
+SourceInfo ParseSymbolizerOutput(const std::string &Output) {
     SourceInfo Info;
     // Parse function name
     size_t End = Output.find_first_of('\n');
@@ -98,7 +99,13 @@ void StackTrace::print() const {
             std::string ModuleName;
             uptr Offset;
             ParseBacktraceInfo(BI, ModuleName, Offset);
-            if (SymbolizeCode(ModuleName, Offset, Result)) {
+            size_t ResultSize = 0;
+            SymbolizeCode(ModuleName.c_str(), Offset, nullptr, 0, &ResultSize);
+            if (ResultSize) {
+                std::vector<char> ResultVector(ResultSize);
+                SymbolizeCode(ModuleName.c_str(), Offset, ResultVector.data(),
+                              ResultSize, nullptr);
+                std::string Result((char *)ResultVector.data());
                 SourceInfo SrcInfo = ParseSymbolizerOutput(Result);
                 if (SrcInfo.file != "??") {
                     getContext()->logger.always(" #{} in {} {}:{}:{}", index,
@@ -109,10 +116,10 @@ void StackTrace::print() const {
                                                 SrcInfo.function, ModuleName,
                                                 (void *)Offset);
                 }
-                continue;
             }
+        } else {
+            getContext()->logger.always("  #{} {}", index, BI);
         }
-        getContext()->logger.always("  #{} {}", index, BI);
         ++index;
     }
     getContext()->logger.always("");

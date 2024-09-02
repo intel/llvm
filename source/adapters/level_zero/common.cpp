@@ -67,28 +67,6 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
   }
 }
 
-/// Checks the version of the level-zero driver.
-/// @param ZeDriver Level Zero Driver handle
-/// @param VersionMajor Major verion number to compare to.
-/// @param VersionMinor Minor verion number to compare to.
-/// @param VersionBuild Build verion number to compare to.
-/// @return true is the version of the driver is higher than or equal to the
-/// compared version
-bool isDriverVersionNewerOrSimilar(ze_driver_handle_t ZeDriver,
-                                   uint32_t VersionMajor, uint32_t VersionMinor,
-                                   uint32_t VersionBuild) {
-  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
-  ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
-  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
-  auto DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
-  auto DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
-  auto DriverVersionBuild = DriverVersion & 0x0000FFFF;
-
-  return ((DriverVersionMajor >= VersionMajor) &&
-          (DriverVersionMinor >= VersionMinor) &&
-          (DriverVersionBuild >= VersionBuild));
-}
-
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value) {
