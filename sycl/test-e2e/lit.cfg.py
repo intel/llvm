@@ -214,12 +214,25 @@ if lit_config.params.get("enable-perf-tests", False):
 def open_check_file(file_name):
     return open(os.path.join(config.sycl_obj_root, file_name), "w")
 
+
 # check if compiler supports CL command line options
 cl_options = False
 sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
 if sp[0] == 0:
     cl_options = True
     config.available_features.add("cl_options")
+
+# check if the compiler was built in NDEBUG configuration
+has_ndebug = False
+ps = subprocess.Popen(
+    [config.dpcpp_compiler, "-mllvm", "-debug", "-x", "c", "-", "-S", "-o", "-"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+)
+_ = ps.communicate(input=b"int main(){}\n")
+if ps.wait() == 0:
+    config.available_features.add("has_ndebug")
 
 # Check for Level Zero SDK
 check_l0_file = "l0_include.cpp"
@@ -552,6 +565,9 @@ if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     config.available_features.add("hip_amd")
     arch_flag = (
         "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
+    )
+    config.substitutions.append(
+        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
     )
 elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add("hip_nvidia")

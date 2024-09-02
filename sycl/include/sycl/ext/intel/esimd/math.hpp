@@ -98,9 +98,12 @@ template <typename TRes, typename TArg, int SZ>
 ESIMD_NODEBUG ESIMD_INLINE simd<TRes, SZ>
 __esimd_abs_common_internal(simd<TArg, SZ> src0) {
   simd<TArg, SZ> Result;
-  if constexpr (detail::is_generic_floating_point_v<TArg>)
-    Result = simd<TArg, SZ>(__spirv_ocl_fabs<TArg, SZ>(src0.data()));
-  else
+  if constexpr (detail::is_generic_floating_point_v<TArg>) {
+    using CppT = __ESIMD_DNS::element_type_traits<TArg>::EnclosingCppT;
+    Result =
+        __ESIMD_DNS::convert_vector<TArg, CppT, SZ>(__spirv_ocl_fabs<CppT, SZ>(
+            __ESIMD_DNS::convert_vector<CppT, TArg, SZ>(src0.data())));
+  } else
     Result = simd<TArg, SZ>(__spirv_ocl_s_abs<TArg, SZ>(src0.data()));
   return convert<TRes>(Result);
 }
@@ -184,8 +187,12 @@ template <typename T, int SZ, class Sat = saturation_off_tag>
 __ESIMD_API simd<T, SZ>(max)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
-  if constexpr (std::is_floating_point<T>::value) {
-    auto Result = __spirv_ocl_fmax<T, SZ>(src0.data(), src1.data());
+  if constexpr (detail::is_generic_floating_point_v<T>) {
+    using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+    auto Result =
+        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__spirv_ocl_fmax<CppT, SZ>(
+            __ESIMD_DNS::convert_vector<CppT, T, SZ>(src0.data()),
+            __ESIMD_DNS::convert_vector<CppT, T, SZ>(src1.data())));
     if constexpr (is_sat)
       Result = __esimd_sat<T, T, SZ>(Result);
     return simd<T, SZ>(Result);
@@ -269,8 +276,12 @@ template <typename T, int SZ, class Sat = saturation_off_tag>
 __ESIMD_API simd<T, SZ>(min)(simd<T, SZ> src0, simd<T, SZ> src1, Sat sat = {}) {
   constexpr bool is_sat = std::is_same_v<Sat, saturation_on_tag>;
 
-  if constexpr (std::is_floating_point<T>::value) {
-    auto Result = __spirv_ocl_fmin<T, SZ>(src0.data(), src1.data());
+  if constexpr (detail::is_generic_floating_point_v<T>) {
+    using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
+    auto Result =
+        __ESIMD_DNS::convert_vector<T, CppT, SZ>(__spirv_ocl_fmin<CppT, SZ>(
+            __ESIMD_DNS::convert_vector<CppT, T, SZ>(src0.data()),
+            __ESIMD_DNS::convert_vector<CppT, T, SZ>(src1.data())));
     if constexpr (is_sat)
       Result = __esimd_sat<T, T, SZ>(Result);
     return simd<T, SZ>(Result);
@@ -1465,26 +1476,16 @@ template <typename T0, typename T1, int SZ> struct esimd_apply_prod {
 template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_max {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
-    if constexpr (std::is_floating_point<T1>::value) {
-      return __spirv_ocl_fmax<T1, SZ>(v1.data(), v2.data());
-    } else if constexpr (std::is_unsigned<T1>::value) {
-      return __esimd_umax<T1, SZ>(v1.data(), v2.data());
-    } else {
-      return __esimd_smax<T1, SZ>(v1.data(), v2.data());
-    }
+    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(
+        __ESIMD_NS::max(v1, v2).data());
   }
 };
 
 template <typename T0, typename T1, int SZ> struct esimd_apply_reduced_min {
   template <typename... T>
   simd<T0, SZ> operator()(simd<T1, SZ> v1, simd<T1, SZ> v2) {
-    if constexpr (std::is_floating_point<T1>::value) {
-      return __spirv_ocl_fmin<T1, SZ>(v1.data(), v2.data());
-    } else if constexpr (std::is_unsigned<T1>::value) {
-      return __esimd_umin<T1, SZ>(v1.data(), v2.data());
-    } else {
-      return __esimd_smin<T1, SZ>(v1.data(), v2.data());
-    }
+    return __ESIMD_DNS::convert_vector<T0, T1, SZ>(
+        __ESIMD_NS::min(v1, v2).data());
   }
 };
 

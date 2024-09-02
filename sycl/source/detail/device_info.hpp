@@ -688,22 +688,31 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::architecture> {
   static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
     backend CurrentBackend = Dev->getBackend();
-    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
-                          backend::opencl == CurrentBackend)) {
-      auto MapArchIDToArchName = [](const int arch) {
-        for (const auto &Item : IntelGPUArchitectures) {
-          if (Item.first == arch)
-            return Item.second;
-        }
-        return ext::oneapi::experimental::architecture::unknown;
-      };
+    auto LookupIPVersion = [&](auto &ArchList)
+        -> std::optional<ext::oneapi::experimental::architecture> {
       uint32_t DeviceIp;
-      Dev->getPlugin()->call(
+      ur_result_t Err = Dev->getPlugin()->call_nocheck(
           urDeviceGetInfo, Dev->getHandleRef(),
           UrInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
-      return MapArchIDToArchName(DeviceIp);
+      if (Err == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+        // Not all devices support this device info query
+        return std::nullopt;
+      }
+      Dev->getPlugin()->checkUrResult(Err);
+
+      for (const auto &Item : ArchList) {
+        if (Item.first == static_cast<int>(DeviceIp))
+          return Item.second;
+      }
+      return std::nullopt;
+    };
+
+    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                          backend::opencl == CurrentBackend)) {
+      return LookupIPVersion(IntelGPUArchitectures)
+          .value_or(ext::oneapi::experimental::architecture::unknown);
     } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                                  backend::ext_oneapi_hip == CurrentBackend)) {
       auto MapArchIDToArchName = [](const char *arch) {
@@ -726,20 +735,8 @@ struct get_device_info_impl<
           DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
       return MapArchIDToArchName(DeviceArchSubstr.data());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
-      auto MapArchIDToArchName = [](const int arch) {
-        for (const auto &Item : IntelCPUArchitectures) {
-          if (Item.first == arch)
-            return Item.second;
-        }
-        return sycl::ext::oneapi::experimental::architecture::x86_64;
-      };
-      uint32_t DeviceIp;
-      Dev->getPlugin()->call(
-          urDeviceGetInfo, Dev->getHandleRef(),
-          UrInfoCode<
-              ext::oneapi::experimental::info::device::architecture>::value,
-          sizeof(DeviceIp), &DeviceIp, nullptr);
-      return MapArchIDToArchName(DeviceIp);
+      return LookupIPVersion(IntelCPUArchitectures)
+          .value_or(ext::oneapi::experimental::architecture::x86_64);
     } // else is not needed
     // TODO: add support of other architectures by extending with else if
     return ext::oneapi::experimental::architecture::unknown;
@@ -841,6 +838,8 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
           {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
       };
     else if (architecture::amd_gpu_gfx90a == DeviceArch)
