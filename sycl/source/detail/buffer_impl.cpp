@@ -24,7 +24,7 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                                void *HostPtr,
                                ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && !Context) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");

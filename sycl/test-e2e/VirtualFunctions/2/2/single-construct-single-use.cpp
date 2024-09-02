@@ -16,7 +16,7 @@ class BaseIncrement {
 public:
   BaseIncrement(int Mod, int /* unused */ = 42) : Mod(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void increment(int *Data) { *Data += 1 + Mod; }
 
 protected:
@@ -27,7 +27,7 @@ class IncrementBy2 : public BaseIncrement {
 public:
   IncrementBy2(int Mod, int /* unused */) : BaseIncrement(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 2 + Mod; }
 };
 
@@ -36,7 +36,7 @@ public:
   IncrementBy4(int Mod, int ExtraMod)
       : BaseIncrement(Mod), ExtraMod(ExtraMod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 4 + Mod + ExtraMod; }
 
 private:
@@ -47,7 +47,7 @@ class IncrementBy8 : public BaseIncrement {
 public:
   IncrementBy8(int Mod, int /* unused */) : BaseIncrement(Mod) {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void increment(int *Data) override { *Data += 8 + Mod; }
 };
 
@@ -66,7 +66,7 @@ int main() try {
   sycl::queue q(asyncHandler);
 
   // TODO: cover uses case when objects are passed through USM
-  constexpr oneapi::properties props{oneapi::calls_indirectly<>};
+  constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 4; ++TestCase) {
     int HostData = 42;
     int Data = HostData;

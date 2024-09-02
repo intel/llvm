@@ -16,7 +16,7 @@
 // template argument ignoring the rest. This will be fixed in a follow-up
 // patches and the test should be updated to reflect that, because current
 // behavior is not correct.
-// CHECK: define {{.*}}KMultiple{{.*}} #[[#ATTR_SET_INT]]
+// CHECK-disabled: define {{.*}}KMultiple{{.*}} #[[#ATTR_SET_INT]]
 //
 // CHECK-DAG: attributes #[[#ATTR_SET_DEFAULT]] {{.*}} "calls-indirectly"="_ZTSv"
 // CHECK-DAG: attributes #[[#ATTR_SET_INT]] {{.*}} "calls-indirectly"="_ZTSi"
@@ -40,18 +40,22 @@ class KMultiple;
 int main() {
   sycl::queue q;
 
-  oneapi::properties props_empty{oneapi::calls_indirectly<>};
-  oneapi::properties props_int{oneapi::calls_indirectly<int>};
-  oneapi::properties props_void{oneapi::calls_indirectly<void>};
-  oneapi::properties props_user_defined{oneapi::calls_indirectly<user_defined>};
-  oneapi::properties props_multiple{
-      oneapi::calls_indirectly<int, user_defined>};
+  oneapi::properties props_empty{oneapi::assume_indirect_calls};
+  oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};
+  oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
+  oneapi::properties props_user_defined{
+      oneapi::assume_indirect_calls_to<user_defined>};
+  // assume_indirect_calls_to is currently limited to a single set, so this test
+  // is disabled.
+  // FIXME: re-enable once the restriction is lifted.
+  // oneapi::properties props_multiple{
+  //    oneapi::assume_indirect_calls_to<int, user_defined>};
 
   q.single_task<KEmpty>(props_empty, [=]() {});
   q.single_task<KInt>(props_int, [=]() {});
   q.single_task<KVoid>(props_void, [=]() {});
   q.single_task<KUserDefined>(props_user_defined, [=]() {});
-  q.single_task<KMultiple>(props_multiple, [=]() {});
+  // q.single_task<KMultiple>(props_multiple, [=]() {});
 
   return 0;
 }

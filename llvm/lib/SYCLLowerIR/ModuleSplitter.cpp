@@ -113,7 +113,8 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
@@ -660,11 +661,36 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
-// Predicate for Internalize pass.
-bool mustPreserveGV(const GlobalValue &GV) {
-  if (const Function *F = dyn_cast<Function>(&GV))
-    if (!canBeImportedFunction(*F))
-      return false;
+// Predicate for Internalize pass. The pass is very aggressive and essentially
+// tries to internalize absolutely everything. This function serves as "input
+// from a linker" that tells the pass what must be preserved in order to make
+// the transformation safe.
+static bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV)) {
+    // When dynamic linking is supported, we internalize everything that can
+    // not be imported which also means that there is no point of having it
+    // visible outside of the current module.
+    if (SupportDynamicLinking)
+      return canBeImportedFunction(*F);
+
+    // Otherwise, we are being even more aggressive: SYCL modules are expected
+    // to be self-contained, meaning that they have no external dependencies.
+    // Therefore, we can internalize every function that is not an entry point.
+    // One exception here is virtual functions: when they are in use, modules
+    // are not self-contained anymore and some device images has to be linked
+    // at runtime to resolve all symbols.
+    // Functions marked with referenced-indirectly attribute is another
+    // exception: that attribute was originally introduced for function pointers
+    // and even though its main usage was deprecated and dropped, it is still
+    // used in invoke_simd (but that use needs to be revisited).
+    return F->hasFnAttribute("sycl-entry-point") ||
+           F->hasFnAttribute("indirectly-callable") ||
+           F->hasFnAttribute("referenced-indirectly");
+  }
+
+  // Otherwise, we don't have enough information about a global and picking a
+  // safe side saying that all other globals must be preserved (we should have
+  // cleaned up unused globals during dependency graph analysis already).
   return true;
 }
 
@@ -687,12 +713,17 @@ void ModuleDesc::cleanup() {
         F.setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
   }
 
+  // Callback for internalize can't be a lambda with captures, so we propagate
+  // necessary information through the module itself.
+  if (!SupportDynamicLinking)
+    for (Function *F : EntryPoints.Functions)
+      F->addFnAttr("sycl-entry-point");
+
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  if (SupportDynamicLinking)
-    MPM.addPass(InternalizePass(mustPreserveGV));
+  MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
