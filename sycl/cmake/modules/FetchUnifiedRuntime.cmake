@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
-  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
-  # Merge: 608e9184 c3c57284
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 27 16:30:04 2024 +0100
-  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
-  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
-  set(UNIFIED_RUNTIME_TAG 1c0502f1051db8d93192990051f8ecbc060d1c9f)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 35e4ba1446cdd6685706228f1896acbb83da8cf0 (HEAD, origin/main, origin/HEAD)
+  # Merge: e60346d9 1c0502f1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Sep 2 12:42:27 2024 +0200
+  #   Merge pull request #2039 from nrspruit/update_l0_loader
+  #   [L0] update L0 Loader version to v1.17.39
+  set(UNIFIED_RUNTIME_TAG 35e4ba1446cdd6685706228f1896acbb83da8cf0)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
