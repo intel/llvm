@@ -830,7 +830,7 @@ void queue_impl::verifyProps(const property_list &Props) const {
       return false;
     }
   };
-  Props.checkPropsAndThrow(CheckDataLessProperties, CheckPropertiesWithData);
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties, CheckPropertiesWithData);
 }
 
 } // namespace detail
