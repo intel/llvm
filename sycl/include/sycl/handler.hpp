@@ -1600,13 +1600,7 @@ private:
       ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
 
-#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
-  [[clang::sycl_kernel_entry_point(KernelName)]]
-#else
-  __SYCL_KERNEL_ATTR__
-#endif
-
-  void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_KERNEL_ATTR__ void kernel_single_task(_KERNELFUNCPARAM(KernelFunc)) {
 #ifdef __SYCL_DEVICE_ONLY__
     KernelFunc();
 #else
