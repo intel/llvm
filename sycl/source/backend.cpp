@@ -201,7 +201,7 @@ make_kernel_bundle(ur_native_handle_t NativeHandle,
   if (UrProgram == nullptr)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::build),
-        "urProgramCreateWithNativeHandle resulted in a null program handle");
+        "urProgramCreateWithNativeHandle resulted in a null program handle.");
 
   if (ContextImpl->getBackend() == backend::opencl)
     Plugin->call(urProgramRetain, UrProgram);
