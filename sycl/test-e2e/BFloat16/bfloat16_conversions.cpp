@@ -3,6 +3,7 @@
 
 // Currently the feature is supported only on CPU and GPU, natively or by
 // software emulation.
+// See https://github.com/intel/llvm/issues/15264.
 // UNSUPPORTED: accelerator
 
 //==---------- bfloat16_conversions.cpp - SYCL bfloat16 type test ---------==//

@@ -13,6 +13,7 @@
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
 
 // Currently the feature isn't supported on FPGA.
+// See https://github.com/intel/llvm/issues/15264.
 // UNSUPPORTED: accelerator
 #include "bfloat16_builtins.hpp"
 

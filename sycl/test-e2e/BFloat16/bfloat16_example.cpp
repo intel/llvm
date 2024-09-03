@@ -3,8 +3,11 @@
 ///
 
 // REQUIRES: opencl-aot, ocloc, gpu-intel-gen9
-// UNSUPPORTED: cuda
+
 // CUDA is not compatible with SPIR.
+// UNSUPPORTED: cuda
+
+// See https://github.com/intel/llvm/issues/15264.
 // UNSUPPORTED: accelerator
 
 // RUN: %clangxx -fsycl %s -o %t.out
