@@ -57,8 +57,8 @@ if(MSVC)
 
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-  include(LLVMCheckLinkerFlag)
-  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -80,7 +80,7 @@ if(MSVC)
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("/OPT:REF" "/OPT:ICF")
     endif()

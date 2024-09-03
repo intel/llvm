@@ -157,7 +157,7 @@ def : TargetInfo<"__TestDeprecatedAspectList",
 
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
-def : TargetInfo<"spir64_x86_64", [AspectFp16, AspectFp64, AspectAtomic64], [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"spir64_x86_64", [AspectFp16, AspectFp64, AspectAtomic64, AspectExt_oneapi_ballot_group], [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", [], [], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
@@ -176,6 +176,8 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
+def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;

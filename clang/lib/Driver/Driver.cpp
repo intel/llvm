@@ -2606,7 +2606,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
   llvm::outs() << llvm::join(SuggestedCompletions, "\n") << '\n';
 }
 
-bool Driver::HandleImmediateArgs(const Compilation &C) {
+bool Driver::HandleImmediateArgs(Compilation &C) {
   // The order these options are handled in gcc is all over the place, but we
   // don't expect inconsistencies w.r.t. that to matter in practice.
 
@@ -2754,6 +2754,14 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_print_libgcc_file_name)) {
     ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(C.getArgs());
     const llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
+    // The 'Darwin' toolchain is initialized only when its arguments are
+    // computed. Get the default arguments for OFK_None to ensure that
+    // initialization is performed before trying to access properties of
+    // the toolchain in the functions below.
+    // FIXME: Remove when darwin's toolchain is initialized during construction.
+    // FIXME: For some more esoteric targets the default toolchain is not the
+    //        correct one.
+    C.getArgsForToolChain(&TC, Triple.getArchName(), Action::OFK_None);
     RegisterEffectiveTriple TripleRAII(TC, Triple);
     switch (RLT) {
     case ToolChain::RLT_CompilerRT:
@@ -5847,10 +5855,9 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX() ||
-                (TC->getTriple().isSPIR() &&
-                 TC->getTriple().getSubArch() ==
-                     llvm::Triple::SPIRSubArch_fpga)) {
+            if (TC->getTriple().isSPIR() &&
+                TC->getTriple().getSubArch() ==
+                    llvm::Triple::SPIRSubArch_fpga) {
               auto *SYCLDeviceLibsInputAction =
                   C.MakeAction<InputAction>(*InputArg, types::TY_Object);
               auto *SYCLDeviceLibsUnbundleAction =
