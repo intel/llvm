@@ -84,7 +84,6 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
-          - '["Linux", "pvc"]'
           - '["cts-cpu"]'
       image:
         description: |
@@ -95,11 +94,10 @@ on:
           - 'ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build'
       image_options:
         description: |
-          Use option with "--device=/dev/kfd" for AMDGPU, "--group-add 109" for PVC, and without it for the rest.
+          Use option with "--device=/dev/kfd" for AMDGPU, without it for the rest.
         type: choice
         options:
           - '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
-          - '-u 1001 --group-add 109 --device=/dev/dri --privileged --cap-add SYS_ADMIN'
           - '-u 1001 --device=/dev/dri --device=/dev/kfd --privileged --cap-add SYS_ADMIN'
       target_devices:
         type: choice
