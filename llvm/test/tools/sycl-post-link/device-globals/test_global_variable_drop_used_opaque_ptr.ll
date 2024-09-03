@@ -13,6 +13,7 @@ target triple = "spir64-unknown-unknown"
 %"class.cl::sycl::ext::oneapi::device_global.1" = type { i8 }
 %class.anon.0 = type { i8 }
 
+; CHECK-IR-NOT: @llvm.compiler.used =
 @llvm.compiler.used = appending global [4 x ptr addrspace(4)] [ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7dg_int1 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7dg_int2 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL8dg_bool4 to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL7no_dg_int1 to ptr addrspace(4))]
 
 @_ZL7dg_int1 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations !0 #0
