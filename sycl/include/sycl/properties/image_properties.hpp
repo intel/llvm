@@ -56,8 +56,8 @@ template <int Dimensions, typename AllocatorT> class unsampled_image;
 // SYCL 1.2.1 image property trait specializations
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <int Dimensions, typename AllocatorT>                               \
-      struct is_property_of < NS_QUALIFIER::PROP_NAME,                         \
-      image<Dimensions, AllocatorT> : std::true_type {};
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        image<Dimensions, AllocatorT>> : std::true_type {};
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 #include <sycl/properties/image_properties.def>
@@ -65,16 +65,18 @@ template <int Dimensions, typename AllocatorT> class unsampled_image;
 // SYCL 2020 image property trait specializations
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <int Dimensions, typename AllocatorT>                               \
-      struct is_property_of < NS_QUALIFIER::PROP_NAME,                         \
-      sampled_image<Dimensions, AllocatorT> : std::true_type {};
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        sampled_image<Dimensions, AllocatorT>>                 \
+      : std::true_type {};
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 #include <sycl/properties/image_properties.def>
 
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <int Dimensions, typename AllocatorT>                               \
-      struct is_property_of < NS_QUALIFIER::PROP_NAME,                         \
-      unsampled_image<Dimensions, AllocatorT> : std::true_type {};
+  struct is_property_of<NS_QUALIFIER::PROP_NAME,                               \
+                        unsampled_image<Dimensions, AllocatorT>>               \
+      : std::true_type {};
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 #include <sycl/properties/image_properties.def>
