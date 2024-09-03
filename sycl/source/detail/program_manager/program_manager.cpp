@@ -805,7 +805,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
     auto programRelease =
-        programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
+        programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
 
     // Link a fallback implementation of device libraries if they are not
@@ -2555,7 +2555,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
     auto programRelease =
-        programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
+        programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
 
     // Link a fallback implementation of device libraries if they are not
@@ -2769,7 +2769,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   auto &Plugin = DeviceImpl->getPlugin();
   UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
   auto programRelease =
-      programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
+      programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   ProgramPtr ProgramManaged(Program, programRelease);
 
   std::string CompileOpts;

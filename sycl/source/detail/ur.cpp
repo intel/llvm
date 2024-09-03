@@ -109,25 +109,28 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 
   UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
   auto loaderConfigCreate =
-      loaderConfigCreateInfo.getFuncPtr(ur::loadURLoaderLibrary());
+      loaderConfigCreateInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urLoaderConfigEnableLayer> loaderConfigEnableLayerInfo;
   auto loaderConfigEnableLayer =
-      loaderConfigEnableLayerInfo.getFuncPtr(ur::loadURLoaderLibrary());
+      loaderConfigEnableLayerInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urLoaderConfigRelease> loaderConfigReleaseInfo;
   auto loaderConfigRelease =
-      loaderConfigReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
+      loaderConfigReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urLoaderConfigSetCodeLocationCallback>
       loaderConfigSetCodeLocationCallbackInfo;
   auto loaderConfigSetCodeLocationCallback =
-      loaderConfigSetCodeLocationCallbackInfo.getFuncPtr(
-          ur::loadURLoaderLibrary());
+      loaderConfigSetCodeLocationCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urLoaderInit> loaderInitInfo;
-  auto loaderInit = loaderInitInfo.getFuncPtr(ur::loadURLoaderLibrary());
+  auto loaderInit =
+      loaderInitInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urAdapterGet> adapterGet_Info;
-  auto adapterGet = adapterGet_Info.getFuncPtr(ur::loadURLoaderLibrary());
+  auto adapterGet =
+      adapterGet_Info.getFuncPtrFromModule(ur::getURLoaderLibrary());
   UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
   auto adapterGetInfo =
-      adapterGetInfoInfo.getFuncPtr(ur::loadURLoaderLibrary());
+      adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.

@@ -75,7 +75,7 @@ static std::filesystem::path getCurrentDSODirPath() {
   return std::filesystem::path(Path);
 }
 
-void *loadURLoaderLibrary() {
+void *getURLoaderLibrary() {
   const std::filesystem::path LibSYCLDir = getCurrentDSODirPath();
   return getPreloadedPlugin(LibSYCLDir / std::string("ur_loader.dll"));
 }

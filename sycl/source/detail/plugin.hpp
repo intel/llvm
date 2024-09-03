@@ -51,7 +51,8 @@ public:
         MPluginMutex(std::make_shared<std::mutex>()) {
 
 #ifdef _WIN32
-    UrLoaderHandle = ur::loadURLoaderLibrary();
+    UrLoaderHandle = ur::getURLoaderLibrary();
+    PopulateUrFuncPtrTable(&UrFuncPtrs, UrLoaderHandle);
 #endif
   }
 
@@ -123,7 +124,7 @@ public:
     ur_result_t R = UR_RESULT_SUCCESS;
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
-      auto F = UrApiInfo.getFuncPtr(UrLoaderHandle);
+      auto F = UrApiInfo.getFuncPtr(&UrFuncPtrs);
       R = F(Args...);
     }
     return R;
@@ -220,6 +221,7 @@ private:
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
   void *UrLoaderHandle = nullptr;
+  UrFuncPtrMapT UrFuncPtrs;
 }; // class plugin
 
 using PluginPtr = std::shared_ptr<plugin>;
