@@ -7,9 +7,6 @@
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
 
-// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
-// XFAIL: windows
-
 #include <sycl/detail/core.hpp>
 
 #include <sycl/specialization_id.hpp>
