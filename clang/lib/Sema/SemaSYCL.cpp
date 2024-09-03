@@ -6852,9 +6852,8 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
 
-  auto isDependent =
-      [](const auto *Attr,
-         const std::initializer_list<const ConstantExpr *> &Exprs) {
+  auto hasDependentExpr =
+      [](const std::initializer_list<const ConstantExpr *> &Exprs) {
         return std::any_of(
             Exprs.begin(), Exprs.end(), [](const ConstantExpr *CE) {
               return CE && (CE->isValueDependent() || CE->isTypeDependent());
@@ -6863,7 +6862,7 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
 
   if (const SYCLReqdWorkGroupSizeAttr *Attr =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
+    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
@@ -6874,7 +6873,7 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
 
   if (const IntelReqdSubGroupSizeAttr *Attr =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getValue())})) {
+    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getValue())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
@@ -6883,7 +6882,7 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
 
   if (const SYCLWorkGroupSizeHintAttr *Attr =
           FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-    if (!isDependent(Attr, {dyn_cast<ConstantExpr>(Attr->getXDim()),
+    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
                             dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
