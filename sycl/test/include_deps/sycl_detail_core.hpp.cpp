@@ -116,6 +116,7 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: sampler.hpp
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
