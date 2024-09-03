@@ -11,6 +11,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/handler.hpp>
 
 #include <detail/accessor_impl.hpp>
@@ -1500,6 +1501,17 @@ public:
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
+  /// sycl_ext_oneapi_raw_kernel_arg constructor
+  /// Parameter size is taken from member of raw_kernel_arg object.
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
+                         raw_kernel_arg *Data)
+      : MGraph(GraphImpl) {
+    size_t RawArgSize = Data->MArgSize;
+    const void *RawArgData = Data->MArgData;
+    MValueStorage.reserve(RawArgSize);
+    std::memcpy(MValueStorage.data(), RawArgData, RawArgSize);
+  }
+
   /// Register a node with this dynamic parameter
   /// @param NodeImpl The node to be registered
   /// @param ArgIndex The arg index for the kernel arg associated with this
@@ -1510,6 +1522,25 @@ public:
 
   /// Get a pointer to the internal value of this dynamic parameter
   void *getValue() { return MValueStorage.data(); }
+
+  /// Update sycl_ext_oneapi_raw_kernel_arg parameter
+  /// @param NewRawValue Pointer to a raw_kernel_arg object.
+  /// @param Size Parameter is ignored.
+  void updateValue(const raw_kernel_arg *NewRawValue, size_t Size) {
+    // Number of bytes is taken from member of raw_kernel_arg object rather
+    // than using the size parameter which represents sizeof(raw_kernel_arg).
+    std::ignore = Size;
+    size_t RawArgSize = NewRawValue->MArgSize;
+    const void *RawArgData = NewRawValue->MArgData;
+
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
+      auto NodeShared = NodeWeak.lock();
+      if (NodeShared) {
+        NodeShared->updateArgValue(ArgIndex, RawArgData, RawArgSize);
+      }
+    }
+    std::memcpy(MValueStorage.data(), RawArgData, RawArgSize);
+  }
 
   /// Update the internal value of this dynamic parameter as well as the value
   /// of this parameter in all registered nodes.

@@ -23,6 +23,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
+#include <ur_api.h>
 
 #include <bitset>
 #include <cstdarg>
@@ -74,6 +75,8 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   return nullptr;
 }
 
+ur_code_location_t codeLocationCallback(void *);
+
 namespace ur {
 bool trace(TraceLevel Level) {
   auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
@@ -105,8 +108,7 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call)                                                 \
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
+#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
