@@ -18,10 +18,6 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <ur_api.h>
-#ifdef _WIN32
-#define NOMINMAX
-#include <windows.h>
-#endif
 
 #include <memory>
 #include <type_traits>
@@ -60,12 +56,13 @@ enum class UrApiKind {
 template <UrApiKind UrApiOffset> struct UrFuncInfo {};
 
 #ifdef _WIN32
+void *GetWinProcAddress(void *module, const char *funcName);
 #define _UR_API(api)                                                           \
   template <> struct UrFuncInfo<UrApiKind::api> {                              \
     using FuncPtrT = decltype(&::api);                                         \
     inline const char *getFuncName() { return #api; }                          \
     inline FuncPtrT getFuncPtr(void *module) {                                 \
-      return (FuncPtrT)GetProcAddress((HMODULE)module, #api);                  \
+      return (FuncPtrT)GetWinProcAddress(module, #api);                        \
     }                                                                          \
   };
 #include <ur_api_funcs.def>
