@@ -15,7 +15,9 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 
+#ifdef _WIN32
 #include "ur_win_proxy_loader.hpp"
+#endif
 
 #include <ur_api.h>
 
@@ -116,25 +118,15 @@ public:
   ///
   /// Usage:
   /// \code{cpp}
-  /// ur_result_t Err = Plugin->call(urEntryPoint, Args);
+  /// ur_result_t Err = Plugin->call<UrApiKind::urEntryPoint>(Args);
   /// Plugin->checkUrResult(Err); // Checks Result and throws a runtime_error
   /// // exception.
   /// \endcode
   ///
   /// \sa plugin::checkUrResult
-  // template <class UrFunc, typename... ArgsT>
-  // ur_result_t call_nocheck(UrFunc F, ArgsT... Args) const {
-  //   ur_result_t R = UR_RESULT_SUCCESS;
-  //   if (!adapterReleased) {
-  //     R = F(Args...);
-  //   }
-  //   return R;
-  // }
-
   template <UrApiKind UrApiOffset, typename... ArgsT>
   ur_result_t call_nocheck(ArgsT... Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
-    // fprintf(stderr, "CALL_NOCHECK2\n");
     if (!adapterReleased) {
       detail::UrFuncInfo<UrApiOffset> UrApiInfo;
       auto F = UrApiInfo.getFuncPtr(UrLoaderHandle);
@@ -146,12 +138,6 @@ public:
   /// Calls the API, traces the call, checks the result
   ///
   /// \throw sycl::runtime_exception if the call was not successful.
-  // template <class UrFunc, typename... ArgsT>
-  // void call(UrFunc F, ArgsT... Args) const {
-  //   auto Err = call_nocheck(F, Args...);
-  //   checkUrResult(Err);
-  // }
-
   template <UrApiKind UrApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     auto Err = call_nocheck<UrApiOffset>(Args...);
@@ -159,12 +145,6 @@ public:
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
-  // template <sycl::errc errc, class UrFunc, typename... ArgsT>
-  // void call(UrFunc F, ArgsT... Args) const {
-  //   auto Err = call_nocheck(F, Args...);
-  //   checkUrResult<errc>(Err);
-  // }
-
   template <sycl::errc errc, UrApiKind UrApiOffset, typename... ArgsT>
   void call(ArgsT... Args) const {
     auto Err = call_nocheck<UrApiOffset>(Args...);
@@ -245,9 +225,7 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
-#ifdef _WIN32
   void *UrLoaderHandle = nullptr;
-#endif
 }; // class plugin
 
 using PluginPtr = std::shared_ptr<plugin>;

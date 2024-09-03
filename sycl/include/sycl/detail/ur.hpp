@@ -17,9 +17,11 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
-#define NOMINMAX
 #include <ur_api.h>
+#ifdef _WIN32
+#define NOMINMAX
 #include <windows.h>
+#endif
 
 #include <memory>
 #include <type_traits>
@@ -57,6 +59,7 @@ enum class UrApiKind {
 
 template <UrApiKind UrApiOffset> struct UrFuncInfo {};
 
+#ifdef _WIN32
 #define _UR_API(api)                                                           \
   template <> struct UrFuncInfo<UrApiKind::api> {                              \
     using FuncPtrT = decltype(&::api);                                         \
@@ -67,6 +70,16 @@ template <UrApiKind UrApiOffset> struct UrFuncInfo {};
   };
 #include <ur_api_funcs.def>
 #undef _UR_API
+#else
+#define _UR_API(api)                                                           \
+  template <> struct UrFuncInfo<UrApiKind::api> {                              \
+    using FuncPtrT = decltype(&::api);                                         \
+    inline const char *getFuncName() { return #api; }                          \
+    constexpr inline FuncPtrT getFuncPtr(void *) { return &api; }              \
+  };
+#include <ur_api_funcs.def>
+#undef _UR_API
+#endif
 
 namespace pi {
 // This function is deprecated and it should be removed in the next release

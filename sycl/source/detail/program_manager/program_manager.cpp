@@ -804,7 +804,6 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     }
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-    ;
     auto programRelease =
         programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
@@ -2555,7 +2554,6 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       setSpecializationConstants(InputImpl, NativePrg, Plugin);
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-    ;
     auto programRelease =
         programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
@@ -2770,7 +2768,6 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   auto DeviceImpl = detail::getSyclObjImpl(Device);
   auto &Plugin = DeviceImpl->getPlugin();
   UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
-  ;
   auto programRelease =
       programReleaseInfo.getFuncPtr(ur::loadURLoaderLibrary());
   ProgramPtr ProgramManaged(Program, programRelease);
