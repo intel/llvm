@@ -234,6 +234,8 @@ double __nv_ldexp(double, int);
 float __nv_ldexpf(float, int);
 double __nv_lgamma(double);
 float __nv_lgammaf(float);
+long __nv_lroundf(float);
+long __nv_lround(double);
 double __nv_ll2double_rd(long);
 double __nv_ll2double_rn(long);
 double __nv_ll2double_ru(long);
