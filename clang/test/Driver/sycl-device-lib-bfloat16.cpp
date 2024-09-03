@@ -1,20 +1,18 @@
 ///
-/// Check if bfloat16 native and fallback libraries are added on Windows
+/// Check if bfloat16 native and fallback libraries are linked correctly.
 ///
 
-// REQUIRES: windows
 // UNSUPPORTED: cuda
 
 /// ###########################################################################
 /// Test that no bfloat16 libraries are added in JIT mode.
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16 --dump-input=always
 
-// Test that fallback bfloat16 libraries are added in JIT mode with
-// generic target.
+// Test that no bfloat16 libraries are added in JIT mode with generic target.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
-// RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
+// RUN:   | FileCheck %s -check-prefix=BFLOAT16
 
 // Test that a PVC AOT compilation uses the native library.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend \
@@ -43,7 +41,7 @@
 // RUN:   "-device *" %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK
 
-// Test that a mixed JIT + AOT-PVC  compilation uses no libs + fallback libs.
+// Test that a mixed JIT + AOT-PVC compilation uses no libs + fallback libs.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,spir64_gen \
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc" %s \
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
@@ -67,20 +65,20 @@
 // RUN:   --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=BFLOAT16-FALLBACK-FALLBACK
 
-// BFLOAT16: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-{{fallback|native}}-bfloat16.obj" "-output={{.*}}libsycl-{{fallback|native}}-{{.*}}.o" "-unbundle"
+// BFLOAT16-NOT: llvm-link{{.*}} "{{.*}}libsycl-{{fallback|native}}-bfloat16.bc"
 
-// BFLOAT16-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-native-bfloat16.obj"
+// BFLOAT16-NATIVE: llvm-link{{.*}} "{{.*}}libsycl-native-bfloat16.bc"
 
-// BFLOAT16-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-{{spir64_gen-|spir64-}}unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj"
+// BFLOAT16-FALLBACK: llvm-link{{.*}} "{{.*}}libsycl-fallback-bfloat16.bc"
 
-// BFLOAT16-NONE-NATIVE-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}-bfloat16.obj"
-// BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-native-bfloat16.obj"
+// BFLOAT16-NONE-NATIVE-NOT: llvm-link{{.*}} "{{.*}}-bfloat16.bc"
+// BFLOAT16-NONE-NATIVE: llvm-link{{.*}} "{{.*}}libsycl-native-bfloat16.bc"
 
-// BFLOAT16-NONE-FALLBACK-NOT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}-bfloat16.obj"
-// BFLOAT16-NONE-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj"
+// BFLOAT16-NONE-FALLBACK-NOT: llvm-link{{.*}} "{{.*}}-bfloat16.bc"
+// BFLOAT16-NONE-FALLBACK: llvm-link{{.*}} "{{.*}}libsycl-fallback-bfloat16.bc"
 
-// BFLOAT16-FALLBACK-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj" "-output={{.*}}libsycl-fallback-bfloat16-{{.*}}.obj" "-unbundle"
-// BFLOAT16-FALLBACK-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-native-bfloat16.obj"
+// BFLOAT16-FALLBACK-NATIVE: llvm-link{{.*}} "{{.*}}libsycl-fallback-bfloat16.bc"
+// BFLOAT16-FALLBACK-NATIVE: {{.*}}libsycl-native-bfloat16.bc"
 
-// BFLOAT16-FALLBACK-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj" "-output={{.*}}libsycl-fallback-bfloat16-{{.*}}.obj" "-unbundle"
-// BFLOAT16-FALLBACK-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj"
+// BFLOAT16-FALLBACK-FALLBACK: llvm-link{{.*}} "{{.*}}libsycl-fallback-bfloat16.bc"
+// BFLOAT16-FALLBACK-FALLBACK: "{{.*}}libsycl-fallback-bfloat16.bc"
