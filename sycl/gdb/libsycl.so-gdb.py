@@ -665,7 +665,7 @@ class SYCLPrinter:
     @staticmethod
     def data_vector_type(base_type, dimensions, ranges_array):
         vector_type = base_type
-        for index in range(dimensions - 1, -1, -1):
+        for index in reversed(range(dimensions)):
             upperbound = ranges_array[index]
             inclusive_upperbound = upperbound - 1
             vector_type = vector_type.vector(inclusive_upperbound)
