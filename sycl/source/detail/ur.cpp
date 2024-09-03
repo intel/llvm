@@ -105,8 +105,7 @@ std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call)                                                 \
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
+#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
 
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
