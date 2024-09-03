@@ -10198,7 +10198,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       std::tie(RelocationModel, PICLevel, IsPIE) =
           ParsePICArgs(getToolChain(), TCArgs);
       if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
-        ClangArgs.push_back("-fPIC");
+        if (!TC.getAuxTriple()->isOSWindows())
+          ClangArgs.push_back("-fPIC");
       }
       if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
         ClangArgs.push_back(
