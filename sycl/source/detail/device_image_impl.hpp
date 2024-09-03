@@ -263,7 +263,7 @@ public:
     return MSpecConstsBlob;
   }
 
-  ur_mem_handle_t &get_spec_const_buffer_ref() {
+  ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
       const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();

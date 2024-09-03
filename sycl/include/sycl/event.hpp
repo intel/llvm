@@ -133,7 +133,7 @@ public:
   /// Returns the backend associated with this platform.
   ///
   /// \return the backend associated with this platform
-  backend get_backend() const;
+  backend get_backend() const noexcept;
 
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
