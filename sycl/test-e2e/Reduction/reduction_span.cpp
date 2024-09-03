@@ -3,6 +3,10 @@
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+
+// https://github.com/intel/llvm/issues/15227
+// UNSUPPORTED: hip_amd
+
 // This test performs basic checks of reductions initialized with a sycl::span
 
 #include <sycl/detail/core.hpp>
