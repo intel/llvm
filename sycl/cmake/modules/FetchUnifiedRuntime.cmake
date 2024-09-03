@@ -124,6 +124,9 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
   #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
   set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
+  
+  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG "yc/0829-buffer-alignment-ub")
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
