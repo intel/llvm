@@ -834,6 +834,7 @@ struct AddressSanitizer {
   bool instrumentSyclDynamicLocalMemory(Function &F,
                                         ArrayRef<Instruction *> RetVec);
 
+  void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM);
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
                                           unsigned AddressSpace);
@@ -1284,17 +1285,81 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 } // end anonymous namespace
 
+GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
+                                        StringRef Value,
+                                        unsigned AddressSpace) {
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  return new GlobalVariable(M, Ty, true, GlobalValue::InternalLinkage,
+                            ConstantDataArray::getString(M.getContext(), Value),
+                            Name, nullptr, GlobalValue::NotThreadLocal,
+                            AddressSpace);
+}
+
 // Append a new argument "launch_data" to user's spir_kernels
-static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
+void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
+                                            FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
+  auto C = M.getContext();
+  SmallVector<Constant *, 8> SprivFuncsMetadata;
+
+  // Spirv-kernel metadata is described by a structure
+  //  uint8_t* unmangled_kernel_name
+  //  uint32_t is_instrumented
+  StructType *StructTy =
+      StructType::get(Type::getInt8Ty(C)->getPointerTo(), Type::getInt32Ty(C));
+
+  auto CreateGlobalString = [&M](StringRef Value) {
+    auto *Ty =
+        ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+    return new GlobalVariable(
+        M, Ty, true, GlobalValue::InternalLinkage,
+        ConstantDataArray::getString(M.getContext(), Value));
+  };
+
   for (Function &F : M) {
     // FIXME: We don't have a way to check if the kernel has been extended
     // on Unified Runtime, so we always extend spir_kernels here, even it will
     // not be instrumented by any asan function.
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
-      SpirFixupFuncs.emplace_back(&F);
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      bool IsKernelFixup = true;
+      auto KernelName = F.getFunction().getName();
+
+      // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
+      // support sanitizer for it
+      if (F.hasMetadata("sycl_explicit_simd"))
+        IsKernelFixup = false;
+
+      if (KernelName.contains("skip"))
+        IsKernelFixup = false;
+
+      if (IsKernelFixup) {
+        SpirFixupFuncs.emplace_back(&F);
+        // auto Global = CreateGlobalString(F.getFunction().getName());
+        SprivFuncsMetadata.emplace_back(ConstantStruct::get(
+            StructTy,
+            ConstantDataArray::getString(C, F.getFunction().getName()),
+            ConstantInt::get(Type::getInt32Ty(C), 1)));
+      } else {
+        SprivFuncsMetadata.emplace_back(ConstantStruct::get(
+            StructTy,
+            ConstantDataArray::getString(C, F.getFunction().getName()),
+            ConstantInt::get(Type::getInt32Ty(C), 0)));
+        F.removeFnAttr();
+      }
+    }
   }
 
+  // Create metadata global to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SprivFuncsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SprivFuncsMetadata);
+  GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanSpirKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  // Handle SpirFixupFuncs
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
   auto *IntptrTy =
       M.getDataLayout().getIntPtrType(M.getContext(), kSpirOffloadGlobalAS);
@@ -3431,10 +3496,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (F.hasMetadata("sycl_explicit_simd"))
       return false;
   }
 
