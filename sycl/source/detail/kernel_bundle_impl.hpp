@@ -458,7 +458,7 @@ public:
     if (UrProgram == nullptr)
       throw sycl::exception(
           sycl::make_error_code(errc::build),
-          "urProgramCreateWithIL resulted in a null program handle");
+          "urProgramCreateWithIL resulted in a null program handle.");
 
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res =
