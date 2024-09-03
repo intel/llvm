@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "sycl/ext/codeplay/experimental/fusion_properties.hpp"
 #include <numeric>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
@@ -20,6 +21,9 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
+
+__SYCL_EXPORT void registerPointer(void *Ptr, size_t ElemSize, size_t NumBytes,
+                                   bool Local);
 
 ////
 //  Type traits for USM allocation with property support
@@ -44,6 +48,20 @@ template <typename PropertyListT>
 using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
+template <typename PropertyListT>
+using HasFusionInternalMem =
+    HasProperty<property::fusion_internal_memory, PropertyListT>;
+template <typename PropertyListT>
+using HasAccessScopeWI =
+    HasProperty<property::access_scope<sycl::memory_scope::work_item>,
+                PropertyListT>;
+template <typename PropertyListT>
+using HasAccessScopeWG =
+    HasProperty<property::access_scope<sycl::memory_scope::work_group>,
+                PropertyListT>;
+template <typename PropertyListT>
+using HasFusionNoInit =
+    HasProperty<property::fusion_no_init_key, PropertyListT>;
 
 // Get the value of a property from a property list
 template <typename PropKey, typename ConstType, typename DefaultPropVal,

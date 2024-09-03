@@ -34,6 +34,11 @@ public:
   // the SPIRV-LLVM Translator.
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
+  static constexpr unsigned char SYCL_FUSION_INTERNAL_MEM_FLAG = 0x1u;
+  static constexpr unsigned char SYCL_ACCESS_SCOPE_WI_FLAG = 0x2u;
+  static constexpr unsigned char SYCL_ACCESS_SCOPE_WG_FLAG = 0x4u;
+  static constexpr unsigned char SYCL_FUSION_NO_INIT_FLAG = 0x8u;
+
 private:
   // Transforms llvm.ptr.annotations with the "sycl-properties" annotation
   // string into another llvm.ptr.annotations call in a format consumable by

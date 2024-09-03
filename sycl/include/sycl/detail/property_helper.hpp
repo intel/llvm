@@ -49,8 +49,14 @@ enum DataLessPropKind {
   GraphDependOnAllLeaves = 24,
   GraphUpdatable = 25,
   GraphEnableProfiling = 26,
+  GraphEnableFusion = 27,
+  GraphRequireFusion = 28,
+  GraphInsertBarriers = 29,
+  FusionInternalMemory = 30,
+  AccessScopeWorkGroup = 31,
+  AccessScopeWorkItem = 32,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 26,
+  LastKnownDataLessPropKind = 32,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };

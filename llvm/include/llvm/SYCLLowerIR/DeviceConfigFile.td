@@ -78,6 +78,7 @@ def AspectExt_intel_matrix : Aspect<"ext_intel_matrix">;
 def AspectExt_oneapi_is_composite : Aspect<"ext_oneapi_is_composite">;
 def AspectExt_oneapi_is_component : Aspect<"ext_oneapi_is_component">;
 def AspectExt_oneapi_graph : Aspect<"ext_oneapi_graph">;
+def AspectExt_oneapi_graph_fusion : Aspect<"ext_oneapi_graph_fusion">;
 def AspectExt_oneapi_limited_graph : Aspect<"ext_oneapi_limited_graph">;
 def AspectExt_oneapi_private_alloca : Aspect<"ext_oneapi_private_alloca">;
 def AspectExt_oneapi_queue_profiling_tag : Aspect<"ext_oneapi_queue_profiling_tag">;
@@ -144,7 +145,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
-    AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
+    AspectExt_oneapi_graph, AspectExt_oneapi_graph_fusion, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
     AspectExt_intel_fpga_task_sequence],
     []>;

@@ -212,19 +212,24 @@ enum PropKind : uint32_t {
   Balanced = 71,
   InvocationCapacity = 72,
   ResponseCapacity = 73,
+  FusionInternalMemory = 74,
+  AccessScopeWI = 75,
+  AccessScopeWG = 76,
+  FusionNoInit = 77,
   // PropKindSize must always be the last value.
-  PropKindSize = 74,
+  PropKindSize = 78,
 };
 
 struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
+struct runtime_property_key_base_tag : property_key_base_tag {};
 
-template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+template <PropKind Kind_>
+struct run_time_property_key : runtime_property_key_base_tag {
 protected:
   static constexpr PropKind Kind = Kind_;
 
-  template <typename T>
-  friend struct PropertyToKind;
+  template <typename T> friend struct PropertyToKind;
 };
 
 template <PropKind Kind_>
@@ -232,8 +237,7 @@ struct compile_time_property_key : compile_time_property_key_base_tag {
 protected:
   static constexpr PropKind Kind = Kind_;
 
-  template <typename T>
-  friend struct PropertyToKind;
+  template <typename T> friend struct PropertyToKind;
 };
 
 // This trait must be specialized for all properties and must have a unique
@@ -253,7 +257,7 @@ template <typename PropertyT>
 struct IsRuntimeProperty
     : std::bool_constant<
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
+          std::is_base_of_v<runtime_property_key_base_tag, PropertyT>> {};
 
 // Trait for identifying compile-time properties.
 template <typename PropertyT>

@@ -43,6 +43,10 @@ class buffer_impl;
 class context_impl;
 class queue_impl;
 using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
+class context_impl;
+using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+class device_impl;
+using DeviceImplPtr = std::shared_ptr<sycl::detail::device_impl>;
 class RTDeviceBinaryImage;
 
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
@@ -253,8 +257,8 @@ template <size_t count, class F> void loop(F &&f) {
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 
 std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
-                     CGExecKernel *CGKernel = nullptr);
+retrieveKernelBinary(const ContextImplPtr &, const DeviceImplPtr &,
+                     const char *KernelName, CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 
 } // namespace _V1

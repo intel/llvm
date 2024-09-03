@@ -31,9 +31,14 @@ constexpr StringRef SYCL_HOST_ACCESS_ATTR = "sycl-host-access";
 constexpr StringRef SYCL_PIPELINED_ATTR = "sycl-pipelined";
 constexpr StringRef SYCL_REGISTER_ALLOC_MODE_ATTR = "sycl-register-alloc-mode";
 constexpr StringRef SYCL_GRF_SIZE_ATTR = "sycl-grf-size";
+constexpr StringRef SYCL_FUSION_INTERNAL_MEM_ATTR = "sycl-fusion-internal-mem";
+constexpr StringRef SYCL_ACCESS_SCOPE_WI_ATTR = "sycl-access-scope-work-item";
+constexpr StringRef SYCL_ACCESS_SCOPE_WG_ATTR = "sycl-access-scope-work-group";
+constexpr StringRef SYCL_FUSION_NO_INIT_ATTR = "sycl-fusion-no-init";
 
 constexpr StringRef SPIRV_DECOR_MD_KIND = "spirv.Decorations";
 constexpr StringRef SPIRV_PARAM_DECOR_MD_KIND = "spirv.ParameterDecorations";
+constexpr StringRef SYCL_INTERNALIZATION_MD_KIND = "promotion-info";
 // The corresponding SPIR-V OpCode for the host_access property is documented
 // in the SPV_INTEL_global_variable_decorations design document:
 // https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/DeviceGlobal/SPV_INTEL_global_variable_decorations.asciidoc#decoration
@@ -288,6 +293,26 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
   default:
     llvm_unreachable("Unhandled decorator type.");
   }
+}
+
+unsigned char attributeToInternalizationMask(const Attribute &Attr) {
+  // Currently, only string attributes are supported.
+  if (!Attr.isStringAttribute())
+    return 0u;
+
+  if (Attr.getKindAsString() == SYCL_FUSION_INTERNAL_MEM_ATTR)
+    return CompileTimePropertiesPass::SYCL_FUSION_INTERNAL_MEM_FLAG;
+
+  if (Attr.getKindAsString() == SYCL_ACCESS_SCOPE_WI_ATTR)
+    return CompileTimePropertiesPass::SYCL_ACCESS_SCOPE_WI_FLAG;
+
+  if (Attr.getKindAsString() == SYCL_ACCESS_SCOPE_WG_ATTR)
+    return CompileTimePropertiesPass::SYCL_ACCESS_SCOPE_WG_FLAG;
+
+  if (Attr.getKindAsString() == SYCL_FUSION_NO_INIT_ATTR)
+    return CompileTimePropertiesPass::SYCL_FUSION_NO_INIT_FLAG;
+
+  return 0u;
 }
 
 /// Tries to generate a SPIR-V execution mode metadata node from an attribute.
@@ -556,6 +581,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
   bool CompileTimePropertiesMet = false;
   unsigned MDParamKindID = Ctx.getMDKindID(SPIRV_PARAM_DECOR_MD_KIND);
+  unsigned MDInternKindID = Ctx.getMDKindID(SYCL_INTERNALIZATION_MD_KIND);
 
   // Let's process all the globals
   for (auto &GV : M.globals()) {
@@ -614,8 +640,12 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
       SmallVector<Metadata *, 8> MDOps;
       MDOps.reserve(F.arg_size());
       bool FoundKernelProperties = false;
+      std::string InternMDString = "";
+      llvm::raw_string_ostream InternStream(InternMDString);
+      bool FoundInternProperties = false;
       for (unsigned I = 0; I < F.arg_size(); I++) {
         SmallVector<Metadata *, 8> MDArgOps;
+        unsigned char MDInternMask = 0u;
         for (auto &Attribute : F.getAttributes().getParamAttrs(I)) {
           if (MDNode *SPIRVMetadata =
                   attributeToDecorateMetadata(Ctx, Attribute)) {
@@ -634,14 +664,25 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
             }
             MDArgOps.push_back(SPIRVMetadata);
           }
+          MDInternMask |= attributeToInternalizationMask(Attribute);
         }
         if (!MDArgOps.empty())
           FoundKernelProperties = true;
         MDOps.push_back(MDNode::get(Ctx, MDArgOps));
+        if (!MDInternMask)
+          FoundInternProperties = true;
+        if (I != 0)
+          InternStream << ",";
+        InternStream.write_hex(MDInternMask);
       }
       // Add the generated metadata to the kernel function.
       if (FoundKernelProperties) {
         F.addMetadata(MDParamKindID, *MDNode::get(Ctx, MDOps));
+        CompileTimePropertiesMet = true;
+      }
+      if (FoundInternProperties) {
+        F.addMetadata(MDInternKindID,
+                      *MDNode::get(Ctx, MDString::get(Ctx, InternMDString)));
         CompileTimePropertiesMet = true;
       }
     }

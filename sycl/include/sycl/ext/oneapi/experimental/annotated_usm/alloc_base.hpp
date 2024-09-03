@@ -116,6 +116,18 @@ aligned_alloc_annotated(size_t alignment, size_t count,
   size_t combinedAlign = combine_align(alignment, alignFromPropList);
   T *rawPtr = sycl::aligned_alloc<T>(combinedAlign, count, syclDevice,
                                      syclContext, kind, usmPropList);
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  if constexpr (detail::HasFusionInternalMem<propertyListA>::value &&
+                detail::HasFusionNoInit<propertyListA>::value) {
+    if constexpr (detail::HasAccessScopeWI<propertyListA>::value) {
+      detail::registerPointer(rawPtr, sizeof(T), count, /* Local */ false);
+    }
+    if constexpr (detail::HasAccessScopeWG<propertyListA>::value) {
+      detail::registerPointer(rawPtr, sizeof(T), count, /* Local */ true);
+    }
+  }
+#endif
+
   return annotated_ptr<T, propertyListB>(rawPtr);
 }
 

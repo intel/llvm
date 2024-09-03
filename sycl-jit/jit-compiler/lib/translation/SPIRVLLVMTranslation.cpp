@@ -43,6 +43,7 @@ SPIRV::TranslatorOpts &SPIRVLLVMTranslator::translatorOpts() {
     TransOpt.enableAllExtensions();
     TransOpt.setDesiredBIsRepresentation(
         SPIRV::BIsRepresentation::SPIRVFriendlyIR);
+    TransOpt.setPreserveAuxData(true);
     // TODO: We need to take care of specialization constants, either by
     // instantiating them by the user-supplied value from the SYCL runtime or by
     // making sure they are correctly represented in the output of the fusion

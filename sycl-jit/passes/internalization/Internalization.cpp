@@ -30,7 +30,9 @@ using namespace llvm;
 using namespace PatternMatch;
 
 constexpr static StringLiteral PrivatePromotion{"private"};
+constexpr static StringLiteral PrivateUSMPromotion{"private_usm"};
 constexpr static StringLiteral LocalPromotion{"local"};
+constexpr static StringLiteral LocalUSMPromotion{"local_usm"};
 constexpr static StringLiteral NoPromotion{"none"};
 
 ///
@@ -712,6 +714,12 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
       } else if (MDS == LocalPromotion) {
         NewArgInfo.push_back((jit_compiler::ArgUsage::PromotedLocal |
                               jit_compiler::ArgUsage::Used));
+      } else if (MDS == PrivateUSMPromotion) {
+        NewArgInfo.push_back(jit_compiler::ArgUsage::PromotedPrivateUSM |
+                             jit_compiler::ArgUsage::Unused);
+      } else if (MDS == LocalUSMPromotion) {
+        NewArgInfo.push_back(jit_compiler::ArgUsage::PromotedLocalUSM |
+                             jit_compiler::ArgUsage::Used);
       } else {
         NewArgInfo.push_back(jit_compiler::ArgUsage::Used);
       }
@@ -725,14 +733,19 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
 PreservedAnalyses llvm::SYCLInternalizer::run(Module &M,
                                               ModuleAnalysisManager &AM) {
   TargetFusionInfo TFI{&M};
-  // Private promotion
-  const PreservedAnalyses Tmp = SYCLInternalizerImpl{
-      TFI.getPrivateAddressSpace(), PrivatePromotion, true, TFI}(M);
-  // Local promotion
-  PreservedAnalyses Res = SYCLInternalizerImpl{TFI.getLocalAddressSpace(),
-                                               LocalPromotion, false, TFI}(M);
+  // Private accessor promotion
+  PreservedAnalyses Res = SYCLInternalizerImpl{TFI.getPrivateAddressSpace(),
+                                               PrivatePromotion, true, TFI}(M);
+  // Local accessor promotion
+  Res.intersect(SYCLInternalizerImpl{TFI.getLocalAddressSpace(), LocalPromotion,
+                                     false, TFI}(M));
 
-  Res.intersect(Tmp);
+  // Private USM promotion
+  Res.intersect(SYCLInternalizerImpl{TFI.getPrivateAddressSpace(),
+                                     PrivateUSMPromotion, true, TFI}(M));
+  // Local USM promotion
+  Res.intersect(SYCLInternalizerImpl{TFI.getLocalAddressSpace(),
+                                     LocalUSMPromotion, false, TFI}(M));
 
   if (!Res.areAllPreserved()) {
     moduleCleanup(M, AM, TFI);
