@@ -23,7 +23,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-
 // https://github.com/intel/llvm/issues/15275
 // XFAIL: gpu-intel-gen12 || gpu-intel-dg2
 
