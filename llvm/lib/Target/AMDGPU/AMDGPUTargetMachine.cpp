@@ -39,6 +39,7 @@
 #include "SILoadStoreOptimizer.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
+#include "SIShrinkInstructions.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
@@ -417,7 +418,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFoldOperandsLegacyPass(*PR);
   initializeSIPeepholeSDWAPass(*PR);
-  initializeSIShrinkInstructionsPass(*PR);
+  initializeSIShrinkInstructionsLegacyPass(*PR);
   initializeSIOptimizeExecMaskingPreRAPass(*PR);
   initializeSIOptimizeVGPRLiveRangePass(*PR);
   initializeSILoadStoreOptimizerLegacyPass(*PR);
@@ -1296,7 +1297,7 @@ void GCNPassConfig::addMachineSSAOptimization() {
     addPass(&SIFoldOperandsLegacyID);
   }
   addPass(&DeadMachineInstructionElimID);
-  addPass(createSIShrinkInstructionsPass());
+  addPass(createSIShrinkInstructionsLegacyPass());
 }
 
 bool GCNPassConfig::addILPOpts() {
@@ -1500,7 +1501,7 @@ void GCNPassConfig::addPostRegAlloc() {
 
 void GCNPassConfig::addPreSched2() {
   if (TM->getOptLevel() > CodeGenOptLevel::None)
-    addPass(createSIShrinkInstructionsPass());
+    addPass(createSIShrinkInstructionsLegacyPass());
   addPass(&SIPostRABundlerID);
 }
 

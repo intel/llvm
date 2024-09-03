@@ -1019,10 +1019,9 @@ CodeGenerator *CodeGenAction::getCodeGenerator() const {
   return BEConsumer->getCodeGenerator();
 }
 
-bool CodeGenAction::BeginInvocation(CompilerInstance &CI) {
+bool CodeGenAction::BeginSourceFileAction(CompilerInstance &CI) {
   if (CI.getFrontendOpts().GenReducedBMI)
-    return BeginInvocationForModules(CI);
-
+    CI.getLangOpts().setCompilingModule(LangOptions::CMK_ModuleInterface);
   return true;
 }
 
