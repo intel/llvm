@@ -1921,25 +1921,6 @@ is ignored during queue recording.
 Using this information is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
-==== sycl_ext_codeplay_kernel_fusion
-
-As the
-link:../removed/sycl_ext_codeplay_kernel_fusion.asciidoc[sycl_ext_codeplay_kernel_fusion]
-extension also introduces state to a `sycl::queue`, there are restrictions on
-its usage when combined with `sycl_ext_oneapi_graph`. Exceptions with error code
-`invalid` are thrown in the following cases:
-
-* `fusion_wrapper::start_fusion()` is called when its associated queue
-  is in the recording state.
-* `command_graph::begin_recording()` is called passing a queue in fusion mode.
-
-The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
-defined by the extension is ignored by queue recording.
-
-To enable kernel fusion in a `command_graph` see the
-link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
-which is layered ontop of `sycl_ext_oneapi_graph`.
-
 ==== sycl_ext_oneapi_kernel_properties
 
 The new handler methods, and queue shortcuts, defined by
