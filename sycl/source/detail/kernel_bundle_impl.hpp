@@ -457,7 +457,7 @@ public:
     // program created by urProgramCreateWithIL is implicitly retained.
     if (UrProgram == nullptr)
       throw sycl::exception(
-          sycl::make_error_code(errc::build),
+          sycl::make_error_code(errc::invalid),
           "urProgramCreateWithIL resulted in a null program handle.");
 
     std::string XsFlags = extractXsFlags(BuildOptions);
