@@ -106,10 +106,6 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
                sizeof(Context), &Context, nullptr);
 
-  // Get the size of the buffer in bytes
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_SIZE,
-               sizeof(size_t), &MSizeInBytes, nullptr);
-
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
         make_error_code(errc::invalid),
