@@ -2,7 +2,6 @@
 //  RUN:  %clang -### -fsycl --no-offload-new-driver -c %s 2>&1 | FileCheck -check-prefix=CHECK-OFFLOAD %s
 //  CHECK-OFFLOAD: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  CHECK-OFFLOAD-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]"
-//  CHECK-OFFLOAD-NEXT: append-file{{.*}}
 //  CHECK-OFFLOAD-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  CHECK-OFFLOAD-NEXT-SAME: "-fsycl-is-host"
 //  CHECK-OFFLOAD-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]"
@@ -12,7 +11,6 @@
 //  RUN:  %clang -fsycl --no-offload-new-driver -mavx -c %s -### -o %t.o 2>&1 | FileCheck -check-prefix=OFFLOAD-AVX %s
 //  OFFLOAD-AVX: clang{{.*}} "-cc1" {{.*}} "-fsycl-is-device"
 //  OFFLOAD-AVX-SAME: "-aux-target-cpu" "[[HOST_CPU_NAME:[^ ]+]]" "-aux-target-feature" "+avx"
-//  OFFLOAD-AVX-NEXT: append-file{{.*}}
 //  OFFLOAD-AVX-NEXT: clang{{.*}} "-cc1" {{.*}}
 //  OFFLOAD-AVX-NEXT-SAME: "-fsycl-is-host"
 //  OFFLOAD-AVX-NEXT-SAME: "-target-cpu" "[[HOST_CPU_NAME]]" "-target-feature" "+avx"
@@ -176,15 +174,19 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
 /// Check selective passing of -support-dynamic-linking to sycl-post-link tool
-// TODO: Enable when SYCL RT supports dynamic linking
-// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
-// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -shared %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_PASS %s
-// CHECK_SYCL_POST_LINK_SHARED_PASS: sycl-post-link{{.*}}support-dynamic-linking
-// RUNx: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SHARED_NO_PASS %s
-// CHECK_SYCL_POST_LINK_SHARED_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_NO_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_SADD_NO_PASS %s
+
+// CHECK_SYCL_POST_LINK_SADD_PASS: sycl-post-link{{.*}}support-dynamic-linking
+// CHECK_SYCL_POST_LINK_SADD_NO_PASS-NOT: sycl-post-link{{.*}}support-dynamic-linking
 
 /// Check for correct handling of -fsycl-fp64-conv-emu option for different targets
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64 -fsycl-fp64-conv-emu %s 2>&1 | FileCheck -check-prefix=CHECK_WARNING %s

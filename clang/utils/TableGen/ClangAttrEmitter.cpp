@@ -2383,13 +2383,10 @@ void PragmaClangAttributeSupport::generateParsingHelpers(raw_ostream &OS) {
   OS << "}\n\n";
 }
 
-template <typename Fn>
-static void forEachUniqueSpelling(const Record &Attr, Fn &&F) {
+template <typename Fn> static void forEachSpelling(const Record &Attr, Fn &&F) {
   std::vector<FlattenedSpelling> Spellings = GetFlattenedSpellings(Attr);
-  SmallDenseSet<StringRef, 8> Seen;
   for (const FlattenedSpelling &S : Spellings) {
-    if (Seen.insert(S.name()).second)
-      F(S);
+    F(S);
   }
 }
 
@@ -2413,8 +2410,11 @@ static void emitClangAttrTypeArgList(RecordKeeper &Records, raw_ostream &OS) {
       continue;
 
     // All these spellings take a single type argument.
-    forEachUniqueSpelling(*Attr, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", " << "true" << ")\n";
+    forEachSpelling(*Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_TYPE_ARG_LIST\n\n";
@@ -2432,8 +2432,11 @@ static void emitClangAttrArgContextList(RecordKeeper &Records, raw_ostream &OS) 
       continue;
 
     // All these spellings take are parsed unevaluated.
-    forEachUniqueSpelling(Attr, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", " << "true" << ")\n";
+    forEachSpelling(Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_ARG_CONTEXT_LIST\n\n";
@@ -2494,10 +2497,11 @@ static void emitClangAttrVariadicIdentifierArgList(RecordKeeper &Records,
       continue;
 
     // All these spellings take an identifier argument.
-    forEachUniqueSpelling(*A, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", "
-         << "true"
-         << ")\n";
+    forEachSpelling(*A, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_VARIADIC_IDENTIFIER_ARG_LIST\n\n";
@@ -2563,8 +2567,11 @@ static void emitClangAttrUnevaluatedStringLiteralList(RecordKeeper &Records,
       continue;
 
     // All these spellings have at least one string literal has argument.
-    forEachUniqueSpelling(*Attr, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", " << MaskStr << ")\n";
+    forEachSpelling(*Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", " << MaskStr << ")\n";
     });
   }
   OS << "#endif // CLANG_ATTR_STRING_LITERAL_ARG_LIST\n\n";
@@ -2582,11 +2589,42 @@ static void emitClangAttrIdentifierArgList(RecordKeeper &Records, raw_ostream &O
       continue;
 
     // All these spellings take an identifier argument.
-    forEachUniqueSpelling(*Attr, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", " << "true" << ")\n";
+    forEachSpelling(*Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_IDENTIFIER_ARG_LIST\n\n";
+}
+
+// Emits the indexed-argument-is-identifier property for attributes.
+static void emitClangAttrStrictIdentifierArgAtIndexList(RecordKeeper &Records,
+                                                        raw_ostream &OS) {
+  OS << "#if defined(CLANG_ATTR_STRICT_IDENTIFIER_ARG_AT_INDEX_LIST)\n";
+  std::vector<Record *> Attrs = Records.getAllDerivedDefinitions("Attr");
+
+  for (const auto *Attr : Attrs) {
+    if (!Attr->getValueAsBit("StrictEnumParameters"))
+      continue;
+    // Determine whether each argument is an identifier.
+    std::vector<Record *> Args = Attr->getValueAsListOfDefs("Args");
+    uint64_t enumAtIndex = 0;
+    for (size_t I = 0; I < Args.size(); I++)
+      enumAtIndex |= ((uint64_t)isIdentifierArgument(Args[I])) << I;
+    if (!enumAtIndex)
+      continue;
+
+    // All these spellings take an identifier argument.
+    forEachSpelling(*Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", " << enumAtIndex << "ull)\n";
+    });
+  }
+  OS << "#endif // CLANG_ATTR_STRICT_IDENTIFIER_ARG_AT_INDEX_LIST\n\n";
 }
 
 static bool keywordThisIsaIdentifierInArgument(const Record *Arg) {
@@ -2608,10 +2646,11 @@ static void emitClangAttrThisIsaIdentifierArgList(RecordKeeper &Records,
       continue;
 
     // All these spellings take an identifier argument.
-    forEachUniqueSpelling(*A, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", "
-         << "true"
-         << ")\n";
+    forEachSpelling(*A, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_THIS_ISA_IDENTIFIER_ARG_LIST\n\n";
@@ -2627,8 +2666,11 @@ static void emitClangAttrAcceptsExprPack(RecordKeeper &Records,
     if (!Attr.getValueAsBit("AcceptsExprPack"))
       continue;
 
-    forEachUniqueSpelling(Attr, [&](const FlattenedSpelling &S) {
-      OS << ".Case(\"" << S.name() << "\", true)\n";
+    forEachSpelling(Attr, [&](const FlattenedSpelling &S) {
+      OS << ".Case(\"" << S.variety();
+      if (S.nameSpace().length())
+        OS << "::" << S.nameSpace();
+      OS << "::" << S.name() << "\", true)\n";
     });
   }
   OS << "#endif // CLANG_ATTR_ACCEPTS_EXPR_PACK\n\n";
@@ -4804,7 +4846,7 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
   // Write out the declaration merging check logic.
   OS << "static bool DiagnoseMutualExclusions(Sema &S, const NamedDecl *D, "
      << "const Attr *A) {\n";
-  OS << MergeDeclOS.str();
+  OS << DeclMergeChecks;
   OS << "  return true;\n";
   OS << "}\n\n";
 
@@ -4814,7 +4856,7 @@ void EmitClangAttrParsedAttrImpl(RecordKeeper &Records, raw_ostream &OS) {
   OS << "static bool DiagnoseMutualExclusions(Sema &S, "
      << "const SmallVectorImpl<const Attr *> &C) {\n";
   OS << "  for (const Attr *A : C) {\n";
-  OS << MergeStmtOS.str();
+  OS << StmtMergeChecks;
   OS << "  }\n";
   OS << "  return true;\n";
   OS << "}\n\n";
@@ -4958,7 +5000,7 @@ void EmitClangAttrTextNodeDump(RecordKeeper &Records, raw_ostream &OS) {
       if (!Args.empty())
         OS << "    const auto *SA = cast<" << R.getName()
            << "Attr>(A); (void)SA;\n";
-      OS << SS.str();
+      OS << FunctionContent;
       OS << "  }\n";
     }
   }
@@ -4987,7 +5029,7 @@ void EmitClangAttrNodeTraverse(RecordKeeper &Records, raw_ostream &OS) {
       if (!Args.empty())
         OS << "    const auto *SA = cast<" << R.getName()
            << "Attr>(A); (void)SA;\n";
-      OS << SS.str();
+      OS << FunctionContent;
       OS << "  }\n";
     }
   }
@@ -5004,6 +5046,7 @@ void EmitClangAttrParserStringSwitches(RecordKeeper &Records, raw_ostream &OS) {
   emitClangAttrTypeArgList(Records, OS);
   emitClangAttrLateParsedList(Records, OS);
   emitClangAttrLateParsedExperimentalList(Records, OS);
+  emitClangAttrStrictIdentifierArgAtIndexList(Records, OS);
 }
 
 void EmitClangAttrSubjectMatchRulesParserStringSwitches(RecordKeeper &Records,

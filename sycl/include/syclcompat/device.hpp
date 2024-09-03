@@ -425,6 +425,12 @@ public:
   }
 
   void get_device_info(device_info &out) const {
+    if (_dev_info) {
+      out = *_dev_info;
+      return;
+    }
+
+    std::lock_guard<std::mutex> lock(m_mutex);
     device_info prop;
     prop.set_name(get_info<sycl::info::device::name>().c_str());
 
@@ -439,8 +445,8 @@ public:
         // max_work_item_sizes is an enum class element
         get_info<sycl::info::device::max_work_item_sizes>());
 #else
-        // SYCL 2020-conformant code, max_work_item_sizes is a struct templated
-        // by an int
+        // SYCL 2020-conformant code, max_work_item_sizes is a struct
+        // templated by an int
         get_info<sycl::info::device::max_work_item_sizes<3>>());
 #endif
     prop.set_host_unified_memory(has(sycl::aspect::usm_host_allocations));
@@ -512,8 +518,8 @@ Use 64 bits as memory_bus_width default value."
     prop.set_max_nd_range_size(max_nd_range_size);
 #endif
 
-    // Estimates max register size per work group, feel free to update the value
-    // according to device properties.
+    // Estimates max register size per work group, feel free to update the
+    // value according to device properties.
     prop.set_max_register_size_per_work_group(65536);
 
     prop.set_global_mem_cache_size(
@@ -526,13 +532,16 @@ Use 64 bits as memory_bus_width default value."
     prop.set_image3d_max(get_info<sycl::info::device::image3d_max_width>(),
                          get_info<sycl::info::device::image3d_max_height>(),
                          get_info<sycl::info::device::image3d_max_height>());
+
+    _dev_info = prop;
     out = prop;
   }
 
   device_info get_device_info() const {
-    device_info prop;
-    get_device_info(prop);
-    return prop;
+    if (!_dev_info) {
+      this->get_device_info(*_dev_info);
+    }
+    return _dev_info.value();
   }
 
   void reset(bool print_on_async_exceptions = false, bool in_order = true) {
@@ -683,6 +692,7 @@ private:
   std::vector<std::shared_ptr<sycl::queue>> _queues;
   mutable std::mutex m_mutex;
   std::vector<sycl::event> _events;
+  mutable std::optional<device_info> _dev_info;
 };
 
 namespace detail {

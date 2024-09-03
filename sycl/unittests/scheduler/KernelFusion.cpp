@@ -9,9 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <vector>
 
@@ -74,8 +74,8 @@ bool dependsOnViaEvent(detail::Command *Dependent, detail::Command *Dependee) {
 }
 
 TEST_F(SchedulerTest, CancelKernelFusion) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   if (!CheckTestExecRequirements(Plt))
     return;
 

@@ -29,12 +29,12 @@ $bar = comdat any
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-A1: define linkonce_odr dso_local spir_func void @foo
-; CHECK-B0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-B1: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C1: define linkonce_odr dso_local spir_func void @foo
+; CHECK-A0: define {{.*}} spir_func void @foo
+; CHECK-A1: define {{.*}} spir_func void @foo
+; CHECK-B0: define {{.*}} spir_func void @foo
+; CHECK-B1: define {{.*}} spir_func void @foo
+; CHECK-C0: define {{.*}} spir_func void @foo
+; CHECK-C1: define {{.*}} spir_func void @foo
   ret void
 }
 
@@ -42,23 +42,23 @@ define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align
 ;    to every split module.
 ; Function Attrs: mustprogress norecurse nounwind
 define weak dso_local spir_func void @baz() #3 {
-; CHECK-A0: define weak dso_local spir_func void @baz
-; CHECK-A1: define weak dso_local spir_func void @baz
-; CHECK-B0: define weak dso_local spir_func void @baz
-; CHECK-B1: define weak dso_local spir_func void @baz
-; CHECK-C0: define weak dso_local spir_func void @baz
-; CHECK-C1: define weak dso_local spir_func void @baz
+; CHECK-A0: define {{.*}} spir_func void @baz
+; CHECK-A1: define {{.*}} spir_func void @baz
+; CHECK-B0: define {{.*}} spir_func void @baz
+; CHECK-B1: define {{.*}} spir_func void @baz
+; CHECK-C0: define {{.*}} spir_func void @baz
+; CHECK-C1: define {{.*}} spir_func void @baz
   ret void
 }
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @bar() unnamed_addr #1 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-A1: define linkonce_odr dso_local spir_func void @bar
-; CHECK-B0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-B1: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C1: define linkonce_odr dso_local spir_func void @bar
+; CHECK-A0: define {{.*}} spir_func void @bar
+; CHECK-A1: define {{.*}} spir_func void @bar
+; CHECK-B0: define {{.*}} spir_func void @bar
+; CHECK-B1: define {{.*}} spir_func void @bar
+; CHECK-C0: define {{.*}} spir_func void @bar
+; CHECK-C1: define {{.*}} spir_func void @bar
   call void @baz()
   ret void
 }

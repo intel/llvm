@@ -16,19 +16,13 @@
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
-// CHECK-NEXT: detail/vector_traits.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: detail/pi.hpp
-// CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: detail/os_util.hpp
-// CHECK-NEXT: detail/pi.h
-// CHECK-NEXT: detail/pi_error.def
-// CHECK-NEXT: detail/pi.def
 // CHECK-NEXT: memory_enums.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
@@ -60,8 +54,11 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_remove_if.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_map_find.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
+// CHECK-NEXT: stl_wrappers/cassert
+// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
+// CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/cl.h
@@ -79,6 +76,7 @@
 // CHECK-NEXT: detail/stl_type_traits.hpp
 // CHECK-NEXT: detail/sycl_mem_obj_allocator.hpp
 // CHECK-NEXT: detail/aligned_allocator.hpp
+// CHECK-NEXT: detail/os_util.hpp
 // CHECK-NEXT: ext/oneapi/accessor_property_list.hpp
 // CHECK-NEXT: detail/property_list_base.hpp
 // CHECK-NEXT: property_list.hpp
@@ -146,6 +144,7 @@
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
+// CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp
@@ -157,5 +156,6 @@
 // CHECK-NEXT: ext/oneapi/kernel_properties/properties.hpp
 // CHECK-NEXT: kernel.hpp
 // CHECK-NEXT: kernel_bundle.hpp
+// CHECK-NEXT: ext/oneapi/experimental/free_function_traits.hpp
 // CHECK-NEXT: feature_test.hpp
 // CHECK-EMPTY:

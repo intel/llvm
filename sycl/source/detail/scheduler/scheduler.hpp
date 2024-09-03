@@ -377,11 +377,10 @@ public:
   /// \param Dependencies Optional list of dependency
   /// sync points when enqueuing to a command buffer.
   /// \return an event object to wait on for command group completion.
-  EventImplPtr
-  addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        bool EventNeeded,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+  EventImplPtr addCG(
+      std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+      bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -462,6 +461,9 @@ public:
   void cancelFusion(QueueImplPtr Queue);
 
   EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
+  ur_kernel_handle_t completeSpecConstMaterialization(
+      QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   bool isInFusionMode(QueueIdT Queue);
 
@@ -595,11 +597,12 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult addCG(
-        std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-        std::vector<Command *> &ToEnqueue, bool EventNeeded,
-        sycl::detail::pi::PiExtCommandBuffer CommandBuffer = nullptr,
-        const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies = {});
+    GraphBuildResult
+    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+          std::vector<Command *> &ToEnqueue, bool EventNeeded,
+          ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+          const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies =
+              {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.

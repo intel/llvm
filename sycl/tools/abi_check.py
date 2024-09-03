@@ -65,10 +65,10 @@ def parse_readobj_output(output):
     # Some of them happen in the SYCL RT library and we think clang-cl's behavior is more reasonable.
     #
     # Case 1:
-    # pi.hpp:
+    # ur.hpp:
     #   template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
     #
-    # pi.cpp:
+    # ur.cpp:
     #   template <backend BE> const PluginPtr &getPlugin() {
     #     static const plugin *Plugin = nullptr;
     #     ...

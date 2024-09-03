@@ -1,7 +1,7 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
 // UNSUPPORTED: accelerator
 
-// RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks ext::intel feature class online_compiler for OpenCL.

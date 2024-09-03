@@ -10,7 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for pi_int32
+#include <ur_api.h>                           // for ur_code_location_t
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -96,6 +96,8 @@ private:
   unsigned long MColumnNo;
 };
 
+ur_code_location_t codeLocationCallback(void *);
+
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
 /// the code location information where the SYCL API was called by the
@@ -159,21 +161,13 @@ private:
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_PI_ERROR_REPORT                                                 \
+#define __SYCL_UR_ERROR_REPORT                                                 \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
 #include <sycl/exception.hpp>
-
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
 
 namespace sycl {
 inline namespace _V1 {

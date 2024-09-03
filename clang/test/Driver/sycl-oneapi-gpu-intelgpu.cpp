@@ -198,24 +198,23 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// CHECK_PHASES: 1: append-footer, {0}, c++, (host-sycl)
-// CHECK_PHASES: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHECK_PHASES: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHECK_PHASES: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
-// CHECK_PHASES: 5: compiler, {4}, ir, (device-sycl, skl)
-// CHECK_PHASES: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown:skl)" {5}, c++-cpp-output
-// CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
-// CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
-// CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
-// CHECK_PHASES: 10: linker, {5}, ir, (device-sycl, skl)
-// CHECK_PHASES: 11: sycl-post-link, {10}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES: 12: file-table-tform, {11}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 13: llvm-spirv, {12}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES: 14: backend-compiler, {13}, image, (device-sycl, skl)
-// CHECK_PHASES: 15: file-table-tform, {11, 14}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES: 16: clang-offload-wrapper, {15}, object, (device-sycl, skl)
-// CHECK_PHASES: 17: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {16}, object
-// CHECK_PHASES: 18: linker, {9, 17}, image, (host-sycl)
+// CHECK_PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHECK_PHASES: 2: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHECK_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl, skl)
+// CHECK_PHASES: 4: compiler, {3}, ir, (device-sycl, skl)
+// CHECK_PHASES: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown:skl)" {4}, c++-cpp-output
+// CHECK_PHASES: 6: compiler, {5}, ir, (host-sycl)
+// CHECK_PHASES: 7: backend, {6}, assembler, (host-sycl)
+// CHECK_PHASES: 8: assembler, {7}, object, (host-sycl)
+// CHECK_PHASES: 9: linker, {4}, ir, (device-sycl, skl)
+// CHECK_PHASES: 10: sycl-post-link, {9}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES: 11: file-table-tform, {10}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 12: llvm-spirv, {11}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES: 13: backend-compiler, {12}, image, (device-sycl, skl)
+// CHECK_PHASES: 14: file-table-tform, {10, 13}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES: 15: clang-offload-wrapper, {14}, object, (device-sycl, skl)
+// CHECK_PHASES: 16: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {15}, object
+// CHECK_PHASES: 17: linker, {8, 16}, image, (host-sycl)
 
 /// Check that ocloc and macro settings only occur for the expected toolchains
 /// when mixing spir64_gen and intel_gpu
@@ -237,35 +236,34 @@
 // RUN:   -target x86_64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=CHECK_PHASES_MIX
 // CHECK_PHASES_MIX: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// CHECK_PHASES_MIX: 1: append-footer, {0}, c++, (host-sycl)
-// CHECK_PHASES_MIX: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHECK_PHASES_MIX: 3: input, "[[INPUT]]", c++, (device-sycl)
-// CHECK_PHASES_MIX: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHECK_PHASES_MIX: 5: compiler, {4}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_gen-unknown-unknown)" {5}, c++-cpp-output
-// CHECK_PHASES_MIX: 7: compiler, {6}, ir, (host-sycl)
-// CHECK_PHASES_MIX: 8: backend, {7}, assembler, (host-sycl)
-// CHECK_PHASES_MIX: 9: assembler, {8}, object, (host-sycl)
-// CHECK_PHASES_MIX: 10: input, "[[INPUT]]", c++, (device-sycl, skl)
-// CHECK_PHASES_MIX: 11: preprocessor, {10}, c++-cpp-output, (device-sycl, skl)
-// CHECK_PHASES_MIX: 12: compiler, {11}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 13: linker, {12}, ir, (device-sycl, skl)
-// CHECK_PHASES_MIX: 14: sycl-post-link, {13}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 15: file-table-tform, {14}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 16: llvm-spirv, {15}, tempfilelist, (device-sycl, skl)
-// CHECK_PHASES_MIX: 17: backend-compiler, {16}, image, (device-sycl, skl)
-// CHECK_PHASES_MIX: 18: file-table-tform, {14, 17}, tempfiletable, (device-sycl, skl)
-// CHECK_PHASES_MIX: 19: clang-offload-wrapper, {18}, object, (device-sycl, skl)
-// CHECK_PHASES_MIX: 20: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {19}, object
-// CHECK_PHASES_MIX: 21: linker, {5}, ir, (device-sycl)
-// CHECK_PHASES_MIX: 22: sycl-post-link, {21}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 23: file-table-tform, {22}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 24: llvm-spirv, {23}, tempfilelist, (device-sycl)
-// CHECK_PHASES_MIX: 25: backend-compiler, {24}, image, (device-sycl)
-// CHECK_PHASES_MIX: 26: file-table-tform, {22, 25}, tempfiletable, (device-sycl)
-// CHECK_PHASES_MIX: 27: clang-offload-wrapper, {26}, object, (device-sycl)
-// CHECK_PHASES_MIX: 28: offload, "device-sycl (spir64_gen-unknown-unknown)" {27}, object
-// CHECK_PHASES_MIX: 29: linker, {9, 20, 28}, image, (host-sycl)
+// CHECK_PHASES_MIX: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHECK_PHASES_MIX: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHECK_PHASES_MIX: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// CHECK_PHASES_MIX: 4: compiler, {3}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_gen-unknown-unknown)" {4}, c++-cpp-output
+// CHECK_PHASES_MIX: 6: compiler, {5}, ir, (host-sycl)
+// CHECK_PHASES_MIX: 7: backend, {6}, assembler, (host-sycl)
+// CHECK_PHASES_MIX: 8: assembler, {7}, object, (host-sycl)
+// CHECK_PHASES_MIX: 9: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHECK_PHASES_MIX: 10: preprocessor, {9}, c++-cpp-output, (device-sycl, skl)
+// CHECK_PHASES_MIX: 11: compiler, {10}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 12: linker, {11}, ir, (device-sycl, skl)
+// CHECK_PHASES_MIX: 13: sycl-post-link, {12}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 14: file-table-tform, {13}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 15: llvm-spirv, {14}, tempfilelist, (device-sycl, skl)
+// CHECK_PHASES_MIX: 16: backend-compiler, {15}, image, (device-sycl, skl)
+// CHECK_PHASES_MIX: 17: file-table-tform, {13, 16}, tempfiletable, (device-sycl, skl)
+// CHECK_PHASES_MIX: 18: clang-offload-wrapper, {17}, object, (device-sycl, skl)
+// CHECK_PHASES_MIX: 19: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {18}, object
+// CHECK_PHASES_MIX: 20: linker, {4}, ir, (device-sycl)
+// CHECK_PHASES_MIX: 21: sycl-post-link, {20}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 22: file-table-tform, {21}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 23: llvm-spirv, {22}, tempfilelist, (device-sycl)
+// CHECK_PHASES_MIX: 24: backend-compiler, {23}, image, (device-sycl)
+// CHECK_PHASES_MIX: 25: file-table-tform, {21, 24}, tempfiletable, (device-sycl)
+// CHECK_PHASES_MIX: 26: clang-offload-wrapper, {25}, object, (device-sycl)
+// CHECK_PHASES_MIX: 27: offload, "device-sycl (spir64_gen-unknown-unknown)" {26}, object
+// CHECK_PHASES_MIX: 28: linker, {8, 19, 27}, image, (host-sycl)
 
 /// Check that ocloc backend option settings only occur for the expected
 /// toolchains when mixing spir64_gen and intel_gpu
@@ -295,7 +293,8 @@
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
 
 /// Check that target is passed to sycl-post-link for filtering
-// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1,spir64_x86_64 \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"
+// CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "spir64_x86_64,{{.*}}"
