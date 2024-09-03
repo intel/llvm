@@ -60,7 +60,7 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
                &Granularity, nullptr);
   assert(
       Granularity == 0 &&
-      "Unexpected granularity query result: memory granularity shouldn't be 0");
+      "Unexpected granularity query result: memory granularity shouldn't be 0.");
   return Granularity;
 }
 
