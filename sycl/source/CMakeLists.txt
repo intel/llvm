@@ -189,6 +189,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       PRIVATE
       UnifiedRuntimeLoader
     )
+  else()
+    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
   endif()
 
   target_include_directories(${LIB_NAME}
