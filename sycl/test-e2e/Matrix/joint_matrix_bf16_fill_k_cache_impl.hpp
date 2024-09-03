@@ -52,11 +52,9 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 
   q.submit([&](handler &h) {
 #ifdef SLM
-    local_accessor<TOperand, 2> tileA{{MCache1 * (MCache2 / MCache1), KCache2},
-                                      h};
+    local_accessor<TOperand, 2> tileA{{MCache2, KCache2}, h};
     local_accessor<TOperand, 2> tileB{
-        {(KCache2 / vnniFactor), (NCache1 * (NCache2 / NCache1) * vnniFactor)},
-        h};
+        {KCache2 / vnniFactor, NCache2 * vnniFactor}, h};
 #endif
 
     h.parallel_for<MatMul<TM, TN, TK>>( // cache layer#1
@@ -162,17 +160,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #endif // SLM
           for (unsigned int k2 = 0; k2 < colsA / KCache2; k2++) {
 #ifdef SLM
-// OpenCL builtins give better perfromance so far as some vectorization is
-// missing in the sg::load/store version
-#ifdef OCL
-            slm_read_write_OCL<rowsA, colsA, rowsB, colsB, MCache2, NCache2,
-                               KCache2, vnniFactor, SGs>(A, B, tileA, tileB, sg,
-                                                         k2, m2, n2, sgSize);
-#else  // OCL
-            slm_read_write<rowsA, colsA, rowsB, colsB, MCache2, NCache2,
-                           KCache2, vnniFactor, SGs>(pA, pB, tileA, tileB, sg,
-                                                     k2, m2, n2, sgSize);
-#endif // OCL
+            slm_read_write<colsA, colsB, MCache2, NCache2, KCache2, vnniFactor,
+                           SGs>(pA, pB, tileA, tileB, sg, k2, m2, n2, sgSize);
             it.barrier(access::fence_space::local_space);
 #endif // SLM
             joint_matrix<sub_group, TOperand, use::a, TM, TK, layout::row_major>
@@ -425,63 +414,46 @@ int main() {
   constexpr size_t NCache2 = 256;
   constexpr size_t KCache2 = 32;
 
+#ifdef VNNI
+  constexpr unsigned int VnniFactor = 2;
+#else  // VNNI
+  constexpr unsigned int VnniFactor = 1;
+#endif // VNNI
+
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].nsize == 0) { // Intel AMX
       constexpr size_t NCache1 = 32;
       constexpr size_t KCache1 = 32;
-#ifdef VNNI
-      test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-#else  // VNNI
-      test<bfloat16, float, 1, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-#endif // VNNI
+      test<bfloat16, float, VnniFactor, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
       break;
     }
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       constexpr size_t NCache1 = 4 * /*TN*/ 16;
       constexpr size_t KCache1 = 16;
-#ifdef VNNI
-      test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, MCache1, NCache1,
-           KCache1, MCache2, NCache2, KCache2>();
+      test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, MCache1,
+           NCache1, KCache1, MCache2, NCache2, KCache2>();
 #if (!defined(SG_SZ) || SG_SZ != 32)
       // These combination are not currently supported for subgroup size = 32 in
       // IGC
-      test<bfloat16, float, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-      test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
+      test<bfloat16, float, VnniFactor, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
+      test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16,
+           MCache1, NCache1, KCache1, MCache2, NCache2, KCache2>();
 #endif
-#else // VNNI
-      test<bfloat16, float, 1, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16, MCache1, NCache1,
-           KCache1, MCache2, NCache2, KCache2>();
-#if (!defined(SG_SZ) || SG_SZ != 32)
-      // These combination are not currently supported for subgroup size = 32 in
-      // IGC
-      test<bfloat16, float, 1, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-      test<bfloat16, float, 1, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16, MCache1,
-           NCache1, KCache1, MCache2, NCache2, KCache2>();
-#endif
-#endif // VNNI
       break;
     }
 
     if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
       constexpr size_t NCache1 = 4 * /*TN*/ 8;
       constexpr size_t KCache1 = 16;
-#ifdef VNNI
-      test<bfloat16, float, 2, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1, NCache1,
-           KCache1, MCache2, NCache2, KCache2>();
-      // test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16, MCache1,
+
+      test<bfloat16, float, VnniFactor, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1,
+           NCache1, KCache1, MCache2, NCache2, KCache2>();
+      // test<bfloat16, float, VnniFactor, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16,
+      // MCache1,
       //      NCache1, KCache1, MCache2, NCache2, KCache2>();
-#else  // VNNI
-      test<bfloat16, float, 1, /*TM*/ 8, /*TN*/ 8, /*TK*/ 16, MCache1, NCache1,
-           KCache1, MCache2, NCache2, KCache2>();
-      // test<bfloat16, float, 2, /*TM*/ 32, /*TN*/ 32, /*TK*/ 16, MCache1,
-      //      NCache1, KCache1, MCache2, NCache2, KCache2>();
-#endif // VNNI
       break;
     }
   }
