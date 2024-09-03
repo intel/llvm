@@ -307,9 +307,8 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
-  auto PropSet = computeModuleProperties(MD.getModule(), MD.entries(),
-                                         GlobProps, MD.Props.SpecConstsMet,
-                                         MD.isSpecConstantDefault());
+  auto PropSet =
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
