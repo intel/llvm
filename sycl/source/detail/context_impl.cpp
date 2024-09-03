@@ -537,10 +537,9 @@ context_impl::getProgramForHostPipe(const device &Device,
 }
 
 void context_impl::verifyProps(const property_list &Props) const {
-  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; }
-};
-detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
-                                              NoAllowedPropertiesCheck);
+  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail
