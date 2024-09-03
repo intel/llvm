@@ -15,10 +15,6 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 
-#ifdef _WIN32
-#include "ur_win_proxy_loader.hpp"
-#endif
-
 #include <ur_api.h>
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
