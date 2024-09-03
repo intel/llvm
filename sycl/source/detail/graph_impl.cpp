@@ -1714,6 +1714,11 @@ void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
 }
 
+void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
+                                         size_t Size) {
+  impl->updateValue(NewRawValue, Size);
+}
+
 void dynamic_parameter_base::updateAccessor(
     const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
