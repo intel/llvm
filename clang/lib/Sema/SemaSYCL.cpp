@@ -6206,11 +6206,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "const char* const kernel_names[] = {\n";
 
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
-    O << "  \"" << KernelDescs[I].Name << "\"";
-
-    if (I < KernelDescs.size() - 1)
-      O << ",";
-    O << "\n";
+    O << "  \"" << KernelDescs[I].Name << "\",\n";
   }
   // Add a sentinel to avoid warning if the collection is empty
   // (similar to what we do for kernel_signatures below).
