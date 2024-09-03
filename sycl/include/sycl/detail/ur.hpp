@@ -18,8 +18,8 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
 #define NOMINMAX
-#include <windows.h>
 #include <ur_api.h>
+#include <windows.h>
 
 #include <memory>
 #include <type_traits>
@@ -96,7 +96,7 @@ int unloadOsLibrary(void *Library);
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
-void* loadURLoaderLibrary();
+void *loadURLoaderLibrary();
 
 // Performs UR one-time initialization.
 std::vector<PluginPtr> &

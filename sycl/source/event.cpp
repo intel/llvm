@@ -31,7 +31,7 @@ event::event(cl_event ClEvent, const context &SyclContext)
   // retained.
   // TODO(pi2ur): Don't just cast from cl_event above
   impl->getPlugin()->call<detail::UrApiKind::urEventRetain>(
-                          detail::ur::cast<ur_event_handle_t>(ClEvent));
+      detail::ur::cast<ur_event_handle_t>(ClEvent));
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }

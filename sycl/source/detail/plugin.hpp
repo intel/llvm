@@ -73,7 +73,8 @@ public:
     const char *message = nullptr;
     if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
       int32_t adapter_error = 0;
-      ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(MAdapter, &message, &adapter_error);
+      ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(
+          MAdapter, &message, &adapter_error);
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
@@ -101,8 +102,8 @@ public:
       uint32_t platformCount = 0;
       call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
-      call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount, UrPlatforms.data(),
-           nullptr);
+      call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
+                                     UrPlatforms.data(), nullptr);
       // We need one entry in this per platform
       LastDeviceIds.resize(platformCount);
     });
@@ -245,7 +246,7 @@ private:
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
 #ifdef _WIN32
-  void* UrLoaderHandle = nullptr;
+  void *UrLoaderHandle = nullptr;
 #endif
 }; // class plugin
 
