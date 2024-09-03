@@ -166,7 +166,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Link and include UR
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
+      # UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )
@@ -181,7 +181,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
+      # UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )

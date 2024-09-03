@@ -15,6 +15,8 @@
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 
+#include "ur_win_proxy_loader.hpp"
+
 #include <ur_api.h>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -50,7 +52,12 @@ public:
   plugin(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         TracingMutex(std::make_shared<std::mutex>()),
-        MPluginMutex(std::make_shared<std::mutex>()) {}
+        MPluginMutex(std::make_shared<std::mutex>()) {
+
+#ifdef _WIN32
+    UrLoaderHandle = ur::loadURLoaderLibrary();
+#endif
+  }
 
   // Disallow accidental copies of plugins
   plugin &operator=(const plugin &) = delete;
@@ -66,7 +73,7 @@ public:
     const char *message = nullptr;
     if (ur_result == UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
       int32_t adapter_error = 0;
-      ur_result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &adapter_error);
+      ur_result = call_nocheck<UrApiKind::urAdapterGetLastError>(MAdapter, &message, &adapter_error);
 
       // If the warning level is greater then 2 emit the message
       if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
@@ -92,9 +99,9 @@ public:
   std::vector<ur_platform_handle_t> &getUrPlatforms() {
     std::call_once(PlatformsPopulated, [&]() {
       uint32_t platformCount = 0;
-      call(urPlatformGet, &MAdapter, 1, 0, nullptr, &platformCount);
+      call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
-      call(urPlatformGet, &MAdapter, 1, platformCount, UrPlatforms.data(),
+      call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount, UrPlatforms.data(),
            nullptr);
       // We need one entry in this per platform
       LastDeviceIds.resize(platformCount);
@@ -114,10 +121,22 @@ public:
   /// \endcode
   ///
   /// \sa plugin::checkUrResult
-  template <class UrFunc, typename... ArgsT>
-  ur_result_t call_nocheck(UrFunc F, ArgsT... Args) const {
+  // template <class UrFunc, typename... ArgsT>
+  // ur_result_t call_nocheck(UrFunc F, ArgsT... Args) const {
+  //   ur_result_t R = UR_RESULT_SUCCESS;
+  //   if (!adapterReleased) {
+  //     R = F(Args...);
+  //   }
+  //   return R;
+  // }
+
+  template <UrApiKind UrApiOffset, typename... ArgsT>
+  ur_result_t call_nocheck(ArgsT... Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
+    // fprintf(stderr, "CALL_NOCHECK2\n");
     if (!adapterReleased) {
+      detail::UrFuncInfo<UrApiOffset> UrApiInfo;
+      auto F = UrApiInfo.getFuncPtr(UrLoaderHandle);
       R = F(Args...);
     }
     return R;
@@ -126,16 +145,28 @@ public:
   /// Calls the API, traces the call, checks the result
   ///
   /// \throw sycl::runtime_exception if the call was not successful.
-  template <class UrFunc, typename... ArgsT>
-  void call(UrFunc F, ArgsT... Args) const {
-    auto Err = call_nocheck(F, Args...);
+  // template <class UrFunc, typename... ArgsT>
+  // void call(UrFunc F, ArgsT... Args) const {
+  //   auto Err = call_nocheck(F, Args...);
+  //   checkUrResult(Err);
+  // }
+
+  template <UrApiKind UrApiOffset, typename... ArgsT>
+  void call(ArgsT... Args) const {
+    auto Err = call_nocheck<UrApiOffset>(Args...);
     checkUrResult(Err);
   }
 
   /// \throw sycl::exceptions(errc) if the call was not successful.
-  template <sycl::errc errc, class UrFunc, typename... ArgsT>
-  void call(UrFunc F, ArgsT... Args) const {
-    auto Err = call_nocheck(F, Args...);
+  // template <sycl::errc errc, class UrFunc, typename... ArgsT>
+  // void call(UrFunc F, ArgsT... Args) const {
+  //   auto Err = call_nocheck(F, Args...);
+  //   checkUrResult<errc>(Err);
+  // }
+
+  template <sycl::errc errc, UrApiKind UrApiOffset, typename... ArgsT>
+  void call(ArgsT... Args) const {
+    auto Err = call_nocheck<UrApiOffset>(Args...);
     checkUrResult<errc>(Err);
   }
 
@@ -145,7 +176,7 @@ public:
   bool hasBackend(backend Backend) const { return Backend == MBackend; }
 
   void release() {
-    call(urAdapterRelease, MAdapter);
+    call<UrApiKind::urAdapterRelease>(MAdapter);
     this->adapterReleased = true;
   }
 
@@ -213,6 +244,9 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
+#ifdef _WIN32
+  void* UrLoaderHandle = nullptr;
+#endif
 }; // class plugin
 
 using PluginPtr = std::shared_ptr<plugin>;

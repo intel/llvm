@@ -38,7 +38,7 @@ void handleOutOfResources(const device_impl &DeviceImpl,
 
     const PluginPtr &Plugin = DeviceImpl.getPlugin();
     uint32_t NumRegisters = 0;
-    Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_NUM_REGS,
+    Plugin->call<UrApiKind::urKernelGetInfo>( Kernel, UR_KERNEL_INFO_NUM_REGS,
                  sizeof(NumRegisters), &NumRegisters, nullptr);
 
     uint32_t MaxRegistersPerBlock =
@@ -99,12 +99,12 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t CompileWGSize[3] = {0};
-  Plugin->call(urKernelGetGroupInfo, Kernel, Device,
+  Plugin->call<UrApiKind::urKernelGetGroupInfo>( Kernel, Device,
                UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(size_t) * 3,
                CompileWGSize, nullptr);
 
   size_t MaxWGSize = 0;
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+  Plugin->call<UrApiKind::urDeviceGetInfo>( Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
                sizeof(size_t), &MaxWGSize, nullptr);
 
   const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
@@ -147,7 +147,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
 
   if (HasLocalSize) {
     size_t MaxThreadsPerBlock[3] = {};
-    Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+    Plugin->call<UrApiKind::urDeviceGetInfo>( Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
                  sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
 
     for (size_t I = 0; I < 3; ++I) {
@@ -185,7 +185,7 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // than the value specified by UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE in
     // table 5.21.
     size_t KernelWGSize = 0;
-    Plugin->call(urKernelGetGroupInfo, Kernel, Device,
+    Plugin->call<UrApiKind::urKernelGetGroupInfo>( Kernel, Device,
                  UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
                  &KernelWGSize, nullptr);
     const size_t TotalNumberOfWIs =
@@ -239,13 +239,13 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
           // work-group given by local_work_size
 
           ur_program_handle_t Program = nullptr;
-          Plugin->call(urKernelGetInfo, Kernel, UR_KERNEL_INFO_PROGRAM,
+          Plugin->call<UrApiKind::urKernelGetInfo>( Kernel, UR_KERNEL_INFO_PROGRAM,
                        sizeof(ur_program_handle_t), &Program, nullptr);
           size_t OptsSize = 0;
-          Plugin->call(urProgramGetBuildInfo, Program, Device,
+          Plugin->call<UrApiKind::urProgramGetBuildInfo>( Program, Device,
                        UR_PROGRAM_BUILD_INFO_OPTIONS, 0, nullptr, &OptsSize);
           std::string Opts(OptsSize, '\0');
-          Plugin->call(urProgramGetBuildInfo, Program, Device,
+          Plugin->call<UrApiKind::urProgramGetBuildInfo>( Program, Device,
                        UR_PROGRAM_BUILD_INFO_OPTIONS, OptsSize, &Opts.front(),
                        nullptr);
           const bool HasStd20 = Opts.find("-cl-std=CL2.0") != std::string::npos;
@@ -309,7 +309,7 @@ void handleInvalidWorkItemSize(const device_impl &DeviceImpl,
 
   size_t MaxWISize[] = {0, 0, 0};
 
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+  Plugin->call<UrApiKind::urDeviceGetInfo>( Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
                sizeof(MaxWISize), &MaxWISize, nullptr);
   for (unsigned I = 0; I < NDRDesc.Dims; I++) {
     if (NDRDesc.LocalSize[I] > MaxWISize[I])
@@ -327,7 +327,7 @@ void handleInvalidValue(const device_impl &DeviceImpl,
   ur_device_handle_t Device = DeviceImpl.getHandleRef();
 
   size_t MaxNWGs[] = {0, 0, 0};
-  Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
+  Plugin->call<UrApiKind::urDeviceGetInfo>( Device, UR_DEVICE_INFO_MAX_WORK_GROUPS_3D,
                sizeof(MaxNWGs), &MaxNWGs, nullptr);
   for (unsigned int I = 0; I < NDRDesc.Dims; I++) {
     size_t NWgs = NDRDesc.GlobalSize[I] / NDRDesc.LocalSize[I];

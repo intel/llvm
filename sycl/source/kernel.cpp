@@ -22,7 +22,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Plugin->call(urKernelCreateWithNativeHandle, nativeHandle,
+  Plugin->call<detail::UrApiKind::urKernelCreateWithNativeHandle>( nativeHandle,
                detail::getSyclObjImpl(SyclContext)->getHandleRef(), nullptr,
                nullptr, &hKernel);
   impl = std::make_shared<detail::kernel_impl>(
@@ -30,7 +30,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getPlugin()->call(urKernelRetain, hKernel);
+    impl->getPlugin()->call<detail::UrApiKind::urKernelRetain>( hKernel);
   }
 }
 

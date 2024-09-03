@@ -17,7 +17,8 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
-#
+#define NOMINMAX
+#include <windows.h>
 #include <ur_api.h>
 
 #include <memory>
@@ -48,6 +49,25 @@ class context;
 
 namespace detail {
 
+enum class UrApiKind {
+#define _UR_API(api) api,
+#include <ur_api_funcs.def>
+#undef _UR_API
+};
+
+template <UrApiKind UrApiOffset> struct UrFuncInfo {};
+
+#define _UR_API(api)                                                           \
+  template <> struct UrFuncInfo<UrApiKind::api> {                              \
+    using FuncPtrT = decltype(&::api);                                         \
+    inline const char *getFuncName() { return #api; }                          \
+    inline FuncPtrT getFuncPtr(void *module) {                                 \
+      return (FuncPtrT)GetProcAddress((HMODULE)module, #api);                  \
+    }                                                                          \
+  };
+#include <ur_api_funcs.def>
+#undef _UR_API
+
 namespace pi {
 // This function is deprecated and it should be removed in the next release
 // cycle (along with the definition for pi_context_extended_deleter).
@@ -75,6 +95,8 @@ int unloadOsLibrary(void *Library);
 // Function to get Address of a symbol defined in the shared
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
+
+void* loadURLoaderLibrary();
 
 // Performs UR one-time initialization.
 std::vector<PluginPtr> &

@@ -128,7 +128,7 @@ static void waitForEvents(const std::vector<EventImplPtr> &Events) {
         Events.begin(), Events.end(), UrEvents.begin(),
         [](const EventImplPtr &EventImpl) { return EventImpl->getHandle(); });
     if (!UrEvents.empty() && UrEvents[0]) {
-      Plugin->call(urEventWait, UrEvents.size(), &UrEvents[0]);
+      Plugin->call<UrApiKind::urEventWait>( UrEvents.size(), &UrEvents[0]);
     }
   }
 }
@@ -155,14 +155,14 @@ void memBufferCreateHelper(const PluginPtr &Plugin, ur_context_handle_t Ctx,
       // When doing buffer interop we don't know what device the memory should
       // be resident on, so pass nullptr for Device param. Buffer interop may
       // not be supported by all backends.
-      Plugin->call_nocheck(urMemGetNativeHandle, *RetMem, /*Dev*/ nullptr,
+      Plugin->call_nocheck<UrApiKind::urMemGetNativeHandle>( *RetMem, /*Dev*/ nullptr,
                            &Ptr);
       emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
                            CorrID);
     }};
 #endif
     if (Size)
-      Plugin->call(urMemBufferCreate, Ctx, Flags, Size, Props, RetMem);
+      Plugin->call<UrApiKind::urMemBufferCreate>( Ctx, Flags, Size, Props, RetMem);
   }
 }
 
@@ -181,7 +181,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call_nocheck(urMemGetNativeHandle, Mem, /*Dev*/ nullptr,
+    Plugin->call_nocheck<UrApiKind::urMemGetNativeHandle>( Mem, /*Dev*/ nullptr,
                          &PtrHandle);
     Ptr = (uintptr_t)(PtrHandle);
   }
@@ -193,7 +193,7 @@ void memReleaseHelper(const PluginPtr &Plugin, ur_mem_handle_t Mem) {
     xpti::utils::finally _{
         [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
 #endif
-    Plugin->call(urMemRelease, Mem);
+    Plugin->call<UrApiKind::urMemRelease>( Mem);
   }
 }
 
@@ -215,7 +215,7 @@ void memBufferMapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
                          0 /* guard zone */, CorrID);
   }};
 #endif
-  Plugin->call(urEnqueueMemBufferMap, Queue, Buffer, Blocking, Flags, Offset,
+  Plugin->call<UrApiKind::urEnqueueMemBufferMap>( Queue, Buffer, Blocking, Flags, Offset,
                Size, NumEvents, WaitList, Event, RetMap);
 }
 
@@ -239,11 +239,11 @@ void memUnmapHelper(const PluginPtr &Plugin, ur_queue_handle_t Queue,
       // Always use call_nocheck here, because call may throw an exception,
       // and this lambda will be called from destructor, which in combination
       // rewards us with UB.
-      Plugin->call_nocheck(urEventWait, 1, Event);
+      Plugin->call_nocheck<UrApiKind::urEventWait>( 1, Event);
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
 #endif
-    Plugin->call(urEnqueueMemUnmap, Queue, Mem, MappedPtr, NumEvents, WaitList,
+    Plugin->call<UrApiKind::urEnqueueMemUnmap>( Queue, Mem, MappedPtr, NumEvents, WaitList,
                  Event);
   }
 }
@@ -317,7 +317,7 @@ void *MemoryManager::allocateInteropMemObject(
   // destruction
   if (nullptr != OutEventToWait) {
     const PluginPtr &Plugin = InteropEvent->getPlugin();
-    Plugin->call(urEventRetain, OutEventToWait);
+    Plugin->call<UrApiKind::urEventRetain>( OutEventToWait);
   }
   return UserPtr;
 }
@@ -342,7 +342,7 @@ void *MemoryManager::allocateImageObject(ContextImplPtr TargetContext,
 
   ur_mem_handle_t NewMem = nullptr;
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  Plugin->call(urMemImageCreate, TargetContext->getHandleRef(), CreationFlags,
+  Plugin->call<UrApiKind::urMemImageCreate>( TargetContext->getHandleRef(), CreationFlags,
                &Format, &Desc, UserPtr, &NewMem);
   return NewMem;
 }
@@ -446,8 +446,7 @@ void *MemoryManager::allocateMemSubBuffer(ContextImplPtr TargetContext,
                                SizeInBytes};
   ur_mem_handle_t NewMem;
   const PluginPtr &Plugin = TargetContext->getPlugin();
-  Error = Plugin->call_nocheck(
-      urMemBufferPartition, ur::cast<ur_mem_handle_t>(ParentMemObj),
+  Error = Plugin->call_nocheck<UrApiKind::urMemBufferPartition>( ur::cast<ur_mem_handle_t>(ParentMemObj),
       UR_MEM_FLAG_READ_WRITE, UR_BUFFER_CREATE_TYPE_REGION, &Region, &NewMem);
   if (Error == UR_RESULT_ERROR_MISALIGNED_SUB_BUFFER_OFFSET)
     throw detail::set_ur_error(
@@ -522,7 +521,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     if (1 == DimDst && 1 == DimSrc) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferWrite, Queue, DstMem,
+      Plugin->call<UrApiKind::urEnqueueMemBufferWrite>( Queue, DstMem,
                    /*blocking_write=*/false, DstXOffBytes,
                    DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
                    DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -543,7 +542,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                                   DstAccessRange[DstPos.ZTerm]};
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferWriteRect, Queue, DstMem,
+      Plugin->call<UrApiKind::urEnqueueMemBufferWriteRect>( Queue, DstMem,
                    /*blocking_write=*/false, BufferOffset, HostOffset,
                    RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
                    HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
@@ -561,7 +560,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                             DstAccessRange[DstPos.ZTerm]};
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call(urEnqueueMemImageWrite, Queue, DstMem,
+    Plugin->call<UrApiKind::urEnqueueMemImageWrite>( Queue, DstMem,
                  /*blocking_write=*/false, Origin, Region, InputRowPitch,
                  InputSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
                  &OutEvent);
@@ -605,7 +604,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
     if (1 == DimDst && 1 == DimSrc) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferRead, Queue, SrcMem,
+      Plugin->call<UrApiKind::urEnqueueMemBufferRead>( Queue, SrcMem,
                    /*blocking_read=*/false, SrcXOffBytes,
                    SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
                    DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -626,7 +625,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
                                   SrcAccessRange[SrcPos.ZTerm]};
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferReadRect, Queue, SrcMem,
+      Plugin->call<UrApiKind::urEnqueueMemBufferReadRect>( Queue, SrcMem,
                    /*blocking_read=*/false, BufferOffset, HostOffset,
                    RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
                    HostSlicePitch, DstMem, DepEvents.size(), DepEvents.data(),
@@ -644,7 +643,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
                             SrcAccessRange[SrcPos.ZTerm]};
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call(urEnqueueMemImageRead, Queue, SrcMem, false, Offset, Region,
+    Plugin->call<UrApiKind::urEnqueueMemImageRead>( Queue, SrcMem, false, Offset, Region,
                  RowPitch, SlicePitch, DstMem, DepEvents.size(),
                  DepEvents.data(), &OutEvent);
   }
@@ -681,7 +680,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
     if (1 == DimDst && 1 == DimSrc) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferCopy, Queue, SrcMem, DstMem, SrcXOffBytes,
+      Plugin->call<UrApiKind::urEnqueueMemBufferCopy>( Queue, SrcMem, DstMem, SrcXOffBytes,
                    DstXOffBytes, SrcAccessRangeWidthBytes, DepEvents.size(),
                    DepEvents.data(), &OutEvent);
     } else {
@@ -706,7 +705,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
                               SrcAccessRange[SrcPos.ZTerm]};
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Plugin->call(urEnqueueMemBufferCopyRect, Queue, SrcMem, DstMem, SrcOrigin,
+      Plugin->call<UrApiKind::urEnqueueMemBufferCopyRect>( Queue, SrcMem, DstMem, SrcOrigin,
                    DstOrigin, Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
                    DstSlicePitch, DepEvents.size(), DepEvents.data(),
                    &OutEvent);
@@ -721,7 +720,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, ur_mem_handle_t SrcMem,
                             SrcAccessRange[SrcPos.ZTerm]};
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
-    Plugin->call(urEnqueueMemImageCopy, Queue, SrcMem, DstMem, SrcOrigin,
+    Plugin->call<UrApiKind::urEnqueueMemImageCopy>( Queue, SrcMem, DstMem, SrcOrigin,
                  DstOrigin, Region, DepEvents.size(), DepEvents.data(),
                  &OutEvent);
   }
@@ -818,7 +817,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     size_t RangeMultiplier = AccRange[0] * AccRange[1] * AccRange[2];
 
     if (RangesUsable && OffsetUsable) {
-      Plugin->call(urEnqueueMemBufferFill, Queue->getHandleRef(),
+      Plugin->call<UrApiKind::urEnqueueMemBufferFill>( Queue->getHandleRef(),
                    ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
                    Offset[0] * ElementSize, RangeMultiplier * ElementSize,
                    DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -913,7 +912,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      SrcQueue->getPlugin()->call(urEnqueueEventsWait, SrcQueue->getHandleRef(),
+      SrcQueue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( SrcQueue->getHandleRef(),
                                   DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -926,7 +925,7 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
   const PluginPtr &Plugin = SrcQueue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMMemcpy, SrcQueue->getHandleRef(),
+  Plugin->call<UrApiKind::urEnqueueUSMMemcpy>( SrcQueue->getHandleRef(),
                /* blocking */ false, DstMem, SrcMem, Len, DepEvents.size(),
                DepEvents.data(), OutEvent);
 }
@@ -941,7 +940,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+      Queue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -953,7 +952,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueUSMFill, Queue->getHandleRef(), Mem, Pattern.size(),
+  Plugin->call<UrApiKind::urEnqueueUSMFill>( Queue->getHandleRef(), Mem, Pattern.size(),
                Pattern.data(), Length, DepEvents.size(), DepEvents.data(),
                OutEvent);
 }
@@ -966,7 +965,7 @@ void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMPrefetch, Queue->getHandleRef(), Mem, Length, 0,
+  Plugin->call<UrApiKind::urEnqueueUSMPrefetch>( Queue->getHandleRef(), Mem, Length, 0,
                DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
@@ -979,7 +978,7 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
   const PluginPtr &Plugin = Queue->getPlugin();
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  Plugin->call(urEnqueueUSMAdvise, Queue->getHandleRef(), Mem, Length, Advice,
+  Plugin->call<UrApiKind::urEnqueueUSMAdvise>( Queue->getHandleRef(), Mem, Length, Advice,
                OutEvent);
 }
 
@@ -995,7 +994,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+      Queue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1008,7 +1007,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   const PluginPtr &Plugin = Queue->getPlugin();
 
   bool SupportsUSMMemcpy2D = false;
-  Plugin->call(urContextGetInfo, Queue->getContextImplPtr()->getHandleRef(),
+  Plugin->call<UrApiKind::urContextGetInfo>( Queue->getContextImplPtr()->getHandleRef(),
                UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool),
                &SupportsUSMMemcpy2D, nullptr);
 
@@ -1016,7 +1015,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // Direct memcpy2D is supported so we use this function.
-    Plugin->call(urEnqueueUSMMemcpy2D, Queue->getHandleRef(),
+    Plugin->call<UrApiKind::urEnqueueUSMMemcpy2D>(Queue->getHandleRef(),
                  /*blocking=*/false, DstMem, DstPitch, SrcMem, SrcPitch, Width,
                  Height, DepEvents.size(), DepEvents.data(), OutEvent);
     return;
@@ -1046,7 +1045,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
-    Plugin->call(urEnqueueUSMMemcpy, Queue->getHandleRef(),
+    Plugin->call<UrApiKind::urEnqueueUSMMemcpy>( Queue->getHandleRef(),
                  /* blocking */ false, DstItBegin, SrcItBegin, Width,
                  DepEvents.size(), DepEvents.data(), CopyEvents.data() + I);
     CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
@@ -1055,7 +1054,7 @@ void MemoryManager::copy_2d_usm(const void *SrcMem, size_t SrcPitch,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   // Then insert a wait to coalesce the copy events.
-  Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+  Queue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( Queue->getHandleRef(),
                            CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
@@ -1071,7 +1070,7 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+      Queue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1083,7 +1082,7 @@ void MemoryManager::fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueUSMFill2D, Queue->getHandleRef(), DstMem, Pitch,
+  Plugin->call<UrApiKind::urEnqueueUSMFill2D>(Queue->getHandleRef(), DstMem, Pitch,
                Pattern.size(), Pattern.data(), Width, Height, DepEvents.size(),
                DepEvents.data(), OutEvent);
 }
@@ -1100,7 +1099,7 @@ void MemoryManager::memset_2d_usm(void *DstMem, QueueImplPtr Queue,
     if (!DepEvents.empty()) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
-      Queue->getPlugin()->call(urEnqueueEventsWait, Queue->getHandleRef(),
+      Queue->getPlugin()->call<UrApiKind::urEnqueueEventsWait>( Queue->getHandleRef(),
                                DepEvents.size(), DepEvents.data(), OutEvent);
     }
     return;
@@ -1233,7 +1232,7 @@ memcpyToDeviceGlobalDirect(QueueImplPtr Queue,
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueDeviceGlobalVariableWrite, Queue->getHandleRef(),
+  Plugin->call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>( Queue->getHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Src, DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -1249,7 +1248,7 @@ memcpyFromDeviceGlobalDirect(QueueImplPtr Queue,
   ur_program_handle_t Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
   const PluginPtr &Plugin = Queue->getPlugin();
-  Plugin->call(urEnqueueDeviceGlobalVariableRead, Queue->getHandleRef(),
+  Plugin->call<UrApiKind::urEnqueueDeviceGlobalVariableRead>( Queue->getHandleRef(),
                Program, DeviceGlobalEntry->MUniqueId.c_str(), false, NumBytes,
                Offset, Dest, DepEvents.size(), DepEvents.data(), OutEvent);
 }
@@ -1331,7 +1330,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    Plugin->call(urCommandBufferAppendMemBufferCopyExp, CommandBuffer,
+    Plugin->call<UrApiKind::urCommandBufferAppendMemBufferCopyExp>( CommandBuffer,
                  sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
                  sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcXOffBytes,
                  DstXOffBytes, SrcAccessRangeWidthBytes, Deps.size(),
@@ -1357,7 +1356,7 @@ void MemoryManager::ext_oneapi_copyD2D_cmd_buffer(
                             SrcAccessRange[SrcPos.YTerm],
                             SrcAccessRange[SrcPos.ZTerm]};
 
-    Plugin->call(urCommandBufferAppendMemBufferCopyRectExp, CommandBuffer,
+    Plugin->call<UrApiKind::urCommandBufferAppendMemBufferCopyRectExp>( CommandBuffer,
                  sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem),
                  sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), SrcOrigin,
                  DstOrigin, Region, SrcRowPitch, SrcSlicePitch, DstRowPitch,
@@ -1395,8 +1394,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    ur_result_t Result = Plugin->call_nocheck(
-        urCommandBufferAppendMemBufferReadExp, CommandBuffer,
+    ur_result_t Result = Plugin->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadExp>( CommandBuffer,
         sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem), SrcXOffBytes,
         SrcAccessRangeWidthBytes, DstMem + DstXOffBytes, Deps.size(),
         Deps.data(), OutSyncPoint);
@@ -1424,8 +1422,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
                                 SrcAccessRange[SrcPos.YTerm],
                                 SrcAccessRange[SrcPos.ZTerm]};
 
-    ur_result_t Result = Plugin->call_nocheck(
-        urCommandBufferAppendMemBufferReadRectExp, CommandBuffer,
+    ur_result_t Result = Plugin->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferReadRectExp>( CommandBuffer,
         sycl::detail::ur::cast<ur_mem_handle_t>(SrcMem), BufferOffset,
         HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, DstMem, Deps.size(), Deps.data(), OutSyncPoint);
@@ -1469,8 +1466,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
   }
 
   if (1 == DimDst && 1 == DimSrc) {
-    ur_result_t Result = Plugin->call_nocheck(
-        urCommandBufferAppendMemBufferWriteExp, CommandBuffer,
+    ur_result_t Result = Plugin->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteExp>( CommandBuffer,
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), DstXOffBytes,
         DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes, Deps.size(),
         Deps.data(), OutSyncPoint);
@@ -1498,8 +1494,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
                                 DstAccessRange[DstPos.YTerm],
                                 DstAccessRange[DstPos.ZTerm]};
 
-    ur_result_t Result = Plugin->call_nocheck(
-        urCommandBufferAppendMemBufferWriteRectExp, CommandBuffer,
+    ur_result_t Result = Plugin->call_nocheck<UrApiKind::urCommandBufferAppendMemBufferWriteRectExp>( CommandBuffer,
         sycl::detail::ur::cast<ur_mem_handle_t>(DstMem), BufferOffset,
         HostOffset, RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
         HostSlicePitch, SrcMem, Deps.size(), Deps.data(), OutSyncPoint);
@@ -1524,8 +1519,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
                     "NULL pointer argument in memory copy operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
-  ur_result_t Result = Plugin->call_nocheck(
-      urCommandBufferAppendUSMMemcpyExp, CommandBuffer, DstMem, SrcMem, Len,
+  ur_result_t Result = Plugin->call_nocheck<UrApiKind::urCommandBufferAppendUSMMemcpyExp>( CommandBuffer, DstMem, SrcMem, Len,
       Deps.size(), Deps.data(), OutSyncPoint);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
@@ -1548,7 +1542,7 @@ void MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
                     "NULL pointer argument in memory fill operation.");
 
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urCommandBufferAppendUSMFillExp, CommandBuffer, DstMem,
+  Plugin->call<UrApiKind::urCommandBufferAppendUSMFillExp>( CommandBuffer, DstMem,
                Pattern.data(), Pattern.size(), Len, Deps.size(), Deps.data(),
                OutSyncPoint);
 }
@@ -1578,7 +1572,7 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
   size_t RangeMultiplier = AccessRange[0] * AccessRange[1] * AccessRange[2];
 
   if (RangesUsable && OffsetUsable) {
-    Plugin->call(urCommandBufferAppendMemBufferFillExp, CommandBuffer,
+    Plugin->call<UrApiKind::urCommandBufferAppendMemBufferFillExp>( CommandBuffer,
                  ur::cast<ur_mem_handle_t>(Mem), Pattern, PatternSize,
                  AccessOffset[0] * ElementSize, RangeMultiplier * ElementSize,
                  Deps.size(), Deps.data(), OutSyncPoint);
@@ -1596,7 +1590,7 @@ void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urCommandBufferAppendUSMPrefetchExp, CommandBuffer, Mem, Length,
+  Plugin->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>( CommandBuffer, Mem, Length,
                ur_usm_migration_flags_t(0), Deps.size(), Deps.data(),
                OutSyncPoint);
 }
@@ -1608,7 +1602,7 @@ void MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urCommandBufferAppendUSMAdviseExp, CommandBuffer, Mem, Length,
+  Plugin->call<UrApiKind::urCommandBufferAppendUSMAdviseExp>( CommandBuffer, Mem, Length,
                Advice, Deps.size(), Deps.data(), OutSyncPoint);
 }
 
@@ -1639,7 +1633,7 @@ void MemoryManager::copy_image_bindless(
   CopyRegion.srcOffset = SrcOffset;
   CopyRegion.dstOffset = DstOffset;
 
-  Plugin->call(urBindlessImagesImageCopyExp, Queue->getHandleRef(), Src, Dst,
+  Plugin->call<UrApiKind::urBindlessImagesImageCopyExp>( Queue->getHandleRef(), Src, Dst,
                &SrcDesc, &DstDesc, &SrcFormat, &DstFormat, &CopyRegion, Flags,
                DepEvents.size(), DepEvents.data(), OutEvent);
 }

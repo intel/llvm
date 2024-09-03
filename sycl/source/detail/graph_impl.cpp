@@ -720,8 +720,7 @@ void exec_graph_impl::createCommandBuffers(
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-  ur_result_t Res = Plugin->call_nocheck(
-      urCommandBufferCreateExp, ContextImpl->getHandleRef(),
+  ur_result_t Res = Plugin->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>( ContextImpl->getHandleRef(),
       DeviceImpl->getHandleRef(), &Desc, &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
@@ -762,7 +761,7 @@ void exec_graph_impl::createCommandBuffers(
                       Node->MCommandGroup->getAccStorage().end());
   }
 
-  Res = Plugin->call_nocheck(urCommandBufferFinalizeExp, OutCommandBuffer);
+  Res = Plugin->call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>( OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");
@@ -809,7 +808,7 @@ exec_graph_impl::~exec_graph_impl() {
       for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
           ur_result_t Res =
-              Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
+              Plugin->call_nocheck<sycl::detail::UrApiKind::urCommandBufferReleaseExp>( CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
         }
@@ -819,7 +818,7 @@ exec_graph_impl::~exec_graph_impl() {
     for (auto &Iter : MCommandMap) {
       if (auto Command = Iter.second; Command) {
         ur_result_t Res =
-            Plugin->call_nocheck(urCommandBufferReleaseCommandExp, Command);
+            Plugin->call_nocheck<sycl::detail::UrApiKind::urCommandBufferReleaseCommandExp>( Command);
         (void)Res;
         assert(Res == UR_RESULT_SUCCESS);
       }
@@ -921,8 +920,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           NewEvent->setSubmissionTime();
           NewEvent->setHostEnqueueTime();
         }
-        ur_result_t Res = Queue->getPlugin()->call_nocheck(
-            urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
+        ur_result_t Res = Queue->getPlugin()->call_nocheck<sycl::detail::UrApiKind::urCommandBufferEnqueueExp>( CommandBuffer, Queue->getHandleRef(), 0,
             nullptr, &UREvent);
         NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
@@ -1394,7 +1392,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
+    Plugin->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>( UrKernel, DeviceImpl->getHandleRef(),
                  UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
                  sizeof(RequiredWGSize), RequiredWGSize,
                  /* param_value_size_ret = */ nullptr);
@@ -1494,13 +1492,13 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
 
   ur_exp_command_buffer_command_handle_t Command =
       MCommandMap[ExecNode->second];
-  ur_result_t Res = Plugin->call_nocheck(urCommandBufferUpdateKernelLaunchExp,
+  ur_result_t Res = Plugin->call_nocheck<sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
                                          Command, &UpdateDesc);
 
   if (UrProgram) {
     // We retained these objects by calling getOrCreateKernel()
-    Plugin->call(urKernelRelease, UrKernel);
-    Plugin->call(urProgramRelease, UrProgram);
+    Plugin->call<sycl::detail::UrApiKind::urKernelRelease>( UrKernel);
+    Plugin->call<sycl::detail::UrApiKind::urProgramRelease>( UrProgram);
   }
 
   if (Res != UR_RESULT_SUCCESS) {

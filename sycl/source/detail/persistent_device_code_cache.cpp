@@ -131,11 +131,11 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   unsigned int DeviceNum = 0;
 
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_NUM_DEVICES,
+  Plugin->call<UrApiKind::urProgramGetInfo>( NativePrg, UR_PROGRAM_INFO_NUM_DEVICES,
                sizeof(DeviceNum), &DeviceNum, nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
+  Plugin->call<UrApiKind::urProgramGetInfo>( NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
                sizeof(size_t) * BinarySizes.size(), BinarySizes.data(),
                nullptr);
 
@@ -146,7 +146,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_BINARIES,
+  Plugin->call<UrApiKind::urProgramGetInfo>( NativePrg, UR_PROGRAM_INFO_BINARIES,
                sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
   size_t i = 0;
   std::string FileName;

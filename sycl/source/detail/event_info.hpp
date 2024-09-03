@@ -25,7 +25,7 @@ typename Param::return_type get_event_profiling_info(ur_event_handle_t Event,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urEventGetProfilingInfo, Event, UrInfoCode<Param>::value,
+  Plugin->call<UrApiKind::urEventGetProfilingInfo>( Event, UrInfoCode<Param>::value,
                sizeof(Result), &Result, nullptr);
   return Result;
 }
@@ -37,7 +37,7 @@ typename Param::return_type get_event_info(ur_event_handle_t Event,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urEventGetInfo, Event, UrInfoCode<Param>::value, sizeof(Result),
+  Plugin->call<UrApiKind::urEventGetInfo>( Event, UrInfoCode<Param>::value, sizeof(Result),
                &Result, nullptr);
 
   // If the status is UR_EVENT_STATUS_QUEUED We need to change it since QUEUE is

@@ -196,7 +196,7 @@ private:
     ur_device_handle_t DeviceUr{};
     const PluginPtr &Plugin = getPlugin();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_DEVICE,
+    Plugin->call<UrApiKind::urQueueGetInfo>( MQueues[0], UR_QUEUE_INFO_DEVICE,
                  sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
@@ -262,7 +262,7 @@ public:
 #endif
       throw_asynchronous();
       cleanup_fusion_cmd();
-      getPlugin()->call(urQueueRelease, MQueues[0]);
+      getPlugin()->call<UrApiKind::urQueueRelease>( MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -271,9 +271,9 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getPlugin()->call(urQueueRetain, MQueues[0]);
+    getPlugin()->call<UrApiKind::urQueueRetain>( MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urQueueGetNativeHandle, MQueues[0], nullptr,
+    getPlugin()->call<UrApiKind::urQueueGetNativeHandle>( MQueues[0], nullptr,
                       &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);
   }
@@ -321,7 +321,7 @@ public:
                             "recording to a command graph.");
     }
     for (const auto &queue : MQueues) {
-      getPlugin()->call(urQueueFlush, queue);
+      getPlugin()->call<UrApiKind::urQueueFlush>( queue);
     }
   }
 
@@ -513,7 +513,7 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Plugin->call_nocheck(urQueueCreate, Context, Device,
+    ur_result_t Error = Plugin->call_nocheck<UrApiKind::urQueueCreate>( Context, Device,
                                              &Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
@@ -556,7 +556,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getPlugin()->call(urQueueFinish, *PIQ);
+      getPlugin()->call<UrApiKind::urQueueFinish>( *PIQ);
 
     return *PIQ;
   }
@@ -738,7 +738,7 @@ protected:
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
     ur_event_handle_t UREvent = nullptr;
-    getPlugin()->call(urEnqueueEventsWaitWithBarrier,
+    getPlugin()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
                       Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;

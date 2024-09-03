@@ -24,21 +24,21 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   ur_sampler_handle_t Sampler{};
-  Plugin->call(urSamplerCreateWithNativeHandle,
+  Plugin->call<UrApiKind::urSamplerCreateWithNativeHandle>(
                reinterpret_cast<ur_native_handle_t>(clSampler),
                getSyclObjImpl(syclContext)->getHandleRef(), nullptr, &Sampler);
 
   MContextToSampler[syclContext] = Sampler;
   bool NormalizedCoords;
 
-  Plugin->call(urSamplerGetInfo, Sampler, UR_SAMPLER_INFO_NORMALIZED_COORDS,
+  Plugin->call<UrApiKind::urSamplerGetInfo>( Sampler, UR_SAMPLER_INFO_NORMALIZED_COORDS,
                sizeof(ur_bool_t), &NormalizedCoords, nullptr);
   MCoordNormMode = NormalizedCoords
                        ? coordinate_normalization_mode::normalized
                        : coordinate_normalization_mode::unnormalized;
 
   ur_sampler_addressing_mode_t AddrMode;
-  Plugin->call(urSamplerGetInfo, Sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
+  Plugin->call<UrApiKind::urSamplerGetInfo>( Sampler, UR_SAMPLER_INFO_ADDRESSING_MODE,
                sizeof(ur_sampler_addressing_mode_t), &AddrMode, nullptr);
   switch (AddrMode) {
   case UR_SAMPLER_ADDRESSING_MODE_CLAMP:
@@ -60,7 +60,7 @@ sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
   }
 
   ur_sampler_filter_mode_t FiltMode;
-  Plugin->call(urSamplerGetInfo, Sampler, UR_SAMPLER_INFO_FILTER_MODE,
+  Plugin->call<UrApiKind::urSamplerGetInfo>( Sampler, UR_SAMPLER_INFO_FILTER_MODE,
                sizeof(ur_sampler_filter_mode_t), &FiltMode, nullptr);
   switch (FiltMode) {
   case UR_SAMPLER_FILTER_MODE_LINEAR:
@@ -80,7 +80,7 @@ sampler_impl::~sampler_impl() {
       // TODO catch an exception and add it to the list of asynchronous
       // exceptions
       const PluginPtr &Plugin = getSyclObjImpl(Iter.first)->getPlugin();
-      Plugin->call(urSamplerRelease, Iter.second);
+      Plugin->call<UrApiKind::urSamplerRelease>( Iter.second);
     }
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sample_impl", e);
@@ -129,7 +129,7 @@ ur_sampler_handle_t sampler_impl::getOrCreateSampler(const context &Context) {
   ur_sampler_handle_t resultSampler = nullptr;
   const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
-  errcode_ret = Plugin->call_nocheck(urSamplerCreate,
+  errcode_ret = Plugin->call_nocheck<UrApiKind::urSamplerCreate>(
                                      getSyclObjImpl(Context)->getHandleRef(),
                                      &desc, &resultSampler);
 
