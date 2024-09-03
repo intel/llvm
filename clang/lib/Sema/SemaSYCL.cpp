@@ -6863,8 +6863,8 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (const SYCLReqdWorkGroupSizeAttr *Attr =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
     if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
-                            dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                            dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
+                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
@@ -6883,8 +6883,8 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (const SYCLWorkGroupSizeHintAttr *Attr =
           FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
     if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
-                            dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                            dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
+                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
+                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
