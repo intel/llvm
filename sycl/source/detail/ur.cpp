@@ -23,6 +23,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
+#include <ur_api.h>
 
 #include <bitset>
 #include <cstdarg>
@@ -73,6 +74,8 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
       "This operation is not supported by any existing backends.");
   return nullptr;
 }
+
+ur_code_location_t codeLocationCallback(void *);
 
 namespace ur {
 bool trace(TraceLevel Level) {
