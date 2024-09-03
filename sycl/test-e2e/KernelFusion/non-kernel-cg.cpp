@@ -31,6 +31,7 @@ int main() {
       cgh.copy(acc, dst);
     });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -43,6 +44,7 @@ int main() {
       cgh.copy(src, acc);
     });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -56,6 +58,7 @@ int main() {
       cgh.copy(acc0, acc1);
     });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -63,6 +66,7 @@ int main() {
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.ext_oneapi_barrier(); });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -78,6 +82,7 @@ int main() {
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.ext_oneapi_barrier(event_list); });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -89,6 +94,7 @@ int main() {
       cgh.fill(acc, Pattern);
     });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -96,6 +102,7 @@ int main() {
     fw.start_fusion();
     q.submit([&](handler &cgh) { cgh.memcpy(dst, src, count); });
     fw.complete_fusion();
+    q.wait();
   }
 
   {
@@ -105,6 +112,7 @@ int main() {
       cgh.memset(dst, static_cast<int>(Pattern), count);
     });
     fw.complete_fusion();
+    q.wait();
   }
 
   free(src, q);
