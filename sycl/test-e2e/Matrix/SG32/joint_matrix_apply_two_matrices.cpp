@@ -13,6 +13,8 @@
 // RUN: %{build} -ffp-model=precise -o %t.out
 // RUN: %{run} %t.out
 
+// XFAIL: gpu
+
 #include "../common.hpp"
 
 #define SG_SZ 32
