@@ -58,6 +58,10 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
   Plugin->call(urVirtualMemGranularityGetInfo, ContextImpl->getHandleRef(),
                DeviceImpl->getHandleRef(), GranularityQuery, sizeof(size_t),
                &Granularity, nullptr);
+  if (Granularity == 0)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Unexpected granularity result: memory granularity shouldn't be 0.");
   return Granularity;
 }
 
