@@ -9,6 +9,10 @@
 #include <random>
 #include <sycl/usm.hpp>
 
+#ifdef SLM
+#include "slm_utils.hpp"
+#endif
+
 // number of test iterations
 constexpr unsigned int testIterations = 100;
 // start recording time after X iterations
