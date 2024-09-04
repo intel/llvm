@@ -15,7 +15,7 @@ size_t CalculateIterations(device &device, size_t iter_cap) {
   // If querying free memory is supported, use that as the max for allocation.
   if (device.has(aspect::ext_intel_free_memory)) {
     uint64_t free_memory =
-        device.get_info<sycl::ext::intel::info::device::free_memory>();
+        device.get_info<ext::intel::info::device::free_memory>();
     max_alloc_size = std::min(max_alloc_size, free_memory);
   } else {
     std::cout << "Warning: free_memory device info query not supported. "
