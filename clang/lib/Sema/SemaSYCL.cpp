@@ -6851,7 +6851,7 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
 void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
-  
+
   if (const SYCLReqdWorkGroupSizeAttr *Attr =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
       Diag(Attr->getLoc(),
