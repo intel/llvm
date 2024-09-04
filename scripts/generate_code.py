@@ -108,6 +108,26 @@ def _mako_print_cpp(path, namespace, tags, version, specs, meta):
         specs=specs,
         meta=meta)
 
+
+def _mako_api_funcs(path, namespace, tags, version, revision, specs, meta):
+    template = "api_funcs.def.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_api_funcs"%(namespace)
+    filename = "%s.def"%(name)
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        rev=revision,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
 """
     generates c/c++ files from the specification documents
 """
@@ -116,6 +136,7 @@ def _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, spec
     loc += _mako_api_cpp(srcpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_ddi_h(incpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_print_hpp(incpath, namespace, tags, version, revision, specs, meta)
+    loc += _mako_api_funcs(incpath, namespace, tags, version, revision, specs, meta)
 
     return loc
 
