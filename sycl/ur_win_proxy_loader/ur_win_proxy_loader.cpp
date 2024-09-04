@@ -83,10 +83,22 @@ std::wstring getCurrentDSODir() {
   return Path;
 }
 
+// these are cribbed from include/sycl/detail/ur.hpp
+// a new plugin must be added to both places.
 #ifdef _MSC_VER
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "ur_loader.dll"
+#define __SYCL_OPENCL_ADAPTER_NAME "ur_adapter_opencl.dll"
+#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "ur_adapter_level_zero.dll"
+#define __SYCL_CUDA_ADAPTER_NAME "ur_adapter_cuda.dll"
+#define __SYCL_HIP_ADAPTER_NAME "ur_adapter_hip.dll"
+#define __SYCL_NATIVE_CPU_ADAPTER_NAME "ur_adapter_native_cpu.dll"
 #else // llvm-mingw
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "libur_loader.dll"
+#define __SYCL_OPENCL_ADAPTER_NAME "libur_adapter_opencl.dll"
+#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "libur_adapter_level_zero.dll"
+#define __SYCL_CUDA_ADAPTER_NAME "libur_adapter_cuda.dll"
+#define __SYCL_HIP_ADAPTER_NAME "libur_adapter_hip.dll"
+#define __SYCL_NATIVE_CPU_ADAPTER_NAME "libur_adapter_native_cpu.dll"
 #endif
 
 // ------------------------------------
@@ -96,7 +108,7 @@ void *&getDllHandle() {
   return dllHandle;
 }
 
-/// Load the plugin libraries and store them in a map.
+/// Load the plugin libraries
 void preloadLibraries() {
   // Suppress system errors.
   // Tells the system to not display the critical-error-handler message box.
@@ -120,9 +132,20 @@ void preloadLibraries() {
   // list of directories to %windows%\system32 and the directory that contains
   // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
   // current directory and some other directories which are considered unsafe.
-  DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
-  auto path = LibSYCLDir / __SYCL_UNIFIED_RUNTIME_LOADER_NAME;
-  getDllHandle() = LoadLibraryEx(path.wstring().c_str(), NULL, flags);
+  auto loadPlugin = [&](auto pluginName,
+                        DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                                      LOAD_LIBRARY_SEARCH_SYSTEM32) {
+    auto path = LibSYCLDir / pluginName;
+    return LoadLibraryEx(path.wstring().c_str(), NULL, flags);
+  };
+  // We keep the UR Loader handle so it can be fetched by the runtime, but the
+  // adapter libraries themselves won't be used.
+  getDllHandle() = loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
+  loadPlugin(__SYCL_OPENCL_ADAPTER_NAME);
+  loadPlugin(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
+  loadPlugin(__SYCL_CUDA_ADAPTER_NAME);
+  loadPlugin(__SYCL_HIP_ADAPTER_NAME);
+  loadPlugin(__SYCL_NATIVE_CPU_ADAPTER_NAME);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
