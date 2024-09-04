@@ -23,7 +23,8 @@ option(SYCL_UR_USE_FETCH_CONTENT
 set(SYCL_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
-  set(SYCL_UMF_DISABLE_HWLOC ON CACHE BOOL "Disable hwloc support in UMF")
+option(SYCL_UMF_DISABLE_HWLOC
+  "Disable hwloc support in UMF" ON)
 
 # Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)

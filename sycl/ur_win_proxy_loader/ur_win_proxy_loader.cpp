@@ -92,7 +92,7 @@ std::wstring getCurrentDSODir() {
 // ------------------------------------
 
 void *&getDllHandle() {
-  static void* dllHandle = nullptr;
+  static void *dllHandle = nullptr;
   return dllHandle;
 }
 
@@ -133,9 +133,7 @@ void preloadLibraries() {
 
 /// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
 /// earlier.
-__declspec(dllexport) void *getPreloadedURLib() {
-  return getDllHandle();
-}
+__declspec(dllexport) void *getPreloadedURLib() { return getDllHandle(); }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
                     DWORD fdwReason,    // reason for calling function
