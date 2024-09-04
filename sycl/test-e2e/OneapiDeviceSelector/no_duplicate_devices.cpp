@@ -4,6 +4,9 @@
 // RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:*,cpu" %{run-unfiltered-devices} %t.out
 // RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:cpu,cpu" %{run-unfiltered-devices} %t.out
 
+// https://github.com/intel/llvm/issues/15288
+// XFAIL: linux && gpu-intel-gen12
+
 // on the first run we pass a dummy arg to the app. On seeing that, we count the
 // number of CPU devices and output it. That is piped  to a file. On subsequent
 // runs we cat the file and pipe that to app. The app then compares the number
