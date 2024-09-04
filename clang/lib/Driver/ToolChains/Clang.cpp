@@ -10614,7 +10614,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_tensor_float32_conversion"
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info"
-              ",+SPV_KHR_cooperative_matrix";
+              ",+SPV_KHR_cooperative_matrix"
+              ",+SPV_EXT_shader_atomic_float16_add";
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
 
@@ -10809,7 +10810,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
   if (isSYCLNativeCPU(TC))
-    return false;
+    return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
   if (supportDynamicLinking(TCArgs))

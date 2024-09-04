@@ -1563,6 +1563,12 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   std::optional<bool> ConstexprCondition;
   if (!IsConsteval) {
 
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        Actions,
+        IsConstexpr ? Sema::ExpressionEvaluationContext::ConstantEvaluated
+                    : Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
+        nullptr, Sema::ExpressionEvaluationContextRecord::EK_Other,
+        IsConstexpr);
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
                                               : Sema::ConditionKind::Boolean,
