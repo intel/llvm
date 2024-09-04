@@ -19,7 +19,17 @@ Release notes for commit range
   experimental range rounding mode in which range rounding is performed across
   all dimensions. intel/llvm#12690
 - Added support for the so-called [new offloading model](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/OffloadDesign.md).
-  It can be enabled by `--offload-new-driver` command line option and should
+  It can be enabled by `--offload-new-driver` command line option and provides
+  a better infrastucture for us. In the future we expect to leverage that
+  infrastructure to improve link times by reducing amount of I/O used by the
+  compiler and amount of external processes that it spawns.
+  Foundation for this work has been performed in previous release timeframe and
+  the following list of PRs only includes those done within this release
+  timeframe. intel/llvm#14252 intel/llvm#13394 intel/llvm#13648 intel/llvm#13687
+  intel/llvm#14001 intel/llvm#14006 intel/llvm#14101 intel/llvm#14151
+  intel/llvm#14253 intel/llvm#14177 intel/llvm#13672 intel/llvm#13688
+  intel/llvm#13579 intel/llvm#13869 intel/llvm#14102 intel/llvm#14541
+  intel/llvm#14541 intel/llvm#13898 intel/llvm#14143
   allow us to improve link time by reducing amount of external processes and
   temporary files used by the compiler. **Do we need to list PRs here?** There
   were many of them and some of them were merged in scope of a previous release.
@@ -33,43 +43,6 @@ Release notes for commit range
 - Added support for detecting misaligned data accesses via address sanitizer. intell/llvm#14148
 - Added support for emitting multiple error reports via address sanitizer
   through `-fsanitize-recover=address`. intel/llvm#13948
-
-commit 5b3e7c8f60f0c66ec92f2a19b43ec147d40bd5ed
-    [SYCL][New offload driver][LLVM-SPIRV] Send all translator options to linker wrapper (#13394)
-commit cd24d808382598565f9ec3d9e8faf3e83bfa9aa4
-    [Driver][SYCL] Pass full set of sycl-post-link options to linker wrapper (#13648)
-commit ece73ad61b49eaf9ecb6e2060e5f20e09e26def6
-    [NewOffloadModel][SYCL DeviceLib] Generate SYCL device library objects using new offload model (#13579)
-commit 90c659e4a04e0c74a0eb99d4c72d79c8bc0f783e
-    [Driver][SYCL][NewOffloadModel] Hook up -fsycl-device-only behaviors (#13672)
-commit 91b840c2c44cbc10149f2c77aa4094d6c73bd73f
-    [Driver][SYCL][NewOffloadModel] Hook up -fsycl-device-obj support (#13688)
-commit a8609a5925a3fcb2bd85636702556d15ae5574f4
-    [New offload][llc] Pass -relocation-model=pic option to llc when building shared libraries (#13687)
-commit 16007fa8be4292159f0b19e5fb911b90e3f84aa4
-    [SYCL][Device libs][New offload] Add missing fallback SYCL device library files (#13869)
-commit 5ddc6881a4f5c2ee5f0ccbbd873e57a62bceb30d
-    [Driver][SYCL][NewOffloadModel] Improve arch association for device (#13898)
-commit 7439fb46f1469cf401d89bf203f91ea22bc7ee57
-    [Driver][SYCL][NewOffloadModel] Hook up options for the offload-wrapper (#14001)
-commit 3aee3dbc23d2981c049fdfa6b12b7f759062326d
-    [Driver][SYCL][NewOffload] Update option passing for packager and AOT (#14066)
-commit c2cdfccf4aa90a6da35826c55815f680db3b3805
-    [New offload driver][sycl-post-link] Move sycl-post-link target specific options generation to linker wrapper (#14101)
-commit 934b46f2fff602bcbe7c99c13a1dd7ed6955ae4f
-    [Driver][SYCL][NewOffload] Fix duplication of device targets (#14143)
-commit 6ecce4fdab98b31a897af23444ca4d636af89862
-    [New offload driver][Device lib] Add SYCL device library files for all targets (#14102)
-commit f9fd95ec6c2aa4b77b0503ae1a7a82d6747df105
-    [Driver][SYCL][NewOffloadModel] Incorporate -device settings for GPU (#14151)
-commit 9691782beff5456c297063223ff831d54a8cd624
-    [SYCL][NFC][New offload model][llvm-spirv] Refactor llvm-spirv options generation for enabling correct use under new offload model (#14253)
-commit 3e474e050206e234759115a6442cdd5fb084d3f6
-    [New offload model] Cleanup the way sycl-post-link options are generated (#14177)
-commit fe2b47f08bee73be8bd978c71f3946852e94d790
-    [SYCL][AOT][New offload model] Add AOT support in clang-linker-wrapper for Intel CPUs/GPUs (#14252)
-commit 1c13e6f5e6bae9df42b483852c60631609422043
-    [SYCL][ClangLinkerWrapper] Unconditionally pass -properties to sycl-post-link (#14541)
 
 ### SYCL Library
 
@@ -121,17 +94,23 @@ commit 1c13e6f5e6bae9df42b483852c60631609422043
 - Added `filter_device` and `list_devices` APIs. intel/llvm#14016
 - Added `funnelshift_*` APIs. intel/llvm#13825
 - Added `match_[any|all]_over_sub_group` APIs. intel/llvm#12973
-- Added API to manage kernel libraries loading/unloading. intel/llvm#13053
+- Added API to manage kernel libraries loading/unloading. intel/llvm#13053 intel/llvm#13932
 - Added `cmul_add` API. intel/llvm#12969
 - Added experimental APIs for maksed operations over sub-groups (`select`, `shift`, etc.). intel/llvm#12972
-
-commit https://github.com/intel/llvm/commit/e0d020a74fee74a1fcda97b9a9854ad07bde4eae
-    [SYCL][COMPAT] Added utility helpers to simplify code translation (#12970)
-    ???
-
-commit https://github.com/intel/llvm/commit/4ade7b71db910a694e1da4d73495fd1903da1622
-    [SYCL][COMPAT] Added support for multiple math ops (#13005)
-    ???
+- Added various helper APIs: a mechanism to extract arguments from a kernel and
+  its kernel parameters; type casting helper for generic address -> queue
+  pointer; a wrapper to provide better support for logical groups; an enum to
+  list supported group types. intel/llvm#12970
+- Added wrappers/support to math functions `clamp`, `isnan`, `cbrt`, `min`,
+  `max`, `fmin_nan`, `fmax_nan`, `pow`, `relu`; wrappers are needed to support
+  variety of combinations of argument types compared to `sycl::` counterparts
+  of those functions. intel/llvm#13005
+- Added `SYCLCOMPT_CHECK_ERROR` macro which is an error handling utility for
+  expressions that throw exceptions.
+- Added `image1d_max`, `image2d_max` and `image3d_max` device info getters
+  and setters. intel/llvm#13973
+- Added `get_major_version` and `get_minor_version` free functions. intel/llvm#14011
+- Expanded list of properties available through `device_info` class. intel/llvm#13050
 
 ### Documentation
 
@@ -141,8 +120,6 @@ commit https://github.com/intel/llvm/commit/4ade7b71db910a694e1da4d73495fd1903da
 - Added specification for [`sycl_ext_intel_fpga_task_sequence`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_intel_fpga_task_sequence.asciidoc) extension. intel/llvm#6348
 - Added specification for [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
 - Added specification for [`SPV_INTEL_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/spirv-extensions/SPV_INTEL_bindless_images.asciidoc) extension. intel/llvm#12927
-
-
 
 commit https://github.com/intel/llvm/commit/9876e19f4ff387b35b0c98c7d62e5f50e6de187d
     [SYCL][XPTI] 'queue_id' metadata feature refactoring (#13070)
@@ -300,6 +277,9 @@ commit https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83
   detected. intel/llvm#14077
 - Clarified [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
   extension to specify which exact exceptions are being thrown on errors. intel/llvm#14576
+- Introduced versioning and release process
+  [documenation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/syclcompat/README.md#versioning)
+  for SYCLcompat. intel/llvm#14457
 
 commit https://github.com/intel/llvm/commit/ffc0de03f900da2d0262ea8ec41ac3847a1edbcc
     [SYCL][Graph][Doc] Remove outdated limitation from spec (#13163)
@@ -322,19 +302,12 @@ commit https://github.com/intel/llvm/commit/1e2e6baaf86009f0f9067b1146a8ca792343
 ### SYCLcompat
 
 - Added non-`const` `image2d_max` and `image3d_max` getters. intel/llvm#14138
-
-commit https://github.com/intel/llvm/commit/17d2e2d8a483e7a4c33cd542a3c1381b767452bc
-    [SYCL][COMPAT] Add version & release process (#14457)
-
-commit https://github.com/intel/llvm/commit/d8c0a9342a7e71420883c8a750f89679897b9ca1
-    [SYCL][COMPAT] Memory Header cleanup (#13143)
-    is it really user-visible?
-
-commit https://github.com/intel/llvm/commit/89eeb02519cfee2f1d88ffac9f07dd131099b7dd
-    [SYCL][COMPAT] defs.hpp update with Windows macros. SYCLCOMPAT_CHECK_ERROR added. (#13027)
-
-commit https://github.com/intel/llvm/commit/0b05577790f2a81cb10a41262324ff9558614f09
-    [SYCL[COMPAT][CUDA] Impl masked compat shuffles on cuda (#13363)
+- Introduced versioning scheme for the library. intel/llvm#14457
+- Enchanced  masked shuffle functions `select_from_sub_group`,
+  `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor`
+  to support CUDA devices. intel/llvm#13363
+- Restricted `memory_order` argument of `atomic_ref` passed to
+  `experimental::nd_range_barrier` to match supported on a device. intel/llvm#12974 intel/llvm#13641
 
 commit https://github.com/intel/llvm/commit/13c9d0ef964b17dd3e2c297b1ceb2ecb8ea2ffe9
     [SYCL][Bindless][Doc][ABI-Break] Rename external semaphore destroy to release (#14535)
@@ -369,10 +342,6 @@ commit https://github.com/intel/llvm/commit/bcca7a80adf50b04c0991ef48745353ac782
     [SYCL][ESIMD] Move a few math operations to SPIR-V intrinsics and support new functions (#13383)
     that is a regression, not an improvement :) should be noted in known issues 
 
-commit https://github.com/intel/llvm/commit/1d2007ba7c661322584a60d84a40777e0e0d9567
-    [SYCL][COMPAT] kernel_function and kernel_library constexpr constructors (#13932)
-    if those APIs were added in this release, we should squash two items into one
-
 commit https://github.com/intel/llvm/commit/74602458d5583cf69ca575a9167def51dad15052
     [SYCL][Bindless] Replace 'image_channel_order' field in 'image_descriptor' with number of channels (#13745)
 
@@ -388,9 +357,6 @@ commit https://github.com/intel/llvm/commit/82aaf27f6f0cf97ba89b58f88a18b09e2309
 
 commit https://github.com/intel/llvm/commit/b11a19b1896cc2f7ab43735aacf265182e22832c
     [Bindless][SYCL][Doc] Add HintT tparam to cubemap fetch and sample (#13742)
-
-commit https://github.com/intel/llvm/commit/9d1cbc51854f19f89105d502db9156b11e4507f4
-    [SYCL][COMPAT] nd_range barriers seq_cst by default in supported devices (#12974)
 
 commit https://github.com/intel/llvm/commit/3756fd1b778ae4ab36bd3988bfdf9ba910b779fd
     [ESIMD] Enable FADD/FSUB for slm_atomic_update (#13535)
@@ -429,9 +395,6 @@ commit https://github.com/intel/llvm/commit/84bae21d3f63f04ca50bfffc5203909ba3fd
 commit https://github.com/intel/llvm/commit/da379ecfa649a520f49f8adfb97e73c72ff3fb06
     [SYCL] Add support for multiple missing math ops (#13714)
 
-commit https://github.com/intel/llvm/commit/0f6f57b43afa7ee442744b89e7a034673d58c8d8
-    [SYCL][Doc] Fix typos and formating of SYCLCompat README (#13961)
-
 commit https://github.com/intel/llvm/commit/0d1dd2d2b1e8655b96940edecef84447866e87bc
     [SYCL] Add a module flag for device compilations (#13880)
 
@@ -441,14 +404,8 @@ commit https://github.com/intel/llvm/commit/29b4d855fa1a378e89182795e0d368304c40
 commit https://github.com/intel/llvm/commit/9f1cee573782772f8d062f6490128c3ee6fa6911
     [SYCL][CUDA] Improve kernel launch error handling for out-of-registers (#12604)
 
-commit https://github.com/intel/llvm/commit/b49303c7e13ca0a69454eaaaeb8c3d094916218d
-    [SYCL][COMPAT] Add Image Max dims to device_info. Updated Max ND Range Size (#13973)
-
 commit https://github.com/intel/llvm/commit/db54535fb389331b167807a5d8f1ed16b5695474
     [AMDGPU][SYCL] Make unsafe atomic fadd opt in (#13955)
-
-commit https://github.com/intel/llvm/commit/dce651bd69ea12c935c70990ed3290007a00c6c5
-    [SYCL][COMPAT] Migrate bug fixes & refactor of get_*version APIs (#14011)
 
 commit https://github.com/intel/llvm/commit/4e36825beabb4b4a7435470ac633768dcbd7b376
     [SYCL] Record aspect names when computing device requirements (#13974)
@@ -566,9 +523,6 @@ commit https://github.com/intel/llvm/commit/0a1381d286f7c32a256a6dab49917870769f
 commit https://github.com/intel/llvm/commit/ece19f298b1029121da17a423b801bc2a9267a8d
     [SYCL][Graph] Clarify graph in-order and out-of-order properties (#13681)
 
-commit https://github.com/intel/llvm/commit/67f3bf292ff58136adc6383a3c5a1b19779e4120
-    [SYCL][COMPAT] Removed sycl/sycl.hpp include (#13108)
-
 commit https://github.com/intel/llvm/commit/7d55eb8a8419dac64f065bbf84125ed1d78dc992
     [SYCL][Docs] Behavioral changes to in-order queue events extension (#13624)
 
@@ -622,9 +576,6 @@ commit https://github.com/intel/llvm/commit/fb66f1b83559366e541381251de4281bb554
 commit https://github.com/intel/llvm/commit/65bdffb1c9d4c474316d3e330fc3c59338e004f6
     [SYCL][libclc][NATIVECPU] Implement generic atomic load for generic target (#13249)
     new feature?
-
-commit https://github.com/intel/llvm/commit/d932fcae4aa83d12a3eb30a3003d1718429a9df1
-    [SYCL][COMPAT] Extended device_info properties. (#13050)
 
 commit https://github.com/intel/llvm/commit/05644a470303c2af3385b9533b8d23ebdea99eb7
     [OpenCL] Config dependent-load flag to exclude CWD from DLL search path (#13327)
@@ -805,6 +756,9 @@ commit https://github.com/intel/llvm/commit/e38dcdc8bb547f4b63c7b860c1cd9948c090
 - Fixed a bug where using `load_2d`, `store_2d` or `prefetch_2d` ESIMD
   functions would lead to a build program failure error emitted by device
   compiler. intel/llvm#13613
+- Fixed a bug where querying free device memory of integrated Intel GPUs would
+  return 0 instead of throwing an exception that the feature is not supported
+  for that device. intel/llvm#13209
 
 commit https://github.com/intel/llvm/commit/c2a4054980fd4ce4c4d6cfa425cbc71b20d5f450
     [SYCL] Fix barrier with wait list handling (#13863)
@@ -839,22 +793,9 @@ commit https://github.com/intel/llvm/commit/33325d4af0b66c33f7a42f0bf584645972a7
 ### SYCLcompat
 
 - Fixed compilation issue on Windows with `syclcompat::cabs`. intel/llvm#13518
-
-commit https://github.com/intel/llvm/commit/29230c80d117e29ba113ac8522b6fd2946ac56f9
-    [SYCL][COMPAT] Fix using address of a temporary queue_ptr in util.hpp (#14440)
-    Was it user-visible?
-
-commit https://github.com/intel/llvm/commit/510965a0a098313cc19e8a68cc405098dc9e9501
-    [SYCL][COMPAT] fixed byte-dot products to properly call cuda intrinsics (#14463)
-
-commit https://github.com/intel/llvm/commit/3caa78ecf53644ead4f1d5fa8bc7b4a81a1f4961
-    [SYCL][COMPAT] Fixes SYCLCOMPAT_PROFILING_ENABLED codepath (#14574)
-
-commit https://github.com/intel/llvm/commit/7b538cdc4ecb33e88682eb1b36be33b73ac68caf
-    [SYCL][COMPAT] fixed atomic_compare_exchange_strong not using addressSpace template parameter (#13821)
-
-commit https://github.com/intel/llvm/commit/d66b0baed24483da96fa135082e7c544498ce2d9
-    [SYCL][COMPAT] Add inline in max and min functions (#13708)
+- Fixed `atomic_compare_exchange_strong` not using address space template
+  parameter. intel/llvm#13821
+- Fixed compilation issues when `SYCL_COMPAT_PROFILING_ENABLED` is defined. intel/llvm#14574
 
 commit https://github.com/intel/llvm/commit/e40283b1234e0846d1a19be537948e865a31f360
     Task sequence revert (#14359)
@@ -886,10 +827,6 @@ commit https://github.com/intel/llvm/commit/4b993a7b32f7743980bce646765a1b427b09
 
 commit https://github.com/intel/llvm/commit/ea7ba1b965302277fc23ef48dba83b10e6c734e9
     [ESIMD] Restore the lowering of lsc_load_stateless in sycl-post-link (#13104)
-
-commit https://github.com/intel/llvm/commit/2053be298d1bf2417ad0b2efaf0d9360650ed491
-    [SYCL][COMPAT] Reverted nd_barrier atomic_ref to acq_rel (NVPTX) (#13641)
-    do we ned to mention this?  do we need to drop some other item?
 
 commit https://github.com/intel/llvm/commit/267a03cd1ba5eaa55db95800712f978b93842bc5
     [SYCL] [NATIVECPU] Select right libclc file for native cpu (#13478)
@@ -1858,17 +1795,6 @@ Date:   Tue Apr 9 17:47:00 2024 +0100
     OpenCL adapter changes from
     https://github.com/oneapi-src/unified-runtime/pull/1496.
 
-commit https://github.com/intel/llvm/commit/c74a14414b1ae8070421ee07b037bd8e9b1e704a
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Mon Apr 8 01:54:49 2024 -0700
-
-    [UR][L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0 (#13209)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1486
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
 commit https://github.com/intel/llvm/commit/d86a50045bbbe488869991be49cbfe3213809d72
     [UR][CL] Atomic order memory capability for Intel FPGA driver (#13041)
     Potentially user-visible fix.
@@ -1877,14 +1803,6 @@ commit https://github.com/intel/llvm/commit/2e2010e2cc4acf1375cf88ce65d3a5cb8cbc
     [UR] Add DEVICE_NOT_AVAILABLE UR error code and PI translation for same. (#13206)
     Does it fix any actual issues in some negative cases where we previosly
     reported a wrong error if device is not available?
-
-commit https://github.com/intel/llvm/commit/3288a66d48d5aee7412ad12118794f28e6634550
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Mon Apr 1 10:04:11 2024 +0100
-
-    [UR] Pull in UR changes to add exec error status to events. (#13127)
-    
-    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1467
 
 commit https://github.com/intel/llvm/commit/93a1abb42f352eff587cd1a081e90089c232339b
 Author: Piotr Balcer <piotr.balcer@intel.com>
@@ -1915,15 +1833,9 @@ Date:   Thu Mar 21 10:28:46 2024 +0000
 
 commit https://github.com/intel/llvm/commit/43f096308b03fa4c5a7f6845461a133d6cfaceae
 Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Wed Mar 20 07:04:37 2024 +0000
-
     [UR] CI for UR PR refactor-guess-local-worksize (#12663)
-    
     https://github.com/oneapi-src/unified-runtime/pull/1326
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    Could be a bugfix?
 
 commit https://github.com/intel/llvm/commit/1f9bf7a731b16d6d0d017c35245991ca95d0aef7
 Author: Artur Gainullin <artur.gainullin@intel.com>
