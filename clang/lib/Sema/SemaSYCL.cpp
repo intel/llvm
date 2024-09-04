@@ -6858,30 +6858,12 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
 
-  if (const SYCLReqdWorkGroupSizeAttr *Attr =
-          FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-      Diag(Attr->getLoc(),
-           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
-  }
-
-  if (const IntelReqdSubGroupSizeAttr *Attr =
-          FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-      Diag(Attr->getLoc(),
-           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
-  }
-
-  if (const SYCLWorkGroupSizeHintAttr *Attr =
-          FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-      Diag(Attr->getLoc(),
-           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
-  }
-
-  if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
-      Diag(Attr->getLoc(),
-           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
+  for (const auto *Attr : std::vector<AttributeCommonInfo *>{
+           FD->getAttr<SYCLReqdWorkGroupSizeAttr>(),
+           FD->getAttr<IntelReqdSubGroupSizeAttr>(),
+           FD->getAttr<SYCLWorkGroupSizeHintAttr>(),
+           FD->getAttr<VecTypeHintAttr>()}){
+      if (Attr)
+        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;
   }
 }
