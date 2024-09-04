@@ -753,6 +753,10 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();
   }
+  case aspect::ext_oneapi_atomic16: {
+    // Likely L0 doesn't check it properly. Need to double-check.
+    return has_extension("cl_ext_float_atomics");
+  }
   }
 
   return false; // This device aspect has not been implemented yet.

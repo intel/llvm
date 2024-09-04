@@ -27,7 +27,6 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
@@ -143,14 +142,6 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (has_property<
-            ext::codeplay::experimental::property::queue::enable_fusion>() &&
-        !MDevice->get_info<
-            ext::codeplay::experimental::info::device::supports_fusion>()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot enable fusion if device does not support fusion");
-    }
     if (!Context->isDeviceValid(Device)) {
       if (Context->getBackend() == backend::opencl)
         throw sycl::exception(
@@ -261,7 +252,6 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      cleanup_fusion_cmd();
       getPlugin()->call<UrApiKind::urQueueRelease>(MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
@@ -650,15 +640,6 @@ public:
 
   bool ext_oneapi_empty() const;
 
-  /// Check whether the queue is in fusion mode.
-  ///
-  /// \return true if the queue is in fusion mode, false otherwise.
-  bool is_in_fusion_mode() {
-    return detail::Scheduler::getInstance().isInFusionMode(
-        std::hash<typename std::shared_ptr<queue_impl>::element_type *>()(
-            this));
-  }
-
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -731,8 +712,6 @@ public:
 
 protected:
   event discard_or_return(const event &Event);
-  // Hook to the scheduler to clean up any fusion command held on destruction.
-  void cleanup_fusion_cmd();
 
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {

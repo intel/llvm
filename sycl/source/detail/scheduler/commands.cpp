@@ -194,8 +194,6 @@ static std::string commandToNodeType(Command::CommandType Type) {
     return "host_acc_create_buffer_lock_node";
   case Command::CommandType::EMPTY_TASK:
     return "host_acc_destroy_buffer_release_node";
-  case Command::CommandType::FUSION:
-    return "kernel_fusion_placeholder_node";
   default:
     return "unknown_node";
   }
@@ -224,8 +222,6 @@ static std::string commandToName(Command::CommandType Type) {
     return "Host Accessor Creation/Buffer Lock";
   case Command::CommandType::EMPTY_TASK:
     return "Host Accessor Destruction/Buffer Lock Release";
-  case Command::CommandType::FUSION:
-    return "Kernel Fusion Placeholder";
   default:
     return "Unknown Action";
   }
@@ -3371,130 +3367,6 @@ bool ExecCGCommand::readyForCleanup() const {
   if (MCommandGroup->getType() == CGType::CodeplayHostTask)
     return MLeafCounter == 0 && MEvent->isCompleted();
   return Command::readyForCleanup();
-}
-
-KernelFusionCommand::KernelFusionCommand(QueueImplPtr Queue)
-    : Command(Command::CommandType::FUSION, Queue),
-      MStatus(FusionStatus::ACTIVE) {
-  emitInstrumentationDataProxy();
-}
-
-std::vector<Command *> &KernelFusionCommand::auxiliaryCommands() {
-  return MAuxiliaryCommands;
-}
-
-void KernelFusionCommand::addToFusionList(ExecCGCommand *Kernel) {
-  MFusionList.push_back(Kernel);
-}
-
-std::vector<ExecCGCommand *> &KernelFusionCommand::getFusionList() {
-  return MFusionList;
-}
-
-bool KernelFusionCommand::producesPiEvent() const { return false; }
-
-ur_result_t KernelFusionCommand::enqueueImp() {
-  waitForPreparedHostEvents();
-  ur_event_handle_t UREvent = nullptr;
-  waitForEvents(MQueue, MPreparedDepsEvents, UREvent);
-  MEvent->setHandle(UREvent);
-
-  // We need to release the queue here because KernelFusionCommands are
-  // held back by the scheduler thus prevent the deallocation of the queue.
-  resetQueue();
-  return UR_RESULT_SUCCESS;
-}
-
-void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
-  MStatus = Status;
-}
-
-void KernelFusionCommand::resetQueue() {
-  assert(MStatus != FusionStatus::ACTIVE &&
-         "Cannot release the queue attached to the KernelFusionCommand if it "
-         "is active.");
-  MQueue.reset();
-  MWorkerQueue.reset();
-}
-
-void KernelFusionCommand::emitInstrumentationData() {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType = xpti::trace_node_create;
-  if (!xptiCheckTraceEnabled(MStreamID)) {
-    return;
-  }
-  // Create a payload with the command name and an event using this payload to
-  // emit a node_create
-  MCommandNodeType = commandToNodeType(MType);
-  MCommandName = commandToName(MType);
-
-  static unsigned FusionNodeCount = 0;
-  std::stringstream PayloadStr;
-  PayloadStr << "Fusion command #" << FusionNodeCount++;
-  xpti::payload_t Payload = xpti::payload_t(PayloadStr.str().c_str());
-
-  uint64_t CommandInstanceNo = 0;
-  xpti_td *CmdTraceEvent =
-      xptiMakeEvent(MCommandName.c_str(), &Payload, xpti::trace_graph_event,
-                    xpti_at::active, &CommandInstanceNo);
-
-  MInstanceID = CommandInstanceNo;
-  if (CmdTraceEvent) {
-    MTraceEvent = static_cast<void *>(CmdTraceEvent);
-    // If we are seeing this event again, then the instance ID
-    // will be greater than 1; Previous implementations had the trace event be
-    // invariant during multiple visits to a tracepoint defined by its payload.
-    // Current imlementation allows metadata associated with the trace event to
-    // be mutable and this requires the framework to notify again as we have a
-    // new trace event for each instance.
-
-    // This function is called in the constructor of the command. At this point
-    // the kernel fusion list is still empty, so we don't have a terrible lot of
-    // information we could attach to this node here.
-    addDeviceMetadata(CmdTraceEvent, MQueue);
-
-    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
-    // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
-                                 getQueueID(MQueue));
-    xptiNotifySubscribers(MStreamID, NotificationTraceType,
-                          detail::GSYCLGraphEvent,
-                          static_cast<xpti_td *>(MTraceEvent), MInstanceID,
-                          static_cast<const void *>(MCommandNodeType.c_str()));
-  }
-#endif
-}
-
-void KernelFusionCommand::printDot(std::ostream &Stream) const {
-  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#AFFF82\", label=\"";
-
-  Stream << "ID = " << this << "\\n";
-  Stream << "KERNEL FUSION on " << queueDeviceToString(MQueue.get()) << "\\n"
-         << "FUSION LIST: {";
-  bool Initial = true;
-  for (auto *Cmd : MFusionList) {
-    if (!Initial) {
-      Stream << ",\\n";
-    }
-    Initial = false;
-    auto *KernelCG = static_cast<detail::CGExecKernel *>(&Cmd->getCG());
-    if (KernelCG->MSyclKernel && KernelCG->MSyclKernel->isCreatedFromSource()) {
-      Stream << "created from source";
-    } else {
-      Stream << demangleKernelName(KernelCG->getKernelName());
-    }
-  }
-  Stream << "}\\n";
-
-  Stream << "\"];" << std::endl;
-
-  for (const auto &Dep : MDeps) {
-    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
-           << " [ label = \"Access mode: "
-           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
-           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
-           << std::endl;
-  }
 }
 
 UpdateCommandBufferCommand::UpdateCommandBufferCommand(

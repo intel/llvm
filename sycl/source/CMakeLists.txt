@@ -153,6 +153,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
+    target_compile_definitions(${LIB_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
   find_package(Threads REQUIRED)
@@ -244,7 +246,6 @@ set(SYCL_COMMON_SOURCES
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
-    "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
     "detail/graph_impl.cpp"
     "detail/helpers.cpp"

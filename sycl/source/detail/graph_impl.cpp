@@ -1608,12 +1608,6 @@ void modifiable_command_graph::begin_recording(
                           "differs from the graph device.");
   }
 
-  if (QueueImpl->is_in_fusion_mode()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "SYCL queue in kernel in fusion mode "
-                          "can NOT be recorded.");
-  }
-
   impl->beginRecording(QueueImpl);
 }
 
@@ -1632,16 +1626,17 @@ void modifiable_command_graph::end_recording() {
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl && QueueImpl->getCommandGraph() == impl) {
+  if (!QueueImpl)
+    return;
+  if (QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
   }
-  if (QueueImpl->getCommandGraph() != nullptr) {
+  if (QueueImpl->getCommandGraph() != nullptr)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
-  }
 }
 
 void modifiable_command_graph::end_recording(
@@ -1719,6 +1714,11 @@ dynamic_parameter_base::dynamic_parameter_base(
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
+}
+
+void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
+                                         size_t Size) {
+  impl->updateValue(NewRawValue, Size);
 }
 
 void dynamic_parameter_base::updateAccessor(

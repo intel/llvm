@@ -117,7 +117,12 @@ event::get_profiling_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend event::get_backend() const noexcept { return getImplBackend(impl); }
+backend event::get_backend() const noexcept try {
+  return getImplBackend(impl);
+} catch (std::exception &e) {
+  __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in get_backend", e);
+  std::abort();
+}
 
 ur_native_handle_t event::getNative() const { return impl->getNative(); }
 

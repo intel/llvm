@@ -1180,31 +1180,13 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
 };
 
 // Specialization for kernel fusion support
+// TODO(#15184): Remove this aspect in the next ABI-breaking window.
 template <>
 struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-    // If the JIT library can't be loaded or entry points in the JIT library
-    // can't be resolved, fusion is not available.
-    if (!jit_compiler::get_instance().isAvailable()) {
-      return false;
-    }
-    // Currently fusion is only supported for SPIR-V based backends,
-    // CUDA and HIP.
-    if (Dev->getBackend() == backend::opencl) {
-      // Exclude all non-CPU or non-GPU devices on OpenCL, in particular
-      // accelerators.
-      return Dev->is_cpu() || Dev->is_gpu();
-    }
-
-    return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::ext_oneapi_cuda) ||
-           (Dev->getBackend() == backend::ext_oneapi_hip);
-#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
   }
 };
 
