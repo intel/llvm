@@ -1196,7 +1196,7 @@ template <typename Self,
 struct __SYCL_EBO VecConversionsMixin :
 #ifdef __SYCL_DEVICE_ONLY__
     public detail::ConversionOperatorMixin<
-        Self, vector_t, ConversionOpType::conv_template,
+        Self, vector_t, ConversionOpType::conv_explicit,
         // if `vector_t` and `DataT` are the same, then the `operator DataT`
         // from the above is enough.
         !std::is_same_v<DataT, vector_t>>,
@@ -1581,13 +1581,12 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
  public:
-   template <typename vector_t_,
-             typename = std::enable_if_t<!std::is_same_v<vector_t_, DataT> &&
-                                         std::is_same_v<vector_t_, vector_t>>>
+   template <typename vector_t_ = vector_t,
+             typename = std::enable_if_t<!std::is_same_v<vector_t_, DataT>>>
    // TODO: current draft would use non-template `vector_t` as an operand,
    // causing sycl::vec<sycl::half, N>{1} to go through different paths on
    // host/device, open question in the specification.
-   constexpr vec(vector_t_ openclVector)
+   explicit vec(vector_t openclVector)
        // FIXME: Doesn't work when instantiated for 3-elements vectors,
        // indetermined padding can't be used to initialize constexpr std::array
        // storage.

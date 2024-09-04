@@ -254,7 +254,10 @@ auto builtin_delegate_ptr_impl(FuncTy F, PtrTy p, Ts... xs) {
   detail::NON_SCALAR_ENABLER<SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE),  \
                              PtrTy>                                            \
   NAME(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE_ARG), PtrTy p) {         \
-    return detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p);      \
+    using ret_ty = detail::NON_SCALAR_ENABLER<                                 \
+        SYCL_CONCAT(LESS_ONE(NUM_ARGS), _TEMPLATE_TYPE), PtrTy>;               \
+    return ret_ty{                                                             \
+        detail::NAME##_impl(SYCL_CONCAT(LESS_ONE(NUM_ARGS), _ARG), p)};        \
   }
 
 #if __SYCL_DEVICE_ONLY__

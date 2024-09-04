@@ -81,7 +81,7 @@ vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
   VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
 
-  return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
+  return vec<T, N>{sycl::bit_cast<typename vec<T, N>::vector_t>(Ret)};
 }
 
 template <typename T, access::address_space Space,
