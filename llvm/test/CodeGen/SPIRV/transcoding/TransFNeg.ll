@@ -1,5 +1,8 @@
 ; RUN: llc -O0 -mtriple=spirv32-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
+; https://github.com/intel/llvm/issues/14372
+; UNSUPPORTED: windows
+
 ; CHECK-SPIRV: OpFNegate
 ; CHECK-SPIRV: OpFNegate
 ; CHECK-SPIRV: OpFNegate

@@ -239,6 +239,26 @@ public:
   }
 };
 
+template <typename Tp> class __imax_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for __imax_relu_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    return __imax<Tp>(__imax<Tp>(x, y), 0);
+  }
+};
+
+template <typename Tp> class __imin_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for __imax_relu_op");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y) {
+    return __imax<Tp>(__imin<Tp>(x, y), 0);
+  }
+};
+
 // Clang will optimize this function with llvm.sadd.sat intrinsic which
 // can't be handled by llvm-spirv translator, so using turn off clang
 // optimization for this function to avoid llvm-spirv crash.
@@ -357,6 +377,167 @@ static inline unsigned int __internal_v_binary_op(unsigned int x,
     y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
     res_buf[idx] = b_op(x_tmp, y_tmp);
   }
+  return __assemble_integral_value<unsigned, UTp, N>(res_buf);
+}
+
+template <typename Tp> class __ibmax_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for __ibmax_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, bool *pred) {
+    return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+  }
+};
+
+template <typename Tp> class __ibmin_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for __ibmin_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, bool *pred) {
+    return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
+  }
+};
+
+template <typename Tp, size_t N, template <typename> class BinaryOp>
+static inline unsigned int
+__internal_v_binary_op_with_pred(unsigned int x, unsigned int y, bool *pred) {
+  static_assert(
+      std::is_integral<Tp>::value && (sizeof(Tp) == 1 || sizeof(Tp) == 2),
+      "__internal_v_binary_op_with_pred accepts 1/2 byte integer type.");
+  static_assert(sizeof(Tp) * N == sizeof(unsigned int),
+                "__internal_v_binary_op_with_pred size mismatch");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+  UTp res_buf[N] = {
+      0,
+  };
+  Tp x_tmp, y_tmp;
+  BinaryOp<Tp> b_op;
+  for (size_t idx = 0; idx < N; ++idx) {
+    x_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
+    y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
+    res_buf[idx] = b_op(x_tmp, y_tmp, &pred[idx]);
+  }
+  return __assemble_integral_value<unsigned, UTp, N>(res_buf);
+}
+
+// __iaddmax op doesn't work correctly on Gen12 devices, there should be some
+// issue in GPU runtime, disable clang optimizer here avoid blocking pre-ci.
+#pragma clang optimize off
+template <typename Tp> class __iaddmax_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for iaddmax op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imax<Tp>(x + y, z);
+  }
+};
+
+template <typename Tp> class __iaddmax_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for iaddmax_relu op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imax<Tp>(x + y, z);
+    return (t > 0) ? t : 0;
+  }
+};
+
+template <typename Tp> class __iaddmin_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for iaddmax op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imin<Tp>(x + y, z);
+  }
+};
+
+template <typename Tp> class __iaddmin_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for iaddmax_relu op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imin<Tp>(x + y, z);
+    return (t > 0) ? t : 0;
+  }
+};
+
+#pragma clang optimize on
+
+template <typename Tp> class __imax3_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for imax3 op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imax<Tp>(__imax<Tp>(x, y), z);
+  }
+};
+
+template <typename Tp> class __imin3_op {
+  static_assert(std::is_same<int16_t, Tp>::value ||
+                    std::is_same<uint16_t, Tp>::value,
+                "Tp can only accept 16-bit integer for imin3 op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    return __imin<Tp>(__imin<Tp>(x, y), z);
+  }
+};
+
+template <typename Tp> class __imax3_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for imax3 relu_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imax<Tp>(__imax<Tp>(x, y), z);
+    return (t > 0) ? t : 0;
+  }
+};
+
+template <typename Tp> class __imin3_relu_op {
+  static_assert(std::is_same<int16_t, Tp>::value,
+                "Tp can only accept int16_t for imax3 relu_op.");
+
+public:
+  Tp operator()(const Tp &x, const Tp &y, const Tp &z) {
+    Tp t = __imin<Tp>(__imin<Tp>(x, y), z);
+    return (t > 0) ? t : 0;
+  }
+};
+
+template <typename Tp, size_t N, template <typename> class TernaryOp>
+static inline unsigned int
+__internal_v_ternary_op(unsigned int x, unsigned int y, unsigned int z) {
+  static_assert(std::is_integral<Tp>::value &&
+                    (sizeof(Tp) == 1 || sizeof(Tp) == 2),
+                "__internal_v_ternary_op accepts 1/2 byte integer type.");
+  static_assert(sizeof(Tp) * N == sizeof(unsigned int),
+                "__internal_v_ternary_op size mismatch");
+  typedef typename std::make_unsigned<Tp>::type UTp;
+  UTp res_buf[N] = {
+      0,
+  };
+  Tp x_tmp, y_tmp, z_tmp;
+  TernaryOp<Tp> t_op;
+  for (size_t idx = 0; idx < N; ++idx) {
+    x_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(x, idx));
+    y_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(y, idx));
+    z_tmp = static_cast<Tp>(__get_bytes_by_index<unsigned int, UTp>(z, idx));
+    res_buf[idx] = t_op(x_tmp, y_tmp, z_tmp);
+  }
+
   return __assemble_integral_value<unsigned, UTp, N>(res_buf);
 }
 
@@ -1028,4 +1209,277 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu4(unsigned int x, unsigned int y) {
   return __internal_v_sad_op<uint8_t, 4>(x, y);
 }
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as signed short.
+// For corresponding part, perform and add and compare operation:
+// max(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmax_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(max(x_part + y_part, z_part), 0), partial results are combined for
+// return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
+                                                 unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmax_relu_op>(x, y, z);
+}
+
+// max(x + y, z)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32(int x, int y, int z) {
+  return __imax<int>((x + y), z);
+}
+
+// max(max(x + y, z), 0)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32_relu(int x, int y, int z) {
+  int r = __imax<int>((x + y), z);
+  return (r > 0) ? r : 0;
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// max(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __iaddmax_op>(x, y, z);
+}
+
+// max(x + y, z) for unsigned int
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u32(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __imax<unsigned int>((x + y), z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// min(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmin_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(min(x_part + y_part, z_part), 0), partial results are combined for
+// return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2_relu(unsigned int x, unsigned int y,
+                                                 unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __iaddmin_relu_op>(x, y, z);
+}
+
+// min(x + y, z)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32(int x, int y, int z) {
+  return __imin<int>((x + y), z);
+}
+
+// max(min(x + y, z), 0)
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32_relu(int x, int y, int z) {
+  int r = __imin<int>((x + y), z);
+  return (r > 0) ? r : 0;
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// min(x_part + y_part, z_part), partial results are combined as return value.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u16x2(unsigned int x, unsigned int y,
+                                            unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __iaddmin_op>(x, y, z);
+}
+
+// min(x + y, z) for unsigned int
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u32(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __imin<unsigned int>((x + y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_s16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res =
+      __internal_v_binary_op_with_pred<int16_t, 2, __ibmax_op>(x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_s16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res =
+      __internal_v_binary_op_with_pred<int16_t, 2, __ibmin_op>(x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmax_s32(int x, int y, bool *pred) {
+  return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmin_s32(int x, int y, bool *pred) {
+  return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res = __internal_v_binary_op_with_pred<uint16_t, 2, __ibmax_op>(
+      x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u16x2(unsigned int x, unsigned int y,
+                                          bool *pred_hi, bool *pred_lo) {
+  bool pred_temp[2] = {false, false};
+  unsigned int res = __internal_v_binary_op_with_pred<uint16_t, 2, __ibmin_op>(
+      x, y, pred_temp);
+  *pred_lo = pred_temp[0];
+  *pred_hi = pred_temp[1];
+  return res;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u32(unsigned int x, unsigned int y,
+                                        bool *pred) {
+  return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u32(unsigned int x, unsigned int y,
+                                        bool *pred) {
+  return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __imax3_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// min(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __imin3_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(x_part, y_part, z_part, 0), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2_relu(unsigned int x, unsigned int y,
+                                               unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __imax3_relu_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as singed short.
+// For corresponding part, perform and add and compare operation:
+// max(min(x_part, y_part, z_part), 0), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2_relu(unsigned int x, unsigned int y,
+                                               unsigned int z) {
+  return __internal_v_ternary_op<int16_t, 2, __imin3_relu_op>(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32(int x, int y, int z) {
+  return __imax<int>(__imax<int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32(int x, int y, int z) {
+  return __imin<int>(__imin<int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32_relu(int x, int y, int z) {
+  int t = __imax<int>(__imax<int>(x, y), z);
+  return (t > 0) ? t : 0;
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32_relu(int x, int y, int z) {
+  int t = __imin<int>(__imin<int>(x, y), z);
+  return (t > 0) ? t : 0;
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// max(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __imax3_op>(x, y, z);
+}
+
+// Split 32-bit value into 2 16-bit parts, interpret each part as unsinged
+// short. For corresponding part, perform and add and compare operation:
+// min(x_part, y_part, z_part), partial results are combined for return.
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u16x2(unsigned int x, unsigned int y,
+                                          unsigned int z) {
+  return __internal_v_ternary_op<uint16_t, 2, __imin3_op>(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u32(unsigned int x, unsigned int y,
+                                        unsigned int z) {
+  return __imax<unsigned int>(__imax<unsigned int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u32(unsigned int x, unsigned int y,
+                                        unsigned int z) {
+  return __imin<unsigned int>(__imin<unsigned int>(x, y), z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax_s16x2_relu(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __imax_relu_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax_s32_relu(int x, int y) {
+  int t = __imax<int>(x, y);
+  return (t > 0) ? t : 0;
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin_s16x2_relu(unsigned int x, unsigned int y) {
+  return __internal_v_binary_op<int16_t, 2, __imin_relu_op>(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin_s32_relu(int x, int y) {
+  int t = __imin<int>(x, y);
+  return (t > 0) ? t : 0;
+}
+
 #endif

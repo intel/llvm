@@ -241,6 +241,9 @@ public:
   /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
   void visitCallSPIRVRelational(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ReadClockKHR to OpenCL builtin.
+  void visitCallSPIRVReadClockKHR(CallInst *CI);
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 

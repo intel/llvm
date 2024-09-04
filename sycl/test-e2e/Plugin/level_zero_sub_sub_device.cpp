@@ -1,4 +1,4 @@
-// REQUIRES:  gpu-intel-pvc, level_zero
+// REQUIRES:  arch-intel_gpu_pvc, level_zero
 
 // UNSUPPORTED: gpu-intel-pvc-1T
 

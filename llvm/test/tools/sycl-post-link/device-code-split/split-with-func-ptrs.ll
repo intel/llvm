@@ -3,14 +3,14 @@
 ; modules.
 
 ; -- Per-source split
-; RUN: sycl-post-link -split=source -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tA.table
+; RUN: sycl-post-link -properties -split=source -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tA.table
 ; RUN: FileCheck %s -input-file=%tA_0.ll --check-prefixes CHECK-A0
 ; RUN: FileCheck %s -input-file=%tA_1.ll --check-prefixes CHECK-A1
 ; -- No split
-; RUN: sycl-post-link -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tB.table
+; RUN: sycl-post-link -properties -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tB.table
 ; RUN: FileCheck %s -input-file=%tB_0.ll --check-prefixes CHECK-B0
 ; -- Per-kernel split
-; RUN: sycl-post-link -split=kernel -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tC.table
+; RUN: sycl-post-link -properties -split=kernel -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=native -S < %s -o %tC.table
 ; RUN: FileCheck %s -input-file=%tC_0.ll --check-prefixes CHECK-C0
 ; RUN: FileCheck %s -input-file=%tC_1.ll --check-prefixes CHECK-C1
 
@@ -29,12 +29,12 @@ $bar = comdat any
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-A1: define linkonce_odr dso_local spir_func void @foo
-; CHECK-B0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-B1: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C0: define linkonce_odr dso_local spir_func void @foo
-; CHECK-C1: define linkonce_odr dso_local spir_func void @foo
+; CHECK-A0: define {{.*}} spir_func void @foo
+; CHECK-A1: define {{.*}} spir_func void @foo
+; CHECK-B0: define {{.*}} spir_func void @foo
+; CHECK-B1: define {{.*}} spir_func void @foo
+; CHECK-C0: define {{.*}} spir_func void @foo
+; CHECK-C1: define {{.*}} spir_func void @foo
   ret void
 }
 
@@ -42,23 +42,23 @@ define linkonce_odr dso_local spir_func void @foo() unnamed_addr #0 comdat align
 ;    to every split module.
 ; Function Attrs: mustprogress norecurse nounwind
 define weak dso_local spir_func void @baz() #3 {
-; CHECK-A0: define weak dso_local spir_func void @baz
-; CHECK-A1: define weak dso_local spir_func void @baz
-; CHECK-B0: define weak dso_local spir_func void @baz
-; CHECK-B1: define weak dso_local spir_func void @baz
-; CHECK-C0: define weak dso_local spir_func void @baz
-; CHECK-C1: define weak dso_local spir_func void @baz
+; CHECK-A0: define {{.*}} spir_func void @baz
+; CHECK-A1: define {{.*}} spir_func void @baz
+; CHECK-B0: define {{.*}} spir_func void @baz
+; CHECK-B1: define {{.*}} spir_func void @baz
+; CHECK-C0: define {{.*}} spir_func void @baz
+; CHECK-C1: define {{.*}} spir_func void @baz
   ret void
 }
 
 ; Function Attrs: mustprogress norecurse nounwind
 define linkonce_odr dso_local spir_func void @bar() unnamed_addr #1 comdat align 2 {
-; CHECK-A0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-A1: define linkonce_odr dso_local spir_func void @bar
-; CHECK-B0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-B1: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C0: define linkonce_odr dso_local spir_func void @bar
-; CHECK-C1: define linkonce_odr dso_local spir_func void @bar
+; CHECK-A0: define {{.*}} spir_func void @bar
+; CHECK-A1: define {{.*}} spir_func void @bar
+; CHECK-B0: define {{.*}} spir_func void @bar
+; CHECK-B1: define {{.*}} spir_func void @bar
+; CHECK-C0: define {{.*}} spir_func void @bar
+; CHECK-C1: define {{.*}} spir_func void @bar
   call void @baz()
   ret void
 }

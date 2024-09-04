@@ -49,15 +49,16 @@ static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
           LHS->MOffsetInBytes);
 }
 
-static bool sameCtx(const ContextImplPtr &LHS, const ContextImplPtr &RHS) {
-  // Consider two different host contexts to be the same to avoid additional
-  // allocation on the host
-  return LHS == RHS || (LHS->is_host() && RHS->is_host());
-}
-
 /// Checks if current requirement is requirement for sub buffer.
 static bool IsSuitableSubReq(const Requirement *Req) {
   return Req->MIsSubBuffer;
+}
+
+static bool isOnSameContext(const ContextImplPtr Context,
+                            const QueueImplPtr &Queue) {
+  // Covers case for host usage (nullptr == nullptr) and existing device
+  // contexts comparison.
+  return Context == queue_impl::getContext(Queue);
 }
 
 /// Checks if the required access mode is allowed under the current one.
@@ -249,7 +250,7 @@ Scheduler::GraphBuilder::getOrInsertMemObjRecord(const QueueImplPtr &Queue,
                                 "shouldn't lead to any enqueuing (no linked "
                                 "alloca or exceeding the leaf limit).");
   } else
-    MemObject->MRecord.reset(new MemObjRecord{Queue->getContextImplPtr(),
+    MemObject->MRecord.reset(new MemObjRecord{queue_impl::getContext(Queue),
                                               LeafLimit, AllocateDependency});
 
   MMemObjs.push_back(MemObject);
@@ -288,8 +289,8 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-  AllocaCommandBase *AllocaCmd =
-      findAllocaForReq(Record, Req, Queue->getContextImplPtr());
+  auto Context = queue_impl::getContext(Queue);
+  AllocaCommandBase *AllocaCmd = findAllocaForReq(Record, Req, Context);
   assert(AllocaCmd && "There must be alloca for requirement!");
   UpdateHostRequirementCommand *UpdateCommand =
       new UpdateHostRequirementCommand(Queue, *Req, AllocaCmd, &Req->MData);
@@ -297,8 +298,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
   // dependencies become invalid if requirement is stored by pointer.
   const Requirement *StoredReq = UpdateCommand->getRequirement();
 
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Queue->getContextImplPtr());
+  std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
   std::vector<Command *> ToCleanUp;
   for (Command *Dep : Deps) {
     Command *ConnCmd =
@@ -323,7 +323,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
   assert(AllocaCmdSrc->MIsActive &&
          "Expected source alloca command to be active");
 
-  if (AllocaCmdSrc->getQueue()->is_host()) {
+  if (!AllocaCmdSrc->getQueue()) {
     UnMapMemObject *UnMapCmd = new UnMapMemObject(
         AllocaCmdDst, *AllocaCmdDst->getRequirement(),
         &AllocaCmdSrc->MMemAllocation, AllocaCmdDst->getQueue());
@@ -345,14 +345,14 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 Command *Scheduler::GraphBuilder::insertMemoryMove(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, Queue->getContextImplPtr());
+  auto Context = queue_impl::getContext(Queue);
+  std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
   Deps.insert(AllocaCmdDst);
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
@@ -368,8 +368,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     // current context, need to find a parent alloca command for it (it must be
     // there)
     auto IsSuitableAlloca = [Record](AllocaCommandBase *AllocaCmd) {
-      bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(),
-                         Record->MCurContext) &&
+      bool Res = isOnSameContext(Record->MCurContext, AllocaCmd->getQueue()) &&
                  // Looking for a parent buffer alloca command
                  AllocaCmd->getType() == Command::CommandType::ALLOCA;
       return Res;
@@ -380,8 +379,8 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
     AllocaCmdSrc = (Record->MAllocaCommands.end() != It) ? *It : nullptr;
   }
   if (!AllocaCmdSrc)
-    throw runtime_error("Cannot find buffer allocation",
-                        PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::runtime),
+                    "Cannot find buffer allocation");
   // Get parent allocation of sub buffer to perform full copy of whole buffer
   if (IsSuitableSubReq(Req)) {
     if (AllocaCmdSrc->getType() == Command::CommandType::ALLOCA_SUB_BUF)
@@ -404,7 +403,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 
     if ((Req->MAccessMode == access::mode::discard_write) ||
         (Req->MAccessMode == access::mode::discard_read_write)) {
-      Record->MCurContext = Queue->getContextImplPtr();
+      Record->MCurContext = Context;
       return nullptr;
     } else {
       // Full copy of buffer is needed to avoid loss of data that may be caused
@@ -426,15 +425,14 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
   addNodeToLeaves(Record, NewCmd, access::mode::read_write, ToEnqueue);
   for (Command *Cmd : ToCleanUp)
     cleanupCommand(Cmd);
-  Record->MCurContext = Queue->getContextImplPtr();
+  Record->MCurContext = Context;
   return NewCmd;
 }
 
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
-  assert(HostAllocaCmd->getQueue()->is_host() &&
-         "Host alloca command expected");
+  assert(!HostAllocaCmd->getQueue() && "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
 
   AllocaCommandBase *LinkedAllocaCmd = HostAllocaCmd->MLinkedAllocaCmd;
@@ -480,7 +478,6 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 Command *
 Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
                                      std::vector<Command *> &ToEnqueue) {
-  QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   SYCLMemObjI *MemObj = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObj);
   if (Record && MPrintOptionsArray[BeforeAddCopyBack])
@@ -490,17 +487,17 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
   if (nullptr == Record || !Record->MMemModified)
     return nullptr;
 
-  std::set<Command *> Deps =
-      findDepsForReq(Record, Req, HostQueue->getContextImplPtr());
+  std::set<Command *> Deps = findDepsForReq(Record, Req, nullptr);
   AllocaCommandBase *SrcAllocaCmd =
       findAllocaForReq(Record, Req, Record->MCurContext);
 
   auto MemCpyCmdUniquePtr = std::make_unique<MemCpyCommandHost>(
       *SrcAllocaCmd->getRequirement(), SrcAllocaCmd, *Req, &Req->MData,
-      SrcAllocaCmd->getQueue(), std::move(HostQueue));
+      SrcAllocaCmd->getQueue(), nullptr);
 
   if (!MemCpyCmdUniquePtr)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   MemCpyCommandHost *MemCpyCmd = MemCpyCmdUniquePtr.release();
 
@@ -531,19 +528,17 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
     auto SYCLMemObj = static_cast<detail::SYCLMemObjT *>(Req->MSYCLMemObj);
     SYCLMemObj->handleWriteAccessorCreation();
   }
-
-  const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
-
-  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
+  // Host accessor is not attached to any queue so no QueueImplPtr object to be
+  // sent to getOrInsertMemObjRecord.
+  MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
   if (MPrintOptionsArray[BeforeAddHostAcc])
     printGraphAsDot("before_addHostAccessor");
   markModifiedIfWrite(Record, Req);
 
   AllocaCommandBase *HostAllocaCmd =
-      getOrCreateAllocaForReq(Record, Req, HostQueue, ToEnqueue);
+      getOrCreateAllocaForReq(Record, Req, nullptr, ToEnqueue);
 
-  if (sameCtx(HostAllocaCmd->getQueue()->getContextImplPtr(),
-              Record->MCurContext)) {
+  if (isOnSameContext(Record->MCurContext, HostAllocaCmd->getQueue())) {
     if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
       remapMemoryObject(Record, Req,
                         Req->MIsSubBuffer ? (static_cast<AllocaSubBufCommand *>(
@@ -553,15 +548,14 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                         ToEnqueue);
     }
   } else
-    insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
+    insertMemoryMove(Record, Req, nullptr, ToEnqueue);
 
   Command *UpdateHostAccCmd =
-      insertUpdateHostReqCmd(Record, Req, HostQueue, ToEnqueue);
+      insertUpdateHostReqCmd(Record, Req, nullptr, ToEnqueue);
 
   // Need empty command to be blocked until host accessor is destructed
-  EmptyCommand *EmptyCmd =
-      addEmptyCmd(UpdateHostAccCmd, {Req}, HostQueue,
-                  Command::BlockReason::HostAccessor, ToEnqueue);
+  EmptyCommand *EmptyCmd = addEmptyCmd(
+      UpdateHostAccCmd, {Req}, Command::BlockReason::HostAccessor, ToEnqueue);
 
   Req->MBlockedCmd = EmptyCmd;
 
@@ -572,14 +566,14 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 }
 
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
-    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &HostQueue,
+    std::unique_ptr<detail::CG> CommandGroup,
     std::vector<Command *> &ToEnqueue) {
 
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
-  MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req);
-  return insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
+  MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
+  return insertMemoryMove(Record, Req, nullptr, ToEnqueue);
 }
 
 /// Start the search for the record from list of "leaf" commands and check if
@@ -625,9 +619,10 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
       CanBypassDep |= !doOverlap(Dep.MDepRequirement, Req);
 
       // Going through copying memory between contexts is not supported.
-      if (Dep.MDepCommand)
-        CanBypassDep &=
-            sameCtx(Context, Dep.MDepCommand->getQueue()->getContextImplPtr());
+      if (Dep.MDepCommand) {
+        auto DepQueue = Dep.MDepCommand->getQueue();
+        CanBypassDep &= isOnSameContext(Context, DepQueue);
+      }
 
       if (!CanBypassDep) {
         RetDeps.insert(DepCmd);
@@ -666,7 +661,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     bool AllowConst) {
   auto IsSuitableAlloca = [&Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
-    bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
+    bool Res = isOnSameContext(Context, AllocaCmd->getQueue());
     if (IsSuitableSubReq(Req)) {
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
@@ -684,10 +679,15 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
-      return Ctx->is_host();
+      return Ctx == nullptr;
     if (std::strcmp(HUMConfig, "1") == 0)
       return true;
   }
+  // host task & host accessor is covered with no device context but provide
+  // required support.
+  if (Ctx == nullptr)
+    return true;
+
   for (const device &Device : Ctx->getDevices()) {
     if (!Device.get_info<info::device::host_unified_memory>())
       return false;
@@ -702,9 +702,9 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-
-  AllocaCommandBase *AllocaCmd = findAllocaForReq(
-      Record, Req, Queue->getContextImplPtr(), /*AllowConst=*/false);
+  auto Context = queue_impl::getContext(Queue);
+  AllocaCommandBase *AllocaCmd =
+      findAllocaForReq(Record, Req, Context, /*AllowConst=*/false);
 
   if (!AllocaCmd) {
     std::vector<Command *> ToCleanUp;
@@ -734,8 +734,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // TODO the case where the first alloca is made with a discard mode and
       // the user pointer is read-only is still not handled: it leads to
       // unnecessary copy on devices with unified host memory support.
-      const bool HostUnifiedMemory =
-          checkHostUnifiedMemory(Queue->getContextImplPtr());
+      const bool HostUnifiedMemory = checkHostUnifiedMemory(Context);
       SYCLMemObjI *MemObj = Req->MSYCLMemObj;
       const bool InitFromUserData = Record->MAllocaCommands.empty() &&
                                     (HostUnifiedMemory || MemObj->isInterop());
@@ -751,16 +750,14 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // There's no need to make a host allocation if the buffer is not
           // initialized with user data.
           if (MemObj->hasUserDataPtr()) {
-            QueueImplPtr DefaultHostQueue =
-                Scheduler::getInstance().getDefaultHostQueue();
             AllocaCommand *HostAllocaCmd = new AllocaCommand(
-                DefaultHostQueue, FullReq, true /* InitFromUserData */,
+                nullptr, FullReq, true /* InitFromUserData */,
                 nullptr /* LinkedAllocaCmd */,
                 MemObj->isHostPointerReadOnly() /* IsConst */);
             Record->MAllocaCommands.push_back(HostAllocaCmd);
             Record->MWriteLeaves.push_back(HostAllocaCmd, ToEnqueue);
             ++(HostAllocaCmd->MLeafCounter);
-            Record->MCurContext = DefaultHostQueue->getContextImplPtr();
+            Record->MCurContext = nullptr;
           }
         }
       } else {
@@ -772,7 +769,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // new one. There could be situations when we could setup link with
           // "not" current allocation, but it will require memory copy.
           // Can setup link between cl and host allocations only
-          if (Queue->is_host() != Record->MCurContext->is_host()) {
+          if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
             // plugin runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
@@ -784,7 +781,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             bool PinnedHostMemory = MemObj->usesPinnedHostMemory();
 
             bool HostUnifiedMemoryOnNonHostDevice =
-                Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
+                Queue == nullptr ? checkHostUnifiedMemory(Record->MCurContext)
                                  : HostUnifiedMemory;
             if (PinnedHostMemory || HostUnifiedMemoryOnNonHostDevice) {
               AllocaCommandBase *LinkedAllocaCmdCand = findAllocaForReq(
@@ -824,14 +821,13 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
         // construction, host allocation doesn't. So, device allocation should
         // always be active here. Also if the "follower" command is a device one
         // we have to change current context to the device one.
-        if (Queue->is_host()) {
+        if (Queue == nullptr) {
           AllocaCmd->MIsActive = false;
         } else {
           LinkedAllocaCmd->MIsActive = false;
-          Record->MCurContext = Queue->getContextImplPtr();
+          Record->MCurContext = Context;
 
-          std::set<Command *> Deps =
-              findDepsForReq(Record, Req, Queue->getContextImplPtr());
+          std::set<Command *> Deps = findDepsForReq(Record, Req, Context);
           for (Command *Dep : Deps) {
             Command *ConnCmd = AllocaCmd->addDep(
                 DepDesc{Dep, Req, LinkedAllocaCmd}, ToCleanUp);
@@ -871,22 +867,21 @@ void Scheduler::GraphBuilder::markModifiedIfWrite(MemObjRecord *Record,
 
 EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     Command *Cmd, const std::vector<Requirement *> &Reqs,
-    const QueueImplPtr &Queue, Command::BlockReason Reason,
-    std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
-  EmptyCommand *EmptyCmd =
-      new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
+    Command::BlockReason Reason, std::vector<Command *> &ToEnqueue) {
+  EmptyCommand *EmptyCmd = new EmptyCommand();
 
   if (!EmptyCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   EmptyCmd->MIsBlockable = true;
   EmptyCmd->MEnqueueStatus = EnqueueResultT::SyclEnqueueBlocked;
   EmptyCmd->MBlockReason = Reason;
 
   for (Requirement *Req : Reqs) {
-    MemObjRecord *Record = getOrInsertMemObjRecord(Queue, Req);
+    MemObjRecord *Record = getOrInsertMemObjRecord(nullptr, Req);
     AllocaCommandBase *AllocaCmd =
-        getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
+        getOrCreateAllocaForReq(Record, Req, nullptr, ToEnqueue);
     EmptyCmd->addRequirement(Cmd, AllocaCmd, Req);
   }
   // addRequirement above call addDep that already will add EmptyCmd as user for
@@ -894,25 +889,23 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
   if (!Reqs.size())
     Cmd->addUser(EmptyCmd);
 
-  if (AddDepsToLeaves) {
-    const std::vector<DepDesc> &Deps = Cmd->MDeps;
-    std::vector<Command *> ToCleanUp;
-    for (const DepDesc &Dep : Deps) {
-      const Requirement *Req = Dep.MDepRequirement;
-      MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+  const std::vector<DepDesc> &Deps = Cmd->MDeps;
+  std::vector<Command *> ToCleanUp;
+  for (const DepDesc &Dep : Deps) {
+    const Requirement *Req = Dep.MDepRequirement;
+    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
 
-      updateLeaves({Cmd}, Record, Req->MAccessMode, ToCleanUp);
-      addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
-    }
-    for (Command *Cmd : ToCleanUp)
-      cleanupCommand(Cmd);
+    updateLeaves({Cmd}, Record, Req->MAccessMode, ToCleanUp);
+    addNodeToLeaves(Record, EmptyCmd, Req->MAccessMode, ToEnqueue);
   }
+  for (Command *Cmd : ToCleanUp)
+    cleanupCommand(Cmd);
 
   return EmptyCmd;
 }
 
 static bool isInteropHostTask(ExecCGCommand *Cmd) {
-  if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
+  if (Cmd->getCG().getType() != CGType::CodeplayHostTask)
     return false;
 
   const detail::CGHostTask &HT =
@@ -943,17 +936,19 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
 
 Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-    std::vector<Command *> &ToEnqueue,
-    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
-    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+    std::vector<Command *> &ToEnqueue, bool EventNeeded,
+    ur_exp_command_buffer_handle_t CommandBuffer,
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(
-      std::move(CommandGroup), Queue, CommandBuffer, std::move(Dependencies));
+  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue,
+                                                EventNeeded, CommandBuffer,
+                                                std::move(Dependencies));
 
   if (!NewCmd)
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
 
   // Only device kernel command groups can participate in fusion. Otherwise,
   // command groups take the regular route. If they create any requirement or
@@ -1021,7 +1016,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     } else {
       std::string s;
       std::stringstream ss(s);
-      if (NewCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+      if (NewCmd->getCG().getType() == CGType::Kernel) {
         ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
               "non-cooperative device kernels.";
       } else {
@@ -1068,8 +1063,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       AllocaCmd =
           getOrCreateAllocaForReq(Record, Req, QueueForAlloca, ToEnqueue);
 
-      isSameCtx =
-          sameCtx(QueueForAlloca->getContextImplPtr(), Record->MCurContext);
+      isSameCtx = isOnSameContext(Record->MCurContext, QueueForAlloca);
     }
 
     // If there is alloca command we need to check if the latest memory is in
@@ -1077,7 +1071,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     if (isSameCtx) {
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
-      if (Record->MCurContext->is_host() &&
+      if (!Record->MCurContext &&
           !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess)) {
         remapMemoryObject(Record, Req,
                           Req->MIsSubBuffer
@@ -1095,21 +1089,20 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       if (isInteropTask) {
         const detail::CGHostTask &HT = static_cast<detail::CGHostTask &>(CG);
 
-        if (HT.MQueue->getContextImplPtr() != Record->MCurContext) {
+        if (!isOnSameContext(Record->MCurContext, HT.MQueue)) {
           NeedMemMoveToHost = true;
           MemMoveTargetQueue = HT.MQueue;
         }
-      } else if (!Queue->is_host() && !Record->MCurContext->is_host())
+      } else if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
-        insertMemoryMove(Record, Req,
-                         Scheduler::getInstance().getDefaultHostQueue(),
-                         ToEnqueue);
+        insertMemoryMove(Record, Req, nullptr, ToEnqueue);
       insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
     }
+
     std::set<Command *> Deps =
-        findDepsForReq(Record, Req, Queue->getContextImplPtr());
+        findDepsForReq(Record, Req, queue_impl::getContext(Queue));
 
     for (Command *Dep : Deps) {
       if (Dep != NewCmd) {
@@ -1339,19 +1332,21 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
   ExecCGCommand *ConnectCmd = nullptr;
 
   try {
-    std::unique_ptr<detail::HostTask> HT(new detail::HostTask);
+    std::shared_ptr<detail::HostTask> HT(new detail::HostTask);
     std::unique_ptr<detail::CG> ConnectCG(new detail::CGHostTask(
-        std::move(HT), /* Queue = */ {}, /* Context = */ {}, /* Args = */ {},
+        std::move(HT), /* Queue = */ Cmd->getQueue(), /* Context = */ {},
+        /* Args = */ {},
         detail::CG::StorageInitHelper(
             /* ArgsStorage = */ {}, /* AccStorage = */ {},
             /* SharedPtrStorage = */ {}, /* Requirements = */ {},
             /* DepEvents = */ {DepEvent}),
-        CG::CodeplayHostTask,
+        CGType::CodeplayHostTask,
         /* Payload */ {}));
-    ConnectCmd = new ExecCGCommand(
-        std::move(ConnectCG), Scheduler::getInstance().getDefaultHostQueue());
+    ConnectCmd = new ExecCGCommand(std::move(ConnectCG), nullptr,
+                                   /*EventNeeded=*/true);
   } catch (const std::bad_alloc &) {
-    throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+    throw exception(make_error_code(errc::memory_allocation),
+                    "Out of host memory");
   }
 
   if (Dep.MDepRequirement) {
@@ -1623,8 +1618,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                      }),
       FusedEventDeps.end());
 
-  auto FusedKernelCmd =
-      std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
+  auto FusedKernelCmd = std::make_unique<ExecCGCommand>(
+      std::move(FusedCG), Queue, /*EventNeeded=*/true);
 
   // Inherit auxiliary resources from fused command groups
   Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),
@@ -1711,7 +1706,7 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
 
       AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
 
-      isSameCtx = sameCtx(Queue->getContextImplPtr(), Record->MCurContext);
+      isSameCtx = isOnSameContext(Record->MCurContext, Queue);
     }
 
     if (!isSameCtx) {
@@ -1720,17 +1715,15 @@ Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
       bool NeedMemMoveToHost = false;
       auto MemMoveTargetQueue = Queue;
 
-      if (!Queue->is_host() && !Record->MCurContext->is_host())
+      if (Queue && Record->MCurContext)
         NeedMemMoveToHost = true;
 
       if (NeedMemMoveToHost)
-        insertMemoryMove(Record, Req,
-                         Scheduler::getInstance().getDefaultHostQueue(),
-                         ToEnqueue);
+        insertMemoryMove(Record, Req, nullptr, ToEnqueue);
       insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
     }
     std::set<Command *> Deps =
-        findDepsForReq(Record, Req, Queue->getContextImplPtr());
+        findDepsForReq(Record, Req, queue_impl::getContext(Queue));
 
     for (Command *Dep : Deps) {
       if (Dep != NewCmd.get()) {

@@ -5,9 +5,9 @@ include(FetchContent)
 
 set(BOOST_MP11_GIT_REPO https://github.com/boostorg/mp11.git)
 # Author: pdimov
-# Date: Jun 23, 2023
-# Release: boost-1.83.0
-set(BOOST_MP11_GIT_TAG ef7608b463298b881bc82eae4f45a4385ed74fca)
+# Date: Dec 31, 2023
+# Release: boost-1.85.0
+set(BOOST_MP11_GIT_TAG 863d8b8d2b20f2acd0b5870f23e553df9ce90e6c)
 
 # Either download from github or use existing if BOOST_MP11_SOURCE_DIR is set
 if (NOT DEFINED BOOST_MP11_SOURCE_DIR)

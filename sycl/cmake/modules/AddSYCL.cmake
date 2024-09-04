@@ -34,6 +34,8 @@ function(add_sycl_library LIB_NAME TYPE)
   add_common_options(${LIB_NAME})
 endfunction()
 
+# current ur adapter dependency managing is a bit hacky, we should try to copy
+# this as closely as possible instead
 function(add_sycl_plugin PLUGIN_NAME)
   cmake_parse_arguments("ARG"
     ""

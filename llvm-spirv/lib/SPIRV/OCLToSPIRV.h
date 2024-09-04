@@ -217,6 +217,10 @@ public:
   void visitCallDot(CallInst *CI, StringRef MangledName,
                     StringRef DemangledName);
 
+  /// Transform clock_read_* calls to OpReadClockKHR instructions.
+  void visitCallClockRead(CallInst *CI, StringRef MangledName,
+                          StringRef DemangledName);
+
   /// Fixes for built-in functions with vector+scalar arguments that are
   /// translated to the SPIR-V instructions where all arguments must have the
   /// same type.

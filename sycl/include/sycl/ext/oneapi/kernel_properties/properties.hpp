@@ -240,6 +240,19 @@ template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
 namespace detail {
 
+template <size_t... Dims>
+struct HasCompileTimeEffect<work_group_size_key::value_t<Dims...>>
+    : std::true_type {};
+template <size_t... Dims>
+struct HasCompileTimeEffect<work_group_size_hint_key::value_t<Dims...>>
+    : std::true_type {};
+template <uint32_t Size>
+struct HasCompileTimeEffect<sub_group_size_key::value_t<Size>>
+    : std::true_type {};
+template <sycl::aspect... Aspects>
+struct HasCompileTimeEffect<device_has_key::value_t<Aspects...>>
+    : std::true_type {};
+
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
   static constexpr const char *name = "sycl-work-group-size";

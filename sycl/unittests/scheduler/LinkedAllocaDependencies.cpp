@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
@@ -26,7 +26,7 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *, sycl::detail::pi::PiEvent &) {
+  void *allocateMem(ContextImplPtr, bool, void *, ur_event_handle_t &) {
     return nullptr;
   }
 
@@ -51,8 +51,8 @@ static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::device Dev = getDeviceWithHostUnifiedMemory(Plt);
 
   // 1. create two commands: alloca + alloca and link them
@@ -64,28 +64,21 @@ TEST_F(SchedulerTest, LinkedAllocaDependencies) {
   sycl::queue Queue1{Dev};
   sycl::detail::QueueImplPtr Q1 = sycl::detail::getSyclObjImpl(Queue1);
 
-  device HostDevice = detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl());
-  std::shared_ptr<detail::queue_impl> DefaultHostQueue(new detail::queue_impl(
-      detail::getSyclObjImpl(HostDevice), /*AsyncHandler=*/{},
-      /*PropList=*/{}));
-
   auto AllocaDep = [](sycl::detail::Command *, sycl::detail::Command *,
                       sycl::detail::MemObjRecord *,
                       std::vector<sycl::detail::Command *> &) {};
 
   std::shared_ptr<sycl::detail::MemObjRecord> Record{
-      new sycl::detail::MemObjRecord(DefaultHostQueue->getContextImplPtr(), 10,
-                                     AllocaDep)};
+      new sycl::detail::MemObjRecord(nullptr, 10, AllocaDep)};
 
   MemObjMock MemObj(Record);
   Req.MSYCLMemObj = &MemObj;
 
-  sycl::detail::AllocaCommand AllocaCmd1(DefaultHostQueue, Req, false);
+  sycl::detail::AllocaCommand AllocaCmd1(nullptr, Req, false);
   Record->MAllocaCommands.push_back(&AllocaCmd1);
 
-  MockCommand DepCmd(DefaultHostQueue, Req);
-  MockCommand DepDepCmd(DefaultHostQueue, Req);
+  MockCommand DepCmd(nullptr, Req);
+  MockCommand DepDepCmd(nullptr, Req);
   DepCmd.MDeps.push_back({&DepDepCmd, DepDepCmd.getRequirement(), &AllocaCmd1});
   DepDepCmd.MUsers.insert(&DepCmd);
   std::vector<sycl::detail::Command *> ToEnqueue;

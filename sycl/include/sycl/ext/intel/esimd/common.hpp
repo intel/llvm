@@ -198,9 +198,6 @@ enum class atomic_op : uint8_t {
   fsub = 0x14,
   load = 0x15,
   store = 0x16,
-  /// Decrement: <code>*addr = *addr - 1</code>. The only operation which
-  /// returns new value of the destination rather than old.
-  predec = 0xff,
 };
 
 #undef __ESIMD_USM_DWORD_TO_LSC_MSG
@@ -211,7 +208,6 @@ namespace detail {
 template <__ESIMD_NS::atomic_op Op> constexpr bool has_lsc_equivalent() {
   switch (Op) {
   case __ESIMD_NS::atomic_op::xchg:
-  case __ESIMD_NS::atomic_op::predec:
     return false;
   default:
     return true;
@@ -315,7 +311,6 @@ template <__ESIMD_NS::atomic_op Op> constexpr int get_num_args() {
   case __ESIMD_NS::atomic_op::load:
     return 0;
   case __ESIMD_NS::atomic_op::xchg:
-  case __ESIMD_NS::atomic_op::predec:
   case __ESIMD_NS::atomic_op::store:
   case __ESIMD_NS::atomic_op::add:
   case __ESIMD_NS::atomic_op::sub:

@@ -9,7 +9,7 @@
 // SYCL
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 
-#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/interop_handle.hpp>
 
 bool is_discrete(const device &Device) {
   auto ZeDevice = get_native<backend::ext_oneapi_level_zero>(Device);

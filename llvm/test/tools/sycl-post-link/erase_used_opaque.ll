@@ -2,11 +2,11 @@
 ; the output modules when splitting modules, creating a single row table,
 ; and outputing IR only
 ;
-; RUN: sycl-post-link -split=kernel -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -split=kernel -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ; RUN: FileCheck %s -input-file=%t.files_1.ll
 ;
-; RUN: sycl-post-link -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=emulation < %s -o %t.out.table
+; RUN: sycl-post-link -properties -S -split=auto -symbols -split-esimd -lower-esimd -O2 -spec-const=emulation < %s -o %t.out.table
 ; RUN: FileCheck %s --input-file=%t.out_0.ll
 ;
 ; RUN: sycl-post-link -S -split=auto -ir-output-only < %s -o %t.out_ir_only.ll

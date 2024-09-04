@@ -42,7 +42,6 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
-#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/group.hpp>

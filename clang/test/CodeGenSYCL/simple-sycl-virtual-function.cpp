@@ -3,8 +3,8 @@
 //  2. Virtual table elements are generated in AS4.
 //  3. Runtime Global Variables are generated in AS1.
 
-// RUN: %clang_cc1 -triple spir64 -fsycl-allow-virtual-functions -fsycl-is-device -emit-llvm %s -o - | FileCheck %s --implicit-check-not _ZTI4Base --implicit-check-not _ZTI8Derived1 -check-prefix VTABLE
-// RUNx: %clang_cc1 -triple spir64 -fsycl-allow-virtual-functions -fsycl-is-device -fexperimental-relative-c++-abi-vtables -emit-llvm %s -o - | FileCheck %s --implicit-check-not _ZTI4Base --implicit-check-not _ZTI8Derived1
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -emit-llvm %s -o - | FileCheck %s --implicit-check-not _ZTI4Base --implicit-check-not _ZTI8Derived1 -check-prefix VTABLE
+// RUNx: %clang_cc1 -triple spir64 -fsycl-is-device -fexperimental-relative-c++-abi-vtables -emit-llvm %s -o - | FileCheck %s --implicit-check-not _ZTI4Base --implicit-check-not _ZTI8Derived1
 
 // Since experimental-relative-c++-abi-vtables is some experimental option, temporary disabling the check for now
 // until we emit proper address spaces (and casts) everywhere.

@@ -1015,12 +1015,13 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `architecture::intel_gpu_pvc`
 |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.5+|  `matrix_type::bf16`       .5+|  `matrix_type::bf16`   .5+|
+.6+|  `matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::fp32`  | 16 | 16 | 16 .4+|`architecture::intel_gpu_pvc`
 | 1 | 64 | 16 | 32 | 64 | 16
 .2+|  +<=+ 8 |  16   .2+|  16
-|8 | `architecture::intel_gpu_dg2_g10,
+|8 .2+| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.1+| 32 .1+| 32 .1+| 16
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
 `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
 `architecture::intel_gpu_pvc`
@@ -1085,6 +1086,13 @@ multiple of 4 when `T` is `float`; where `T` is the type of the
 `joint_matrix` elements. When `T` is not `half` or `float` there are
 no restrictions to `stride`.
 
+IMPORTANT: For some devices it is important to use the sm version
+(Compute Capability) corresponding to the device that will run the
+program when specifying e.g. `-fsycl-targets=nvidia_gpu_sm_xx` during
+compilation. This particularly affects matrix operations using `half`.
+For more information on this issue consult
+https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
+
 ==== AMD Matrix Cores Supported Combinations
 The complete set of matrix data types and dimensions that are supported by
 the `ext_oneapi_hip` backend are represented in the following
@@ -1139,4 +1147,5 @@ supported combinations
 load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
+|12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
 |======================

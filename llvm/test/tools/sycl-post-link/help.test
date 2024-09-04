@@ -1,4 +1,4 @@
-// RUN: sycl-post-link --help | FileCheck %s
+// RUN: sycl-post-link -properties --help | FileCheck %s
 
 CHECK: OVERVIEW: SYCL post-link device code processing tool.
 CHECK: This is a collection of utilities run on device code's LLVM IR before
@@ -17,8 +17,8 @@ CHECK:   for the SPIRV translator
 CHECK: Normally, the tool generates a number of files and "file table"
 CHECK: file listing all generated files in a table manner. For example, if
 CHECK: the input file 'example.bc' contains two kernels, then the command
-CHECK:   $ sycl-post-link --split=kernel --symbols --spec-const=native \
-CHECK:     -o example.table example.bc
+CHECK:   $ sycl-post-link --properties --split=kernel --symbols \
+CHECK:     --spec-const=native -o example.table example.bc
 CHECK: will produce 'example.table' file with the following content:
 CHECK:   [Code|Properties|Symbols]
 CHECK:   example_0.bc|example_0.prop|example_0.sym
@@ -47,6 +47,7 @@ CHECK: -f                   - Enable binary output on terminals
 CHECK: --ir-output-only     - Output single IR file
 CHECK: -o <target filename pair>  - Specifies an output file. Multiple output files can be specified. Additionally, a target may be specified alongside an output file, which has the effect that when module splitting is performed, the modules that are in that output table are filtered so those modules are compatible with the target.
 CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
+CHECK: --properties            - generate module properties files
 CHECK: --spec-const=<value> - lower and generate specialization constants information
 CHECK:   =native            - lower spec constants to native spirv instructions so that these values could be set at runtime
 CHECK:   =emulation         - remove specialization constants and replace it with emulation

@@ -37,34 +37,26 @@ int main() {
   bool isHip = dev.get_backend() == sycl::backend::ext_oneapi_hip;
 
   std::vector<int> valid_advices;
-  if (isCuda) {
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST);
+  if (isCuda || isHip) {
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_READ_MOSTLY);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_CLEAR_READ_MOSTLY);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_DEVICE);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_DEVICE);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_PREFERRED_LOCATION_HOST);
     valid_advices.emplace_back(
-        PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST);
-  } else if (isHip) {
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_READ_MOSTLY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_READ_MOSTLY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_ACCESSED_BY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED);
-    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED);
+        UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_ACCESSED_BY_HOST);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST);
   } else {
     // Skip
     return 0;
+  }
+
+  if (isHip) {
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY);
+    valid_advices.emplace_back(UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY);
   }
 
   for (int advice : valid_advices) {

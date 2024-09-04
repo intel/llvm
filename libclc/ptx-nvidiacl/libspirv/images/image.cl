@@ -313,6 +313,12 @@ _DEFINE_CAST(short, short)
 _DEFINE_CAST(short, ushort)
 _DEFINE_CAST(short, char)
 _DEFINE_CAST(short, uchar)
+_DEFINE_CAST(uint, uint)
+_DEFINE_CAST(int, short)
+_DEFINE_CAST(uint, ushort)
+_DEFINE_CAST(int, char)
+_DEFINE_CAST(uint, uchar)
+_DEFINE_CAST(float, half)
 
 _DEFINE_PIXELF_CAST(32, float4, int4)
 _DEFINE_PIXELF_CAST(32, float4, uint4)
@@ -3380,7 +3386,7 @@ _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_f,
 
 // ------- Image Arrays / Layered Images -------
 
-// Read/Write Intrinsic Thunks
+// Surface Array Read / Write Intrinsic Thunks
 
 #define COORD_PARAMS_1D(type) type
 #define COORD_PARAMS_2D(type) type, type
@@ -3466,6 +3472,54 @@ BINDLESS_INTRINSIC_FUNC_ALL(int, i, 32, )
 BINDLESS_INTRINSIC_FUNC_ALL(short, i, 16, )
 BINDLESS_INTRINSIC_FUNC_ALL(short, i, 8, _helper)
 
+#undef BINDLESS_INTRINSIC_FUNC_ND
+#undef BINDLESS_INTRINSIC_FUNC_ALL
+#undef _NVVM_FUNC_UNDERSCORE
+
+// Texture Array Reads
+
+#define _NVVM_FUNC_UNDERSCORE(name, dimension, vec_size_mangled,               \
+                              coord_mangled, helper, clc_prefix)               \
+  clc_prefix##nvvm_##name##_##dimension##d##_array_##vec_size_mangled##_##coord_mangled##helper
+
+#define BINDLESS_INTRINSIC_FUNC_ND(                                                  \
+    ret_type, dimension, nvvm_elem_t_mangled, ocl_elem_t_mangled, vec_size,          \
+    coord_mangled, elem_t_size, separator, clc_prefix, helper, coord_type)           \
+  ELEM_VEC_##vec_size(ret_type) CONCAT(                                              \
+      __,                                                                            \
+      NVVM_FUNC_UNDERSCORE(                                                          \
+          tex_unified, dimension,                                                    \
+          VEC_SIZE_##vec_size(ocl_elem_t_mangled, elem_t_size), coord_mangled,       \
+          helper, )(                                                                 \
+          long, int,                                                                 \
+          COORD_PARAMS_##dimension##D(                                               \
+              coord_type))) __asm(STR(NVVM_FUNC_##separator(tex_unified,             \
+                                                            dimension,               \
+                                                            VEC_SIZE_##vec_size(     \
+                                                                nvvm_elem_t_mangled, \
+                                                                elem_t_size),        \
+                                                            coord_mangled, ,         \
+                                                            clc_prefix)));
+
+#define BINDLESS_INTRINSIC_FUNC_ALL(ret_type, nvvm_elem_t_mangled,             \
+                                    ocl_elem_t_mangled, elem_t_size, helper)   \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 1, nvvm_elem_t_mangled,                 \
+                             ocl_elem_t_mangled, 4, f32, elem_t_size,          \
+                             UNDERSCORE, __clc_llvm_, helper, float)           \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 2, nvvm_elem_t_mangled,                 \
+                             ocl_elem_t_mangled, 4, f32, elem_t_size,          \
+                             UNDERSCORE, __clc_llvm_, helper, float)           \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 1, nvvm_elem_t_mangled,                 \
+                             ocl_elem_t_mangled, 4, i32, elem_t_size,          \
+                             UNDERSCORE, __clc_llvm_, helper, int)             \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 2, nvvm_elem_t_mangled,                 \
+                             ocl_elem_t_mangled, 4, i32, elem_t_size,          \
+                             UNDERSCORE, __clc_llvm_, helper, int)
+
+BINDLESS_INTRINSIC_FUNC_ALL(int, i, i, 32, )
+BINDLESS_INTRINSIC_FUNC_ALL(uint, j, j, 32, )
+BINDLESS_INTRINSIC_FUNC_ALL(float, f, f, 32, )
+
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D
 #undef ELEM_VEC_1
@@ -3507,47 +3561,29 @@ BINDLESS_INTRINSIC_FUNC_ALL(short, i, 8, _helper)
     return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
   }
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, int, uint, j32,
-                                                       i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort, short, ushort,
-                                                       t16, i16, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char, short, char, i8,
-                                                       i8, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar, short, uchar, h8,
-                                                       i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, int, uint, j32, i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort, short, ushort, t16, i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char, short, char, i8, i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar, short, uchar, h8, i8, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint2, int4, uint2,
-                                                       v2j32, v4i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort2, short4, ushort2,
-                                                       v2t16, v4i16, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char2, short2, char2,
-                                                       v2i8, v2i8, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar2, short2, uchar2,
-                                                       v2h8, v2i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint2, int4, uint2, v2j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort2, short4, ushort2, v2t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char2, short2, char2, v2i8, v2i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar2, short2, uchar2, v2h8, v2i8, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint4, int4, uint4,
-                                                       v4j32, v4i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort4, short4, ushort4,
-                                                       v4t16, v4i16, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char4, short4, char4,
-                                                       v4i8, v4i8, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar4, short4, uchar4,
-                                                       v4h8, v4i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint4, int4, uint4, v4j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort4, short4, ushort4, v4t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char4, short4, char4, v4i8, v4i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar4, short4, uchar4, v4h8, v4i8, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float, int, int, f32,
-                                                       i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, short, short, f16,
-                                                       i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float, int, int, f32, i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, short, short, f16, i16, )
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float2, int2, int2,
-                                                       v2f32, v2i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half2, short2, short2,
-                                                       v2f16, v2i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float2, int2, int2, v2f32, v2i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half2, short2, short2, v2f16, v2i16, )
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float4, int4, int4,
-                                                       v4f32, v4i32, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4,
-                                                       v4f16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float4, int4, int4, v4f32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4, v4f16, v4i16, )
 
 #undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN
 
@@ -3588,51 +3624,90 @@ _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4,
             write_elem_t));                                                    \
   }
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, j32, i32, 1,
-                                                        AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, t16, i16,
-                                                        1, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, i8, i8, 1,
-                                                        C_CAST, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, h8, i8, 1,
-                                                        C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, j32, i32, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, t16, i16, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, i8, i8, 1, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, h8, i8, 1, C_CAST, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v2j32, v2i32,
-                                                        2, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v2t16,
-                                                        v2i16, 2, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v2i8, v2i8,
-                                                        2, C_CAST, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v2h8,
-                                                        v2i8, 2, C_CAST,
-                                                        _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v2j32, v2i32, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v2t16, v2i16, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v2i8, v2i8, 2, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v2h8, v2i8, 2, C_CAST, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v4j32, v4i32,
-                                                        4, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v4t16,
-                                                        v4i16, 4, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v4i8, v4i8,
-                                                        4, C_CAST, _helper)
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v4h8,
-                                                        v4i8, 4, C_CAST,
-                                                        _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v4j32, v4i32, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v4t16, v4i16, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v4i8, v4i8, 4, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v4h8, v4i8, 4, C_CAST, _helper)
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, f32, i32, 1,
-                                                        AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, f16, i16,
-                                                        1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, f32, i32, 1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, f16, i16, 1, AS_TYPE, )
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v2f32,
-                                                        v2i32, 2, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v2f16,
-                                                        v2i16, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v2f32, v2i32, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v2f16, v2i16, 2, AS_TYPE, )
 
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v4f32,
-                                                        v4i32, 4, AS_TYPE, )
-_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16,
-                                                        v4i16, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v4f32, v4i32, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16, v4i16, 4, AS_TYPE, )
 
 #undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN
+
+// //  --- THUNKS: Texture Array Reads ---
+
+// Macro to generate texture array fetches
+#define _CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(                \
+    elem_t, fetch_elem_t, vec_size, fetch_vec_size, index)     \
+  elem_t __nvvm_tex_unified_1d_array_##vec_size##_i32(                         \
+      unsigned long imageHandle, int idx, int x) {                             \
+    fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_i32(       \
+        imageHandle, idx, x) index;                                            \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+  }                                                                            \
+  elem_t __nvvm_tex_unified_1d_array_##vec_size##_f32(                         \
+      unsigned long imageHandle, int idx, float x) {                           \
+    fetch_elem_t a = __nvvm_tex_unified_1d_array_##fetch_vec_size##_f32(       \
+        imageHandle, idx, x) index;                                            \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+  }                                                                            \
+  elem_t __nvvm_tex_unified_2d_array_##vec_size##_i32(                         \
+      unsigned long imageHandle, int idx, int x, int y) {                      \
+    fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_i32(       \
+        imageHandle, idx, x, y) index;                                         \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+  }                                                                            \
+  elem_t __nvvm_tex_unified_2d_array_##vec_size##_f32(                         \
+      unsigned long imageHandle, int idx, float x, float y) {                  \
+    fetch_elem_t a = __nvvm_tex_unified_2d_array_##fetch_vec_size##_f32(       \
+        imageHandle, idx, x, y) index;                                         \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##elem_t(a));          \
+  }
+
+// int4 handled above
+// uint4 handled above
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(short4, int4, v4i16, v4i32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort4, uint4, v4t16, v4j32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char4, int4, v4i8, v4i32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar4, uint4, v4h8, v4j32, )
+// float4 handled above
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, float4, v4f16, v4f32, )
+
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(int2, int4, v2i32, v4i32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint2, uint4, v2j32, v4j32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(short2, int4, v2i16, v4i32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort2, uint4, v2t16, v4j32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char2, int4, v2i8, v4i32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar2, uint4, v2h8, v4j32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float2, float4, v2f32, v4f32, )
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half2, float4, v2f16, v4f32, )
+
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(int, int, i32, v4i32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, uint, j32, v4j32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(short, int, i16, v4i32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort, uint, t16, v4j32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char, int, i8, v4i32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar, uint, h8, v4j32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float, float, f32, v4f32, [0])
+_CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, float, f16, v4f32, [0])
+
+#undef _CLC_DEFINE_TEXTURE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN
 
 #undef COLOR_INPUT_1_CHANNEL
 #undef COLOR_INPUT_2_CHANNEL
@@ -3750,6 +3825,69 @@ _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND
+#undef _NVVM_FUNC
+#undef COORD_PARAMS_1D
+#undef COORD_PARAMS_2D
+
+// GENERATED FUNCS: TEXTURE ARRAY READS
+
+#define COORD_PARAMS_1D(elem_t) coord
+#define COORD_PARAMS_2D(elem_t) coord.x, coord.y
+
+#define _NVVM_FUNC(name, dimension, vec_size_mangled)                          \
+  __nvvm_##name##_##dimension##d_array_##vec_size_mangled
+
+#define _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                 \
+    elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
+      22, __spirv_ImageArrayRead,                                              \
+      DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
+      DVEC_SIZE_##dimension(, f, ET_T0_T1_i))(                                 \
+      ulong imageHandle, COORD_INPUT_##dimension##D(float), int idx) {         \
+    return NVVM_FUNC(tex_unified, dimension,                                   \
+                     CONCAT(VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size), _f32))(   \
+        imageHandle, idx,                                                      \
+        COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
+  }
+
+#define _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_FETCH_BUILTIN(                \
+    elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
+      30, __spirv_SampledImageArrayFetch,                                      \
+      DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
+      DVEC_SIZE_##dimension(, i, ET_T0_T1_i))(                                 \
+      ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx) {           \
+    return NVVM_FUNC(tex_unified, dimension,                                   \
+                     CONCAT(VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size), _i32))(   \
+        imageHandle, idx,                                                      \
+        COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
+  }
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                           \
+    dimension, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                       \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)                                                             \
+  _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_FETCH_BUILTIN(                      \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)
+
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(int, i, i, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uint, j, j, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(short, s, i, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
+
+#undef _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
+#undef _CLC_DEFINE_SAMPLED_IMAGE_ARRAY_BINDLESS_FETCH_BUILTIN
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND
+
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N
 #undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL
 #undef ELEM_VEC_1

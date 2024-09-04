@@ -10,22 +10,13 @@
 
 #include <sycl/builtins_utils_scalar.hpp>
 
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/marray.hpp> // for marray
 #include <sycl/types.hpp>  // for vec
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename> struct is_swizzle : std::false_type {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                            OperationCurrentT, Indexes...>> : std::true_type {};
-
-template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
-
-template <typename T>
-constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
 
 // Utility trait for checking if T's element type is in Ts.
 template <typename T, size_t N, typename... Ts>
@@ -45,6 +36,9 @@ struct is_valid_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress, typename... Ts>
 struct is_valid_elem_type<multi_ptr<ElementType, Space, DecorateAddress>, Ts...>
+    : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
+template <typename ElementType, typename... Ts>
+struct is_valid_elem_type<ElementType *, Ts...>
     : std::bool_constant<check_type_in_v<ElementType, Ts...>> {};
 
 // Utility trait for getting the number of elements in T.

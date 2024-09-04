@@ -31,6 +31,7 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
+#include <syclcompat/launch_policy.hpp>
 
 namespace syclcompat {
 
@@ -65,26 +66,6 @@ launch(const sycl::nd_range<3> &range, sycl::queue q, Args... args) {
 
   return q.parallel_for(
       range, [=](sycl::nd_item<3>) { [[clang::always_inline]] F(args...); });
-}
-
-template <auto F, typename... Args>
-sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
-                   sycl::queue q, Args... args) {
-  static_assert(detail::getArgumentCount(F) == sizeof...(args) + 1,
-                "Wrong number of arguments to SYCL kernel");
-
-  using F_t = decltype(F);
-  using f_return_t = typename std::invoke_result_t<F_t, Args..., char *>;
-  static_assert(std::is_same<f_return_t, void>::value,
-                "SYCL kernels should return void");
-
-  return q.submit([&](sycl::handler &cgh) {
-    auto local_acc = sycl::local_accessor<char, 1>(mem_size, cgh);
-    cgh.parallel_for(range, [=](sycl::nd_item<3>) {
-      auto local_mem = local_acc.get_pointer();
-      [[clang::always_inline]] F(args..., local_mem);
-    });
-  });
 }
 
 } // namespace detail
@@ -137,87 +118,47 @@ launch(const dim3 &grid, const dim3 &threads, Args... args) {
   return launch<F>(grid, threads, get_default_queue(), args...);
 }
 
-/// Launches a kernel with the templated F param and arguments on a
-/// device specified by the given nd_range and SYCL queue.
-/// @tparam F SYCL kernel to be executed, expects signature F(T* local_mem,
-/// Args... args).
-/// @tparam Dim nd_range dimension number.
-/// @tparam Args Types of the arguments to be passed to the kernel.
-/// @param range Nd_range specifying the work group and global sizes for the
-/// kernel.
-/// @param q The SYCL queue on which to execute the kernel.
-/// @param mem_size The size, in number of bytes, of the local
-/// memory to be allocated for kernel.
-/// @param args The arguments to be passed to the kernel.
-/// @return A SYCL event object that can be used to synchronize with the
-/// kernel's execution.
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   sycl::queue q, Args... args) {
-  return detail::launch<F>(detail::transform_nd_range<Dim>(range), mem_size, q,
-                           args...);
-}
-
-/// Launches a kernel with the templated F param and arguments on a
-/// device specified by the given nd_range using theSYCL default queue.
-/// @tparam F SYCL kernel to be executed, expects signature F(T* local_mem,
-/// Args... args).
-/// @tparam Dim nd_range dimension number.
-/// @tparam Args Types of the arguments to be passed to the kernel.
-/// @param range Nd_range specifying the work group and global sizes for the
-/// kernel.
-/// @param mem_size The size, in number of bytes, of the local
-/// memory to be allocated for kernel.
-/// @param args The arguments to be passed to the kernel.
-/// @return A SYCL event object that can be used to synchronize with the
-/// kernel's execution.
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   Args... args) {
-  return launch<F>(range, mem_size, get_default_queue(), args...);
-}
-
-/// Launches a kernel with the templated F param and arguments on a
-/// device with a user-specified grid and block dimensions following the
-/// standard of other programming models using a user-defined SYCL queue.
-/// @tparam F SYCL kernel to be executed, expects signature F(T* local_mem,
-/// Args... args).
-/// @tparam Dim nd_range dimension number.
-/// @tparam Args Types of the arguments to be passed to the kernel.
-/// @param grid Grid dimensions represented with an (x, y, z) iteration space.
-/// @param threads Block dimensions represented with an (x, y, z) iteration
-/// space.
-/// @param mem_size The size, in number of bytes, of the local
-/// memory to be allocated for kernel.
-/// @param args The arguments to be passed to the kernel.
-/// @return A SYCL event object that can be used to synchronize with the
-/// kernel's execution.
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads, size_t mem_size,
-                   sycl::queue q, Args... args) {
-  return launch<F>(sycl::nd_range<3>{grid * threads, threads}, mem_size, q,
-                   args...);
-}
-
-/// Launches a kernel with the templated F param and arguments on a
-/// device with a user-specified grid and block dimensions following the
-/// standard of other programming models using the default SYCL queue.
-/// @tparam F SYCL kernel to be executed, expects signature F(T* local_mem,
-/// Args... args).
-/// @tparam Dim nd_range dimension number.
-/// @tparam Args Types of the arguments to be passed to the kernel.
-/// @param grid Grid dimensions represented with an (x, y, z) iteration space.
-/// @param threads Block dimensions represented with an (x, y, z) iteration
-/// space.
-/// @param mem_size The size, in number of bytes, of the
-/// local memory to be allocated.
-/// @param args The arguments to be passed to the kernel.
-/// @return A SYCL event object that can be used to synchronize with the
-/// kernel's execution.
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads, size_t mem_size,
-                   Args... args) {
-  return launch<F>(grid, threads, mem_size, get_default_queue(), args...);
-}
-
 } // namespace syclcompat
+
+namespace syclcompat::experimental {
+
+namespace detail {
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
+  static_assert(syclcompat::args_compatible<LaunchPolicy, F, Args...>,
+                "Mismatch between device function signature and supplied "
+                "arguments. Have you correctly handled local memory/char*?");
+
+  sycl_exp::launch_config config(launch_policy.get_range(),
+                                 launch_policy.get_launch_properties());
+
+  return sycl_exp::submit_with_event(q, [&](sycl::handler &cgh) {
+    auto KernelFunctor = build_kernel_functor<F>(cgh, launch_policy, args...);
+    if constexpr (syclcompat::detail::is_range_v<
+                      typename LaunchPolicy::RangeT>) {
+      parallel_for(cgh, config, KernelFunctor);
+    } else {
+      static_assert(
+          syclcompat::detail::is_nd_range_v<typename LaunchPolicy::RangeT>);
+      nd_launch(cgh, config, KernelFunctor);
+    }
+  });
+}
+
+}
+
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args) {
+  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
+  return detail::launch<F>(launch_policy, q, args...);
+}
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, Args... args) {
+  static_assert(detail::is_launch_policy_v<LaunchPolicy>);
+  return launch<F>(launch_policy, get_default_queue(), args...);
+}
+
+} // namespace syclcompat::experimental

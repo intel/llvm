@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor atomic operations with scalar offset.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
