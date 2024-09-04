@@ -75,10 +75,7 @@ static std::filesystem::path getCurrentDSODirPath() {
   return std::filesystem::path(Path);
 }
 
-void *getURLoaderLibrary() {
-  const std::filesystem::path LibSYCLDir = getCurrentDSODirPath();
-  return getPreloadedPlugin(LibSYCLDir / std::string("ur_loader.dll"));
-}
+void *getURLoaderLibrary() { return getPreloadedURLib(); }
 
 } // namespace ur
 } // namespace detail

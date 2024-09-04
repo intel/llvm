@@ -83,31 +83,17 @@ std::wstring getCurrentDSODir() {
   return Path;
 }
 
-// these are cribbed from include/sycl/detail/ur.hpp
-// a new plugin must be added to both places.
 #ifdef _MSC_VER
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "ur_loader.dll"
-#define __SYCL_OPENCL_ADAPTER_NAME "ur_adapter_opencl.dll"
-#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "ur_adapter_level_zero.dll"
-#define __SYCL_CUDA_ADAPTER_NAME "ur_adapter_cuda.dll"
-#define __SYCL_HIP_ADAPTER_NAME "ur_adapter_hip.dll"
-#define __SYCL_NATIVE_CPU_ADAPTER_NAME "ur_adapter_native_cpu.dll"
 #else // llvm-mingw
 #define __SYCL_UNIFIED_RUNTIME_LOADER_NAME "libur_loader.dll"
-#define __SYCL_OPENCL_ADAPTER_NAME "libur_adapter_opencl.dll"
-#define __SYCL_LEVEL_ZERO_ADAPTER_NAME "libur_adapter_level_zero.dll"
-#define __SYCL_CUDA_ADAPTER_NAME "libur_adapter_cuda.dll"
-#define __SYCL_HIP_ADAPTER_NAME "libur_adapter_hip.dll"
-#define __SYCL_NATIVE_CPU_ADAPTER_NAME "libur_adapter_native_cpu.dll"
 #endif
 
 // ------------------------------------
 
-using MapT = std::map<std::filesystem::path, void *>;
-
-MapT &getDllMap() {
-  static MapT dllMap;
-  return dllMap;
+void *&getDllHandle() {
+  static void* dllHandle = nullptr;
+  return dllHandle;
 }
 
 /// Load the plugin libraries and store them in a map.
@@ -130,24 +116,13 @@ void preloadLibraries() {
   // this path duplicates sycl/detail/ur.cpp:initializePlugins
   std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
-  MapT &dllMap = getDllMap();
-
   // When searching for dependencies of the plugins limit the
   // list of directories to %windows%\system32 and the directory that contains
   // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
   // current directory and some other directories which are considered unsafe.
-  auto loadPlugin = [&](auto pluginName,
-                        DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
-                                      LOAD_LIBRARY_SEARCH_SYSTEM32) {
-    auto path = LibSYCLDir / pluginName;
-    dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
-  };
-  loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
-  loadPlugin(__SYCL_OPENCL_ADAPTER_NAME);
-  loadPlugin(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
-  loadPlugin(__SYCL_CUDA_ADAPTER_NAME);
-  loadPlugin(__SYCL_HIP_ADAPTER_NAME);
-  loadPlugin(__SYCL_NATIVE_CPU_ADAPTER_NAME);
+  DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32;
+  auto path = LibSYCLDir / __SYCL_UNIFIED_RUNTIME_LOADER_NAME;
+  getDllHandle() = LoadLibraryEx(path.wstring().c_str(), NULL, flags);
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
@@ -158,40 +133,8 @@ void preloadLibraries() {
 
 /// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
 /// earlier.
-__declspec(dllexport) void *getPreloadedPlugin(
-    const std::filesystem::path &PluginPath) {
-
-  MapT &dllMap = getDllMap();
-
-  // All entries in the dllMap have the same parent directory.
-  // To avoid case sensivity issues, we don't want to do string comparison but
-  // just make sure that directory of the entires in the map and directory of
-  // the PluginPath are equivalent (point to the same physical location).
-  auto match = dllMap.end();
-  std::error_code ec;
-  if (!dllMap.empty() &&
-      std::filesystem::equivalent((dllMap.begin())->first.parent_path(),
-                                  PluginPath.parent_path(), ec)) {
-    // Now we can search only by filename. Result might be nullptr (not found),
-    // which is perfectly valid.
-    match =
-        std::find_if(dllMap.begin(), dllMap.end(),
-                     [&](const std::pair<std::filesystem::path, void *> &v) {
-                       return v.first.filename() == PluginPath.filename();
-                     });
-  }
-
-  if (match == dllMap.end()) {
-    // unit testing? return nullptr (not found) rather than risk asserting below
-    if (PluginPath.string().find("unittests") != std::string::npos)
-      return nullptr;
-
-    // Otherwise, asking for something we don't know about at all, is an issue.
-    std::cout << "unknown plugin: " << PluginPath << std::endl;
-    assert(false && "getPreloadedPlugin was given an unknown plugin path.");
-    return nullptr;
-  }
-  return match->second;
+__declspec(dllexport) void *getPreloadedURLib() {
+  return getDllHandle();
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
