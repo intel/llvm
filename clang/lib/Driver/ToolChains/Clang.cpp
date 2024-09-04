@@ -10614,7 +10614,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_tensor_float32_conversion"
               ",+SPV_INTEL_optnone"
               ",+SPV_KHR_non_semantic_info"
-              ",+SPV_KHR_cooperative_matrix";
+              ",+SPV_KHR_cooperative_matrix"
+              ",+SPV_EXT_shader_atomic_float16_add";
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
 
