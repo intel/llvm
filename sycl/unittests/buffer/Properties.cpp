@@ -179,3 +179,75 @@ TEST(USMAllocator, Properties) {
 
   FAIL() << "Test must exit in exception handler. Exception is not thrown.";
 }
+
+TEST(SampledImage, ValidPropsHostPtr) {
+  try {
+    sycl::image_sampler Sampler{
+        sycl::addressing_mode::none,
+        sycl::coordinate_normalization_mode::unnormalized,
+        sycl::filtering_mode::linear};
+
+    constexpr size_t ElementsCount = 4;
+    constexpr size_t ChannelsCount = 4;
+    int InitValue[ElementsCount * ChannelsCount];
+    sycl::sampled_image<1> Image(&InitValue, sycl::image_format::r8g8b8a8_unorm,
+                                 Sampler, sycl::range<1>(ElementsCount),
+                                 sycl::property::image::use_host_ptr{});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
+}
+
+TEST(SampledImage, SetUnsupportedParam) {
+  try {
+    sycl::image_sampler Sampler{
+        sycl::addressing_mode::none,
+        sycl::coordinate_normalization_mode::unnormalized,
+        sycl::filtering_mode::linear};
+
+    constexpr size_t ElementsCount = 4;
+    constexpr size_t ChannelsCount = 4;
+    int InitValue[ElementsCount * ChannelsCount];
+    sycl::sampled_image<1> Image(&InitValue, sycl::image_format::r8g8b8a8_unorm,
+                                 Sampler, sycl::range<1>(ElementsCount),
+                                 sycl::property::buffer::use_host_ptr{});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}
+
+TEST(UnsampledImage, ValidPropsHostPtr) {
+  try {
+    constexpr size_t ElementsCount = 4;
+    constexpr size_t ChannelsCount = 4;
+    int InitValue[ElementsCount * ChannelsCount];
+    sycl::unsampled_image<1> Image(
+        &InitValue, sycl::image_format::r8g8b8a8_unorm,
+        sycl::range<1>(ElementsCount), sycl::property::image::use_host_ptr{});
+    // no explicit checks, we expect no exception to be thrown
+  } catch (...) {
+    FAIL();
+  }
+}
+
+TEST(UnsampledImage, SetUnsupportedParam) {
+  try {
+    constexpr size_t ElementsCount = 4;
+    sycl::unsampled_image<1> Image(sycl::image_format::r8g8b8a8_unorm,
+                                   sycl::range<1>(ElementsCount),
+                                   sycl::property::buffer::use_host_ptr{});
+  } catch (sycl::exception &e) {
+    EXPECT_EQ(e.code(), sycl::errc::invalid);
+    EXPECT_STREQ(e.what(), "The property list contains property unsupported "
+                           "for the current object");
+    return;
+  }
+
+  FAIL() << "Test must exit in exception handler. Exception is not thrown.";
+}
