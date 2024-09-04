@@ -197,6 +197,48 @@ ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
   return hProgram;
 }
 
+ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
+                                             const void *pPropValue) {
+  std::scoped_lock<ur_shared_mutex> Guard(Mutex);
+
+  for (auto &kernel : deviceKernels) {
+    if (!kernel.has_value())
+      continue;
+    if (propName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
+        *(static_cast<const ur_bool_t *>(pPropValue)) == true) {
+      // The whole point for users really was to not need to know anything
+      // about the types of allocations kernel uses. So in DPC++ we always
+      // just set all 3 modes for each kernel.
+      ze_kernel_indirect_access_flags_t indirectFlags =
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
+      ZE2UR_CALL(zeKernelSetIndirectAccess,
+                 (kernel->hKernel.get(), indirectFlags));
+    } else if (propName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+      ze_cache_config_flag_t zeCacheConfig{};
+      auto cacheConfig =
+          *(static_cast<const ur_kernel_cache_config_t *>(pPropValue));
+      if (cacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
+        zeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
+      else if (cacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
+        zeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
+      else if (cacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
+        zeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
+      else
+        // Unexpected cache configuration value.
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      ZE2UR_CALL(zeKernelSetCacheConfig,
+                 (kernel->hKernel.get(), zeCacheConfig););
+    } else {
+      logger::error("urKernelSetExecInfo: unsupported ParamName");
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 namespace ur::level_zero {
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
@@ -247,5 +289,20 @@ ur_result_t urKernelSetArgPointer(
 ) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+}
+
+ur_result_t urKernelSetExecInfo(
+    ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
+    ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
+    size_t propSize,                ///< [in] size in byte the attribute value
+    const ur_kernel_exec_info_properties_t
+        *pProperties, ///< [in][optional] pointer to execution info properties
+    const void *pPropValue ///< [in][range(0, propSize)] pointer to memory
+                           ///< location holding the property value.
+) {
+  std::ignore = propSize;
+  std::ignore = pProperties;
+
+  return hKernel->setExecInfo(propName, pPropValue);
 }
 } // namespace ur::level_zero

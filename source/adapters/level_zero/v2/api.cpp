@@ -251,15 +251,6 @@ ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
 }
 
 ur_result_t
-urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
-                    size_t propSize,
-                    const ur_kernel_exec_info_properties_t *pProperties,
-                    const void *pPropValue) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_sampler_properties_t *pProperties,
                       ur_sampler_handle_t hArgValue) {

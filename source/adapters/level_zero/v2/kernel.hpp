@@ -57,6 +57,10 @@ public:
                 const ur_kernel_arg_pointer_properties_t *pProperties,
                 const void *pArgValue);
 
+  // Implementation of urKernelSetExecInfo.
+  ur_result_t setExecInfo(ur_kernel_exec_info_t propName,
+                          const void *pPropValue);
+
   // Perform cleanup.
   ur_result_t release();
 
