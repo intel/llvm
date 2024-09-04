@@ -1380,7 +1380,7 @@ private:
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
-          std::move(Wrapper));
+          std::move(Wrapper), ParamDescs);
       setType(detail::CGType::Kernel);
       setNDRangeUsed(false);
 #endif
