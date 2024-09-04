@@ -71,11 +71,11 @@ void instantiate() {
   f8<0>(); // expected-note {{in instantiation}}
 #endif
 
+  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
   f9<1, 1, 1>(); // OK, args are the same on the redecl.
 
   // expected-warning@#f9 {{attribute 'work_group_size_hint' is already applied with different arguments}}
   // expected-note@#f9prev {{previous attribute is here}}
-  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
   // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
 
   f9<1, 2, 3>(); // expected-note {{in instantiation}}

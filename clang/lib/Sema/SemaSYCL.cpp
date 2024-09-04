@@ -6851,52 +6851,31 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
 void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
   if (UserProvidedSYCLKernelFunctions.contains(FD))
     return;
-
-  auto hasDependentExpr =
-      [](const std::initializer_list<const ConstantExpr *> &Exprs) {
-        return std::any_of(
-            Exprs.begin(), Exprs.end(), [](const ConstantExpr *CE) {
-              return CE && (CE->isValueDependent() || CE->isTypeDependent());
-            });
-      };
-
+  
   if (const SYCLReqdWorkGroupSizeAttr *Attr =
           FD->getAttr<SYCLReqdWorkGroupSizeAttr>()) {
-    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
-    }
   }
 
   if (const IntelReqdSubGroupSizeAttr *Attr =
           FD->getAttr<IntelReqdSubGroupSizeAttr>()) {
-    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getValue())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
-    }
   }
 
   if (const SYCLWorkGroupSizeHintAttr *Attr =
           FD->getAttr<SYCLWorkGroupSizeHintAttr>()) {
-    if (!hasDependentExpr({dyn_cast<ConstantExpr>(Attr->getXDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getYDim()),
-                           dyn_cast_or_null<ConstantExpr>(Attr->getZDim())})) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
-    }
   }
 
   if (const VecTypeHintAttr *Attr = FD->getAttr<VecTypeHintAttr>()) {
-    const QualType QT = Attr->getTypeHint();
-    if (!QT->isDependentType()) {
       Diag(Attr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
           << Attr;
-    }
   }
 }
