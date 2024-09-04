@@ -396,6 +396,14 @@ Specific environment variables can be set to control the behavior of unified run
 
     See the Layers_ section for details of the layers currently included in the runtime.
 
+.. envvar:: UR_LOADER_PRELOAD_FILTER
+
+    If set, the loader will read `ONEAPI_DEVICE_SELECTOR` before loading the UR Adapters to determine which backends should be loaded.
+
+    .. note::
+
+    This environment variable is default enabled on Linux, but default disabled on Windows.
+
 Service identifiers
 ---------------------
 
