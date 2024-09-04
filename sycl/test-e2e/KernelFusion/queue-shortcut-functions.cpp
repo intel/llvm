@@ -80,7 +80,7 @@ int main() {
   // should be cancelled as a dependency with an event to be fused is found.
 
   // CHECK:      FusionStartPoint = 0:
-  // CHECK-NEXT: WARNING: Not fusing 'copy usm' command group. Can only fuse device kernel command groups.
+  // CHECK: WARNING: Not fusing 'copy usm' command group. Can only fuse device kernel command groups.
   // CHECK-NEXT: WARNING: Aborting fusion because synchronization with one of the kernels in the fusion list was requested
   test<0>();
 
