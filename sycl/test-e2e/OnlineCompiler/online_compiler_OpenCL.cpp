@@ -80,8 +80,9 @@ sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
   auto [OCLMajor, OCLMinor] = GetOCLVersion(Device);
   if ((OCLMajor == 2 && OCLMinor >= 1) || OCLMajor > 2) {
     // clCreateProgramWithIL is supported if OCL version >=2.1.
-    clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
-                          IL.data(), IL.size(), &Err);
+    ClProgram =
+        clCreateProgramWithIL(sycl::get_native<sycl::backend::opencl>(Context),
+                              IL.data(), IL.size(), &Err);
   } else {
     // Fall back to using extension function for building IR.
     using ApiFuncT =
