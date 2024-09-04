@@ -7,9 +7,6 @@
 // CUDA is not compatible with SPIR.
 // UNSUPPORTED: cuda
 
-// See https://github.com/intel/llvm/issues/15264.
-// UNSUPPORTED: accelerator
-
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %{run} %t.out
 

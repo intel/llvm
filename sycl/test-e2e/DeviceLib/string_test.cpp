@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 //
 // RUN: %{build} -Wno-error=unused-command-line-argument -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -fsycl-device-lib-jit-link -o %t.out
-// RUN: %if (!gpu && !accelerator) %{ %{run} %t.out %}
+// RUN: %if !gpu %{ %{run} %t.out %}
 
 #include <cassert>
 #include <cstdint>

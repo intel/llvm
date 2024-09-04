@@ -8,9 +8,6 @@
 
 // REQUIRES: (opencl || level_zero)
 
-// See https://github.com/intel/llvm/issues/15267.
-// UNSUPPORTED: accelerator
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
