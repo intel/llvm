@@ -1584,10 +1584,14 @@ private:
   }
 
 #ifdef SYCL_LANGUAGE_VERSION
+#ifndef __INTEL_SYCL_USE_INTEGRATION_HEADERS
+#define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel_entry_point(KernelName)]]
+#else
 #define __SYCL_KERNEL_ATTR__ [[clang::sycl_kernel]]
+#endif // __INTEL_SYCL_USE_INTEGRATION_HEADERS
 #else
 #define __SYCL_KERNEL_ATTR__
-#endif
+#endif // SYCL_LANGUAGE_VERSION
 
   // NOTE: the name of this function - "kernel_single_task" - is used by the
   // Front End to determine kernel invocation kind.
