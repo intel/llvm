@@ -286,7 +286,10 @@ public:
 
   // Get the sync point associated with this event.
   ur_exp_command_buffer_sync_point_t getSyncPoint() const {
-    assert(MSyncPoint && "getSyncPoint(): No sync point set");
+    if (!MSyncPoint)
+      throw sycl::exception(
+          make_error_code(sycl::errc::runtime),
+          "getSyncPoint(): This event has no sync point set.");
     return *MSyncPoint;
   }
 
