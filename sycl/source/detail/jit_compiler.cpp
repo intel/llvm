@@ -153,7 +153,7 @@ struct PromotionInformation {
 
 using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
 
-template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
+template <typename Obj> Promotion getPromotionTarget(const Obj &) {
   return Promotion::None;
 }
 
@@ -710,7 +710,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
 std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
-                          const property_list &PropList) {
+                          const property_list &) {
   if (!isAvailable()) {
     printPerformanceWarning("JIT library not available");
     return nullptr;
