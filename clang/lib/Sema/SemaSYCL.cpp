@@ -6862,8 +6862,10 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
            FD->getAttr<SYCLReqdWorkGroupSizeAttr>(),
            FD->getAttr<IntelReqdSubGroupSizeAttr>(),
            FD->getAttr<SYCLWorkGroupSizeHintAttr>(),
-           FD->getAttr<VecTypeHintAttr>()}){
-      if (Attr)
-        Diag(Attr->getLoc(), diag::warn_sycl_incorrect_use_attribute_non_kernel_function)<< Attr;
+           FD->getAttr<VecTypeHintAttr>()}) {
+    if (Attr)
+      Diag(Attr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << Attr;
   }
 }
