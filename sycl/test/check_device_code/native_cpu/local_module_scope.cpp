@@ -10,8 +10,7 @@
 // CHECK: define void @_ZTS4TestILi1ELi4EiE.NativeCPUKernel{{.*}} #[[ATTR:[0-9]*]]
 // CHECK: alloca %localVarTypes
 // CHECK: attributes #[[ATTR]] = {{.*}} "mux-orig-fn"="_ZTS4TestILi1ELi4EiE"
-template <int dims, int size, typename T = int>
-struct Test;
+template <int dims, int size, typename T = int> struct Test;
 
 int main() {
   sycl::queue queue;
@@ -26,13 +25,10 @@ int main() {
   {
     sycl::buffer<int, dims> buf(data.data(), range);
 
-    queue.submit([&](sycl::handler& cgh) {
+    queue.submit([&](sycl::handler &cgh) {
       auto acc = sycl::accessor(buf, cgh, sycl::write_only);
       cgh.parallel_for_work_group<Test<dims, size>>(
-          range, range_wg, 
-            [=](auto group) {
-                acc[group.get_group_id()] = 42;
-            });
+          range, range_wg, [=](auto group) { acc[group.get_group_id()] = 42; });
     });
     queue.wait_and_throw();
   }
