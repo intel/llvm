@@ -24,11 +24,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-namespace info::kernel_queue_specific {
-// TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension once
-// #7598 is merged.
-// Defined in 'sycl/info/kernel_device_specific_traits.def'
-} // namespace info::kernel_queue_specific
+// See 'sycl/info/kernel_device_specific_traits.def' for the kernel
+// device-specific properties that relate to 'root_group'.
 
 template <int Dimensions> class root_group {
 public:

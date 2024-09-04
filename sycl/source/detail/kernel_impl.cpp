@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdint>
 #include <detail/context_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
