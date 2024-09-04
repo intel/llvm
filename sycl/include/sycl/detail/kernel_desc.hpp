@@ -196,7 +196,7 @@ kernel_param_desc_t getKernelParamDesc(int Idx) {
                              KernelIdentity<KernelNameType>(), Idx);
   ParamDesc.offset =
       __builtin_sycl_kernel_param_offset(KernelIdentity<KernelNameType>(), Idx);
-  return ParamDesc
+  return ParamDesc;
 #else
   return KernelInfo<KernelNameType>::getParamDesc(Idx);
 #endif
