@@ -1,4 +1,4 @@
-// RUN:  %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -emit-llvm -o - %s
+// RUN:  %clangxx -fsycl-device-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -o - %s
 
 #include <sycl/sycl.hpp>
 
