@@ -136,8 +136,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endif()
 
   fetch_adapter_source(level_zero
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/winstonzhang-intel/unified-runtime.git
+    f11fd06a86861013110805228d116fc44d43f558
   )
 
   fetch_adapter_source(opencl
