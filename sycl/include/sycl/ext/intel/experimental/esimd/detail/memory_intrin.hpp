@@ -39,7 +39,7 @@ __ESIMD_INTRIN void __esimd_wait(uint16_t value);
 /// @tparam FenceOp is the fence operation.
 /// @tparam Scope is the operation scope.
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
+/// @param pred is the predicate.
 template <__ESIMD_NS::memory_kind Kind, __ESIMD_NS::fence_flush_op FenceOp,
           __ESIMD_NS::fence_scope Scope, int N>
 __ESIMD_INTRIN void
@@ -51,19 +51,19 @@ __ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 ///
-/// Collects elements located as described in descriptor and returns them
+/// Collects elements located as described in the descriptor and returns them
 /// as a single \ref simd object.
 ///
 /// @tparam Ty is element type.
-/// @tparam Cache is vector containing cache hint information.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam BlockXOffset is Memory block X immediate offset (in elements).
 /// @tparam BlockYOffset is Memory block Y immediate offset (in elements).
-/// @param Pred is predicates.
+/// @param Pred is the predicate.
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
+/// @param Cache is vector containing cache hint information.
 /// @return is a vector of type T
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
@@ -72,19 +72,19 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
-/// Collects elements located as described in descriptor, performs transposition
-/// and returns them as a single \ref simd object.
+/// Collects elements located as described in the descriptor, performs
+/// transposition and returns them as a single \ref simd object.
 ///
 /// @tparam Ty is element type.
-/// @tparam Cache is vector containing cache hint information.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam BlockXOffset is Memory block X immediate offset (in elements).
 /// @tparam BlockYOffset is Memory block Y immediate offset (in elements).
-/// @param Pred is predicates.
+/// @param Pred is the predicate.
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
+/// @param Cache is vector containing cache hint information.
 /// @return is a vector of type T
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
@@ -94,19 +94,19 @@ __esimd_lsc_load2d_descriptor_transpose(
     __ESIMD_DNS::vector_type_t<Ty, N> PassThru,
     __ESIMD_DNS::vector_type_t<uint8_t, 2> Cache) __ESIMD_INTRIN_END;
 
-/// Collects elements located as described in descriptor, performs vnni
+/// Collects elements located as described in the descriptor, performs vnni
 /// transform and returns them as a single \ref simd object.
 ///
 /// @tparam Ty is element type.
-/// @tparam Cache is vector containing cache hint information.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam BlockXOffset is Memory block X immediate offset (in elements).
 /// @tparam BlockYOffset is Memory block Y immediate offset (in elements).
-/// @param Pred is predicates.
+/// @param Pred is the predicate.
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
+/// @param Cache is vector containing cache hint information.
 /// @return is a vector of type T
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
@@ -122,16 +122,15 @@ __esimd_lsc_load2d_descriptor_transform(
 /// Prefetches elements located as described in the descriptor.
 ///
 /// @tparam Ty is element type.
-/// @tparam Cache is vector containing cache hint information.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam BlockXOffset is Memory block X immediate offset (in elements).
 /// @tparam BlockYOffset is Memory block Y immediate offset (in elements).
-/// @param Pred is predicates.
+/// @param Pred is the predicate.
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is dummy value to obtain type of the elements.
-/// @return is a vector of type T
+/// @param Cache is vector containing cache hint information.
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
@@ -145,16 +144,15 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_descriptor(
 /// Stores elements as described in the descriptor.
 ///
 /// @tparam Ty is element type.
-/// @tparam Cache is vector containing cache hint information.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam BlockXOffset is Memory block X immediate offset (in elements).
 /// @tparam BlockYOffset is Memory block Y immediate offset (in elements).
-/// @param Pred is predicates.
+/// @param Pred is the predicate.
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param Values is value to to store.
-/// @return is a vector of type T
+/// @param Cache is vector containing cache hint information.
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN void __esimd_lsc_store_descriptor(

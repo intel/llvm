@@ -1927,7 +1927,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
 
   __ESIMD_NS::simd<RawT, N> oldDst;
   constexpr uint16_t Mask = 1;
-  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
+  constexpr CacheVectorT Cache = {static_cast<uint8_t>(L1H),
+                                  static_cast<uint8_t>(L2H)};
 
   __ESIMD_NS::simd<T, ActualN> Raw;
 
@@ -2002,7 +2003,8 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
 
   __ESIMD_NS::simd<RawT, N> oldDst;
   constexpr uint16_t Mask = 1;
-  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
+  constexpr CacheVectorT Cache = {static_cast<uint8_t>(L1H),
+                                  static_cast<uint8_t>(L2H)};
 
   __esimd_lsc_prefetch_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0,
                                   N>(Mask, payload.get_raw_data().data(),
@@ -2041,7 +2043,8 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
                                  PropertyListT>();
 
   constexpr uint16_t Mask = 1;
-  constexpr CacheVectorT Cache = {(uint8_t)L1H, (uint8_t)L2H};
+  constexpr CacheVectorT Cache = {static_cast<uint8_t>(L1H),
+                                  static_cast<uint8_t>(L2H)};
 
   __esimd_lsc_store_descriptor<RawT, NBlocks, BlockWidth, BlockHeight, 0, 0, N>(
       Mask, payload.get_raw_data().data(), Data.data(), Cache);

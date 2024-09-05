@@ -1533,6 +1533,7 @@ static void translateESIMDIntrinsicCall(CallInst &CI) {
   } else {
     auto ID = GenXIntrinsic::lookupGenXIntrinsicID(
         GenXIntrinsic::getGenXIntrinsicPrefix() + Desc.GenXSpelling + Suffix);
+
     SmallVector<Type *, 16> GenXOverloadedTypes;
     if (GenXIntrinsic::isOverloadedRet(ID)) {
       if (DoesFunctionReturnStructure) {
