@@ -235,6 +235,8 @@ struct ur_context_handle_t_ : _ur_object {
     HostInvisibleRegularCacheType,
     CounterBasedImmediateCacheType,
     CounterBasedRegularCacheType,
+    CounterBasedImmediateProfilingCacheType,
+    CounterBasedRegularProfilingCacheType,
     EventCacheTypeCount
   };
 
@@ -359,12 +361,14 @@ private:
       }
     }
   };
-  auto getCounterBasedEventCache(bool UsingImmediateCmdList,
+  auto getCounterBasedEventCache(bool WithProfiling, bool UsingImmediateCmdList,
                                  ur_device_handle_t Device) {
     if (UsingImmediateCmdList) {
       if (Device) {
         auto EventCachesMap =
-            &EventCachesDeviceMap[CounterBasedImmediateCacheType];
+            WithProfiling
+                ? &EventCachesDeviceMap[CounterBasedImmediateProfilingCacheType]
+                : &EventCachesDeviceMap[CounterBasedImmediateCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
           EventCachesMap->insert(
@@ -372,12 +376,16 @@ private:
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return &EventCaches[CounterBasedImmediateCacheType];
+        return WithProfiling
+                   ? &EventCaches[CounterBasedImmediateProfilingCacheType]
+                   : &EventCaches[CounterBasedImmediateCacheType];
       }
     } else {
       if (Device) {
         auto EventCachesMap =
-            &EventCachesDeviceMap[CounterBasedRegularCacheType];
+            WithProfiling
+                ? &EventCachesDeviceMap[CounterBasedRegularProfilingCacheType]
+                : &EventCachesDeviceMap[CounterBasedRegularCacheType];
         if (EventCachesMap->find(Device) == EventCachesMap->end()) {
           EventCaches.emplace_back();
           EventCachesMap->insert(
@@ -385,7 +393,9 @@ private:
         }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
-        return &EventCaches[CounterBasedRegularCacheType];
+        return WithProfiling
+                   ? &EventCaches[CounterBasedRegularProfilingCacheType]
+                   : &EventCaches[CounterBasedRegularCacheType];
       }
     }
   }
