@@ -64,7 +64,7 @@ __ESIMD_INTRIN uint8_t __esimd_named_barrier_allocate(uint8_t NbarCount)
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @param Cache is vector containing cache hint information.
-/// @return is a vector of type T
+/// @return is a vector of type Ty
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
@@ -85,7 +85,7 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_lsc_load2d_descriptor(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @param Cache is vector containing cache hint information.
-/// @return is a vector of type T
+/// @return is a vector of type Ty
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
@@ -107,7 +107,7 @@ __esimd_lsc_load2d_descriptor_transpose(
 /// @param Desc is the descriptor containing parameters for the operation.
 /// @param PassThru is value to passthru when predicate is false on load.
 /// @param Cache is vector containing cache hint information.
-/// @return is a vector of type T
+/// @return is a vector of type Ty
 template <typename Ty, uint8_t NBlocks, uint8_t BlockWidth, uint8_t BlockHeight,
           uint32_t BlockXOffset, uint32_t BlockYOffset, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
