@@ -26,13 +26,9 @@
 
 #include "common.hpp"
 #include "device.hpp"
-#include "queue_api.hpp"
-
-struct ur_queue_handle_legacy_t_;
-using ur_queue_handle_legacy_t = ur_queue_handle_legacy_t_ *;
 
 extern "C" {
-ur_result_t urQueueReleaseInternal(ur_queue_handle_legacy_t Queue);
+ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue);
 } // extern "C"
 
 struct ur_completion_batch;
@@ -74,8 +70,7 @@ struct ur_completion_batch {
 
   // Seals the event batch and appends a barrier to the command list.
   // Adding any further events after this, but before reset, is undefined.
-  ur_result_t seal(ur_queue_handle_legacy_t queue,
-                   ze_command_list_handle_t cmdlist);
+  ur_result_t seal(ur_queue_handle_t queue, ze_command_list_handle_t cmdlist);
 
   // Resets a complete batch back to an empty state. Cleanups internal state
   // but keeps allocated resources for reuse.
@@ -117,7 +112,7 @@ struct ur_completion_batches {
   // returned to indicate that there are no batches available.
   // This is safe, but will increase how many events are associated
   // with the active batch.
-  ur_result_t tryCleanup(ur_queue_handle_legacy_t queue,
+  ur_result_t tryCleanup(ur_queue_handle_t queue,
                          ze_command_list_handle_t cmdlist,
                          std::vector<ur_event_handle_t> &EventList,
                          std::vector<ur_event_handle_t> &EventListToCleanup);
@@ -154,10 +149,10 @@ private:
   ur_completion_batch_it active;
 };
 
-ur_result_t resetCommandLists(ur_queue_handle_legacy_t Queue);
+ur_result_t resetCommandLists(ur_queue_handle_t Queue);
 ur_result_t
-CleanupEventsInImmCmdLists(ur_queue_handle_legacy_t UrQueue,
-                           bool QueueLocked = false, bool QueueSynced = false,
+CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue, bool QueueLocked = false,
+                           bool QueueSynced = false,
                            ur_event_handle_t CompletedEvent = nullptr);
 
 // Structure describing the specific use of a command-list in a queue.
@@ -208,7 +203,7 @@ struct ur_command_list_info_t {
   bool IsImmediate;
 
   // Helper functions to tell if this is a copy command-list.
-  bool isCopy(ur_queue_handle_legacy_t Queue) const;
+  bool isCopy(ur_queue_handle_t Queue) const;
 
   // An optional event completion batching mechanism for out-of-order immediate
   // command lists.
@@ -230,209 +225,23 @@ using ur_command_list_map_t =
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
-struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
-  ur_queue_handle_legacy_t_(
-      std::vector<ze_command_queue_handle_t> &ComputeQueues,
-      std::vector<ze_command_queue_handle_t> &CopyQueues,
-      ur_context_handle_t Context, ur_device_handle_t Device,
-      bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
-      int ForceComputeIndex = -1);
-
-  ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,
-                           void *pPropValue, size_t *pPropSizeRet) override;
-  ur_result_t queueRetain() override;
-  ur_result_t queueRelease() override;
-  ur_result_t queueGetNativeHandle(ur_queue_native_desc_t *pDesc,
-                                   ur_native_handle_t *phNativeQueue) override;
-  ur_result_t queueFinish() override;
-  ur_result_t queueFlush() override;
-  ur_result_t enqueueKernelLaunch(ur_kernel_handle_t hKernel, uint32_t workDim,
-                                  const size_t *pGlobalWorkOffset,
-                                  const size_t *pGlobalWorkSize,
-                                  const size_t *pLocalWorkSize,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueEventsWait(uint32_t numEventsInWaitList,
-                                const ur_event_handle_t *phEventWaitList,
-                                ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
-                                   size_t offset, size_t size, void *pDst,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferWrite(ur_mem_handle_t hBuffer, bool blockingWrite,
-                                    size_t offset, size_t size,
-                                    const void *pSrc,
-                                    uint32_t numEventsInWaitList,
-                                    const ur_event_handle_t *phEventWaitList,
-                                    ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferReadRect(
-      ur_mem_handle_t hBuffer, bool blockingRead, ur_rect_offset_t bufferOrigin,
-      ur_rect_offset_t hostOrigin, ur_rect_region_t region,
-      size_t bufferRowPitch, size_t bufferSlicePitch, size_t hostRowPitch,
-      size_t hostSlicePitch, void *pDst, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferWriteRect(
-      ur_mem_handle_t hBuffer, bool blockingWrite,
-      ur_rect_offset_t bufferOrigin, ur_rect_offset_t hostOrigin,
-      ur_rect_region_t region, size_t bufferRowPitch, size_t bufferSlicePitch,
-      size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferCopy(ur_mem_handle_t hBufferSrc,
-                                   ur_mem_handle_t hBufferDst, size_t srcOffset,
-                                   size_t dstOffset, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferCopyRect(
-      ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst,
-      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
-      ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
-      size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferFill(ur_mem_handle_t hBuffer,
-                                   const void *pPattern, size_t patternSize,
-                                   size_t offset, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemImageRead(ur_mem_handle_t hImage, bool blockingRead,
-                                  ur_rect_offset_t origin,
-                                  ur_rect_region_t region, size_t rowPitch,
-                                  size_t slicePitch, void *pDst,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemImageWrite(ur_mem_handle_t hImage, bool blockingWrite,
-                                   ur_rect_offset_t origin,
-                                   ur_rect_region_t region, size_t rowPitch,
-                                   size_t slicePitch, void *pSrc,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueMemImageCopy(ur_mem_handle_t hImageSrc, ur_mem_handle_t hImageDst,
-                      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
-                      ur_rect_region_t region, uint32_t numEventsInWaitList,
-                      const ur_event_handle_t *phEventWaitList,
-                      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueMemBufferMap(ur_mem_handle_t hBuffer, bool blockingMap,
-                                  ur_map_flags_t mapFlags, size_t offset,
-                                  size_t size, uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent,
-                                  void **ppRetMap) override;
-  ur_result_t enqueueMemUnmap(ur_mem_handle_t hMem, void *pMappedPtr,
-                              uint32_t numEventsInWaitList,
-                              const ur_event_handle_t *phEventWaitList,
-                              ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueUSMFill(void *pMem, size_t patternSize,
-                             const void *pPattern, size_t size,
-                             uint32_t numEventsInWaitList,
-                             const ur_event_handle_t *phEventWaitList,
-                             ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueUSMMemcpy(bool blocking, void *pDst, const void *pSrc,
-                               size_t size, uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueUSMFill2D(void *, size_t, size_t, const void *, size_t,
-                               size_t, uint32_t, const ur_event_handle_t *,
-                               ur_event_handle_t *) override;
-  ur_result_t enqueueUSMMemcpy2D(bool, void *, size_t, const void *, size_t,
-                                 size_t, size_t, uint32_t,
-                                 const ur_event_handle_t *,
-                                 ur_event_handle_t *) override;
-  ur_result_t enqueueUSMPrefetch(const void *pMem, size_t size,
-                                 ur_usm_migration_flags_t flags,
-                                 uint32_t numEventsInWaitList,
-                                 const ur_event_handle_t *phEventWaitList,
-                                 ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueUSMAdvise(const void *pMem, size_t size,
-                               ur_usm_advice_flags_t advice,
-                               ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueDeviceGlobalVariableWrite(
-      ur_program_handle_t hProgram, const char *name, bool blockingWrite,
-      size_t count, size_t offset, const void *pSrc,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueDeviceGlobalVariableRead(
-      ur_program_handle_t hProgram, const char *name, bool blockingRead,
-      size_t count, size_t offset, void *pDst, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueReadHostPipe(ur_program_handle_t hProgram,
-                                  const char *pipe_symbol, bool blocking,
-                                  void *pDst, size_t size,
-                                  uint32_t numEventsInWaitList,
-                                  const ur_event_handle_t *phEventWaitList,
-                                  ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueWriteHostPipe(ur_program_handle_t hProgram,
-                                   const char *pipe_symbol, bool blocking,
-                                   void *pSrc, size_t size,
-                                   uint32_t numEventsInWaitList,
-                                   const ur_event_handle_t *phEventWaitList,
-                                   ur_event_handle_t *phEvent) override;
-  ur_result_t bindlessImagesImageCopyExp(
-      const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
-      const ur_image_desc_t *pDstImageDesc,
-      const ur_image_format_t *pSrcImageFormat,
-      const ur_image_format_t *pDstImageFormat,
-      ur_exp_image_copy_region_t *pCopyRegion,
-      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t bindlessImagesWaitExternalSemaphoreExp(
-      ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
-      uint64_t waitValue, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t bindlessImagesSignalExternalSemaphoreExp(
-      ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
-      uint64_t signalValue, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueCooperativeKernelLaunchExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-      const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueTimestampRecordingExp(bool blocking, uint32_t numEventsInWaitList,
-                               const ur_event_handle_t *phEventWaitList,
-                               ur_event_handle_t *phEvent) override;
-  ur_result_t enqueueKernelLaunchCustomExp(
-      ur_kernel_handle_t hKernel, uint32_t workDim,
-      const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
-      uint32_t numPropsInLaunchPropList,
-      const ur_exp_launch_property_t *launchPropList,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent) override;
-  ur_result_t
-  enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
-                          uint32_t, const ur_mem_handle_t *,
-                          const ur_exp_enqueue_native_command_properties_t *,
-                          uint32_t, const ur_event_handle_t *,
-                          ur_event_handle_t *) override;
+struct ur_queue_handle_t_ : _ur_object {
+  ur_queue_handle_t_(std::vector<ze_command_queue_handle_t> &ComputeQueues,
+                     std::vector<ze_command_queue_handle_t> &CopyQueues,
+                     ur_context_handle_t Context, ur_device_handle_t Device,
+                     bool OwnZeCommandQueue, ur_queue_flags_t Properties = 0,
+                     int ForceComputeIndex = -1);
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
   struct ur_queue_group_t {
-    ur_queue_handle_legacy_t Queue;
+    ur_queue_handle_t Queue;
     ur_queue_group_t() = delete;
 
     // The Queue argument captures the enclosing PI queue.
     // The Type argument specifies the type of this queue group.
     // The actual ZeQueues are populated at PI queue construction.
-    ur_queue_group_t(ur_queue_handle_legacy_t Queue, queue_type Type)
+    ur_queue_group_t(ur_queue_handle_t Queue, queue_type Type)
         : Queue(Queue), Type(Type) {}
 
     // The type of the queue group.
@@ -462,8 +271,7 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
     ze_command_queue_handle_t &getZeQueue(uint32_t *QueueGroupOrdinal);
 
     // This function sets an immediate commandlist from the interop interface.
-    void setImmCmdList(ur_queue_handle_legacy_t queue,
-                       ze_command_list_handle_t);
+    void setImmCmdList(ur_queue_handle_t queue, ze_command_list_handle_t);
 
     // This function returns the next immediate commandlist to use.
     ur_command_list_ptr_t &getImmCmdList();
@@ -530,15 +338,15 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
   pi_queue_group_by_tid_t CopyQueueGroupsByTID;
 
   // Keeps the PI context to which this queue belongs.
-  // This field is only set at ur_queue_handle_legacy_t_ creation time, and
+  // This field is only set at ur_queue_handle_t_ creation time, and
   // cannot change. Therefore it can be accessed without holding a lock on this
-  // ur_queue_handle_legacy_t_.
+  // ur_queue_handle_t_.
   const ur_context_handle_t Context;
 
   // Keeps the PI device to which this queue belongs.
-  // This field is only set at ur_queue_handle_legacy_t_ creation time, and
+  // This field is only set at ur_queue_handle_t_ creation time, and
   // cannot change. Therefore it can be accessed without holding a lock on this
-  // ur_queue_handle_legacy_t_.
+  // ur_queue_handle_t_.
   const ur_device_handle_t Device;
 
   // A queue may use either standard or immediate commandlists. At queue
@@ -881,21 +689,10 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
 
   // Threshold for cleaning up the EventList for immediate command lists.
   size_t getImmdCmmdListsEventCleanupThreshold();
+
+  // Pointer to the unified handle.
+  ur_queue_handle_t_ *UnifiedHandle;
 };
-
-template <typename QueueT> QueueT GetQueue(ur_queue_handle_t Queue) {
-  if (!Queue)
-    return nullptr;
-  auto *Q = dynamic_cast<QueueT>(Queue);
-  if (!Q) {
-    throw UR_RESULT_ERROR_INVALID_QUEUE;
-  }
-  return Q;
-}
-
-static inline ur_queue_handle_legacy_t Legacy(ur_queue_handle_t Queue) {
-  return GetQueue<ur_queue_handle_legacy_t>(Queue);
-}
 
 // This helper function creates a ur_event_handle_t and associate a
 // ur_queue_handle_t. Note that the caller of this function must have acquired
@@ -910,18 +707,16 @@ static inline ur_queue_handle_legacy_t Legacy(ur_queue_handle_t Queue) {
 //        multiple devices.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
-ur_result_t
-createEventAndAssociateQueue(ur_queue_handle_legacy_t Queue,
-                             ur_event_handle_t *Event, ur_command_t CommandType,
-                             ur_command_list_ptr_t CommandList, bool IsInternal,
-                             bool IsMultiDevice,
-                             std::optional<bool> HostVisible = std::nullopt);
+ur_result_t createEventAndAssociateQueue(
+    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
+    ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
+    std::optional<bool> HostVisible = std::nullopt);
 
 // This helper function checks to see if an event for a command can be included
 // at the end of a command list batch. This will only be true if the event does
 // not have dependencies or the dependencies are not for events which exist in
 // this batch.
-bool eventCanBeBatched(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
+bool eventCanBeBatched(ur_queue_handle_t Queue, bool UseCopyEngine,
                        uint32_t NumEventsInWaitList,
                        const ur_event_handle_t *EventWaitList);
 
@@ -930,7 +725,7 @@ bool eventCanBeBatched(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
 // dependencies, then this command can be enqueued without a signal event set in
 // a command list batch. The signal event will be appended at the end of the
 // batch to be signalled at the end of the command list.
-ur_result_t setSignalEvent(ur_queue_handle_legacy_t Queue, bool UseCopyEngine,
+ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
                            ze_event_handle_t *ZeEvent, ur_event_handle_t *Event,
                            uint32_t NumEventsInWaitList,
                            const ur_event_handle_t *EventWaitList,
