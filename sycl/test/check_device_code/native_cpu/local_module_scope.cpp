@@ -1,4 +1,4 @@
-#include "sycl.hpp"
+// REQUIRES: native_cpu_ock
 
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -mllvm -sycl-native-cpu-no-vecz -mllvm -sycl-native-dump-device-ir %s | FileCheck %s
 
@@ -10,6 +10,9 @@
 // CHECK: define void @_ZTS4TestILi1ELi4EiE.NativeCPUKernel{{.*}} #[[ATTR:[0-9]*]]
 // CHECK: alloca %localVarTypes
 // CHECK: attributes #[[ATTR]] = {{.*}} "mux-orig-fn"="_ZTS4TestILi1ELi4EiE"
+
+#include "sycl.hpp"
+
 template <int dims, int size, typename T = int> struct Test;
 
 int main() {
