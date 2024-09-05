@@ -251,10 +251,23 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueEventsWait");
+
+  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+             (handler->commandList.get(), numWaitEvents, pWaitEvents));
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (handler->commandList.get(), signalEvent));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
