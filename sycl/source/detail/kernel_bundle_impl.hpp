@@ -455,6 +455,10 @@ public:
     Plugin->call(urProgramCreateWithIL, ContextImpl->getHandleRef(),
                  spirv.data(), spirv.size(), nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
+    if (UrProgram == nullptr)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "urProgramCreateWithIL resulted in a null program handle.");
 
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res =

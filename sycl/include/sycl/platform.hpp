@@ -194,6 +194,11 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
+  /// Returns all unsupported (non-SYCL) platforms in the system.
+  ///
+  /// \return a vector of all unsupported non-SYCL platforms.
+  static std::vector<platform> get_unsupported_platforms();
+
   /// Returns the backend associated with this platform.
   ///
   /// \return the backend associated with this platform

@@ -1,4 +1,4 @@
-//==------------------------- plugin.hpp - SYCL platform -------------------==//
+//==- plugin.hpp -----------------------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,24 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <detail/config.hpp>
-#include <memory>
-#include <mutex>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/detail/ur.hpp>
-
 #include <ur_api.h>
-
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Include the headers necessary for emitting traces using the trace framework
 #include "xpti/xpti_trace_framework.h"
 #endif
 
-#include <sycl/detail/iostream_proxy.hpp>
+#include <memory>
+#include <mutex>
 
-#define __SYCL_REPORT_UR_ERR_TO_STREAM(expr)                                   \
+#define __SYCL_CHECK_UR_CODE_NO_EXC(expr)                                      \
   {                                                                            \
     auto code = expr;                                                          \
     if (code != UR_RESULT_SUCCESS) {                                           \
@@ -32,8 +31,6 @@
                 << std::endl;                                                  \
     }                                                                          \
   }
-
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_UR_ERR_TO_STREAM(X)
 
 namespace sycl {
 inline namespace _V1 {
@@ -69,7 +66,8 @@ public:
       ur_result = call_nocheck(urAdapterGetLastError, MAdapter, &message, &adapter_error);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
+      if (message != nullptr &&
+          detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         std::clog << message << std::endl;
       }
 

@@ -10,8 +10,8 @@
 // RUN: %{build} -ffp-model=precise -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: gpu
 // XFAIL: cpu
+// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../joint_matrix_apply_two_matrices_impl.hpp"

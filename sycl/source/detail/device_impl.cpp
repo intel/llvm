@@ -80,7 +80,7 @@ device_impl::~device_impl() {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const PluginPtr &Plugin = getPlugin();
     ur_result_t Err = Plugin->call_nocheck(urDeviceRelease, MDevice);
-    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+    __SYCL_CHECK_UR_CODE_NO_EXC(Err);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_impl", e);
   }
@@ -773,6 +773,10 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();
+  }
+  case aspect::ext_oneapi_atomic16: {
+    // Likely L0 doesn't check it properly. Need to double-check.
+    return has_extension("cl_ext_float_atomics");
   }
   }
 
