@@ -118,6 +118,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_level_zero.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/context.cpp
@@ -136,6 +137,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     )
 
@@ -199,6 +201,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/common.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/device.cpp
@@ -206,6 +209,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
         # v2-only sources
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/command_list_cache.hpp
@@ -217,6 +221,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.hpp
@@ -229,6 +234,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event_provider_normal.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/kernel.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/v2/memory.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_create.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp

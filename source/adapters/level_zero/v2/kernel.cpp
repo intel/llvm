@@ -12,13 +12,14 @@
 
 #include "context.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 
 #include "../device.hpp"
 #include "../platform.hpp"
 #include "../program.hpp"
 #include "../ur_interface_loader.hpp"
 
-ur_single_device_kernel_t::ur_single_device_kernel_t(ze_device_handle_t hDevice,
+ur_single_device_kernel_t::ur_single_device_kernel_t(ur_device_handle_t hDevice,
                                                      ze_kernel_handle_t hKernel,
                                                      bool ownZeHandle)
     : hDevice(hDevice), hKernel(hKernel, ownZeHandle) {
@@ -54,7 +55,7 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
     assert(urDevice != hProgram->Context->getDevices().end());
     auto deviceId = (*urDevice)->Id.value();
 
-    deviceKernels[deviceId].emplace(zeDevice, zeKernel, true);
+    deviceKernels[deviceId].emplace(*urDevice, zeKernel, true);
   }
   completeInitialization();
 }
@@ -118,7 +119,7 @@ ur_kernel_handle_t_::getZeHandle(ur_device_handle_t hDevice) {
     auto &kernel = deviceKernels[0].value();
 
     // hDevice is nullptr for native handle
-    if ((kernel.hDevice != nullptr && kernel.hDevice != hDevice->ZeDevice)) {
+    if ((kernel.hDevice != nullptr && kernel.hDevice != hDevice)) {
       throw UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
@@ -239,6 +240,16 @@ ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
+std::vector<ur_device_handle_t> ur_kernel_handle_t_::getDevices() const {
+  std::vector<ur_device_handle_t> devices;
+  for (size_t i = 0; i < deviceKernels.size(); ++i) {
+    if (deviceKernels[i].has_value()) {
+      devices.push_back(deviceKernels[i].value().hDevice);
+    }
+  }
+  return devices;
+}
+
 namespace ur::level_zero {
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
@@ -289,6 +300,28 @@ ur_result_t urKernelSetArgPointer(
 ) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+}
+
+ur_result_t
+urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
+                     ur_mem_handle_t hArgValue) {
+  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgMemObj");
+
+  // TODO: support properties
+  std::ignore = pProperties;
+
+  auto kernelDevices = hKernel->getDevices();
+  if (kernelDevices.size() == 1) {
+    auto zePtr = hArgValue->getPtr(kernelDevices.front());
+    return hKernel->setArgPointer(argIndex, nullptr, zePtr);
+  } else {
+    // TODO: Implement this for multi-device kernels.
+    // Do this the same way as in legacy (keep a pending Args vector and
+    // do actual allocation on kernel submission) or allocate the memory
+    // immediately (only for small allocations?)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
 }
 
 ur_result_t urKernelSetExecInfo(

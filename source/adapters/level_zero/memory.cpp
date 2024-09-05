@@ -15,6 +15,7 @@
 
 #include "context.hpp"
 #include "event.hpp"
+#include "helpers/memory_helpers.hpp"
 #include "image.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
@@ -1599,30 +1600,11 @@ ur_result_t urMemBufferCreate(
     Host = Properties->pHost;
   }
 
-  // If USM Import feature is enabled and hostptr is supplied,
-  // import the hostptr if not already imported into USM.
-  // Data transfer rate is maximized when both source and destination
-  // are USM pointers. Promotion of the host pointer to USM thus
-  // optimizes data transfer performance.
   bool HostPtrImported = false;
-  if (ZeUSMImport.Enabled && Host != nullptr &&
-      (Flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0) {
-    // Query memory type of the host pointer
-    ze_device_handle_t ZeDeviceHandle;
-    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-    ZE2UR_CALL(zeMemGetAllocProperties,
-               (Context->ZeContext, Host, &ZeMemoryAllocationProperties,
-                &ZeDeviceHandle));
-
-    // If not shared of any type, we can import the ptr
-    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-      // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle =
-          Context->getPlatform()->ZeDriverHandleExpTranslated;
-      ZeUSMImport.doZeUSMImport(driverHandle, Host, Size);
-      HostPtrImported = true;
-    }
-  }
+  if (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
+    HostPtrImported =
+        maybeImportUSM(Context->getPlatform()->ZeDriverHandleExpTranslated,
+                       Context->ZeContext, Host, Size);
 
   _ur_buffer *Buffer = nullptr;
   auto HostPtrOrNull = (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
