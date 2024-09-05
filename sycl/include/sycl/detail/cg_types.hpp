@@ -154,6 +154,8 @@ runKernelWithArg(KernelType KernelName, ArgType Arg) {
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
+  // NOTE: InstatitateKernelOnHost() should not be called.
+  virtual void InstatitateKernelOnHost() = 0;
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
@@ -171,6 +173,50 @@ class HostKernel : public HostKernelBase {
 
 public:
   HostKernel(KernelType Kernel) : MKernel(Kernel) {}
+
+  // This function is needed for host-side compilation to keep kernels
+  // instantitated. This is important for debuggers to be able to associate
+  // kernel code instructions with source code lines.
+  // NOTE: InstatitateKernelOnHost() should not be called.
+  void InstatitateKernelOnHost() override {
+    if constexpr (std::is_same_v<KernelArgType, void>) {
+      runKernelWithoutArg(MKernel);
+    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
+      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
+      runKernelWithArg<const KernelArgType &>(MKernel, ID);
+    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
+                         std::is_same_v<KernelArgType, item<Dims, false>>) {
+      constexpr bool HasOffset =
+          std::is_same_v<KernelArgType, item<Dims, true>>;
+      KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+          InitializedVal<Dims, range>::template get<1>(),
+          InitializedVal<Dims, id>::template get<0>());
+      runKernelWithArg<KernelArgType>(MKernel, Item);
+    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
+      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+      sycl::group<Dims> Group =
+          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+      sycl::item<Dims, true> GlobalItem =
+          IDBuilder::createItem<Dims, true>(Range, ID, ID);
+      sycl::item<Dims, false> LocalItem =
+          IDBuilder::createItem<Dims, false>(Range, ID);
+      KernelArgType NDItem =
+          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
+    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
+      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+      KernelArgType Group =
+          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+      runKernelWithArg<KernelArgType>(MKernel, Group);
+    } else {
+      // Assume that anything else can be default-constructed. If not, this
+      // should fail to compile and the implementor should implement a generic
+      // case for the new argument type.
+      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
+    }
+  }
 
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
