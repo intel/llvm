@@ -478,6 +478,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityRoundingModeRTZ, "RoundingModeRTZ");
   add(CapabilityRayQueryProvisionalKHR, "RayQueryProvisionalKHR");
   add(CapabilityRayQueryKHR, "RayQueryKHR");
+  add(CapabilityUntypedPointersKHR, "UntypedPointersKHR");
   add(CapabilityRayTraversalPrimitiveCullingKHR,
       "RayTraversalPrimitiveCullingKHR");
   add(CapabilityRayTracingKHR, "RayTracingKHR");

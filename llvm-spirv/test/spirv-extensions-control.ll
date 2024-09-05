@@ -10,11 +10,11 @@
 ;
 ; Bunch of positive tests:
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
-; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_INTEL_subgroups,-SPV_KHR_untyped_pointers -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-all,+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_INTEL_subgroups,+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ;
