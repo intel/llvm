@@ -25,6 +25,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
@@ -834,7 +835,6 @@ struct AddressSanitizer {
   bool instrumentSyclDynamicLocalMemory(Function &F,
                                         ArrayRef<Instruction *> RetVec);
 
-  void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM);
   GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                           StringRef Value,
                                           unsigned AddressSpace);
@@ -1285,28 +1285,36 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 } // end anonymous namespace
 
-GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
-                                        StringRef Value,
-                                        unsigned AddressSpace) {
-  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-  return new GlobalVariable(M, Ty, true, GlobalValue::InternalLinkage,
-                            ConstantDataArray::getString(M.getContext(), Value),
-                            Name, nullptr, GlobalValue::NotThreadLocal,
-                            AddressSpace);
+static void DisableSanitizerForAllCalledFunctions(Function *F, CallGraph &CG) {
+  if (F->hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+    return;
+  F->addFnAttr(Attribute::DisableSanitizerInstrumentation);
+
+  CallGraphNode *CGN = CG[F];
+  if (!CGN)
+    return;
+  for (auto &CallRecord : *CGN) {
+    CallGraphNode *CalleeNode = CallRecord.second;
+    Function *CalleeFunction = CalleeNode->getFunction();
+    if (CalleeFunction)
+      DisableSanitizerForAllCalledFunctions(CalleeFunction, CG);
+  }
 }
 
 // Append a new argument "launch_data" to user's spir_kernels
-void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
-                                            FunctionAnalysisManager &FAM) {
+static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupFuncs;
-  auto C = M.getContext();
   SmallVector<Constant *, 8> SprivFuncsMetadata;
+  CallGraph CG(M);
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(M.getContext());
 
   // Spirv-kernel metadata is described by a structure
   //  uint8_t* unmangled_kernel_name
+  //  uint32_t unmangled_kernel_name_size
   //  uint32_t is_instrumented
-  StructType *StructTy =
-      StructType::get(Type::getInt8Ty(C)->getPointerTo(), Type::getInt32Ty(C));
+  StructType *StructTy = StructType::get(//IntptrTy, 
+  IntptrTy, IntptrTy);
 
   auto CreateGlobalString = [&M](StringRef Value) {
     auto *Ty =
@@ -1317,36 +1325,33 @@ void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
   };
 
   for (Function &F : M) {
-    // FIXME: We don't have a way to check if the kernel has been extended
-    // on Unified Runtime, so we always extend spir_kernels here, even it will
-    // not be instrumented by any asan function.
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      bool IsKernelFixup = true;
-      auto KernelName = F.getFunction().getName();
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
 
-      // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-      // support sanitizer for it
+    auto KernelName = F.getName();
+    auto *KernelNameGV = CreateGlobalString(KernelName);
+
+    bool IsKernelFixup = true;
+
+    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
+    // support sanitizer for it
+    if (F.hasMetadata("sycl_explicit_simd") ||
+        !F.hasFnAttribute(Attribute::SanitizeAddress) ||
+        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+      IsKernelFixup = false;
+
+    if (IsKernelFixup) {
+      SpirFixupFuncs.emplace_back(&F);
+    } else {
+      F.removeFnAttr(Attribute::SanitizeAddress);
+
       if (F.hasMetadata("sycl_explicit_simd"))
-        IsKernelFixup = false;
-
-      if (KernelName.contains("skip"))
-        IsKernelFixup = false;
-
-      if (IsKernelFixup) {
-        SpirFixupFuncs.emplace_back(&F);
-        // auto Global = CreateGlobalString(F.getFunction().getName());
-        SprivFuncsMetadata.emplace_back(ConstantStruct::get(
-            StructTy,
-            ConstantDataArray::getString(C, F.getFunction().getName()),
-            ConstantInt::get(Type::getInt32Ty(C), 1)));
-      } else {
-        SprivFuncsMetadata.emplace_back(ConstantStruct::get(
-            StructTy,
-            ConstantDataArray::getString(C, F.getFunction().getName()),
-            ConstantInt::get(Type::getInt32Ty(C), 0)));
-        F.removeFnAttr();
-      }
+        DisableSanitizerForAllCalledFunctions(&F, CG);
     }
+    SprivFuncsMetadata.emplace_back(ConstantStruct::get(
+        StructTy, //ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        ConstantInt::get(IntptrTy, KernelName.size()),
+        ConstantInt::get(IntptrTy, IsKernelFixup ? 1 : 0)));
   }
 
   // Create metadata global to record spirv kernels' information
@@ -1354,14 +1359,17 @@ void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SprivFuncsMetadata);
   GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
       MetadataInitializer, "__AsanSpirKernelMetadata", nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  AsanSpirKernelMetadata->setDSOLocal(true);
+  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z24__AsanSpirKernelMetadata");
 
   // Handle SpirFixupFuncs
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
-  auto *IntptrTy =
+  auto *IntptrAS1Ty =
       M.getDataLayout().getIntPtrType(M.getContext(), kSpirOffloadGlobalAS);
 
   for (auto *F : SpirFixupFuncs) {
@@ -1372,7 +1380,7 @@ void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(IntptrAS1Ty->getPointerTo(kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1394,6 +1402,7 @@ void AddressSanitizer::ExtendSpirKernelArgs(Module &M,
     }
     // New argument name
     NewI->setName("__asan_launch");
+    NewI->addAttr(Attribute::NoUndef);
 
     NewF->splice(NewF->begin(), F);
     assert(F->isDeclaration() &&
