@@ -132,7 +132,8 @@ struct AsanOptions {
                                    "value less than 16 is ignored.");
                 }
             } catch (...) {
-                logger.error("\"redzone\" should be an integer in range[0, 16].");
+                logger.error(
+                    "\"redzone\" should be an integer in range[0, 16].");
                 die("Sanitizer failed to parse options.\n");
             }
         }
