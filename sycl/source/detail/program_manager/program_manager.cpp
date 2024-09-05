@@ -1314,6 +1314,9 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
     // Note: there are no explicit targets for CPUs, so on x86_64,
     // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
     // compile target image.
+    // TODO: When dedicated targets for CPU are added, (i.e.
+    // -fsycl-targets=intel_cpu_spr etc.) remove this special
+    // handling of CPU targets.
     if ((ArchName == CompileTarget) ||
         ((ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
           ArchName == "intel_cpu_gnr") &&
