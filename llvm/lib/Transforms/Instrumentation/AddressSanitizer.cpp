@@ -1313,15 +1313,15 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   //  uint8_t* unmangled_kernel_name
   //  uint32_t unmangled_kernel_name_size
   //  uint32_t is_instrumented
-  StructType *StructTy = StructType::get(//IntptrTy, 
-  IntptrTy, IntptrTy);
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   auto CreateGlobalString = [&M](StringRef Value) {
     auto *Ty =
         ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
     return new GlobalVariable(
-        M, Ty, true, GlobalValue::InternalLinkage,
-        ConstantDataArray::getString(M.getContext(), Value));
+        M, Ty, true, GlobalValue::ExternalLinkage,
+        ConstantDataArray::getString(M.getContext(), Value), "__asan_kernel",
+        nullptr, GlobalValue::NotThreadLocal, 1);
   };
 
   for (Function &F : M) {
@@ -1349,7 +1349,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         DisableSanitizerForAllCalledFunctions(&F, CG);
     }
     SprivFuncsMetadata.emplace_back(ConstantStruct::get(
-        StructTy, //ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size()),
         ConstantInt::get(IntptrTy, IsKernelFixup ? 1 : 0)));
   }
@@ -1363,9 +1363,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       MetadataInitializer, "__AsanSpirKernelMetadata", nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
-  AsanSpirKernelMetadata->setDSOLocal(true);
-  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
-                                       "_Z24__AsanSpirKernelMetadata");
 
   // Handle SpirFixupFuncs
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
