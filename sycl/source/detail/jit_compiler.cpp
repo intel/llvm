@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
 #include <detail/device_image_impl.hpp>
 #include <detail/jit_compiler.hpp>
@@ -15,7 +15,6 @@
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/ur.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
@@ -154,22 +153,8 @@ struct PromotionInformation {
 
 using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
 
-template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
-  auto Result = Promotion::None;
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_private>()) {
-    Result = Promotion::Private;
-  }
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_local>()) {
-    if (Result != Promotion::None) {
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Two contradicting promotion properties on the "
-                            "same buffer/accessor are not allowed.");
-    }
-    Result = Promotion::Local;
-  }
-  return Result;
+template <typename Obj> Promotion getPromotionTarget(const Obj &) {
+  return Promotion::None;
 }
 
 static Promotion getInternalizationInfo(Requirement *Req) {
@@ -663,15 +648,20 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
   AddToConfigHandle(
       ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
-
-  std::string TargetCPU =
-      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get();
-  std::string TargetFeatures =
-      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get();
+  auto SetUpOption = [](const std::string &Value) {
+    ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
+    return Option;
+  };
+  ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+  ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
 
   auto MaterializerResult =
-      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob,
-                                 TargetCPU.c_str(), TargetFeatures.c_str());
+      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
   if (MaterializerResult.failed()) {
     std::string Message{"Compilation for kernel failed with message:\n"};
     Message.append(MaterializerResult.getErrorMessage());
@@ -720,7 +710,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
 std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
-                          const property_list &PropList) {
+                          const property_list &) {
   if (!isAvailable()) {
     printPerformanceWarning("JIT library not available");
     return nullptr;
@@ -925,10 +915,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
 
   // Retrieve barrier flags.
   ::jit_compiler::BarrierFlags BarrierFlags =
-      (PropList
-           .has_property<ext::codeplay::experimental::property::no_barriers>())
-          ? ::jit_compiler::getNoBarrierFlag()
-          : ::jit_compiler::getLocalAndGlobalBarrierFlag();
+      ::jit_compiler::getLocalAndGlobalBarrierFlag();
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
@@ -1159,4 +1146,4 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 } // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE

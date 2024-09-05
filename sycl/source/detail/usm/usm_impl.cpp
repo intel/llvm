@@ -29,26 +29,16 @@
 #include <detail/xpti_registry.hpp>
 #endif
 
-namespace sycl {
-inline namespace _V1 {
-
-using alloc = sycl::usm::alloc;
-
-namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
-namespace usm {
-
-void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
-                       alloc Kind, const property_list &PropList,
-                       const detail::code_location &CodeLoc) {
+namespace {
+void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
+                       const sycl::property_list &PropList,
+                       const sycl::detail::code_location &CodeLoc) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
-  detail::tls_code_loc_t CL(CodeLoc);
-  XPTIScope PrepareNotify((void *)alignedAllocHost,
-                          (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
+  sycl::detail::tls_code_loc_t CL(CodeLoc);
+  sycl::detail::XPTIScope PrepareNotify(
+      (void *)alignedAllocHost, (uint16_t)xpti::trace_point_type_t::node_create,
+      sycl::detail::SYCL_MEM_ALLOC_STREAM_NAME, "malloc_host");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device_name", std::string("Host"));
     xpti::addMetadata(TEvent, "sycl_device", 0);
@@ -72,13 +62,12 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
   if (Size == 0)
     return nullptr;
 
-  std::shared_ptr<context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
+      sycl::detail::getSyclObjImpl(Ctxt);
   ur_context_handle_t C = CtxImpl->getHandleRef();
-  const PluginPtr &Plugin = CtxImpl->getPlugin();
+  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
   ur_result_t Error = UR_RESULT_ERROR_INVALID_VALUE;
 
-  switch (Kind) {
-  case alloc::host: {
     ur_usm_desc_t UsmDesc{};
     UsmDesc.align = Alignment;
 
@@ -100,17 +89,6 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
     Error = Plugin->call_nocheck(urUSMHostAlloc, C, &UsmDesc,
                                  /* pool= */ nullptr, Size, &RetVal);
 
-    break;
-  }
-  case alloc::device:
-  case alloc::shared:
-  case alloc::unknown: {
-    RetVal = nullptr;
-    Error = UR_RESULT_ERROR_INVALID_VALUE;
-    break;
-  }
-  }
-
   // Error is for debugging purposes.
   // The spec wants a nullptr returned, not an exception.
   if (Error != UR_RESULT_SUCCESS)
@@ -121,6 +99,18 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
 #endif
   return RetVal;
 }
+} // namespace
+
+namespace sycl {
+inline namespace _V1 {
+
+using alloc = sycl::usm::alloc;
+
+namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+extern xpti::trace_event_data_t *GSYCLGraphEvent;
+#endif
+namespace usm {
 
 void *alignedAllocInternal(size_t Alignment, size_t Size,
                            const context_impl *CtxImpl,
@@ -351,27 +341,23 @@ void free(void *ptr, const queue &Q, const detail::code_location &CodeLoc) {
 
 void *malloc_host(size_t Size, const context &Ctxt,
                   const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host,
-                                       property_list{}, CodeLoc);
+  return alignedAllocHost(0, Size, Ctxt, property_list{}, CodeLoc);
 }
 
 void *malloc_host(size_t Size, const context &Ctxt,
                   const property_list &PropList,
                   const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(0, Size, Ctxt, alloc::host, PropList,
-                                       CodeLoc);
+  return alignedAllocHost(0, Size, Ctxt, PropList, CodeLoc);
 }
 
 void *malloc_host(size_t Size, const queue &Q,
                   const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(0, Size, Q.get_context(), alloc::host,
-                                       property_list{}, CodeLoc);
+  return alignedAllocHost(0, Size, Q.get_context(), property_list{}, CodeLoc);
 }
 
 void *malloc_host(size_t Size, const queue &Q, const property_list &PropList,
                   const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(0, Size, Q.get_context(), alloc::host,
-                                       PropList, CodeLoc);
+  return alignedAllocHost(0, Size, Q.get_context(), PropList, CodeLoc);
 }
 
 void *malloc_shared(size_t Size, const device &Dev, const context &Ctxt,
@@ -401,28 +387,25 @@ void *malloc_shared(size_t Size, const queue &Q, const property_list &PropList,
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
                          const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host,
-                                       property_list{}, CodeLoc);
+  return alignedAllocHost(Alignment, Size, Ctxt, property_list{}, CodeLoc);
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const context &Ctxt,
                          const property_list &PropList,
                          const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, alloc::host,
-                                       PropList, CodeLoc);
+  return alignedAllocHost(Alignment, Size, Ctxt, PropList, CodeLoc);
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
                          const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(),
-                                       alloc::host, property_list{}, CodeLoc);
+  return alignedAllocHost(Alignment, Size, Q.get_context(), property_list{},
+                          CodeLoc);
 }
 
 void *aligned_alloc_host(size_t Alignment, size_t Size, const queue &Q,
                          const property_list &PropList,
                          const detail::code_location &CodeLoc) {
-  return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(),
-                                       alloc::host, PropList, CodeLoc);
+  return alignedAllocHost(Alignment, Size, Q.get_context(), PropList, CodeLoc);
 }
 
 void *aligned_alloc_shared(size_t Alignment, size_t Size, const device &Dev,
@@ -460,16 +443,14 @@ void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
              const property_list &PropList,
              const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(0, Size, Ctxt, Kind, PropList,
-                                         CodeLoc);
+    return alignedAllocHost(0, Size, Ctxt, PropList, CodeLoc);
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind, PropList, CodeLoc);
 }
 
 void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
              const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(0, Size, Ctxt, Kind, property_list{},
-                                         CodeLoc);
+    return alignedAllocHost(0, Size, Ctxt, property_list{}, CodeLoc);
   return detail::usm::alignedAlloc(0, Size, Ctxt, Dev, Kind, property_list{},
                                    CodeLoc);
 }
@@ -477,8 +458,7 @@ void *malloc(size_t Size, const device &Dev, const context &Ctxt, alloc Kind,
 void *malloc(size_t Size, const queue &Q, alloc Kind,
              const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(0, Size, Q.get_context(), Kind,
-                                         property_list{}, CodeLoc);
+    return alignedAllocHost(0, Size, Q.get_context(), property_list{}, CodeLoc);
   return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
                                    Kind, property_list{}, CodeLoc);
 }
@@ -487,8 +467,7 @@ void *malloc(size_t Size, const queue &Q, alloc Kind,
              const property_list &PropList,
              const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(0, Size, Q.get_context(), Kind,
-                                         PropList, CodeLoc);
+    return alignedAllocHost(0, Size, Q.get_context(), PropList, CodeLoc);
   return detail::usm::alignedAlloc(0, Size, Q.get_context(), Q.get_device(),
                                    Kind, PropList, CodeLoc);
 }
@@ -497,8 +476,7 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const context &Ctxt, alloc Kind,
                     const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind,
-                                         property_list{}, CodeLoc);
+    return alignedAllocHost(Alignment, Size, Ctxt, property_list{}, CodeLoc);
 
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind,
                                    property_list{}, CodeLoc);
@@ -509,8 +487,7 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
                     const property_list &PropList,
                     const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(Alignment, Size, Ctxt, Kind, PropList,
-                                         CodeLoc);
+    return alignedAllocHost(Alignment, Size, Ctxt, PropList, CodeLoc);
   return detail::usm::alignedAlloc(Alignment, Size, Ctxt, Dev, Kind, PropList,
                                    CodeLoc);
 }
@@ -518,8 +495,8 @@ void *aligned_alloc(size_t Alignment, size_t Size, const device &Dev,
 void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
                     const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(), Kind,
-                                         property_list{}, CodeLoc);
+    return alignedAllocHost(Alignment, Size, Q.get_context(), property_list{},
+                            CodeLoc);
   return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
                                    Q.get_device(), Kind, property_list{},
                                    CodeLoc);
@@ -529,8 +506,8 @@ void *aligned_alloc(size_t Alignment, size_t Size, const queue &Q, alloc Kind,
                     const property_list &PropList,
                     const detail::code_location &CodeLoc) {
   if (Kind == alloc::host)
-    return detail::usm::alignedAllocHost(Alignment, Size, Q.get_context(), Kind,
-                                         PropList, CodeLoc);
+    return alignedAllocHost(Alignment, Size, Q.get_context(), PropList,
+                            CodeLoc);
   return detail::usm::alignedAlloc(Alignment, Size, Q.get_context(),
                                    Q.get_device(), Kind, PropList, CodeLoc);
 }

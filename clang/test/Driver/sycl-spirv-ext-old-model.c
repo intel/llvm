@@ -62,7 +62,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone
 // CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_memory_access_aliasing"
+// CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -128,5 +128,4 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_optnone
 // CHECK-CPU-SAME:,+SPV_KHR_non_semantic_info
 // CHECK-CPU-SAME:,+SPV_KHR_cooperative_matrix
-// CHECK-CPU-SAME:,+SPV_INTEL_memory_access_aliasing
 // CHECK-CPU-SAME:,+SPV_INTEL_fp_max_error"

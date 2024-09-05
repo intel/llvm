@@ -5,8 +5,6 @@
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: ze_debug
-
 //==- GroupSize.cpp - sub-group mask dependency on group size --*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

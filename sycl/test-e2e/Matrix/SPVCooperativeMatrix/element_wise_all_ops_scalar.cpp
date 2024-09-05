@@ -11,7 +11,6 @@
 // RUN: env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_impl.hpp"

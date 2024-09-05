@@ -16,7 +16,6 @@
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
-// CHECK-NEXT: detail/vector_traits.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
@@ -55,6 +54,8 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_remove_if.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_map_find.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
+// CHECK-NEXT: stl_wrappers/cassert
+// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp

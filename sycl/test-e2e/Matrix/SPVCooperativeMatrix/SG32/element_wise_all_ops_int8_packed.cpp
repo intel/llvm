@@ -14,7 +14,6 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: gpu
 
 // This test stores the matrix B that is VNNIed (packed).
 
