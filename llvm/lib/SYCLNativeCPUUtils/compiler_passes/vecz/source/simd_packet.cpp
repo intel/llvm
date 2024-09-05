@@ -21,8 +21,6 @@
 using namespace llvm;
 using namespace vecz;
 
-SimdPacket::SimdPacket() : Mask(0) {}
-
 llvm::Value *SimdPacket::at(unsigned Index) const {
   if (Index >= size()) {
     return nullptr;

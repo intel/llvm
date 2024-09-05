@@ -72,8 +72,7 @@ struct PacketMask {
 
 /// @brief Packet of LLVM values (e.g. instructions), one for each SIMD lane.
 struct SimdPacket : public llvm::SmallVector<llvm::Value *, 4> {
-  /// @brief Create a new packet with no value and all lanes disabled.
-  SimdPacket();
+  using SmallVector::SmallVector;
 
   /// @brief Return the value at the given index.
   /// @param[in] Index Index of the value to return.

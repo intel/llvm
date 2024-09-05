@@ -625,18 +625,6 @@ SimdPacket *Scalarizer::extractLanes(llvm::Value *V, PacketMask PM) {
     return P;
   }
 
-  if (isa<UndefValue>(V)) {
-    Value *ScalarUndef = UndefValue::get(VecTy->getElementType());
-    SimdPacket *P = getPacket(V, SimdWidth);
-    for (unsigned i = 0; i < SimdWidth; i++) {
-      if (!PM.isEnabled(i) || P->at(i)) {
-        continue;
-      }
-      P->set(i, ScalarUndef);
-    }
-    return P;
-  }
-
   Instruction *insert = nullptr;
 
   if (auto *Arg = dyn_cast<Argument>(V)) {
@@ -1090,46 +1078,82 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
   VECZ_STAT_FAIL_IF(Vec3Src ^ Vec3Dst, VeczScalarizeFailBitcast);
 
   // Handle non-vector -> vector casts and vector casts with different widths.
-  // This is done by casting the source to an integer and doing bitwise
-  // extractions with ANDs and shifts.
   if (!VecSrcTy || (VecSrcTy->getNumElements() != SimdWidth)) {
-    Type *SrcAsIntTy = SrcTy;
-    Value *SrcAsInt = Src;
-    Type *DstEleTy = VecDstTy->getElementType();
-    Type *DstEleAsIntTy = DstEleTy;
-    const uint64_t SrcBits = SrcTy->getPrimitiveSizeInBits();
-    const uint64_t LaneBits = DstEleTy->getPrimitiveSizeInBits();
-    if (!SrcTy->isIntegerTy()) {
-      SrcAsIntTy = SrcTy->getIntNTy(BC->getContext(), SrcBits);
-      SrcAsInt = B.CreateBitCast(SrcAsInt, SrcAsIntTy);
-      SrcAsInt = scalarizeOperands(cast<Instruction>(SrcAsInt));
-    }
-    if (!DstEleTy->isIntegerTy()) {
-      DstEleAsIntTy = IntegerType::get(BC->getContext(), LaneBits);
-    }
+    VECZ_FAIL_IF(BC->getModule()->getDataLayout().isBigEndian());
 
+    // Treat scalars as vectors of length 1.
+    SimdPacket SrcScalar{Src};
+    SimdPacket &S =
+        VecSrcTy ? *getPacket(Src, VecSrcTy->getNumElements()) : SrcScalar;
+    Type *const SrcEleTy = VecSrcTy ? VecSrcTy->getElementType() : SrcTy;
+    // Source element need not be a primitive if it was a non-vector, but in
+    // that case we know the size must match the destination vector type.
+    const size_t SrcEleSize = VecSrcTy ? SrcEleTy->getPrimitiveSizeInBits()
+                                       : VecDstTy->getPrimitiveSizeInBits();
+    Type *const SrcEleIntTy =
+        SrcEleTy->isIntegerTy()
+            ? SrcEleTy
+            : SrcEleTy->getIntNTy(BC->getContext(),
+                                  SrcEleTy->getPrimitiveSizeInBits());
+    Type *const DstEleTy = VecDstTy->getElementType();
+    const size_t DstEleSize = DstEleTy->getPrimitiveSizeInBits();
+    Type *const DstEleIntTy =
+        DstEleTy->isIntegerTy()
+            ? DstEleTy
+            : DstEleTy->getIntNTy(BC->getContext(),
+                                  DstEleTy->getPrimitiveSizeInBits());
     SimdPacket *P = getPacket(BC, SimdWidth);
+    PacketMask SPM;
     for (unsigned i = 0; i < SimdWidth; i++) {
       if (!PM.isEnabled(i) || P->at(i)) {
         continue;
       }
-      APInt LaneMask(SrcBits, 1);
-      LaneMask = LaneMask.shl(LaneBits);
-      LaneMask -= APInt(SrcBits, 1);
-      LaneMask = LaneMask.shl(i * LaneBits);
-      Value *LaneMaskVal = ConstantInt::get(SrcAsIntTy, LaneMask);
-      Value *Lane = B.CreateAnd(SrcAsInt, LaneMaskVal);
-      Lane = B.CreateLShr(Lane, LaneBits * i);
-      Lane = B.CreateTrunc(Lane, DstEleAsIntTy);
-      if (!DstEleTy->isIntegerTy()) {
+      if (VecSrcTy) {
+        for (unsigned j = i * DstEleSize / SrcEleSize;
+             j * SrcEleSize < (i + 1) * DstEleSize; ++j) {
+          SPM.enable(j);
+        }
+        SimdPacket *SrcPacket = scalarize(Src, SPM);
+        VECZ_FAIL_IF(!SrcPacket);
+        assert(SrcPacket == &S &&
+               "Scalarization of Src should update existing packet");
+      }
+      Value *Lane = nullptr;
+      for (unsigned j = i * DstEleSize / SrcEleSize;
+           j * SrcEleSize < (i + 1) * DstEleSize; ++j) {
+        Value *SrcPart = S[j];
+        assert(
+            SrcPart &&
+            "Scalarization of Src failure should have been detected earlier");
+        if (SrcEleIntTy != SrcEleTy) {
+          SrcPart = B.CreateBitCast(SrcPart, SrcEleIntTy);
+        }
+        if (SrcEleIntTy->getIntegerBitWidth() <
+            DstEleIntTy->getIntegerBitWidth()) {
+          SrcPart = B.CreateZExt(SrcPart, DstEleIntTy);
+        }
+        if (i * DstEleSize > j * SrcEleSize) {
+          SrcPart = B.CreateLShr(SrcPart, i * DstEleSize - j * SrcEleSize);
+        } else if (j * SrcEleSize > i * DstEleSize) {
+          SrcPart = B.CreateShl(SrcPart, j * SrcEleSize - i * DstEleSize);
+        }
+        if (SrcEleIntTy->getIntegerBitWidth() >
+            DstEleIntTy->getIntegerBitWidth()) {
+          SrcPart = B.CreateTrunc(SrcPart, DstEleIntTy);
+        }
+        Lane = Lane ? B.CreateOr(Lane, SrcPart) : SrcPart;
+      }
+      if (DstEleTy != DstEleIntTy) {
         Lane = B.CreateBitCast(Lane, DstEleTy);
       }
+      assert(Lane && "No bits found for lane");
       P->set(i, Lane);
     }
     return P;
   }
 
-  // Handle vector -> vector casts, quite a more straighforward affair.
+  // Handle same width vector -> vector casts, quite a more straighforward
+  // affair.
   SimdPacket *SrcPacket = scalarize(Src, PM);
   VECZ_FAIL_IF(!SrcPacket);
   Type *DstEleTy = VecDstTy->getElementType();
