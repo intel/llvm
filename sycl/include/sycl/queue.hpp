@@ -2567,6 +2567,7 @@ public:
   /// Equivalent to
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
+  // TODO(#15184) Remove this function in the next ABI-breaking window.
   bool ext_codeplay_supports_fusion() const;
 
 // Clean KERNELFUNC macros.

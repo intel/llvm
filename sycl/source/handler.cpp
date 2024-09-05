@@ -248,16 +248,16 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !MQueue->is_in_fusion_mode() &&
-        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
+        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
         (!impl->CGData.MEvents.size() ||
          (MQueue->isInOrder() &&
           detail::Scheduler::areEventsSafeForSchedulerBypass(
               impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
-      // the graph is not changed, and the queue is not in fusion mode, then
-      // this faster path is used to submit kernel bypassing scheduler and
-      // avoiding CommandGroup, Command objects creation.
+      // the graph is not changed, then this faster path is used to submit
+      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
+      // creation.
 
       std::vector<ur_event_handle_t> RawEvents;
       detail::EventImplPtr NewEvent;
@@ -1570,12 +1570,6 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
           make_error_code(errc::invalid),
           "Cannot submit to a queue with a dependency from a graph that is "
           "associated with a different device.");
-    }
-
-    if (MQueue->is_in_fusion_mode()) {
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "Queue in fusion mode cannot have a dependency from a graph");
     }
 
     if (QueueGraph && QueueGraph != EventGraph) {
