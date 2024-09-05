@@ -124,6 +124,11 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
+  /// Returns all unsupported (non-SYCL) platforms in the system.
+  ///
+  /// \return a vector of all unsupported (non-SYCL) platforms.
+  static std::vector<platform> get_unsupported_platforms();
+
   // \return the Plugin associated with this platform.
   const PluginPtr &getPlugin() const { return MPlugin; }
 
@@ -201,6 +206,10 @@ public:
 
 private:
   std::shared_ptr<device_impl> getDeviceImplHelper(ur_device_handle_t UrDevice);
+
+  // Helper to get the vector of platforms supported by a given UR plugin
+  static std::vector<platform> getPluginPlatforms(PluginPtr &Plugin,
+                                                  bool Supported = true);
 
   // Helper to filter reportable devices in the platform
   template <typename ListT, typename FilterT>

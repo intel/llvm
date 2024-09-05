@@ -96,27 +96,33 @@ static bool IsBannedPlatform(platform Platform) {
          IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
-// This routine has the side effect of registering each platform's last device
-// id into each plugin, which is used for device counting.
-std::vector<platform> platform_impl::get_platforms() {
+// Get the vector of platforms supported by a given UR plugin
+// replace uses of this with a helper in plugin object, the plugin
+// objects will own the ur adapter handles and they'll need to pass them to
+// urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
+std::vector<platform> platform_impl::getPluginPlatforms(PluginPtr &Plugin,
+                                                        bool Supported) {
+  std::vector<platform> Platforms;
 
-  // Get the vector of platforms supported by a given UR plugin
-  // replace uses of this with with a helper in plugin object, the plugin
-  // objects will own the ur adapter handles and they'll need to pass them to
-  // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
-  auto getPluginPlatforms = [](PluginPtr &Plugin) {
-    std::vector<platform> Platforms;
+  auto UrPlatforms = Plugin->getUrPlatforms();
 
-    auto UrPlatforms = Plugin->getUrPlatforms();
+  if (UrPlatforms.empty()) {
+    return Platforms;
+  }
 
-    if (UrPlatforms.empty()) {
-      return Platforms;
-    }
+  for (const auto &UrPlatform : UrPlatforms) {
+    platform Platform = detail::createSyclObjFromImpl<platform>(
+        getOrMakePlatformImpl(UrPlatform, Plugin));
+    const bool IsBanned = IsBannedPlatform(Platform);
+    const bool HasAnyDevices =
+        !Platform.get_devices(info::device_type::all).empty();
 
-    for (const auto &UrPlatform : UrPlatforms) {
-      platform Platform = detail::createSyclObjFromImpl<platform>(
-          getOrMakePlatformImpl(UrPlatform, Plugin));
-      if (IsBannedPlatform(Platform)) {
+    if (!Supported) {
+      if (IsBanned || !HasAnyDevices) {
+        Platforms.push_back(Platform);
+      }
+    } else {
+      if (IsBanned) {
         continue; // bail as early as possible, otherwise banned platforms may
                   // mess up device counting
       }
@@ -124,12 +130,35 @@ std::vector<platform> platform_impl::get_platforms() {
       // The SYCL spec says that a platform has one or more devices. ( SYCL
       // 2020 4.6.2 ) If we have an empty platform, we don't report it back
       // from platform::get_platforms().
-      if (!Platform.get_devices(info::device_type::all).empty()) {
+      if (HasAnyDevices) {
         Platforms.push_back(Platform);
       }
     }
-    return Platforms;
-  };
+  }
+  return Platforms;
+}
+
+std::vector<platform> platform_impl::get_unsupported_platforms() {
+  std::vector<platform> UnsupportedPlatforms;
+
+  std::vector<PluginPtr> &Plugins = sycl::detail::ur::initializeUr();
+  // Ignore UR as it has to be supported.
+  for (auto &Plugin : Plugins) {
+    if (Plugin->hasBackend(backend::all)) {
+      continue; // skip UR
+    }
+    std::vector<platform> PluginPlatforms =
+        getPluginPlatforms(Plugin, /*Supported=*/false);
+    std::copy(PluginPlatforms.begin(), PluginPlatforms.end(),
+              std::back_inserter(UnsupportedPlatforms));
+  }
+
+  return UnsupportedPlatforms;
+}
+
+// This routine has the side effect of registering each platform's last device
+// id into each plugin, which is used for device counting.
+std::vector<platform> platform_impl::get_platforms() {
 
   // See which platform we want to be served by which plugin.
   // There should be just one plugin serving each backend.

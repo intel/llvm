@@ -74,7 +74,8 @@ public:
           MAdapter, &message, &adapter_error);
 
       // If the warning level is greater then 2 emit the message
-      if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
+      if (message != nullptr &&
+          detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() >= 2) {
         std::clog << message << std::endl;
       }
 
