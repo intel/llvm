@@ -4,25 +4,25 @@
 // lowering.
 //
 // It also checks that the symbol can be found in an object file for a given
-// triple, thus validating that `strings` can successfully be used to check for
-// the presence of the symbol.
+// triple, thus validating that `llvm-strings` can successfully be used to
+// check for the presence of the symbol.
 
 // UNSUPPORTED: windows
 
 // RUN: %clangxx -fsycl -fsycl-device-only %s -o %t
-// RUN: strings %t | grep "llvm.compiler.used"
+// RUN: llvm-strings %t | grep "llvm.compiler.used"
 // RUN: %clangxx -fsycl %s -o %t
-// RUN: strings %t | not grep "llvm.compiler.used"
+// RUN: llvm-strings %t | not grep "llvm.compiler.used"
 
 // RUN: %if cuda %{ %clangxx -fsycl -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda %s -o %t %}
-// RUN: %if cuda %{ strings %t | grep "llvm.compiler.used" %}
+// RUN: %if cuda %{ llvm-strings %t | grep "llvm.compiler.used" %}
 // RUN: %if cuda %{ %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s -o %t %}
-// RUN: %if cuda %{ strings %t | not grep "llvm.compiler.used" %}
+// RUN: %if cuda %{ llvm-strings %t | not grep "llvm.compiler.used" %}
 
 // RUN: %if hip_amd %{ %clangxx -fsycl -fsycl-device-only -fsycl-targets=amd_gpu_gfx906 %s -o %t %}
-// RUN: %if hip_amd %{ strings %t | grep "llvm.compiler.used" %}
+// RUN: %if hip_amd %{ llvm-strings %t | grep "llvm.compiler.used" %}
 // RUN: %if hip_amd %{ %clangxx -fsycl -fsycl-targets=amd_gpu_gfx906 %s -o %t %}
-// RUN: %if hip_amd %{ strings %t | not grep "llvm.compiler.used" %}
+// RUN: %if hip_amd %{ llvm-strings %t | not grep "llvm.compiler.used" %}
 
 #include <sycl/sycl.hpp>
 
