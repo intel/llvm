@@ -286,11 +286,7 @@ public:
 
   // Get the sync point associated with this event.
   ur_exp_command_buffer_sync_point_t getSyncPoint() const {
-    if (!MSyncPoint)
-      throw sycl::exception(
-          make_error_code(sycl::errc::runtime),
-          "getSyncPoint(): This event has no sync point set.");
-    return *MSyncPoint;
+    return MSyncPoint;
   }
 
   void setCommandGraph(
@@ -396,7 +392,7 @@ protected:
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
-  std::optional<ur_exp_command_buffer_sync_point_t> MSyncPoint;
+  ur_exp_command_buffer_sync_point_t MSyncPoint = 0;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_command_handle_t the command-buffer command
