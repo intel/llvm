@@ -924,7 +924,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -956,8 +956,7 @@ void CudaToolChain::addClangTargetOptions(
   }
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
 
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
       CC1Args.push_back("-fcuda-prec-sqrt");
@@ -1190,8 +1189,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

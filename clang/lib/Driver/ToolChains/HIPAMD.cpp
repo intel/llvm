@@ -253,7 +253,8 @@ void AMDGCN::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 HIPAMDToolChain::HIPAMDToolChain(const Driver &D, const llvm::Triple &Triple,
                                  const ToolChain &HostTC, const ArgList &Args,
                                  const Action::OffloadKind OK)
-    : ROCMToolChain(D, Triple, Args), HostTC(HostTC), OK(OK) {
+    : ROCMToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D),
+      OK(OK) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -318,8 +319,7 @@ void HIPAMDToolChain::addClangTargetOptions(
     CC1Args.push_back("-fembed-bitcode=marker");
 
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
