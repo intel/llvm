@@ -59,7 +59,7 @@ public:
   enum class HandlingMode { default_values, emulation, native };
 
 public:
-  SpecConstantsPass(HandlingMode Mode) : Mode(Mode) {}
+  SpecConstantsPass(HandlingMode Mode = HandlingMode::emulation) : Mode(Mode) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
   // Searches given module for occurrences of specialization constant-specific
@@ -73,7 +73,7 @@ public:
                                            std::vector<char> &DefaultValues);
 
 private:
-  HandlingMode Mode = HandlingMode::emulation;
+  HandlingMode Mode;
 };
 
 bool checkModuleContainsSpecConsts(const Module &M);

@@ -6,31 +6,31 @@
 // RUN: %clang -### -fsycl -fno-sycl-rdc --sysroot=%S/Inputs/SYCL %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
 // RUN: %clang_cl -### -fsycl -fno-sycl-rdc /clang:--sysroot=%S/Inputs/SYCL  %t1.cpp %t2.cpp 2>&1 -ccc-print-phases | FileCheck %s
 
-// CHECK: 3: input, "{{.*}}1.cpp", c++, (device-sycl)
-// CHECK: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHECK: 5: compiler, {4}, ir, (device-sycl)
-// CHECK: 6: offload, "host-sycl (x86_64-pc-windows-msvc)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
-// CHECK: 13: input, "{{.*}}2.cpp", c++, (device-sycl)
-// CHECK: 14: preprocessor, {13}, c++-cpp-output, (device-sycl)
-// CHECK: 15: compiler, {14}, ir, (device-sycl)
-// CHECK: 16: offload, "host-sycl (x86_64-pc-windows-msvc)" {12}, "device-sycl (spir64-unknown-unknown)" {15}, c++-cpp-output
-// CHECK: 20: input, "{{.*}}libsycl-crt{{.*}}", ir, (device-sycl)
-// CHECK: 41: linker, {20, {{.*}}}, ir, (device-sycl)
-// CHECK: 42: linker, {5, 41}, ir, (device-sycl)
-// CHECK: 43: sycl-post-link, {42}, tempfiletable, (device-sycl)
-// CHECK: 44: file-table-tform, {43}, tempfilelist, (device-sycl)
-// CHECK: 45: llvm-spirv, {44}, tempfilelist, (device-sycl)
-// CHECK: 46: file-table-tform, {43, 45}, tempfiletable, (device-sycl)
-// CHECK: 47: clang-offload-wrapper, {46}, object, (device-sycl)
-// CHECK: 48: offload, "device-sycl (spir64-unknown-unknown)" {47}, object
-// CHECK: 49: linker, {15, 41}, ir, (device-sycl)
-// CHECK: 50: sycl-post-link, {49}, tempfiletable, (device-sycl)
-// CHECK: 51: file-table-tform, {50}, tempfilelist, (device-sycl)
-// CHECK: 52: llvm-spirv, {51}, tempfilelist, (device-sycl)
-// CHECK: 53: file-table-tform, {50, 52}, tempfiletable, (device-sycl)
-// CHECK: 54: clang-offload-wrapper, {53}, object, (device-sycl)
-// CHECK: 55: offload, "device-sycl (spir64-unknown-unknown)" {54}, object
-// CHECK: 56: linker, {9, 19, 48, 55}, image, (host-sycl)
+// CHECK: 2: input, "{{.*}}1.cpp", c++, (device-sycl)
+// CHECK: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// CHECK: 4: compiler, {3}, ir, (device-sycl)
+// CHECK: 5: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64-unknown-unknown)" {4}, c++-cpp-output
+// CHECK: 11: input, "{{.*}}2.cpp", c++, (device-sycl)
+// CHECK: 12: preprocessor, {11}, c++-cpp-output, (device-sycl)
+// CHECK: 13: compiler, {12}, ir, (device-sycl)
+// CHECK: 14: offload, "host-sycl (x86_64-pc-windows-msvc)" {10}, "device-sycl (spir64-unknown-unknown)" {13}, c++-cpp-output
+// CHECK: 18: input, "{{.*}}libsycl-crt{{.*}}", ir, (device-sycl)
+// CHECK: 39: linker, {18, {{.*}}}, ir, (device-sycl)
+// CHECK: 40: linker, {4, 39}, ir, (device-sycl)
+// CHECK: 41: sycl-post-link, {40}, tempfiletable, (device-sycl)
+// CHECK: 42: file-table-tform, {41}, tempfilelist, (device-sycl)
+// CHECK: 43: llvm-spirv, {42}, tempfilelist, (device-sycl)
+// CHECK: 44: file-table-tform, {41, 43}, tempfiletable, (device-sycl)
+// CHECK: 45: clang-offload-wrapper, {44}, object, (device-sycl)
+// CHECK: 46: offload, "device-sycl (spir64-unknown-unknown)" {45}, object
+// CHECK: 47: linker, {13, 39}, ir, (device-sycl)
+// CHECK: 48: sycl-post-link, {47}, tempfiletable, (device-sycl)
+// CHECK: 49: file-table-tform, {48}, tempfilelist, (device-sycl)
+// CHECK: 50: llvm-spirv, {49}, tempfilelist, (device-sycl)
+// CHECK: 51: file-table-tform, {48, 50}, tempfiletable, (device-sycl)
+// CHECK: 52: clang-offload-wrapper, {51}, object, (device-sycl)
+// CHECK: 53: offload, "device-sycl (spir64-unknown-unknown)" {52}, object
+// CHECK: 54: linker, {8, 17, 46, 53}, image, (host-sycl)
 
 // RUN: %clang -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen --sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
 // RUN: %clang_cl -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen /clang:--sysroot=%S/Inputs/SYCL %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s

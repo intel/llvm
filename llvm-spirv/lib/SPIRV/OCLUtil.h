@@ -351,8 +351,9 @@ const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
-const unsigned CL21 = 201000;
 const unsigned CL30 = 300000;
+const unsigned CLCXX10 = 100000;
+const unsigned CLCXX2021 = 202100000;
 } // namespace kOCLVer
 
 namespace OclExt {

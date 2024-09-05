@@ -37,25 +37,13 @@ public:
   // buffer and offset in the flush buffer
   GlobalOffsetAccessorT accessGlobalOffset(handler &CGH);
 
-  // ABI break: remove
-  void initStreamHost(QueueImplPtr);
-
-  // ABI break: remove
-  void flush(const EventImplPtr &);
-
   size_t size() const noexcept;
 
   size_t get_work_item_buffer_size() const;
 
-  template <typename propertyT> bool has_property() const noexcept {
-    return PropList_.has_property<propertyT>();
-  }
-
-  template <typename propertyT> propertyT get_property() const {
-    return PropList_.get_property<propertyT>();
-  }
-
   void generateFlushCommand(handler &cgh);
+
+  const property_list &getPropList() const { return PropList_; }
 
 private:
   // Size of the stream buffer

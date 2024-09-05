@@ -467,7 +467,8 @@ ldg(const T *ptr) {
   return *ptr;
 #endif
 #else
-  throw runtime_error("ldg is not supported on host.", PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "ldg is not supported on host.");
 #endif
 }
 

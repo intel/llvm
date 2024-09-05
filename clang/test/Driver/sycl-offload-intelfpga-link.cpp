@@ -132,31 +132,30 @@
 // RUN: %clang_cl --target=x86_64-unknown-linux-gnu -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga -fsycl-link=early %t.cpp -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-LINK-SRC %s
 // CHK-FPGA-LINK-SRC: 0: input, "[[INPUT:.+\.cpp]]", c++, (host-sycl)
-// CHK-FPGA-LINK-SRC: 1: append-footer, {0}, c++, (host-sycl)
-// CHK-FPGA-LINK-SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
-// CHK-FPGA-LINK-SRC: 3: input, "[[INPUT]]", c++, (device-sycl)
-// CHK-FPGA-LINK-SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHK-FPGA-LINK-SRC: 5: compiler, {4}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64_fpga-unknown-unknown)" {5}, c++-cpp-output
-// CHK-FPGA-LINK-SRC: 7: compiler, {6}, ir, (host-sycl)
-// CHK-FPGA-LINK-SRC: 8: backend, {7}, assembler, (host-sycl)
-// CHK-FPGA-LINK-SRC: 9: assembler, {8}, object, (host-sycl)
-// CHK-FPGA-LINK-SRC: 10: clang-offload-wrapper, {9}, ir, (host-sycl)
-// CHK-FPGA-LINK-SRC: 11: backend, {10}, assembler, (host-sycl)
-// CHK-FPGA-LINK-SRC: 12: assembler, {11}, object, (host-sycl)
-// CHK-FPGA-LINK-SRC: 13: offload, "host-sycl (x86_64-unknown-linux-gnu)" {12}, object
-// CHK-FPGA-LINK-SRC: 14: linker, {5}, ir, (device-sycl)
-// CHK-FPGA-LINK-SRC: 15: sycl-post-link, {14}, tempfiletable, (device-sycl)
-// CHK-FPGA-LINK-SRC: 16: file-table-tform, {15}, tempfilelist, (device-sycl)
-// CHK-FPGA-LINK-SRC: 17: llvm-spirv, {16}, tempfilelist, (device-sycl)
-// CHK-FPGA-LINK-SRC: 18: backend-compiler, {17}, fpga_aocr_emu, (device-sycl)
-// CHK-FPGA-LINK-SRC: 19: file-table-tform, {15, 18}, tempfiletable, (device-sycl)
-// CHK-FPGA-LINK-SRC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 21: offload, "device-sycl (spir64_fpga-unknown-unknown)" {20}, object
-// CHK-FPGA-LINK-SRC: 22: clang-offload-wrapper, {19}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 23: clang-offload-wrapper, {22}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 24: offload, "device-sycl (spir64_fpga-unknown-unknown)" {23}, object
-// CHK-FPGA-LINK-SRC: 25: linker, {13, 21, 24}, archive, (host-sycl)
+// CHK-FPGA-LINK-SRC: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-FPGA-LINK-SRC: 2: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-FPGA-LINK-SRC: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
+// CHK-FPGA-LINK-SRC: 4: compiler, {3}, ir, (device-sycl)
+// CHK-FPGA-LINK-SRC: 5: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {4}, c++-cpp-output
+// CHK-FPGA-LINK-SRC: 6: compiler, {5}, ir, (host-sycl)
+// CHK-FPGA-LINK-SRC: 7: backend, {6}, assembler, (host-sycl)
+// CHK-FPGA-LINK-SRC: 8: assembler, {7}, object, (host-sycl)
+// CHK-FPGA-LINK-SRC: 9: clang-offload-wrapper, {8}, ir, (host-sycl)
+// CHK-FPGA-LINK-SRC: 10: backend, {9}, assembler, (host-sycl)
+// CHK-FPGA-LINK-SRC: 11: assembler, {10}, object, (host-sycl)
+// CHK-FPGA-LINK-SRC: 12: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, object
+// CHK-FPGA-LINK-SRC: 13: linker, {4}, ir, (device-sycl)
+// CHK-FPGA-LINK-SRC: 14: sycl-post-link, {13}, tempfiletable, (device-sycl)
+// CHK-FPGA-LINK-SRC: 15: file-table-tform, {14}, tempfilelist, (device-sycl)
+// CHK-FPGA-LINK-SRC: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
+// CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, fpga_aocr_emu, (device-sycl)
+// CHK-FPGA-LINK-SRC: 18: file-table-tform, {14, 17}, tempfiletable, (device-sycl)
+// CHK-FPGA-LINK-SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC: 20: offload, "device-sycl (spir64_fpga-unknown-unknown)" {19}, object
+// CHK-FPGA-LINK-SRC: 21: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC: 23: offload, "device-sycl (spir64_fpga-unknown-unknown)" {22}, object
+// CHK-FPGA-LINK-SRC: 24: linker, {12, 20, 23}, archive, (host-sycl)
 
 /// -fintelfpga with AOCR library and additional object
 // RUN:  touch %t2.o

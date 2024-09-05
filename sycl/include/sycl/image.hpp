@@ -20,7 +20,6 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -31,6 +30,7 @@
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
 #include <sycl/types.hpp>                             // for vec
+#include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -247,16 +247,20 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,
               image_channel_type Type, bool OwnNativeHandle,
               range<3> Range3WithOnes);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   range<3> get_range() const;
 
@@ -301,6 +305,8 @@ protected:
   void unsampledImageDestructorNotification(void *UserObj);
 
   std::shared_ptr<detail::image_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 // Common base class for image implementations
@@ -666,7 +672,7 @@ public:
   }
 
 private:
-  image(pi_native_handle MemObject, const context &SyclContext,
+  image(ur_native_handle_t MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
         image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
       : common_base(MemObject, SyclContext, AvailableEvent,
@@ -710,7 +716,8 @@ private:
              const context &TargetContext, event AvailableEvent);
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPlaceholder,
@@ -996,7 +1003,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1131,7 +1139,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

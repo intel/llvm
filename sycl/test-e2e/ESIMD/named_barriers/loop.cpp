@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -o %t1.out -DEXP
-// RUN: %{run} %t1.out
-//
+
+// Disabled on PVC without igc-dev due to flaky failures.
+// https://github.com/intel/llvm/issues/14826
+// UNSUPPORTED: arch-intel_gpu_pvc && !igc-dev
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
@@ -19,11 +21,7 @@
 
 #include "../esimd_test_utils.hpp"
 
-#ifdef EXP
-#define NS __ESIMD_ENS
-#else
 #define NS __ESIMD_NS
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

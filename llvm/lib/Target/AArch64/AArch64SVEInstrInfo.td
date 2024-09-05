@@ -213,17 +213,9 @@ def AArch64fadd_p_contract : PatFrag<(ops node:$op1, node:$op2, node:$op3),
                                      (AArch64fadd_p node:$op1, node:$op2, node:$op3), [{
   return N->getFlags().hasAllowContract();
 }]>;
-def AArch64fadd_p_nsz : PatFrag<(ops node:$op1, node:$op2, node:$op3),
-                                (AArch64fadd_p node:$op1, node:$op2, node:$op3), [{
-  return N->getFlags().hasNoSignedZeros();
-}]>;
 def AArch64fsub_p_contract : PatFrag<(ops node:$op1, node:$op2, node:$op3),
                                      (AArch64fsub_p node:$op1, node:$op2, node:$op3), [{
   return N->getFlags().hasAllowContract();
-}]>;
-def AArch64fsub_p_nsz : PatFrag<(ops node:$op1, node:$op2, node:$op3),
-                                (AArch64fsub_p node:$op1, node:$op2, node:$op3), [{
-  return N->getFlags().hasNoSignedZeros();
 }]>;
 
 def SDT_AArch64Arith_Imm : SDTypeProfile<1, 3, [
@@ -281,15 +273,11 @@ def AArch64not_mt  : PatFrags<(ops node:$pg, node:$op, node:$pt), [(int_aarch64_
 def AArch64fmul_m1 : VSelectPredOrPassthruPatFrags<int_aarch64_sve_fmul, AArch64fmul_p>;
 def AArch64fadd_m1 : PatFrags<(ops node:$pg, node:$op1, node:$op2), [
     (int_aarch64_sve_fadd node:$pg, node:$op1, node:$op2),
-    (vselect node:$pg, (AArch64fadd_p (SVEAllActive), node:$op1, node:$op2), node:$op1),
-    (AArch64fadd_p_nsz (SVEAllActive), node:$op1, (vselect node:$pg, node:$op2, (SVEDup0))),
-    (AArch64fadd_p (SVEAllActive), node:$op1, (vselect node:$pg, node:$op2, (SVEDupNeg0)))
+    (vselect node:$pg, (AArch64fadd_p (SVEAllActive), node:$op1, node:$op2), node:$op1)
 ]>;
 def AArch64fsub_m1 : PatFrags<(ops node:$pg, node:$op1, node:$op2), [
     (int_aarch64_sve_fsub node:$pg, node:$op1, node:$op2),
-    (vselect node:$pg, (AArch64fsub_p (SVEAllActive), node:$op1, node:$op2), node:$op1),
-    (AArch64fsub_p (SVEAllActive), node:$op1, (vselect node:$pg, node:$op2, (SVEDup0))),
-    (AArch64fsub_p_nsz (SVEAllActive), node:$op1, (vselect node:$pg, node:$op2, (SVEDupNeg0)))
+    (vselect node:$pg, (AArch64fsub_p (SVEAllActive), node:$op1, node:$op2), node:$op1)
 ]>;
 
 def AArch64shadd : PatFrags<(ops node:$pg, node:$op1, node:$op2),
@@ -3351,7 +3339,7 @@ let Predicates = [HasSVEorSME] in {
             (EXTRACT_SUBREG (DUP_ZZI_D ZPR:$vec, sve_elm_idx_extdup_d:$index), dsub)>;
 
   // Extract element from vector with immediate index that's within the bottom 128-bits.
-  let Predicates = [IsNeonAvailable], AddedComplexity = 1 in {
+  let Predicates = [HasNEON], AddedComplexity = 1 in {
   def : Pat<(i32 (vector_extract nxv16i8:$vec, VectorIndexB:$index)),
             (UMOVvi8 (v16i8 (EXTRACT_SUBREG ZPR:$vec, zsub)), VectorIndexB:$index)>;
   def : Pat<(i32 (vector_extract nxv8i16:$vec, VectorIndexH:$index)),
@@ -3360,9 +3348,9 @@ let Predicates = [HasSVEorSME] in {
             (UMOVvi32 (v4i32 (EXTRACT_SUBREG ZPR:$vec, zsub)), VectorIndexS:$index)>;
   def : Pat<(i64 (vector_extract nxv2i64:$vec, VectorIndexD:$index)),
             (UMOVvi64 (v2i64 (EXTRACT_SUBREG ZPR:$vec, zsub)), VectorIndexD:$index)>;
-  } // End IsNeonAvailable
+  } // End HasNEON
 
-  let Predicates = [IsNeonAvailable] in {
+  let Predicates = [HasNEON] in {
   def : Pat<(sext_inreg (vector_extract nxv16i8:$vec, VectorIndexB:$index), i8),
             (SMOVvi8to32 (v16i8 (EXTRACT_SUBREG ZPR:$vec, zsub)), VectorIndexB:$index)>;
   def : Pat<(sext_inreg (anyext (i32 (vector_extract nxv16i8:$vec, VectorIndexB:$index))), i8),
@@ -3375,7 +3363,7 @@ let Predicates = [HasSVEorSME] in {
 
   def : Pat<(sext (i32 (vector_extract nxv4i32:$vec, VectorIndexS:$index))),
             (SMOVvi32to64 (v4i32 (EXTRACT_SUBREG ZPR:$vec, zsub)), VectorIndexS:$index)>;
-  } // End IsNeonAvailable
+  } // End HasNEON
 
   // Extract first element from vector.
   let AddedComplexity = 2 in {

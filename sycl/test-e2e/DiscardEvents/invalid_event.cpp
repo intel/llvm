@@ -1,10 +1,7 @@
-// Same hang as on Basic/barrier_order.cpp tracked in
-// https://github.com/intel/llvm/issues/7330.
-// UNSUPPORTED: opencl && gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The test checks that each PI call to the queue returns a discarded event
+// The test checks that each queue method call returns a discarded event
 // with the status "ext_oneapi_unknown"
 
 #include <cassert>

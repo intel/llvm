@@ -10,8 +10,6 @@
 
 #include <sycl/detail/core.hpp>
 
-#include <sycl/detail/host_task_impl.hpp>
-
 #include <sycl/accessor_image.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>
@@ -37,6 +35,7 @@
 #include <sycl/handler.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
+#include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -88,6 +87,7 @@
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>

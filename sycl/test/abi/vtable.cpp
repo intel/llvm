@@ -8,30 +8,6 @@
 // Changing vtable breaks ABI. If this test fails, please, refer to ABI Policy
 // Guide for further instructions.
 
-void foo(sycl::detail::HostKernelBase &HKB) {
-  sycl::detail::NDRDescT Desc;
-  sycl::detail::HostProfilingInfo HPInfo;
-  HKB.call(Desc, &HPInfo);
-}
-
-// CHECK:      Vtable for 'sycl::detail::HostKernelBase' (6 entries).
-// CHECK-NEXT:   0 | offset_to_top (0)
-// CHECK-NEXT:   1 | sycl::detail::HostKernelBase RTTI
-// CHECK-NEXT:       -- (sycl::detail::HostKernelBase, 0) vtable address --
-// CHECK-NEXT:   2 | void sycl::detail::HostKernelBase::call(const NDRDescT &, HostProfilingInfo *) [pure]
-// CHECK-NEXT:   3 | char *sycl::detail::HostKernelBase::getPtr() [pure]
-// CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
-// CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
-
-void foo(sycl::detail::CG *CG) { delete CG; }
-// CHECK: Vtable for 'sycl::detail::CG' (6 entries).
-// CHECK-NEXT:    0 | offset_to_top (0)
-// CHECK-NEXT:    1 | sycl::detail::CG RTTI
-// CHECK-NEXT:        -- (sycl::detail::CG, 0) vtable address --
-// CHECK-NEXT:    2 | std::vector<std::shared_ptr<const void>> sycl::detail::CG::getAuxiliaryResources() const
-// CHECK-NEXT:    3 | void sycl::detail::CG::clearAuxiliaryResources()
-// CHECK-NEXT:    4 | sycl::detail::CG::~CG() [complete]
-
 void foo(sycl::detail::PropertyWithDataBase *Prop) { delete Prop; }
 // CHECK:    Vtable for 'sycl::detail::PropertyWithDataBase' (4 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)

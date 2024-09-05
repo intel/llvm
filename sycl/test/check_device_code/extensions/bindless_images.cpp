@@ -4,7 +4,7 @@
 // RUN: %clangxx -S -emit-llvm -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown %s -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // CHECK-LLVM: tail call spir_func noundef <4 x float> @_Z17__spirv_ImageReadIDv4
-// CHECK-LLVM: tail call spir_func noundef <4 x float> @_Z17__spirv_ImageReadIDv4
+// CHECK-LLVM: tail call spir_func noundef <4 x float> @_Z30__spirv_ImageSampleExplicitLod
 // CHECK-LLVM: tail call spir_func void @_Z18__spirv_ImageWriteI14
 
 // RUN: %clangxx -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown %s -o %t.out
@@ -50,7 +50,7 @@
 
 // Read sampled image
 // Arguments: Result Type, Result, Image, Coords
-// CHECK-SPIRV-NEXT: ImageRead [[PIXELTYPE]] {{[0-9]+}} [[SAMPIMAGEVAR]] {{[0-9]+}}
+// CHECK-SPIRV-NEXT: ImageSampleExplicitLod [[PIXELTYPE]] {{[0-9]+}} [[SAMPIMAGEVAR]] {{[0-9]+}}
 
 // Convert handle to SPIR-V image
 // Arguments: Result Type, Result, Handle

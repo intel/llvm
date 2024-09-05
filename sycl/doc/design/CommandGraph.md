@@ -480,6 +480,14 @@ An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient graph
 resubmission.
 
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the CUDA UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -501,6 +509,14 @@ operations.
 An executable HIP Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
+
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the HIP UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
 
 ### OpenCL
 
@@ -537,6 +553,8 @@ The types of commands which are unsupported, and lead to this exception are:
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
    `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
+  fill command.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
   fill command.
 * `handler::prefetch()`.

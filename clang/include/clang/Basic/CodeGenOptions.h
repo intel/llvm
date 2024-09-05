@@ -13,6 +13,7 @@
 #ifndef LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 #define LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 
+#include "clang/Basic/PointerAuthOptions.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/XRayInstr.h"
 #include "llvm/ADT/FloatingPointMode.h"
@@ -133,15 +134,18 @@ public:
   std::string BinutilsVersion;
 
   enum class FramePointerKind {
-    None,        // Omit all frame pointers.
-    NonLeaf,     // Keep non-leaf frame pointers.
-    All,         // Keep all frame pointers.
+    None,     // Omit all frame pointers.
+    Reserved, // Maintain valid frame pointer chain.
+    NonLeaf,  // Keep non-leaf frame pointers.
+    All,      // Keep all frame pointers.
   };
 
   static StringRef getFramePointerKindName(FramePointerKind Kind) {
     switch (Kind) {
     case FramePointerKind::None:
       return "none";
+    case FramePointerKind::Reserved:
+      return "reserved";
     case FramePointerKind::NonLeaf:
       return "non-leaf";
     case FramePointerKind::All:
@@ -253,9 +257,6 @@ public:
   /// in situations where the input file name does not match the original input
   /// file, for example with -save-temps.
   std::string MainFileName;
-
-  /// The user provided name for the "main file", with its full path.
-  std::string FullMainFileName;
 
   /// The name for the split debug info file used for the DW_AT_[GNU_]dwo_name
   /// attribute in the skeleton CU.
@@ -396,6 +397,9 @@ public:
   std::vector<std::string> NoBuiltinFuncs;
 
   std::vector<std::string> Reciprocals;
+
+  /// Configuration for pointer-signing.
+  PointerAuthOptions PointerAuth;
 
   /// The preferred width for auto-vectorization transforms. This is intended to
   /// override default transforms based on the width of the architected vector

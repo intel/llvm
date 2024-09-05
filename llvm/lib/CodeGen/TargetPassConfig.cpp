@@ -845,7 +845,6 @@ void TargetPassConfig::addIRPasses() {
   // TODO: add a pass insertion point here
   addPass(&GCLoweringID);
   addPass(&ShadowStackGCLoweringID);
-  addPass(createLowerConstantIntrinsicsPass());
 
   // For MachO, lower @llvm.global_dtors into @llvm.global_ctors with
   // __cxa_atexit() calls to avoid emitting the deprecated __mod_term_func.
@@ -870,6 +869,9 @@ void TargetPassConfig::addIRPasses() {
   // This pass has to run before ScalarizeMaskedMemIntrin and ExpandReduction
   // passes since it emits those kinds of intrinsics.
   addPass(createExpandVectorPredicationPass());
+
+  // Instrument function entry after all inlining.
+  addPass(createPostInlineEntryExitInstrumenterPass());
 
   // Add scalarization of target's unsupported masked memory intrinsics pass.
   // the unsupported intrinsic will be replaced with a chain of basic blocks,

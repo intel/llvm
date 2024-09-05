@@ -13,20 +13,24 @@
 // - SYCL device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu && gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
+// REQUIRES: arch-intel_gpu_pvc
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: *
+
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// Don't use SYCL_UR_TRACE as the output from the L0 adapter logging interferes
+// with the regular UR traces we are checking.
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -135,20 +139,16 @@ int main(void) {
   return 0;
 }
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NOT: -ze-opt-large-register-file
-// CHECK-WITH-VAR: -g
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SingleGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: ---> urProgramBuild
+// CHECK-WITH-VAR-SAME: -g
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NO-VAR: -ze-opt-large-register-file
-// CHECK-WITH-VAR: -g -ze-opt-large-register-file
-// CHECK-AUTO-NO-VAR: -ze-intel-enable-auto-large-GRF-mode
-// CHECK-AUTO-WITH-VAR: -g -ze-intel-enable-auto-large-GRF-mode
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SpecifiedGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK: ---> urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
+
+// CHECK-NO-VAR: urProgramBuild{{.*}}-ze-opt-large-register-file
+// CHECK-WITH-VAR: urProgramBuild{{.*}}-g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
+// CHECK-SAME: -> UR_RESULT_SUCCESS
+
+// CHECK: ---> urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS
