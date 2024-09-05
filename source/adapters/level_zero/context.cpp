@@ -590,8 +590,7 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
 
   if (Event->CounterBasedEventsEnabled) {
     auto Cache = getCounterBasedEventCache(
-        !Legacy(Event->UrQueue) || Legacy(Event->UrQueue)->UsingImmCmdLists,
-        Device);
+        !(Event->UrQueue) || (Event->UrQueue)->UsingImmCmdLists, Device);
     Cache->emplace_back(Event);
   } else {
     auto Cache = getEventCache(Event->isHostVisible(),
