@@ -1601,12 +1601,6 @@ void modifiable_command_graph::begin_recording(
                           "differs from the graph device.");
   }
 
-  if (QueueImpl->is_in_fusion_mode()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "SYCL queue in kernel in fusion mode "
-                          "can NOT be recorded.");
-  }
-
   impl->beginRecording(QueueImpl);
 }
 
