@@ -8,11 +8,6 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#ifdef _WIN32
-// With -fno-builtin the approx_equal_fp on Windows needs a definition of fabsf.
-extern "C" float fabsf(float x) { return std::signbit(x) ? -x : x; }
-#endif
-
 // Dummy function provided by user to override device library
 // version.
 SYCL_EXTERNAL
