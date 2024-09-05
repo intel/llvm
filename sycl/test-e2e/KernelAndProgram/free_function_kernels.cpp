@@ -1,6 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t.out -fsycl-allow-device-dependencies
+// RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
