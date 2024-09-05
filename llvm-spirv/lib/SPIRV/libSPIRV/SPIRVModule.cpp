@@ -252,6 +252,8 @@ public:
   SPIRVTypeInt *addIntegerType(unsigned BitWidth) override;
   SPIRVTypeOpaque *addOpaqueType(const std::string &) override;
   SPIRVTypePointer *addPointerType(SPIRVStorageClassKind, SPIRVType *) override;
+  SPIRVTypeUntypedPointerKHR *
+      addUntypedPointerKHRType(SPIRVStorageClassKind) override;
   SPIRVTypeImage *addImageType(SPIRVType *,
                                const SPIRVTypeImageDescriptor &) override;
   SPIRVTypeImage *addImageType(SPIRVType *, const SPIRVTypeImageDescriptor &,
@@ -353,7 +355,7 @@ public:
   SPIRVInstruction *addCmpInst(Op, SPIRVType *, SPIRVValue *, SPIRVValue *,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addLoadInst(SPIRVValue *, const std::vector<SPIRVWord> &,
-                                SPIRVBasicBlock *) override;
+                                SPIRVBasicBlock *, SPIRVType *) override;
   SPIRVInstruction *addPhiInst(SPIRVType *, std::vector<SPIRVValue *>,
                                SPIRVBasicBlock *) override;
   SPIRVInstruction *addCompositeConstructInst(SPIRVType *,
@@ -563,6 +565,8 @@ private:
   SPIRVUnknownStructFieldMap UnknownStructFieldMap;
   SPIRVTypeBool *BoolTy;
   SPIRVTypeVoid *VoidTy;
+  SmallDenseMap<SPIRVStorageClassKind, SPIRVTypeUntypedPointerKHR *>
+      UntypedPtrTyMap;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
   SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
   SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
@@ -1014,6 +1018,17 @@ SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
   return addType(Ty);
 }
 
+SPIRVTypeUntypedPointerKHR *
+SPIRVModuleImpl::addUntypedPointerKHRType(SPIRVStorageClassKind StorageClass) {
+  auto Loc = UntypedPtrTyMap.find(StorageClass);
+  if (Loc != UntypedPtrTyMap.end())
+    return Loc->second;
+
+  auto *Ty = new SPIRVTypeUntypedPointerKHR(this, getId(), StorageClass);
+  UntypedPtrTyMap[StorageClass] = Ty;
+  return addType(Ty);
+}
+
 SPIRVTypeFunction *SPIRVModuleImpl::addFunctionType(
     SPIRVType *ReturnType, const std::vector<SPIRVType *> &ParameterTypes) {
   return addType(
@@ -1430,9 +1445,10 @@ SPIRVModuleImpl::addInstruction(SPIRVInstruction *Inst, SPIRVBasicBlock *BB,
 SPIRVInstruction *
 SPIRVModuleImpl::addLoadInst(SPIRVValue *Source,
                              const std::vector<SPIRVWord> &TheMemoryAccess,
-                             SPIRVBasicBlock *BB) {
+                             SPIRVBasicBlock *BB, SPIRVType *TheType) {
   return addInstruction(
-      new SPIRVLoad(getId(), Source->getId(), TheMemoryAccess, BB), BB);
+      new SPIRVLoad(getId(), Source->getId(), TheMemoryAccess, BB, TheType),
+      BB);
 }
 
 SPIRVInstruction *
@@ -1925,11 +1941,13 @@ class TopologicalSort {
         // We've found a recursive data type, e.g. a structure having a member
         // which is a pointer to the same structure.
         State = Unvisited; // Forget about it
-        if (E->getOpCode() == OpTypePointer) {
+        if (E->getOpCode() == OpTypePointer ||
+            E->getOpCode() == OpTypeUntypedPointerKHR) {
           // If we have a pointer in the recursive chain, we can break the
           // cyclic dependency by inserting a forward declaration of that
           // pointer.
-          SPIRVTypePointer *Ptr = static_cast<SPIRVTypePointer *>(E);
+          SPIRVTypePointerBase<> *Ptr =
+              static_cast<SPIRVTypePointerBase<> *>(E);
           SPIRVModule *BM = E->getModule();
           ForwardPointerSet.insert(BM->add(new SPIRVTypeForwardPointer(
               BM, Ptr->getId(), Ptr->getPointerStorageClass())));
