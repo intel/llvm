@@ -154,8 +154,8 @@ runKernelWithArg(KernelType KernelName, ArgType Arg) {
 // The pure virtual class aimed to store lambda/functors of any type.
 class HostKernelBase {
 public:
-  // NOTE: InstatitateKernelOnHost() should not be called.
-  virtual void InstatitateKernelOnHost() = 0;
+  // NOTE: InstantiateKernelOnHost() should not be called.
+  virtual void InstantiateKernelOnHost() = 0;
   // Return pointer to the lambda object.
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
@@ -177,8 +177,8 @@ public:
   // This function is needed for host-side compilation to keep kernels
   // instantitated. This is important for debuggers to be able to associate
   // kernel code instructions with source code lines.
-  // NOTE: InstatitateKernelOnHost() should not be called.
-  void InstatitateKernelOnHost() override {
+  // NOTE: InstantiateKernelOnHost() should not be called.
+  void InstantiateKernelOnHost() override {
     if constexpr (std::is_same_v<KernelArgType, void>) {
       runKernelWithoutArg(MKernel);
     } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
