@@ -5,9 +5,6 @@
 #include <uur/fixtures.h>
 #include <uur/raii.h>
 
-using urMemImageCreateTest = uur::urContextTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
-
 static ur_image_format_t image_format{UR_IMAGE_CHANNEL_ORDER_RGBA,
                                       UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32};
 
@@ -25,8 +22,52 @@ static ur_image_desc_t image_desc{
     0                    ///< [in] number of samples
 };
 
+struct urMemImageCreateTest : public uur::urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
+
+        uur::raii::Mem image_handle = nullptr;
+        auto ret =
+            urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                             &image_desc, nullptr, image_handle.ptr());
+
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            GTEST_SKIP() << "urMemImageCreate not supported";
+        }
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::TearDown());
+    }
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateTest);
+
+template <typename Param>
+struct urMemImageCreateTestWithParam
+    : public uur::urContextTestWithParam<Param> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<Param>::SetUp());
+
+        uur::raii::Mem image_handle = nullptr;
+        auto ret = urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                    &image_format, &image_desc, nullptr,
+                                    image_handle.ptr());
+
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            GTEST_SKIP() << "urMemImageCreate not supported";
+        }
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urContextTestWithParam<Param>::TearDown());
+    }
+};
+
 using urMemImageCreateTestWith1DMemoryTypeParam =
-    uur::urContextTestWithParam<ur_mem_type_t>;
+    urMemImageCreateTestWithParam<ur_mem_type_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateTestWith1DMemoryTypeParam,
                  ::testing::Values(UR_MEM_TYPE_IMAGE1D,
@@ -48,16 +89,15 @@ TEST_P(urMemImageCreateTestWith1DMemoryTypeParam, Success) {
         0           ///< [in] number of samples
     };
 
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                     &image_format, &image_desc_with_param,
-                                    nullptr, &image_handle));
+                                    nullptr, image_handle.ptr()));
     ASSERT_NE(nullptr, image_handle);
-    ASSERT_SUCCESS(urMemRelease(image_handle));
 }
 
 using urMemImageCreateTestWith2DMemoryTypeParam =
-    uur::urContextTestWithParam<ur_mem_type_t>;
+    urMemImageCreateTestWithParam<ur_mem_type_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateTestWith2DMemoryTypeParam,
                  ::testing::Values(UR_MEM_TYPE_IMAGE2D,
@@ -79,12 +119,11 @@ TEST_P(urMemImageCreateTestWith2DMemoryTypeParam, Success) {
         0           ///< [in] number of samples
     };
 
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                     &image_format, &image_desc_with_param,
-                                    nullptr, &image_handle));
+                                    nullptr, image_handle.ptr()));
     ASSERT_NE(nullptr, image_handle);
-    ASSERT_SUCCESS(urMemRelease(image_handle));
 }
 
 TEST_P(urMemImageCreateTest, SuccessWith3DImageType) {
@@ -102,28 +141,27 @@ TEST_P(urMemImageCreateTest, SuccessWith3DImageType) {
         0                    ///< [in] number of samples
     };
 
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                     &image_format, &image_desc_with_param,
-                                    nullptr, &image_handle));
+                                    nullptr, image_handle.ptr()));
     ASSERT_NE(nullptr, image_handle);
-    ASSERT_SUCCESS(urMemRelease(image_handle));
 }
 
 TEST_P(urMemImageCreateTest, InvalidNullHandleContext) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urMemImageCreate(nullptr, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &image_desc, nullptr,
-                                      &image_handle));
+                                      image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidEnumerationFlags) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
                      urMemImageCreate(context, UR_MEM_FLAG_FORCE_UINT32,
                                       &image_format, &image_desc, nullptr,
-                                      &image_handle));
+                                      image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidNullPointerBuffer) {
@@ -134,23 +172,24 @@ TEST_P(urMemImageCreateTest, InvalidNullPointerBuffer) {
 }
 
 TEST_P(urMemImageCreateTest, InvalidNullPointerImageDesc) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, nullptr, nullptr,
-                                      &image_handle));
+                                      image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidNullPointerImageFormat) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, nullptr,
-                                      &image_desc, nullptr, &image_handle));
+                                      &image_desc, nullptr,
+                                      image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidSize) {
 
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.width = std::numeric_limits<size_t>::max();
@@ -158,7 +197,7 @@ TEST_P(urMemImageCreateTest, InvalidSize) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_SIZE,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 
     invalid_image_desc = image_desc;
     invalid_image_desc.height = std::numeric_limits<size_t>::max();
@@ -166,7 +205,7 @@ TEST_P(urMemImageCreateTest, InvalidSize) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_SIZE,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 
     invalid_image_desc = image_desc;
     invalid_image_desc.depth = std::numeric_limits<size_t>::max();
@@ -174,21 +213,21 @@ TEST_P(urMemImageCreateTest, InvalidSize) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_SIZE,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescStype) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.stype = UR_STRUCTURE_TYPE_FORCE_UINT32;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescType) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.type = UR_MEM_TYPE_FORCE_UINT32;
@@ -196,11 +235,11 @@ TEST_P(urMemImageCreateTest, InvalidImageDescType) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescNumMipLevel) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.numMipLevel = 1; /* Must be 0 */
@@ -208,11 +247,11 @@ TEST_P(urMemImageCreateTest, InvalidImageDescNumMipLevel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescNumSamples) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.numSamples = 1; /* Must be 0 */
@@ -220,11 +259,11 @@ TEST_P(urMemImageCreateTest, InvalidImageDescNumSamples) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescRowPitch) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.rowPitch = 1; /* Must be 0 if pHost is NULL */
@@ -232,11 +271,11 @@ TEST_P(urMemImageCreateTest, InvalidImageDescRowPitch) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 TEST_P(urMemImageCreateTest, InvalidImageDescSlicePitch) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
 
     ur_image_desc_t invalid_image_desc = image_desc;
     invalid_image_desc.slicePitch = 1; /* Must be 0 if pHost is NULL */
@@ -244,11 +283,11 @@ TEST_P(urMemImageCreateTest, InvalidImageDescSlicePitch) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR,
                      urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
                                       &image_format, &invalid_image_desc,
-                                      nullptr, &image_handle));
+                                      nullptr, image_handle.ptr()));
 }
 
 using urMemImageCreateWithHostPtrFlagsTest =
-    uur::urContextTestWithParam<ur_mem_flag_t>;
+    urMemImageCreateTestWithParam<ur_mem_flag_t>;
 
 UUR_TEST_SUITE_P(urMemImageCreateWithHostPtrFlagsTest,
                  ::testing::Values(UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
@@ -269,8 +308,9 @@ TEST_P(urMemImageCreateWithHostPtrFlagsTest, Success) {
 }
 
 TEST_P(urMemImageCreateWithHostPtrFlagsTest, InvalidHostPtr) {
-    ur_mem_handle_t image_handle = nullptr;
+    uur::raii::Mem image_handle = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_HOST_PTR,
                      urMemImageCreate(context, getParam(), &image_format,
-                                      &image_desc, nullptr, &image_handle));
+                                      &image_desc, nullptr,
+                                      image_handle.ptr()));
 }

@@ -17,6 +17,7 @@
 #include "common.hpp"
 
 #include "context.hpp"
+#include "kernel.hpp"
 #include "queue.hpp"
 
 struct command_buffer_profiling_t {
@@ -30,25 +31,42 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ze_command_list_handle_t CommandList,
       ze_command_list_handle_t CommandListTranslated,
       ze_command_list_handle_t CommandListResetEvents,
-      ze_command_list_handle_t CopyCommandList,
-      ZeStruct<ze_command_list_desc_t> ZeDesc,
-      ZeStruct<ze_command_list_desc_t> ZeCopyDesc,
+      ze_command_list_handle_t CopyCommandList, ur_event_handle_t SignalEvent,
+      ur_event_handle_t WaitEvent, ur_event_handle_t AllResetEvent,
       const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
 
-  ~ur_exp_command_buffer_handle_t_();
+  void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
+                         ur_event_handle_t Event);
 
-  void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
-                         ur_event_handle_t Event) {
-    SyncPoints[SyncPoint] = Event;
-    NextSyncPoint++;
-  }
-
-  ur_exp_command_buffer_sync_point_t GetNextSyncPoint() const {
+  ur_exp_command_buffer_sync_point_t getNextSyncPoint() const {
     return NextSyncPoint;
   }
 
   // Indicates if a copy engine is available for use
-  bool UseCopyEngine() const { return ZeCopyCommandList != nullptr; }
+  bool useCopyEngine() const { return ZeCopyCommandList != nullptr; }
+
+  /**
+   * Obtains a fence for a specific L0 queue. If there is already an available
+   * fence for this queue, it will be reused.
+   * @param[in] ZeCommandQueue The L0 queue associated with the fence.
+   * @param[out] ZeFence The fence.
+   * @return UR_RESULT_SUCCESS or an error code on failure
+   */
+  ur_result_t getFenceForQueue(ze_command_queue_handle_t &ZeCommandQueue,
+                               ze_fence_handle_t &ZeFence);
+
+  /**
+   * Chooses which command list to use when appending a command to this command
+   * buffer.
+   * @param[in] PreferCopyEngine If true, will try to choose a copy engine
+   * command-list. Will choose a compute command-list otherwise.
+   * @return The chosen command list.
+   */
+  ze_command_list_handle_t chooseCommandList(bool PreferCopyEngine);
+
+  // Releases the resources associated with the command-buffer before the
+  // command-buffer object is destroyed.
+  void cleanupCommandBufferResources();
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
@@ -61,12 +79,17 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ze_command_list_handle_t ZeComputeCommandListTranslated;
   // Level Zero command list handle
   ze_command_list_handle_t ZeCommandListResetEvents;
-  // Level Zero command list descriptor
-  ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   // Level Zero Copy command list handle
   ze_command_list_handle_t ZeCopyCommandList;
-  // Level Zero Copy command list descriptor
-  ZeStruct<ze_command_list_desc_t> ZeCopyCommandListDesc;
+  // Event which will signals the most recent execution of the command-buffer
+  // has finished
+  ur_event_handle_t SignalEvent = nullptr;
+  // Event which a command-buffer waits on until the wait-list dependencies
+  // passed to a command-buffer enqueue have been satisfied.
+  ur_event_handle_t WaitEvent = nullptr;
+  // Event which a command-buffer waits on until the main command-list event
+  // have been reset.
+  ur_event_handle_t AllResetEvent = nullptr;
   // This flag is must be set to false if at least one copy command has been
   // added to `ZeCopyCommandList`
   bool MCopyCommandListEmpty = true;
@@ -77,26 +100,15 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Must be an element in ZeFencesMap, so is not required to be destroyed
   // itself.
   ze_fence_handle_t ZeActiveFence;
-  // Queue properties from command-buffer descriptor
-  // TODO: Do we need these?
-  ur_queue_properties_t QueueProperties;
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t, ur_event_handle_t>
       SyncPoints;
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
-  // List of Level Zero events associated to submitted commands.
+  // List of Level Zero events associated with submitted commands.
   std::vector<ze_event_handle_t> ZeEventsList;
-  // Event which will signals the most recent execution of the command-buffer
-  // has finished
-  ur_event_handle_t SignalEvent = nullptr;
-  // Event which a command-buffer waits on until the wait-list dependencies
-  // passed to a command-buffer enqueue have been satisfied.
-  ur_event_handle_t WaitEvent = nullptr;
-  // Event which a command-buffer waits on until the main command-list event
-  // have been reset.
-  ur_event_handle_t AllResetEvent = nullptr;
+
   // Indicates if command-buffer commands can be updated after it is closed.
   bool IsUpdatable = false;
   // Indicates if command buffer was finalized.

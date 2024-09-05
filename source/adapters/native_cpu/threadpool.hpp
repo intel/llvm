@@ -81,8 +81,11 @@ public:
 
   // Waits for all tasks to finish and destroys the worker thread
   inline void stop() {
-    m_isRunning.store(false, std::memory_order_release);
-    m_startWorkCondition.notify_all();
+    {
+      std::lock_guard<std::mutex> lock(m_workMutex);
+      m_isRunning.store(false, std::memory_order_release);
+      m_startWorkCondition.notify_all();
+    }
     if (m_worker.joinable()) {
       // Wait for the worker thread to finish handling the task queue
       m_worker.join();

@@ -19,12 +19,10 @@
 //////////////////////////////////////////////////////////////////////////
 struct dditable_t {
     ur_dditable_t ur;
-    // urs_dditable_t  urs;
-    // urt_dditable_t  urt;
 };
 
 //////////////////////////////////////////////////////////////////////////
-template <typename _handle_t> class __urdlllocal object_t {
+template <typename _handle_t> class object_t {
   public:
     using handle_t = _handle_t;
 

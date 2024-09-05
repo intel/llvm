@@ -14,21 +14,34 @@
 #include "ur_util.hpp"
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#include <atomic>
 #include <optional>
 #include <sstream>
 
 namespace ur_tracing_layer {
-context_t context;
+context_t *getContext() { return context_t::get_direct(); }
 
-constexpr auto CALL_STREAM_NAME = "ur";
+constexpr auto CALL_STREAM_NAME = "ur.call";
 constexpr auto STREAM_VER_MAJOR = UR_MAJOR_VERSION(UR_API_VERSION_CURRENT);
 constexpr auto STREAM_VER_MINOR = UR_MINOR_VERSION(UR_API_VERSION_CURRENT);
 
+// UR loader can be inited and teardown'ed multiple times in a single process.
+// Unfortunately this doesn't match the semantics of XPTI, which can be initialized
+// and finalized exactly once. To workaround this, XPTI is globally initialized on
+// first use and finalized in the destructor.
+struct XptiContextManager {
+    XptiContextManager() { xptiFrameworkInitialize(); }
+    ~XptiContextManager() { xptiFrameworkFinalize(); }
+};
+
+static std::shared_ptr<XptiContextManager> xptiContextManagerGlobal = [] {
+    return std::make_shared<XptiContextManager>();
+}();
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
-    xptiFrameworkInitialize();
+    this->xptiContextManager = xptiContextManagerGlobal;
 
     call_stream_id = xptiRegisterStream(CALL_STREAM_NAME);
     std::ostringstream streamv;
@@ -36,8 +49,6 @@ context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
     xptiInitialize(CALL_STREAM_NAME, STREAM_VER_MAJOR, STREAM_VER_MINOR,
                    streamv.str().data());
 }
-
-bool context_t::isAvailable() const { return true; }
 
 void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                        void *args, ur_result_t *resultp, uint64_t instance) {
@@ -70,9 +81,5 @@ void context_t::notify_end(uint32_t id, const char *name, void *args,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-context_t::~context_t() {
-    xptiFinalize(CALL_STREAM_NAME);
-
-    xptiFrameworkFinalize();
-}
+context_t::~context_t() { xptiFinalize(CALL_STREAM_NAME); }
 } // namespace ur_tracing_layer

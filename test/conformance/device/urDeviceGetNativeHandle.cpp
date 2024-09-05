@@ -8,7 +8,7 @@ using urDeviceGetNativeHandleTest = uur::urAllDevicesTest;
 
 TEST_F(urDeviceGetNativeHandleTest, Success) {
     for (auto device : devices) {
-        ur_native_handle_t native_handle = nullptr;
+        ur_native_handle_t native_handle = 0;
         if (auto error = urDeviceGetNativeHandle(device, &native_handle)) {
             ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
         }
@@ -16,7 +16,7 @@ TEST_F(urDeviceGetNativeHandleTest, Success) {
 }
 
 TEST_F(urDeviceGetNativeHandleTest, InvalidNullHandleDevice) {
-    ur_native_handle_t native_handle = nullptr;
+    ur_native_handle_t native_handle = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urDeviceGetNativeHandle(nullptr, &native_handle));
 }

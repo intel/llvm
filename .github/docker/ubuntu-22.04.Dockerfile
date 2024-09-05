@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #
-# Dockerfile - image with all Unified Runtime dependencies.
+# Dockerfile - a 'recipe' for Docker to build an image of ubuntu-based
+#              environment for building the Unified Runtime project.
 #
 
-# Pull base image
-FROM registry.hub.docker.com/library/ubuntu:22.04
+# Pull base image ("22.04")
+FROM registry.hub.docker.com/library/ubuntu@sha256:0eb0f877e1c869a300c442c41120e778db7161419244ee5cbc6fa5f134e74736
 
 # Set environment variables
 ENV OS ubuntu
@@ -32,15 +33,13 @@ ARG BASE_DEPS="\
 ARG UR_DEPS="\
 	doxygen \
 	python3 \
-	python3-pip"
-
-# Unified Runtime's dependencies (installed via pip)
-ARG UR_PYTHON_DEPS="\
-	clang-format==15.0.7"
+	python3-pip \
+	libhwloc-dev"
 
 # Miscellaneous for our builds/CI (optional)
 ARG MISC_DEPS="\
 	clang \
+	libncurses5 \
 	sudo \
 	wget \
 	whois"
@@ -54,18 +53,21 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && apt-get clean all
 
-# pip package is pinned to a version, but it's probably improperly parsed here
-# hadolint ignore=DL3013
-RUN pip3 install --no-cache-dir ${UR_PYTHON_DEPS}
+# Prepare a dir (accessible by anyone)
+RUN mkdir --mode 777 /opt/ur/
+
+# Additional dev. dependencies (installed via pip)
+COPY third_party/requirements.txt /opt/ur/requirements.txt
+RUN pip3 install --no-cache-dir -r /opt/ur/requirements.txt
 
 # Install DPC++
-COPY install_dpcpp.sh /opt/install_dpcpp.sh
+COPY .github/docker/install_dpcpp.sh /opt/ur/install_dpcpp.sh
 ENV DPCPP_PATH=/opt/dpcpp
-RUN /opt/install_dpcpp.sh
+RUN /opt/ur/install_dpcpp.sh
 
 # Install libbacktrace
-COPY install_libbacktrace.sh /opt/install_libbacktrace.sh
-RUN /opt/install_libbacktrace.sh
+COPY .github/docker/install_libbacktrace.sh /opt/ur/install_libbacktrace.sh
+RUN /opt/ur/install_libbacktrace.sh
 
 # Add a new (non-root) 'test_user' and switch to it
 ENV USER test_user

@@ -42,6 +42,19 @@ bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr) {
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_DEVICE);
 }
 
+// Helper function to check if a pointer is a shared pointer.
+bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
+  ze_device_handle_t ZeDeviceHandle;
+  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+
+  // Query memory type of the pointer
+  ZE2UR_CALL(zeMemGetAllocProperties,
+             (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
+              &ZeDeviceHandle));
+
+  return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_SHARED);
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
@@ -1191,6 +1204,12 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy(
   // (versus compute engine).
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
                           !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;
@@ -1390,6 +1409,12 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy2D(
   // (versus compute engine).
   bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
                           !IsDevicePointer(Queue->Context, Dst);
+  // For better performance, Copy Engines are not preferred given Shared
+  // pointers on DG2.
+  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
+                                 IsSharedPointer(Queue->Context, Dst))) {
+    PreferCopyEngine = false;
+  }
 
   // Temporary option added to use copy engine for D2D copy
   PreferCopyEngine |= UseCopyEngineForD2DCopy;

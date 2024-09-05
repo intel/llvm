@@ -351,7 +351,7 @@ details:
 params:
     - type: $x_mem_handle_t
       name: hMem
-      desc: "[in] handle of the memory object to get access"
+      desc: "[in][retain] handle of the memory object to get access"
 returns:
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

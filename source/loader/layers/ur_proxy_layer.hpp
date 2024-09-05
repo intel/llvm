@@ -21,10 +21,9 @@
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal proxy_layer_context_t {
   public:
+    virtual ~proxy_layer_context_t(){};
     ur_api_version_t version = UR_API_VERSION_CURRENT;
 
-    virtual std::vector<std::string> getNames() const = 0;
-    virtual bool isAvailable() const = 0;
     virtual ur_result_t init(ur_dditable_t *dditable,
                              const std::set<std::string> &enabledLayerNames,
                              codeloc_data codelocData) = 0;

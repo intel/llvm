@@ -272,7 +272,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *) {
+    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -284,6 +287,10 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
   ur_result_t Result = UR_RESULT_SUCCESS;
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
+
   // All programs must be associated with the same device
   for (auto i = 1u; i < count; ++i)
     UR_ASSERT(phPrograms[i]->getDevice() == phPrograms[0]->getDevice(),

@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -105,7 +105,11 @@ struct TestState {
     uint8_t context_num;
 
     TestState(std::unique_ptr<FuzzedDataProvider> data_provider)
-        : data_provider(std::move(data_provider)) {}
+        : data_provider(std::move(data_provider)) {
+        num_adapters = 0;
+        num_platforms = 0;
+        num_devices = 0;
+    }
 
     template <typename IntType> int get_next_input_data(IntType *data) {
         if (data_provider->remaining_bytes() < sizeof(IntType)) {

@@ -16,6 +16,7 @@ add_adapter_test(cuda
         urQueueGetNativeHandle.cpp
         kernel_tests.cpp
         memory_tests.cpp
+        event_tests.cpp
         #FIXME: make this cleaner
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../source/adapters/cuda/common.cpp
@@ -28,4 +29,4 @@ target_include_directories(test-adapter-cuda PRIVATE
     ${PROJECT_SOURCE_DIR}/source/adapters/cuda
 )
 
-target_link_libraries(test-adapter-cuda PRIVATE cudadrv)
+target_link_libraries(test-adapter-cuda PRIVATE cudadrv ${PROJECT_NAME}::umf)

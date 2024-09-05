@@ -98,6 +98,7 @@ if (UR_ENABLE_TRACING)
   endif()
   target_compile_definitions(${TARGET_NAME} PRIVATE
     XPTI_ENABLE_INSTRUMENTATION
+    XPTI_STATIC_LIBRARY
     )
   target_include_directories(${TARGET_NAME} PUBLIC
     ${XPTI_INCLUDES}
@@ -114,6 +115,7 @@ endif()
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::umf
     Threads::Threads
     cudadrv
     ${EXTRA_LIBS}

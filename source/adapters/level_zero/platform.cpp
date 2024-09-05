@@ -159,18 +159,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 }
 
 ur_result_t ur_platform_handle_t_::initialize() {
-  // Cache driver properties
-  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
-  ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
-  uint32_t DriverVersion = ZeDriverProperties.driverVersion;
-  // Intel Level-Zero GPU driver stores version as:
-  // | 31 - 24 | 23 - 16 | 15 - 0 |
-  // |  Major  |  Minor  | Build  |
-  auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
-  auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
-  auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
-  ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
-
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
   ZeDriverApiVersion = std::to_string(ZE_MAJOR_VERSION(ZeApiVersion)) + "." +
                        std::to_string(ZE_MINOR_VERSION(ZeApiVersion));
@@ -211,6 +199,33 @@ ur_result_t ur_platform_handle_t_::initialize() {
     zeDriverExtensionMap[extension.name] = extension.version;
   }
 
+  ZE2UR_CALL(zelLoaderTranslateHandle, (ZEL_HANDLE_DRIVER, ZeDriver,
+                                        (void **)&ZeDriverHandleExpTranslated));
+
+  // Check if intel Driver Version Extension is supported.
+  ZeDriverVersionString.setZeDriverVersionString(this);
+  // Cache driver properties
+  ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+  ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+  if (!ZeDriverVersionString.Supported) {
+    uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+    // Intel Level-Zero GPU driver stores version as:
+    // | 31 - 24 | 23 - 16 | 15 - 0 |
+    // |  Major  |  Minor  | Build  |
+    auto VersionMajor = std::to_string((DriverVersion & 0xFF000000) >> 24);
+    auto VersionMinor = std::to_string((DriverVersion & 0x00FF0000) >> 16);
+    auto VersionBuild = std::to_string(DriverVersion & 0x0000FFFF);
+    ZeDriverVersion = VersionMajor + "." + VersionMinor + "." + VersionBuild;
+  } else {
+    size_t sizeOfDriverString = 0;
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 nullptr, &sizeOfDriverString);
+    ZeDriverVersion.resize(sizeOfDriverString);
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 ZeDriverVersion.data(),
+                                                 &sizeOfDriverString);
+  }
+
   // Check if import user ptr into USM feature has been requested.
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
@@ -249,6 +264,67 @@ ur_result_t ur_platform_handle_t_::initialize() {
                      .zexCommandListUpdateMutableCommandWaitEventsExp))) == 0);
 
   return UR_RESULT_SUCCESS;
+}
+
+/// Checks the version of the level-zero driver.
+/// @param VersionMajor Major verion number to compare to.
+/// @param VersionMinor Minor verion number to compare to.
+/// @param VersionBuild Build verion number to compare to.
+/// @return true is the version of the driver is higher than or equal to the
+/// compared version
+bool ur_platform_handle_t_::isDriverVersionNewerOrSimilar(
+    uint32_t VersionMajor, uint32_t VersionMinor, uint32_t VersionBuild) {
+  uint32_t DriverVersionMajor = 0;
+  uint32_t DriverVersionMinor = 0;
+  uint32_t DriverVersionBuild = 0;
+  if (!ZeDriverVersionString.Supported) {
+    ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+    ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+    uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+    DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
+    DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
+    DriverVersionBuild = DriverVersion & 0x0000FFFF;
+  } else {
+    std::string ZeDriverVersion;
+    size_t sizeOfDriverString = 0;
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 nullptr, &sizeOfDriverString);
+    ZeDriverVersion.resize(sizeOfDriverString);
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 ZeDriverVersion.data(),
+                                                 &sizeOfDriverString);
+
+    // Intel driver version string is in the format:
+    // Major.Minor.Build+Hotfix where hotfix is optional.
+    std::stringstream VersionString(ZeDriverVersion);
+
+    std::string VersionValue;
+    std::vector<std::string> VersionValues;
+    char VersionDelim = '.';
+    char HotfixDelim = '+';
+
+    while (getline(VersionString, VersionValue, VersionDelim)) {
+      VersionValues.push_back(VersionValue);
+    }
+    // If the extension exists, but the string value comes by empty or
+    // malformed, assume this is a developer driver.
+    if (VersionValues.size() >= 3) {
+      DriverVersionMajor = atoi(VersionValues[0].c_str());
+      DriverVersionMinor = atoi(VersionValues[1].c_str());
+      std::stringstream HotfixString(VersionValues[2]);
+      std::vector<std::string> BuildHotfixVersionValues;
+      // Check to see if there is a hotfix value and strip it off.
+      while (getline(HotfixString, VersionValue, HotfixDelim)) {
+        BuildHotfixVersionValues.push_back(VersionValue);
+      }
+      DriverVersionBuild = atoi(BuildHotfixVersionValues[0].c_str());
+    } else {
+      return true;
+    }
+  }
+  return std::make_tuple(DriverVersionMajor, DriverVersionMinor,
+                         DriverVersionBuild) >=
+         std::make_tuple(VersionMajor, VersionMinor, VersionBuild);
 }
 
 // Get the cached PI device created for the L0 device handle.
@@ -418,7 +494,24 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   DeviceCachePopulated = true;
+
+  size_t id = 0;
+  for (auto &dev : URDevicesCache) {
+    dev->Id = id++;
+  }
+
   return UR_RESULT_SUCCESS;
+}
+
+size_t ur_platform_handle_t_::getNumDevices() { return URDevicesCache.size(); }
+
+ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
+  for (auto &dev : URDevicesCache) {
+    if (dev->Id == id) {
+      return dev.get();
+    }
+  }
+  return nullptr;
 }
 
 // Returns plugin specific backend option.

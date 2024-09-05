@@ -1061,7 +1061,6 @@ returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`patternSize == 0 || size == 0`"
         - "`patternSize > size`"
-        - "`(patternSize & (patternSize - 1)) != 0`"
         - "`size % patternSize != 0`"
         - "If `size` is higher than the allocation size of `ptr`"
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -1129,8 +1128,7 @@ class: $xEnqueue
 name: USMPrefetch
 ordinal: "0"
 details:
-    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
-    is not supported, the prefetch hint will be ignored."
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching is not supported, the prefetch hint will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -1178,8 +1176,7 @@ class: $xEnqueue
 name: USMAdvise
 ordinal: "0"
 details:
-    - "Not all memory advice hints may be supported for all devices or allocation types. 
-    If a memory advice hint is not supported, it will be ignored."
+    - "Not all memory advice hints may be supported for all devices or allocation types. If a memory advice hint is not supported, it will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue

@@ -228,7 +228,9 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
 
   // For in-order queue and wait-list which is empty or has events from
   // the same queue just use the last command event as the barrier event.
-  if (Queue->isInOrderQueue() &&
+  // This optimization is disabled when profiling is enabled to ensure
+  // accurate profiling values & the overhead that profiling incurs.
+  if (Queue->isInOrderQueue() && !Queue->isProfilingEnabled() &&
       WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
                                             EventWaitList) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
@@ -494,8 +496,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
                                   : Event->Context->Devices[0];
 
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxValue =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
 
@@ -926,7 +927,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
-  if (NativeEvent == nullptr) {
+  if (reinterpret_cast<ze_event_handle_t>(NativeEvent) == nullptr) {
     UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
@@ -1035,7 +1036,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
         EndTimeRecording.EventHasDied = true;
       } else {
         // Otherwise we evict the entry.
-        Legacy(Event->UrQueue)->EndTimeRecordings.erase(Entry);
+        Queue->EndTimeRecordings.erase(Entry);
       }
     }
   }

@@ -55,6 +55,46 @@ struct urCommandBufferExpTest : uur::urContextTest {
     ur_bool_t updatable_command_buffer_support = false;
 };
 
+template <class T>
+struct urCommandBufferExpTestWithParam : urQueueTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+
+        size_t returned_size;
+        ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_EXTENSIONS,
+                                       0, nullptr, &returned_size));
+
+        std::unique_ptr<char[]> returned_extensions(new char[returned_size]);
+
+        ASSERT_SUCCESS(urDeviceGetInfo(this->device, UR_DEVICE_INFO_EXTENSIONS,
+                                       returned_size, returned_extensions.get(),
+                                       nullptr));
+
+        std::string_view extensions_string(returned_extensions.get());
+        bool command_buffer_support =
+            extensions_string.find(UR_COMMAND_BUFFER_EXTENSION_STRING_EXP) !=
+            std::string::npos;
+
+        if (!command_buffer_support) {
+            GTEST_SKIP() << "EXP command-buffer feature is not supported.";
+        }
+
+        // Create a command-buffer
+        ASSERT_SUCCESS(urCommandBufferCreateExp(this->context, this->device,
+                                                nullptr, &cmd_buf_handle));
+        ASSERT_NE(cmd_buf_handle, nullptr);
+    }
+
+    void TearDown() override {
+        if (cmd_buf_handle) {
+            EXPECT_SUCCESS(urCommandBufferReleaseExp(cmd_buf_handle));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::TearDown());
+    }
+
+    ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
+};
+
 struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());

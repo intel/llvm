@@ -161,7 +161,7 @@ Tracing
 
 Unified Runtime loader implements tracing support through the `XPTI framework <https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md>`__.
 
-.. list-table:: UR Stream `"ur"` Notification Signatures
+.. list-table:: UR Stream `"ur.call"` Notification Signatures
    :header-rows: 1
 
    * - Trace Point Type
@@ -256,6 +256,33 @@ Currently, UR looks for these adapter libraries:
 
 For more information about the usage of mentioned environment variables see `Environment Variables`_ section.
 
+Mocking
+---------------------
+A mock UR adapter can be accessed for test purposes by enabling it via
+${x}LoaderConfigSetMockingEnabled.
+
+The default fallback behavior for entry points in the mock adapter is to simply
+return ``UR_RESULT_SUCCESS``. For entry points concerning handles, i.e. those
+that create a new handle or modify the reference count of an existing one, a
+dummy handle mechanism is used. This means the adapter will return generic
+handles that track a reference count, and ``Retain``/``Release`` entry points will
+function as expected when used with these handles.
+
+The behavior of the mock adapter can be customized by linking the
+``unified-runtime::mock`` library and making use of the object accessed via the
+``mock::getCallbacks()`` helper. Callbacks can be passed into this object to
+run either before or after a given entry point, or they can be set to entirely
+replace the default behavior.  Only one callback of each type (before, replace,
+after) can be set per entry point, with subsequent callbacks set in the same
+"slot" overwriting any set previously.
+
+The callback signature defined by ``ur_mock_callback_t`` takes a single
+``void *`` parameter. When calling a user callback the adapter will pack the
+entry point's parameters into the appropriate ``_params_t`` struct (e.g.
+``ur_adapter_get_params_t``) and pass a pointer to that struct into the
+callback. This allows parameters to be accessed and modified. The definitions
+for these parameter structs can be found in the main API header.
+
 Layers
 ---------------------
 UR comes with a mechanism that allows various API intercept layers to be enabled, either through the API or with an environment variable (see `Environment Variables`_).
@@ -268,6 +295,8 @@ Layers currently included with the runtime are as follows:
      - Description
    * - UR_LAYER_PARAMETER_VALIDATION
      - Enables non-adapter-specific parameter validation (e.g. checking for null values).
+   * - UR_LAYER_BOUNDS_CHECKING
+     - Enables non-adapter-specific bounds checking of USM allocations for enqueued commands. Automatically enables UR_LAYER_PARAMETER_VALIDATION.
    * - UR_LAYER_LEAK_CHECKING
      - Performs some leak checking for API calls involving object creation/destruction.
    * - UR_LAYER_LIFETIME_VALIDATION

@@ -24,8 +24,6 @@
 #include "ur_util.hpp"
 #include "ze_api.h"
 
-#include "v2/queue_factory.hpp"
-
 // Hard limit for the event completion batches.
 static const uint64_t CompletionBatchesMax = [] {
   // Default value chosen empirically to maximize the number of asynchronous
@@ -365,14 +363,10 @@ ur_result_t ur_queue_handle_legacy_t_::queueGetInfo(
   case UR_QUEUE_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{Queue->RefCount.load()});
   case UR_QUEUE_INFO_FLAGS:
-    die("UR_QUEUE_INFO_FLAGS in urQueueGetInfo not implemented\n");
-    break;
+    return ReturnValue(Queue->Properties);
   case UR_QUEUE_INFO_SIZE:
-    die("UR_QUEUE_INFO_SIZE in urQueueGetInfo not implemented\n");
-    break;
   case UR_QUEUE_INFO_DEVICE_DEFAULT:
-    die("UR_QUEUE_INFO_DEVICE_DEFAULT in urQueueGetInfo not implemented\n");
-    break;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_QUEUE_INFO_EMPTY: {
     // We can exit early if we have in-order queue.
     if (Queue->isInOrderQueue()) {
@@ -505,12 +499,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
 
   UR_ASSERT(Context->isValidDevice(Device), UR_RESULT_ERROR_INVALID_DEVICE);
 
-  // optimized path for immediate, in-order command lists
-  if (v2::shouldUseQueueV2(Device, Flags)) {
-    *Queue = v2::createQueue(Context, Device, Flags);
-    return UR_RESULT_SUCCESS;
-  }
-
   // Create placeholder queues in the compute queue group.
   // Actual L0 queues will be created at first use.
   std::vector<ze_command_queue_handle_t> ZeComputeCommandQueues(
@@ -606,8 +594,14 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
   {
     std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
 
-    if ((--Queue->RefCountExternal) != 0)
+    if ((--Queue->RefCountExternal) != 0) {
+      // When an External Reference exists one still needs to decrement the
+      // internal reference count. When the External Reference count == 0, then
+      // cleanup of the queue begins and the final decrement of the internal
+      // reference count is completed.
+      static_cast<void>(Queue->RefCount.decrementAndTest());
       return UR_RESULT_SUCCESS;
+    }
 
     // When external reference count goes to zero it is still possible
     // that internal references still exists, e.g. command-lists that
@@ -665,6 +659,7 @@ ur_result_t ur_queue_handle_legacy_t_::queueRelease() {
           struct l0_command_list_cache_info ListInfo;
           ListInfo.ZeQueueDesc = it->second.ZeQueueDesc;
           ListInfo.InOrderList = it->second.IsInOrderList;
+          ListInfo.IsImmediate = it->second.IsImmediate;
           ZeCommandListCache.push_back({it->first, ListInfo});
         } else {
           // A non-reusable comamnd list that came from a make_queue call is
@@ -745,7 +740,8 @@ void ur_queue_handle_legacy_t_::ur_queue_group_t::setImmCmdList(
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
               ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
-                                     queue->useCompletionBatching(), false)})
+                                     queue->useCompletionBatching(), false,
+                                     false, true)})
           .first);
 }
 
@@ -1173,12 +1169,10 @@ ur_queue_handle_legacy_t_::ur_queue_handle_legacy_t_(
       ZeCommandListBatchComputeConfig.startSize();
   CopyCommandBatch.QueueBatchSize = ZeCommandListBatchCopyConfig.startSize();
 
-  static const bool useDriverCounterBasedEvents = [Device] {
+  static const bool useDriverCounterBasedEvents = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_COUNTER_BASED_EVENTS");
     if (!UrRet) {
-      if (Device->isPVC())
-        return true;
-      return false;
+      return true;
     }
     return std::atoi(UrRet) != 0;
   }();
@@ -1548,8 +1542,7 @@ ur_result_t ur_queue_handle_legacy_t_::active_barriers::clear() {
 
 void ur_queue_handle_legacy_t_::clearEndTimeRecordings() {
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxValue =
-      ((1ULL << Device->ZeDeviceProperties->kernelTimestampValidBits) - 1ULL);
+  const uint64_t TimestampMaxValue = Device->getTimestampMask();
 
   for (auto Entry : EndTimeRecordings) {
     auto &Event = Entry.first;
@@ -2080,6 +2073,7 @@ ur_result_t ur_queue_handle_legacy_t_::resetCommandList(
     struct l0_command_list_cache_info ListInfo;
     ListInfo.ZeQueueDesc = CommandList->second.ZeQueueDesc;
     ListInfo.InOrderList = CommandList->second.IsInOrderList;
+    ListInfo.IsImmediate = CommandList->second.IsImmediate;
     ZeCommandListCache.push_back({CommandList->first, ListInfo});
   }
 
@@ -2430,9 +2424,9 @@ ur_queue_handle_legacy_t_::ur_queue_group_t::getImmCmdList() {
       Queue->CommandListMap
           .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
               ZeCommandList,
-              ur_command_list_info_t(nullptr, true, false, nullptr,
-                                     ZeCommandQueueDesc,
-                                     Queue->useCompletionBatching())})
+              ur_command_list_info_t(
+                  nullptr, true, false, nullptr, ZeCommandQueueDesc,
+                  Queue->useCompletionBatching(), true, false, true)})
           .first;
 
   return ImmCmdLists[Index];

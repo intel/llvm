@@ -70,7 +70,7 @@ params:
   - type: "$x_adapter_handle_t"
     name: hAdapter
     desc: |
-          [in] Adapter handle to retain
+          [in][retain] Adapter handle to retain
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get the last adapter specific error."
