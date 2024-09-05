@@ -131,12 +131,23 @@ context_impl::~context_impl() {
               DeviceGlobal);
       DGEntry->removeAssociatedResources(this);
     }
+#ifdef _WIN32
+    if (!sycl::detail::GlobalHandler::instance().isUrTearDowned) {
+      for (auto LibProg : MCachedLibPrograms) {
+        assert(LibProg.second && "Null program must not be kept in the cache");
+        getPlugin()->call(urProgramRelease, LibProg.second);
+      }
+      // TODO catch an exception and put it to list of asynchronous exceptions
+      getPlugin()->call_nocheck(urContextRelease, MContext);
+    }
+#else
     for (auto LibProg : MCachedLibPrograms) {
       assert(LibProg.second && "Null program must not be kept in the cache");
       getPlugin()->call(urProgramRelease, LibProg.second);
     }
     // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin()->call_nocheck(urContextRelease, MContext);
+#endif
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }

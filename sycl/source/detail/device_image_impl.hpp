@@ -311,8 +311,15 @@ public:
   ~device_image_impl() {
     try {
       if (MProgram) {
+#ifdef _WIN32
+        if (!sycl::detail::GlobalHandler::instance().isUrTearDowned) {
+          const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
+          Plugin->call(urProgramRelease, MProgram);
+        }
+#else
         const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
         Plugin->call(urProgramRelease, MProgram);
+#endif
       }
       if (MSpecConstsBuffer) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};

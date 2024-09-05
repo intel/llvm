@@ -50,6 +50,7 @@ public:
   /// as runtime library is loaded (i.e. untill `DllMain` or
   /// `__attribute__((destructor))` is called).
   static GlobalHandler &instance();
+  bool isUrTearDowned = false;
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;

@@ -58,8 +58,15 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr ContextImpl,
 
 kernel_impl::~kernel_impl() {
   try {
+#ifdef _WIN32
+    if (!sycl::detail::GlobalHandler::instance().isUrTearDowned) {
+      // TODO catch an exception and put it to list of asynchronous exceptions
+      getPlugin()->call(urKernelRelease, MKernel);
+    }
+#else
     // TODO catch an exception and put it to list of asynchronous exceptions
     getPlugin()->call(urKernelRelease, MKernel);
+#endif
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~kernel_impl", e);
   }
