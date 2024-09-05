@@ -4,8 +4,8 @@
 // RUN: env UR_LAYER_ASAN_OPTIONS=print_stats:1 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-STATS %s
 #include <sycl/usm.hpp>
 
-/// This test is used to check enabling/disabling kernel debug message
-/// We always use "[kernel]" prefix in kernel debug message
+/// This test is used to check enabling/disabling memory overhead statistics
+/// We always use "Stats" prefix in statistics message like asan
 
 constexpr std::size_t N = 4;
 constexpr std::size_t group_size = 1;
