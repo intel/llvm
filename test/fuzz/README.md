@@ -9,7 +9,7 @@ which provides the path where any new corpus will be saved. The path has to exis
 It's worth running the test with tracing enabled while picking scenarios to be added to the repository
 for future short fuzz tests runs. Example of running the test with generating new corpus files:
 ```
-UR_ADAPTERS_FORCE_LOAD=build/lib/libur_adapter_null.so \
+UR_ADAPTERS_FORCE_LOAD=build/lib/libur_adapter_mock.so \
 XPTI_TRACE_ENABLE=1 \
 XPTI_FRAMEWORK_DISPATCHER=build/lib/libxptifw.so \
 XPTI_SUBSCRIBERS=build/lib/libcollector.so \
@@ -19,7 +19,7 @@ UR_ENABLE_LAYERS=UR_LAYER_TRACING \
 
 Pass path to a corpus file instead to run a single scenario:
 ```
-UR_ADAPTERS_FORCE_LOAD=build/lib/libur_adapter_null.so \
+UR_ADAPTERS_FORCE_LOAD=build/lib/libur_adapter_mock.so \
 XPTI_TRACE_ENABLE=1 \
 XPTI_FRAMEWORK_DISPATCHER=build/lib/libxptifw.so \
 XPTI_SUBSCRIBERS=build/lib/libcollector.so \

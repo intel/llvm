@@ -36,8 +36,8 @@ Here are a few examples:
 ### Use a custom adapter and also trace function begins
 `$ urtrace --adapter libur_adapter_cuda.so --begin ./sycl_app`
 
-### Force load the null adapter and look for it in a custom path
-`$ urtrace --null --libpath /opt/custom/ ./foo`
+### Force load the mock adapter and look for it in a custom path
+`$ urtrace --mock --libpath /opt/custom/ ./foo`
 
 ### Trace UR calls made by `./myapp --my-arg` and write JSON traces to a file
 `$ urtrace --json --file myapp.perf ./myapp --my-arg`

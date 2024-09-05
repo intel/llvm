@@ -138,7 +138,7 @@ urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
                  ur_program_handle_t hProgram, const char *pOptions) {
 
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
-  CL_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
+  UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
   CL_RETURN_ON_FAILURE(clCompileProgram(cl_adapter::cast<cl_program>(hProgram),
                                         DevicesInProgram->size(),
@@ -196,7 +196,7 @@ urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
                ur_program_handle_t hProgram, const char *pOptions) {
 
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
-  CL_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
+  UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
   CL_RETURN_ON_FAILURE(clBuildProgram(
       cl_adapter::cast<cl_program>(hProgram), DevicesInProgram->size(),
@@ -215,6 +215,13 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
                     pOptions, cl_adapter::cast<cl_uint>(count),
                     cl_adapter::cast<const cl_program *>(phPrograms), nullptr,
                     nullptr, &CLResult));
+
+  if (CL_INVALID_BINARY == CLResult) {
+    // Some OpenCL drivers incorrectly return CL_INVALID_BINARY here, convert it
+    // to CL_LINK_PROGRAM_FAILURE
+    CLResult = CL_LINK_PROGRAM_FAILURE;
+  }
+
   CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
@@ -236,7 +243,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *) {
+    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

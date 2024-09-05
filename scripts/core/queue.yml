@@ -184,7 +184,7 @@ details:
 params:
     - type: $x_queue_handle_t
       name: hQueue
-      desc: "[in] handle of the queue object to get access"
+      desc: "[in][retain] handle of the queue object to get access"
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
@@ -286,7 +286,7 @@ params:
       desc: "[in] handle of the context object"
     - type: $x_device_handle_t
       name: hDevice
-      desc: "[in] handle of the device object"
+      desc: "[in][optional] handle of the device object"
     - type: "const $x_queue_native_properties_t*"
       name: pProperties
       desc: "[in][optional] pointer to native queue properties struct"

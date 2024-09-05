@@ -168,10 +168,11 @@ struct ur_command_list_info_t {
                          bool IsClosed, ze_command_queue_handle_t ZeQueue,
                          ZeStruct<ze_command_queue_desc_t> ZeQueueDesc,
                          bool UseCompletionBatching, bool CanReuse = true,
-                         bool IsInOrderList = false)
+                         bool IsInOrderList = false, bool IsImmediate = false)
       : ZeFence(ZeFence), ZeFenceInUse(ZeFenceInUse), IsClosed(IsClosed),
         ZeQueue(ZeQueue), ZeQueueDesc(ZeQueueDesc),
-        IsInOrderList(IsInOrderList), CanReuse(CanReuse) {
+        IsInOrderList(IsInOrderList), CanReuse(CanReuse),
+        IsImmediate(IsImmediate) {
     if (UseCompletionBatching) {
       completions = ur_completion_batches();
     }
@@ -204,6 +205,7 @@ struct ur_command_list_info_t {
   // Indicates if this is an inorder list
   bool IsInOrderList;
   bool CanReuse;
+  bool IsImmediate;
 
   // Helper functions to tell if this is a copy command-list.
   bool isCopy(ur_queue_handle_legacy_t Queue) const;
@@ -379,20 +381,21 @@ struct ur_queue_handle_legacy_t_ : _ur_object, public ur_queue_handle_t_ {
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesImageCopyExp(
-      void *pDst, void *pSrc, const ur_image_format_t *pImageFormat,
-      const ur_image_desc_t *pImageDesc,
-      ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
-      ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
-      ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
+      const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+      const ur_image_desc_t *pDstImageDesc,
+      const ur_image_format_t *pSrcImageFormat,
+      const ur_image_format_t *pDstImageFormat,
+      ur_exp_image_copy_region_t *pCopyRegion,
+      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasWaitValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
       uint64_t waitValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesSignalExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasSignalValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;

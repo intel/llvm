@@ -549,6 +549,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // native asserts are in progress
     std::string SupportedExtensions = "";
     SupportedExtensions += "pi_ext_intel_devicelib_assert ";
+    SupportedExtensions += "ur_exp_usm_p2p ";
 
     int RuntimeVersion = 0;
     UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
@@ -982,12 +983,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 /// \return UR_RESULT_SUCCESS
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeHandle) {
-  *phNativeHandle = reinterpret_cast<ur_native_handle_t>(hDevice->get());
+  *phNativeHandle = hDevice->get();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ur_platform_handle_t hPlatform,
+    ur_native_handle_t hNativeDevice,
+    [[maybe_unused]] ur_adapter_handle_t hAdapter,
     [[maybe_unused]] const ur_device_native_properties_t *pProperties,
     ur_device_handle_t *phDevice) {
   // We can't cast between ur_native_handle_t and hipDevice_t, so memcpy the
@@ -998,16 +1000,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == HIPDevice;
   };
-
-  // If a platform is provided just check if the device is in it
-  if (hPlatform) {
-    auto SearchRes = std::find_if(begin(hPlatform->Devices),
-                                  end(hPlatform->Devices), IsDevice);
-    if (SearchRes != end(hPlatform->Devices)) {
-      *phDevice = SearchRes->get();
-      return UR_RESULT_SUCCESS;
-    }
-  }
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;

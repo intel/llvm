@@ -150,27 +150,15 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t CommandDevice,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
+                               ur_device_handle_t Device,
                                ur_usm_host_mem_flags_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                uint32_t Alignment) {
   try {
-    ScopedContext Active(CommandDevice);
+    ScopedContext Active(Device);
     UR_CHECK_ERROR(cuMemAllocManaged((CUdeviceptr *)ResultPtr, Size,
                                      CU_MEM_ATTACH_GLOBAL));
-    if (getAttribute(CommandDevice,
-                     CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-      UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)*ResultPtr, Size,
-                                 CU_MEM_ADVISE_SET_ACCESSED_BY,
-                                 CommandDevice->get()));
-    }
-    for (const auto &Dev : Context->getDevices()) {
-      if (getAttribute(Dev, CU_DEVICE_ATTRIBUTE_CONCURRENT_MANAGED_ACCESS)) {
-        UR_CHECK_ERROR(cuMemAdvise((CUdeviceptr)*ResultPtr, Size,
-                                   CU_MEM_ADVISE_SET_ACCESSED_BY, Dev->get()));
-      }
-    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -410,7 +398,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   HostMemPool =
       umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+          umfDisjointPoolOps(), std::move(MemProvider),
           &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
@@ -419,7 +407,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
             .second;
     DeviceMemPool = umf::poolMakeUniqueFromOps(
-                        &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                        umfDisjointPoolOps(), std::move(MemProvider),
                         &this->DisjointPoolConfigs
                              .Configs[usm::DisjointPoolMemType::Device])
                         .second;
@@ -427,7 +415,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, Device)
             .second;
     SharedMemPool = umf::poolMakeUniqueFromOps(
-                        &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                        umfDisjointPoolOps(), std::move(MemProvider),
                         &this->DisjointPoolConfigs
                              .Configs[usm::DisjointPoolMemType::Shared])
                         .second;

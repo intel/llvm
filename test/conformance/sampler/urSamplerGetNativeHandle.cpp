@@ -10,14 +10,14 @@ using urSamplerGetNativeHandleTest = uur::urSamplerTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerGetNativeHandleTest);
 
 TEST_P(urSamplerGetNativeHandleTest, Success) {
-    ur_native_handle_t native_sampler = nullptr;
+    ur_native_handle_t native_sampler = 0;
     if (auto error = urSamplerGetNativeHandle(sampler, &native_sampler)) {
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
     }
 }
 
 TEST_P(urSamplerGetNativeHandleTest, InvalidNullHandleSampler) {
-    ur_native_handle_t native_handle = nullptr;
+    ur_native_handle_t native_handle = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urSamplerGetNativeHandle(nullptr, &native_handle));
 }

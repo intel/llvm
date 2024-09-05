@@ -67,13 +67,13 @@ struct RefCountContext {
                     ptr, RefRuntimeInfo{1, std::type_index(typeid(handle)),
                                         getCurrentBacktrace()});
             } else {
-                context.logger.error("Handle {} already exists", ptr);
+                getContext()->logger.error("Handle {} already exists", ptr);
                 return;
             }
             break;
         case REFCOUNT_INCREASE:
             if (it == counts.end()) {
-                context.logger.error(
+                getContext()->logger.error(
                     "Attempting to retain nonexistent handle {}", ptr);
                 return;
             } else {
@@ -90,7 +90,7 @@ struct RefCountContext {
             }
 
             if (it->second.refCount < 0) {
-                context.logger.error(
+                getContext()->logger.error(
                     "Attempting to release nonexistent handle {}", ptr);
             } else if (it->second.refCount == 0 && isAdapterHandle) {
                 adapterCount--;
@@ -98,8 +98,9 @@ struct RefCountContext {
             break;
         }
 
-        context.logger.debug("Reference count for handle {} changed to {}", ptr,
-                             it->second.refCount);
+        getContext()->logger.debug(
+            "Reference count for handle {} changed to {}", ptr,
+            it->second.refCount);
 
         if (it->second.refCount == 0) {
             counts.erase(ptr);
@@ -108,7 +109,7 @@ struct RefCountContext {
         // No more active adapters, so any references still held are leaked
         if (adapterCount == 0) {
             logInvalidReferences();
-            clear();
+            counts.clear();
         }
     }
 
@@ -132,9 +133,8 @@ struct RefCountContext {
         updateRefCount(handle, REFCOUNT_CREATE_OR_INCREASE, isAdapterHandle);
     }
 
-    void clear() { counts.clear(); }
-
     template <typename T> bool isReferenceValid(T handle) {
+        std::unique_lock<std::mutex> lock(mutex);
         auto it = counts.find(static_cast<void *>(handle));
         if (it == counts.end() || it->second.refCount < 1) {
             return false;
@@ -145,22 +145,22 @@ struct RefCountContext {
 
     void logInvalidReferences() {
         for (auto &[ptr, refRuntimeInfo] : counts) {
-            context.logger.error("Retained {} reference(s) to handle {}",
-                                 refRuntimeInfo.refCount, ptr);
-            context.logger.error("Handle {} was recorded for first time here:",
-                                 ptr);
+            getContext()->logger.error("Retained {} reference(s) to handle {}",
+                                       refRuntimeInfo.refCount, ptr);
+            getContext()->logger.error(
+                "Handle {} was recorded for first time here:", ptr);
             for (size_t i = 0; i < refRuntimeInfo.backtrace.size(); i++) {
-                context.logger.error("#{} {}", i,
-                                     refRuntimeInfo.backtrace[i].c_str());
+                getContext()->logger.error("#{} {}", i,
+                                           refRuntimeInfo.backtrace[i].c_str());
             }
         }
     }
 
     void logInvalidReference(void *ptr) {
-        context.logger.error("There are no valid references to handle {}", ptr);
+        getContext()->logger.error("There are no valid references to handle {}",
+                                   ptr);
     }
-
-} refCountContext;
+};
 
 } // namespace ur_validation_layer
 

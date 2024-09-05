@@ -42,7 +42,7 @@ extern "C" {
 %if len(spec['objects']):
 // ${th.subt(n, tags, spec['header']['desc'])}
 #if !defined(__GNUC__)
-#pragma region ${spec['name']}
+#pragma region ${spec['name'].replace(' ', '_')}
 #endif
 %endif
 %for obj in spec['objects']:
@@ -121,7 +121,9 @@ ${th.make_func_name(n, tags, obj)}(
     );
 ## HANDLE #####################################################################
 %elif re.match(r"handle", obj['type']):
-%if 'alias' in obj:
+%if th.type_traits.is_native_handle(obj['name']):
+typedef uintptr_t ${th.subt(n, tags, obj['name'])};
+%elif 'alias' in obj:
 typedef ${th.subt(n, tags, obj['alias'])} ${th.subt(n, tags, obj['name'])};
 %else:
 typedef struct ${th.subt(n, tags, obj['name'])}_ *${th.subt(n, tags, obj['name'])};

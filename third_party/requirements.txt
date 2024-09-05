@@ -38,3 +38,4 @@ sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
 sphinx-rtd-theme==1.0.0
 urllib3==2.1.0
+dataclasses-json==0.6.7

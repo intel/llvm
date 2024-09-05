@@ -52,6 +52,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(${TARGET_NAME} PRIVATE
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
         Threads::Threads
 )
 

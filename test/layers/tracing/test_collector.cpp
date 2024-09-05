@@ -25,7 +25,7 @@ constexpr uint16_t TRACE_FN_BEGIN =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
 constexpr uint16_t TRACE_FN_END =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
-constexpr std::string_view UR_STREAM_NAME = "ur";
+constexpr std::string_view UR_STREAM_NAME = "ur.call";
 
 XPTI_CALLBACK_API void trace_cb(uint16_t trace_type, xpti::trace_event_data_t *,
                                 xpti::trace_event_data_t *child, uint64_t,

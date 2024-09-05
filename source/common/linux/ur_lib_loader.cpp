@@ -23,6 +23,8 @@ void LibLoader::freeAdapterLibrary(HMODULE handle) {
             logger::error(
                 "Failed to unload the library with the handle at address {}",
                 handle);
+        } else {
+            logger::info("unloaded adapter 0x{}", handle);
         }
     }
 }
@@ -42,8 +44,15 @@ LibLoader::loadAdapterLibrary(const char *name) {
         mode |= RTLD_DEEPBIND;
     }
 #endif
-
-    return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(dlopen(name, mode));
+    HMODULE handle = dlopen(name, mode);
+    if (!handle) {
+        char *err = dlerror();
+        logger::info("failed to load adapter '{}' with error: {}", name,
+                     err ? err : "unknown error");
+    } else {
+        logger::info("loaded adapter 0x{} ({})", handle, name);
+    }
+    return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(handle);
 }
 
 void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {

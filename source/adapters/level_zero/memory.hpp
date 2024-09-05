@@ -32,6 +32,7 @@ using ur_queue_handle_legacy_t = ur_queue_handle_legacy_t_ *;
 struct ur_device_handle_t_;
 
 bool IsDevicePointer(ur_context_handle_t Context, const void *Ptr);
+bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr);
 
 // This is an experimental option to test performance of device to device copy
 // operations on copy engines (versus compute engine)

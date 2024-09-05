@@ -326,14 +326,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
     ur_context_handle_t, uint32_t, ur_device_handle_t *, uint32_t,
-    const ur_program_handle_t *, const char *, ur_program_handle_t *) {
+    const ur_program_handle_t *, const char *, ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(ur_context_handle_t, uint32_t,
-                                                  const ur_program_handle_t *,
-                                                  const char *,
-                                                  ur_program_handle_t *) {
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramLink(ur_context_handle_t, uint32_t, const ur_program_handle_t *,
+              const char *, ur_program_handle_t *phProgram) {
+  if (nullptr != phProgram) {
+    *phProgram = nullptr;
+  }
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

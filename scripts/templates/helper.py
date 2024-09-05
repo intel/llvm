@@ -109,6 +109,7 @@ class class_traits:
 """
 class type_traits:
     RE_HANDLE   = r"(.*)handle_t"
+    RE_NATIVE_HANDLE = r"(.*)native_handle_t"
     RE_IPC      = r"(.*)ipc(.*)handle_t"
     RE_POINTER  = r"(.*\w+)\*+"
     RE_PPOINTER = r"(.*\w+)\*{2,}"
@@ -125,6 +126,13 @@ class type_traits:
     def is_handle(cls, name):
         try:
             return True if re.match(cls.RE_HANDLE, name) else False
+        except:
+            return False
+
+    @classmethod
+    def is_native_handle(cls, name):
+        try:
+            return True if re.match(cls.RE_NATIVE_HANDLE, name) else False
         except:
             return False
 
@@ -371,6 +379,7 @@ class param_traits:
     RE_OPTIONAL = r".*\[optional\].*"
     RE_NOCHECK  = r".*\[nocheck\].*"
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
+    RE_RETAIN   = r".*\[retain\].*"
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
     RE_TAGGED   = r".*\[tagged_by\((.+)\)].*"
@@ -459,6 +468,13 @@ class param_traits:
             return re.sub(cls.RE_RANGE, r"\2", item['desc'])
         except:
             return None
+
+    @classmethod
+    def is_retain(cls, item):
+        try:
+            return True if re.match(cls.RE_RETAIN, item['desc']) else False
+        except:
+            return False
 
     @classmethod
     def is_release(cls, item):
@@ -909,6 +925,19 @@ def make_param_lines(namespace, tags, obj, decl=False, meta=None, format=["type"
 
 """
 Public:
+    searches params of function `obj` for a match to the given regex and
+    returns its full C++ name
+"""
+def find_param_name(name_re, namespace, tags, obj):
+    for param in obj['params']:
+        param_cpp_name = _get_param_name(namespace, tags, param)
+        print("searching {0} for pattner {1}".format(param_cpp_name, name_re))
+        if re.search(name_re, param_cpp_name):
+            return param_cpp_name
+    return UNDEFINED
+
+"""
+Public:
     returns a list of strings for the description
     format: "@brief DESCRIPTION"
 """
@@ -1240,6 +1269,30 @@ def get_pfntables(specs, meta, namespace, tags):
 
     return tables
 
+"""
+Public:
+    returns an expression setting required output parameters to null on entry
+"""
+def get_initial_null_set(obj):
+    cname = obj_traits.class_name(obj)
+    lvalue = {
+        ('$xProgram', 'Link'): 'phProgram',
+        ('$xProgram', 'LinkExp'): 'phProgram',
+    }.get((cname, obj['name']))
+    if lvalue is not None:
+        return 'if (nullptr != {0}) {{*{0} = nullptr;}}'.format(lvalue)
+    return ""
+
+"""
+Public:
+    returns true if the function always wraps output pointers in loader handles
+"""
+def always_wrap_outputs(obj):
+    cname = obj_traits.class_name(obj)
+    return (cname, obj['name']) in [
+        ('$xProgram', 'Link'),
+        ('$xProgram', 'LinkExp'),
+    ]
 
 """
 Private:
@@ -1465,7 +1518,7 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
         obj_name = re.sub(r"(\w+)_handle_t", r"\1_object_t", tname)
         fty_name = re.sub(r"(\w+)_handle_t", r"\1_factory", tname)
 
-        if param_traits.is_release(item) or param_traits.is_output(item) or param_traits.is_inoutput(item):
+        if param_traits.is_retain(item) or param_traits.is_release(item) or param_traits.is_output(item) or param_traits.is_inoutput(item):
             if type_traits.is_class_handle(item['type'], meta):
                 if param_traits.is_range(item):
                     range_start = param_traits.range_start(item)
@@ -1475,6 +1528,7 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
                         'type': tname,
                         'obj': obj_name,
                         'factory': fty_name,
+                        'retain': param_traits.is_retain(item),
                         'release': param_traits.is_release(item),
                         'range': (range_start, range_end)
                     })
@@ -1484,6 +1538,7 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
                         'type': tname,
                         'obj': obj_name,
                         'factory': fty_name,
+                        'retain': param_traits.is_retain(item),
                         'release': param_traits.is_release(item),
                         'optional': param_traits.is_optional(item)
                     })
@@ -1521,6 +1576,7 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
                     epilogue.append({
                                      'name': name,
                                      'obj': obj_name,
+                                     'retain': False,
                                      'release': False,
                                      'typename': typename,
                                      'size': prop_size,

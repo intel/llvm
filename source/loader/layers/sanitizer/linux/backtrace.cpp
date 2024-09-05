@@ -26,7 +26,7 @@ StackTrace GetCurrentBacktrace() {
     StackTrace Stack;
     for (int i = 0; i < FrameCount; i++) {
         BacktraceInfo addr_info(Symbols[i]);
-        Stack.stack.emplace_back(std::move(addr_info));
+        Stack.stack.emplace_back(addr_info);
     }
     free(Symbols);
 

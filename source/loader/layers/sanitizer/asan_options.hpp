@@ -27,8 +27,8 @@ struct AsanOptions {
     AsanOptions(AsanOptions &other) = delete;
     void operator=(const AsanOptions &) = delete;
 
-    static AsanOptions &getInstance() {
-        static AsanOptions instance;
+    static AsanOptions &getInstance(logger::Logger &logger) {
+        static AsanOptions instance(logger);
         return instance;
     }
 
@@ -38,9 +38,10 @@ struct AsanOptions {
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
     bool DetectPrivates = true;
+    bool DetectKernelArguments = true;
 
   private:
-    AsanOptions() {
+    AsanOptions(logger::Logger &logger) {
         auto OptionsEnvMap = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
         if (!OptionsEnvMap.has_value()) {
             return;
@@ -93,10 +94,11 @@ struct AsanOptions {
         SetBoolOption("debug", Debug);
         SetBoolOption("detect_locals", DetectLocals);
         SetBoolOption("detect_privates", DetectPrivates);
+        SetBoolOption("detect_kernel_arguments", DetectKernelArguments);
 
         auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 auto temp_long = std::stoul(Value);
                 if (temp_long > UINT32_MAX) {
@@ -112,13 +114,13 @@ struct AsanOptions {
 
         KV = OptionsEnvMap->find("redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MinRZSize = std::stoul(Value);
                 if (MinRZSize < 16) {
                     MinRZSize = 16;
-                    context.logger.warning("Trying to set redzone size to a "
-                                           "value less than 16 is ignored");
+                    logger.warning("Trying to set redzone size to a "
+                                   "value less than 16 is ignored");
                 }
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
@@ -127,14 +129,13 @@ struct AsanOptions {
 
         KV = OptionsEnvMap->find("max_redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MaxRZSize = std::stoul(Value);
                 if (MaxRZSize > 2048) {
                     MaxRZSize = 2048;
-                    context.logger.warning(
-                        "Trying to set max redzone size to a "
-                        "value greater than 2048 is ignored");
+                    logger.warning("Trying to set max redzone size to a "
+                                   "value greater than 2048 is ignored");
                 }
             } catch (...) {
                 die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
@@ -143,6 +144,8 @@ struct AsanOptions {
     }
 };
 
-inline const AsanOptions &Options() { return AsanOptions::getInstance(); }
+inline const AsanOptions &Options(logger::Logger &logger) {
+    return AsanOptions::getInstance(logger);
+}
 
 } // namespace ur_sanitizer_layer
