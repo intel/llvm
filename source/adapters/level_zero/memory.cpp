@@ -80,7 +80,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      OkToBatch));
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -133,7 +133,7 @@ ur_result_t enqueueMemCopyRectHelper(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      OkToBatch));
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -242,7 +242,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   bool OkToBatch = true;
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      OkToBatch));
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -272,7 +272,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
 
     // Execute command list asynchronously, as the event will be used
     // to track down its completion.
-    UR_CALL(Queue->executeCommandList(CommandList, false, OkToBatch));
+    UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                      OkToBatch));
   } else {
     // Copy pattern into every entry in memory array pointed by Ptr.
     uint32_t NumOfCopySteps = Size / PatternSize;
@@ -292,7 +293,8 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
     printZeEventList(WaitList);
 
     // Execute command list synchronously.
-    UR_CALL(Queue->executeCommandList(CommandList, true, OkToBatch));
+    UR_CALL(
+        Queue->executeCommandList(CommandList, true /*IsBlocking*/, OkToBatch));
   }
 
   return UR_RESULT_SUCCESS;
@@ -359,7 +361,7 @@ static ur_result_t enqueueMemImageCommandHelper(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      OkToBatch));
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;
@@ -1019,7 +1021,8 @@ ur_result_t urEnqueueMemBufferMap(
     // For discrete devices we need a command list
     ur_command_list_ptr_t CommandList{};
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+        false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
 
     // Add the event to the command list.
     CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
@@ -1039,7 +1042,8 @@ ur_result_t urEnqueueMemBufferMap(
                (ZeCommandList, *RetMap, ZeHandleSrc + Offset, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
 
-    UR_CALL(Queue->executeCommandList(CommandList, BlockingMap));
+    UR_CALL(Queue->executeCommandList(CommandList, BlockingMap,
+                                      false /*OKToBatchCommand*/));
   }
 
   auto Res = Buffer->Mappings.insert({*RetMap, {Offset, Size}});
@@ -1146,7 +1150,8 @@ ur_result_t urEnqueueMemUnmap(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine,
-      NumEventsInWaitList, EventWaitList));
+      NumEventsInWaitList, EventWaitList, false /*AllowBatching*/,
+      nullptr /*ForcedCmdQueue*/));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
   (*Event)->RefCount.increment();
@@ -1174,7 +1179,8 @@ ur_result_t urEnqueueMemUnmap(
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList));
+  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                    false /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1256,7 +1262,8 @@ ur_result_t urEnqueueUSMPrefetch(
   // TODO: Change UseCopyEngine argument to 'true' once L0 backend
   // support is added
   UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
+      Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
+      false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -1281,7 +1288,8 @@ ur_result_t urEnqueueUSMPrefetch(
   // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  UR_CALL(Queue->executeCommandList(CommandList, false));
+  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                    false /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
 }
@@ -1311,8 +1319,9 @@ ur_result_t urEnqueueUSMAdvise(
   // UseCopyEngine is set to 'false' here.
   // TODO: Additional analysis is required to check if this operation will
   // run faster on copy engines.
-  UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                  UseCopyEngine, 0, nullptr));
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CommandList, UseCopyEngine, 0, nullptr, false /*AllowBatching*/,
+      nullptr /*ForcedCmdQueue*/));
 
   // TODO: do we need to create a unique command type for this?
   ze_event_handle_t ZeEvent = nullptr;
@@ -1339,7 +1348,8 @@ ur_result_t urEnqueueUSMAdvise(
   // so manually add command to signal our event.
   ZE2UR_CALL(zeCommandListAppendSignalEvent, (ZeCommandList, ZeEvent));
 
-  Queue->executeCommandList(CommandList, false);
+  Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                            false /*OKToBatchCommand*/);
 
   return UR_RESULT_SUCCESS;
 }
