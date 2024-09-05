@@ -307,7 +307,6 @@ void GlobalHandler::drainThreadPool() {
 // accidentally retain device handles. etc
 void shutdown_win() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->releaseDefaultContexts();
   Handler->unloadPlugins();
 }
 #else
