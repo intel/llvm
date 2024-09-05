@@ -576,8 +576,7 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
   }
   Cache->erase(It);
   // We have to reset event before using it.
-  if (!CounterBasedEventEnabled)
-    Event->reset();
+  Event->reset();
   return Event;
 }
 
