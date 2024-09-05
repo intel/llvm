@@ -689,7 +689,9 @@ class ObjectFileHandler final : public FileHandler {
 
         // If we are dealing with a bitcode file do not add special globals
         // llvm.used and llvm.compiler.used to the list of defined symbols.
-        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+        if (SF->isIR() &&
+            (Name == "llvm.used" || Name == "llvm.compiler.used" ||
+             Name == "__AsanSpirKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
