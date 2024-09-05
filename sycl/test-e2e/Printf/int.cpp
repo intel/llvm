@@ -44,8 +44,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
                         "\tsigned char: %hhd\n"
                         "\tshort: %hd\n"
                         "\tint: %d\n"
-                        "\tlong int: %ld\n"
-                        "\tlong long int: %lld\n"
+                        "\tlong: %ld\n"
+                        "\tlong long: %lld\n"
                         "\tintmax_t: %jd\n"
                         "\tsigned size_t: %zd\n"
                         "\tptrdiff_t: %td\n";
@@ -54,8 +54,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
   // CHECK-NEXT: signed char: 123
   // CHECK-NEXT: short: 12345
   // CHECK-NEXT: int: 1234567891
-  // CHECK-NEXT: long int: 1234567891
-  // CHECK-NEXT: long long int: 1234567891011121314
+  // CHECK-NEXT: long: 1234567891
+  // CHECK-NEXT: long long: 1234567891011121314
   // CHECK-NEXT: intmax_t: 1234567891011121314
   // CHECK-NEXT: signed size_t: 1234567891011121314
   // CHECK-NEXT: ptrdiff_t: 1234567891011121314
@@ -64,8 +64,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
                         "\tsigned char: %hhi\n"
                         "\tshort: %hi\n"
                         "\tint: %i\n"
-                        "\tlong int: %li\n"
-                        "\tlong long int: %lli\n"
+                        "\tlong: %li\n"
+                        "\tlong long: %lli\n"
                         "\tintmax_t: %ji\n"
                         "\tsigned size_t: %zi\n"
                         "\tptrdiff_t: %ti\n";
@@ -74,8 +74,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
   // CHECK-NEXT: signed char: 123
   // CHECK-NEXT: short: 12345
   // CHECK-NEXT: int: 1234567891
-  // CHECK-NEXT: long int: 1234567891
-  // CHECK-NEXT: long long int: 1234567891011121314
+  // CHECK-NEXT: long: 1234567891
+  // CHECK-NEXT: long long: 1234567891011121314
   // CHECK-NEXT: intmax_t: 1234567891011121314
   // CHECK-NEXT: signed size_t: 1234567891011121314
   // CHECK-NEXT: ptrdiff_t: 1234567891011121314
@@ -83,6 +83,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
   hhd = -hhd;
   hd = -hd;
   d = -d;
+  ld = -ld;
+  lld = -lld;
   jd = -jd;
   zd = -zd;
   td = -td;
@@ -91,8 +93,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
                         "\tsigned char: %hhd\n"
                         "\tshort: %hd\n"
                         "\tint: %d\n"
-                        "\tlong int: %ld\n"
-                        "\tlong long int: %lld\n"
+                        "\tlong: %ld\n"
+                        "\tlong long: %lld\n"
                         "\tintmax_t: %jd\n"
                         "\tsigned size_t: %zd\n"
                         "\tptrdiff_t: %td\n";
@@ -101,8 +103,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
   // CHECK-NEXT: signed char: -123
   // CHECK-NEXT: short: -12345
   // CHECK-NEXT: int: -1234567891
-  // CHECK-NEXT: long int: -1234567891
-  // CHECK-NEXT: long long int: -1234567891011121314
+  // CHECK-NEXT: long: -1234567891
+  // CHECK-NEXT: long long: -1234567891011121314
   // CHECK-NEXT: intmax_t: -1234567891011121314
   // CHECK-NEXT: signed size_t: -1234567891011121314
   // CHECK-NEXT: ptrdiff_t: -1234567891011121314
@@ -111,8 +113,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
                         "\tsigned char: %hhi\n"
                         "\tshort: %hi\n"
                         "\tint: %i\n"
-                        "\tlong int: %li\n"
-                        "\tlong long int: %lli\n"
+                        "\tlong: %li\n"
+                        "\tlong long: %lli\n"
                         "\tintmax_t: %ji\n"
                         "\tsigned size_t: %zi\n"
                         "\tptrdiff_t: %ti\n";
@@ -121,8 +123,8 @@ void do_d_i_test() { // %d, %i signed integer, decimal representation
   // CHECK-NEXT: signed char: -123
   // CHECK-NEXT: short: -12345
   // CHECK-NEXT: int: -1234567891
-  // CHECK-NEXT: long int: -1234567891
-  // CHECK-NEXT: long long int: -1234567891011121314
+  // CHECK-NEXT: long: -1234567891
+  // CHECK-NEXT: long long: -1234567891011121314
   // CHECK-NEXT: intmax_t: -1234567891011121314
   // CHECK-NEXT: signed size_t: -1234567891011121314
   // CHECK-NEXT: ptrdiff_t: -1234567891011121314
@@ -197,6 +199,8 @@ void do_x_test() { // %x, %X unsigned integer, hexadecimal representation
   // CHECK-NEXT: unsigned char: 12
   // CHECK-NEXT: unsigned short: 1234
   // CHECK-NEXT: unsigned int: 12345678
+  // CHECK-NEXT: unsigned long: 12345678
+  // CHECK-NEXT: unsigned long long: 123456789abcdef0
   // CHECK-NEXT: uintmax_t: 123456789abcdef0
   // CHECK-NEXT: size_t: 123456789abcdef0
   // CHECK-NEXT: ptrdiff_t: 123456789abcdef0
@@ -205,8 +209,8 @@ void do_x_test() { // %x, %X unsigned integer, hexadecimal representation
                         "\tunsigned char: %hhX\n"
                         "\tunsigned short: %hX\n"
                         "\tunsigned int: %X\n"
-                        "\tunsigned long int: %lX\n"
-                        "\tunsigned long long int: %llX\n"
+                        "\tunsigned long: %lX\n"
+                        "\tunsigned long long: %llX\n"
                         "\tuintmax_t: %jX\n"
                         "\tsize_t: %zX\n"
                         "\tptrdiff_t: %tX\n";
@@ -215,8 +219,8 @@ void do_x_test() { // %x, %X unsigned integer, hexadecimal representation
   // CHECK-NEXT: unsigned char: 12
   // CHECK-NEXT: unsigned short: 1234
   // CHECK-NEXT: unsigned int: 12345678
-  // CHECK-NEXT: unsigned long int: 12345678
-  // CHECK-NEXT: unsigned long long int: 123456789ABCDEF0
+  // CHECK-NEXT: unsigned long: 12345678
+  // CHECK-NEXT: unsigned long long: 123456789ABCDEF0
   // CHECK-NEXT: uintmax_t: 123456789ABCDEF0
   // CHECK-NEXT: size_t: 123456789ABCDEF0
   // CHECK-NEXT: ptrdiff_t: 123456789ABCDEF0
@@ -244,8 +248,8 @@ void do_u_test() { // %u unsigned integer, decimal representation
                         "\tunsigned char: %hhu\n"
                         "\tunsigned short: %hu\n"
                         "\tunsigned int: %u\n"
-                        "\tunsigned long int: %lu\n"
-                        "\tunsigned long long int: %llu\n"
+                        "\tunsigned long: %lu\n"
+                        "\tunsigned long long: %llu\n"
                         "\tuintmax_t: %ju\n"
                         "\tsize_t: %zu\n"
                         "\tptrdiff_t: %tu\n";
@@ -254,8 +258,8 @@ void do_u_test() { // %u unsigned integer, decimal representation
   // CHECK-NEXT: unsigned char: 123
   // CHECK-NEXT: unsigned short: 12345
   // CHECK-NEXT: unsigned int: 1234567891
-  // CHECK-NEXT: unsigned long int: 1234567891
-  // CHECK-NEXT: unsigned long long int: 1234567891011121314
+  // CHECK-NEXT: unsigned long: 1234567891
+  // CHECK-NEXT: unsigned long long: 1234567891011121314
   // CHECK-NEXT: uintmax_t: 1234567891011121314
   // CHECK-NEXT: size_t: 1234567891011121314
   // CHECK-NEXT: ptrdiff_t: 1234567891011121314
