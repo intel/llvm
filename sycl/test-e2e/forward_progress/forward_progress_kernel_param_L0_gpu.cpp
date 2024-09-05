@@ -136,4 +136,5 @@ int main() {
   check_props<forward_progress_guarantee::parallel>(q);
   check_props<forward_progress_guarantee::weakly_parallel>(q);
   check_props<forward_progress_guarantee::concurrent>(q);
+  q.wait();
 }
