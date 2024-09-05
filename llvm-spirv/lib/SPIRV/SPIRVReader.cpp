@@ -3042,12 +3042,15 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     auto BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
+    AttributeMask IllegalAttrs = AttributeFuncs::typeIncompatible(I->getType());
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       // Skip this function parameter attribute as it will translated among
       // OpenCL metadata
       if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
         return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
+      if (IllegalAttrs.contains(LLVMKind))
+        return;
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
       case Attribute::AttrKind::ByVal:
