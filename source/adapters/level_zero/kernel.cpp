@@ -11,11 +11,29 @@
 #include "kernel.hpp"
 #include "logger/ur_logger.hpp"
 #include "ur_api.h"
-#include "ur_level_zero.hpp"
+#include "ur_interface_loader.hpp"
 
 #include "helpers/kernel_helpers.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
+                        ze_kernel_handle_t *phZeKernel) {
+  if (hKernel->ZeKernelMap.empty()) {
+    *phZeKernel = hKernel->ZeKernel;
+  } else {
+    auto It = hKernel->ZeKernelMap.find(hDevice);
+    if (It == hKernel->ZeKernelMap.end()) {
+      /* kernel and queue don't match */
+      return UR_RESULT_ERROR_INVALID_QUEUE;
+    }
+    *phZeKernel = It->second;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+namespace ur::level_zero {
+
+ur_result_t urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     [[maybe_unused]] const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
@@ -38,23 +56,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
-                        ze_kernel_handle_t *phZeKernel) {
-  if (hKernel->ZeKernelMap.empty()) {
-    *phZeKernel = hKernel->ZeKernel;
-  } else {
-    auto It = hKernel->ZeKernelMap.find(hDevice);
-    if (It == hKernel->ZeKernelMap.end()) {
-      /* kernel and queue don't match */
-      return UR_RESULT_ERROR_INVALID_QUEUE;
-    }
-    *phZeKernel = It->second;
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
+ur_result_t urEnqueueKernelLaunch(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
@@ -158,7 +160,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // is in use. Once the event has been signalled, the code in
   // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(urKernelRetain(Kernel));
+  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -204,7 +206,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+ur_result_t urEnqueueCooperativeKernelLaunchExp(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t WorkDim, ///< [in] number of dimensions, from 1 to 3, to specify
@@ -422,7 +424,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
   // is in use. Once the event has been signalled, the code in
   // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
-  UR_CALL(urKernelRetain(Kernel));
+  UR_CALL(ur::level_zero::urKernelRetain(Kernel));
 
   // Add to list of kernels to be submitted
   if (IndirectAccessTrackingEnabled)
@@ -468,7 +470,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
+ur_result_t urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
     ur_program_handle_t Program, ///< [in] handle of the program containing the
                                  ///< device global variable.
@@ -522,7 +524,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
                               EventWaitList, Event, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
+ur_result_t urEnqueueDeviceGlobalVariableRead(
     ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
     ur_program_handle_t Program, ///< [in] handle of the program containing the
                                  ///< device global variable.
@@ -576,7 +578,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
       EventWaitList, Event, PreferCopyEngine);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
+ur_result_t urKernelCreate(
     ur_program_handle_t Program, ///< [in] handle of the program instance
     const char *KernelName,      ///< [in] pointer to null-terminated string.
     ur_kernel_handle_t
@@ -639,7 +641,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
+ur_result_t urKernelSetArgValue(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     size_t ArgSize,    ///< [in] size of argument type
@@ -689,7 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   return ze2urResult(ZeResult);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
+ur_result_t urKernelSetArgLocal(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     size_t ArgSize,    ///< [in] size of the local buffer to be allocated by the
@@ -699,12 +701,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
 ) {
   std::ignore = Properties;
 
-  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, ArgSize, nullptr, nullptr));
+  UR_CALL(ur::level_zero::urKernelSetArgValue(Kernel, ArgIndex, ArgSize,
+                                              nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(
+ur_result_t urKernelGetInfo(
     ur_kernel_handle_t Kernel,  ///< [in] handle of the Kernel object
     ur_kernel_info_t ParamName, ///< [in] name of the Kernel property to query
     size_t PropSize,            ///< [in] the size of the Kernel property value.
@@ -766,7 +769,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
+ur_result_t urKernelGetGroupInfo(
     ur_kernel_handle_t Kernel, ///< [in] handle of the Kernel object
     ur_device_handle_t Device, ///< [in] handle of the Device object
     ur_kernel_group_info_t
@@ -847,7 +850,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSubGroupInfo(
+ur_result_t urKernelGetSubGroupInfo(
     ur_kernel_handle_t Kernel, ///< [in] handle of the Kernel object
     ur_device_handle_t Device, ///< [in] handle of the Device object
     ur_kernel_sub_group_info_t
@@ -878,7 +881,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSubGroupInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(
+ur_result_t urKernelRetain(
     ur_kernel_handle_t Kernel ///< [in] handle for the Kernel to retain
 ) {
   Kernel->RefCount.increment();
@@ -886,7 +889,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
+ur_result_t urKernelRelease(
     ur_kernel_handle_t Kernel ///< [in] handle for the Kernel to release
 ) {
   if (!Kernel->RefCount.decrementAndTest())
@@ -903,7 +906,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
   }
   Kernel->ZeKernelMap.clear();
   if (IndirectAccessTrackingEnabled) {
-    UR_CALL(urContextRelease(KernelProgram->Context));
+    UR_CALL(ur::level_zero::urContextRelease(KernelProgram->Context));
   }
   // do a release on the program this kernel was part of without delete of the
   // program handle
@@ -914,7 +917,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
+ur_result_t urKernelSetArgPointer(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_pointer_properties_t
@@ -926,12 +929,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
   std::ignore = Properties;
 
   // KernelSetArgValue is expecting a pointer to the argument
-  UR_CALL(urKernelSetArgValue(Kernel, ArgIndex, sizeof(const void *), nullptr,
-                              &ArgValue));
+  UR_CALL(ur::level_zero::urKernelSetArgValue(
+      Kernel, ArgIndex, sizeof(const void *), nullptr, &ArgValue));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
+ur_result_t urKernelSetExecInfo(
     ur_kernel_handle_t Kernel,      ///< [in] handle of the kernel object
     ur_kernel_exec_info_t PropName, ///< [in] name of the execution attribute
     size_t PropSize,                ///< [in] size in byte the attribute value
@@ -977,7 +980,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
+ur_result_t urKernelSetArgSampler(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_sampler_properties_t
@@ -995,7 +998,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgSampler(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
+ur_result_t urKernelSetArgMemObj(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
     uint32_t ArgIndex, ///< [in] argument index in range [0, num args - 1]
     const ur_kernel_arg_mem_obj_properties_t
@@ -1037,7 +1040,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
+ur_result_t urKernelGetNativeHandle(
     ur_kernel_handle_t Kernel, ///< [in] handle of the kernel.
     ur_native_handle_t
         *NativeKernel ///< [out] a pointer to the native handle of the kernel.
@@ -1048,7 +1051,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, size_t localWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
   (void)localWorkSize;
@@ -1061,7 +1064,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
+ur_result_t urKernelCreateWithNativeHandle(
     ur_native_handle_t NativeKernel, ///< [in] the native handle of the kernel.
     ur_context_handle_t Context,     ///< [in] handle of the context object
     ur_program_handle_t Program,
@@ -1097,13 +1100,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urKernelSetSpecializationConstants(
+    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
+    uint32_t Count, ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t
+        *SpecConstants ///< [in] array of specialization constant value
+                       ///< descriptions
+) {
+  std::ignore = Kernel;
+  std::ignore = Count;
+  std::ignore = SpecConstants;
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::level_zero
+
 ur_result_t ur_kernel_handle_t_::initialize() {
   // Retain the program and context to show it's used by this kernel.
-  UR_CALL(urProgramRetain(Program));
+  UR_CALL(ur::level_zero::urProgramRetain(Program));
 
   if (IndirectAccessTrackingEnabled)
     // TODO: do piContextRetain without the guard
-    UR_CALL(urContextRetain(Program->Context));
+    UR_CALL(ur::level_zero::urContextRetain(Program->Context));
 
   // Set up how to obtain kernel properties when needed.
   ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
@@ -1121,19 +1141,4 @@ ur_result_t ur_kernel_handle_t_::initialize() {
   };
 
   return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
-    ur_kernel_handle_t Kernel, ///< [in] handle of the kernel object
-    uint32_t Count, ///< [in] the number of elements in the pSpecConstants array
-    const ur_specialization_constant_info_t
-        *SpecConstants ///< [in] array of specialization constant value
-                       ///< descriptions
-) {
-  std::ignore = Kernel;
-  std::ignore = Count;
-  std::ignore = SpecConstants;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

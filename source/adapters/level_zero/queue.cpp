@@ -19,7 +19,7 @@
 #include "common.hpp"
 #include "event.hpp"
 #include "queue.hpp"
-#include "ur_api.h"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include "ze_api.h"
@@ -342,7 +342,9 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(
+namespace ur::level_zero {
+
+ur_result_t urQueueGetInfo(
     ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_queue_info_t ParamName, ///< [in] name of the queue property to query
     size_t ParamValueSize, ///< [in] size in bytes of the queue property value
@@ -466,7 +468,7 @@ static bool doEagerInit = [] {
   return EagerInit ? std::atoi(EagerInit) != 0 : false;
 }();
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
+ur_result_t urQueueCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_device_handle_t Device,   ///< [in] handle of the device object
     const ur_queue_properties_t
@@ -575,7 +577,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(
+ur_result_t urQueueRetain(
     ur_queue_handle_t Queue ///< [in] handle of the queue object to get access
 ) {
   {
@@ -586,7 +588,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
+ur_result_t urQueueRelease(
     ur_queue_handle_t Queue ///< [in] handle of the queue object to release
 ) {
   std::vector<ur_event_handle_t> EventListToCleanup;
@@ -689,7 +691,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
+ur_result_t urQueueGetNativeHandle(
     ur_queue_handle_t Queue, ///< [in] handle of the queue.
     ur_queue_native_desc_t *Desc,
     ur_native_handle_t
@@ -726,24 +728,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-void ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
-    ur_queue_handle_t queue, ze_command_list_handle_t ZeCommandList) {
-  // An immediate command list was given to us but we don't have the queue
-  // descriptor information. Create a dummy and note that it is not recycleable.
-  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
-
-  ImmCmdLists = std::vector<ur_command_list_ptr_t>(
-      1,
-      Queue->CommandListMap
-          .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
-              ZeCommandList,
-              ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
-                                     queue->useCompletionBatching(), false,
-                                     false, true)})
-          .first);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
+ur_result_t urQueueCreateWithNativeHandle(
     ur_native_handle_t NativeQueue, ///< [in] the native handle of the queue.
     ur_context_handle_t Context,    ///< [in] handle of the context object
     ur_device_handle_t Device,      ///
@@ -783,12 +768,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(urPlatformGet(&AdapterHandle, 1, NumEntries, &Platform, nullptr));
+  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumEntries,
+                                        &Platform, nullptr));
 
   ur_device_handle_t UrDevice = Device;
   if (UrDevice == nullptr) {
-    UR_CALL(urDeviceGet(Platform, UR_DEVICE_TYPE_GPU, NumEntries, &UrDevice,
-                        nullptr));
+    UR_CALL(ur::level_zero::urDeviceGet(Platform, UR_DEVICE_TYPE_GPU,
+                                        NumEntries, &UrDevice, nullptr));
   }
 
   // The NativeHandleDesc has value if if the native handle is an immediate
@@ -834,7 +820,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
+ur_result_t urQueueFinish(
     ur_queue_handle_t Queue ///< [in] handle of the queue to be finished.
 ) {
   if (Queue->UsingImmCmdLists) {
@@ -901,12 +887,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(
+ur_result_t urQueueFlush(
     ur_queue_handle_t Queue ///< [in] handle of the queue to be flushed.
 ) {
   std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
   return Queue->executeAllOpenCommandLists();
 }
+
+ur_result_t urEnqueueKernelLaunchCustomExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t numPropsInLaunchPropList,
+    const ur_exp_launch_property_t *launchPropList,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hKernel;
+  std::ignore = workDim;
+  std::ignore = pGlobalWorkSize;
+  std::ignore = pLocalWorkSize;
+  std::ignore = numPropsInLaunchPropList;
+  std::ignore = launchPropList;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+
+  logger::error("[UR][L0] {} function not implemented!",
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::level_zero
 
 // Configuration of the command-list batching.
 struct zeCommandListBatchConfig {
@@ -1906,7 +1917,7 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // event will not be waited/released by SYCL RT, so it must be destroyed by
   // EventRelease in resetCommandList.
   if (!IsInternal)
-    UR_CALL(urEventRetain(*Event));
+    UR_CALL(ur::level_zero::urEventRetain(*Event));
 
   return UR_RESULT_SUCCESS;
 }
@@ -2116,6 +2127,23 @@ ur_queue_handle_t_::eventOpenCommandList(ur_event_handle_t Event) {
       return CopyCommandBatch.OpenCommandList;
   }
   return CommandListMap.end();
+}
+
+void ur_queue_handle_t_::ur_queue_group_t::setImmCmdList(
+    ur_queue_handle_t queue, ze_command_list_handle_t ZeCommandList) {
+  // An immediate command list was given to us but we don't have the queue
+  // descriptor information. Create a dummy and note that it is not recycleable.
+  ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
+
+  ImmCmdLists = std::vector<ur_command_list_ptr_t>(
+      1,
+      Queue->CommandListMap
+          .insert(std::pair<ze_command_list_handle_t, ur_command_list_info_t>{
+              ZeCommandList,
+              ur_command_list_info_t(nullptr, true, false, nullptr, ZeQueueDesc,
+                                     queue->useCompletionBatching(), false,
+                                     false, true)})
+          .first);
 }
 
 ur_queue_handle_t_::ur_queue_group_t &

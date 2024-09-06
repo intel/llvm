@@ -8631,6 +8631,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -8689,6 +8694,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -8781,6 +8791,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -8875,6 +8890,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetContextProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -8936,6 +8956,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9019,6 +9044,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9081,6 +9111,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEventProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9142,6 +9177,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9213,6 +9253,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9269,6 +9314,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetMemProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9333,6 +9383,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPhysicalMemProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9390,6 +9445,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9451,6 +9511,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9522,6 +9587,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9579,6 +9649,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9640,6 +9715,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9699,6 +9779,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9760,6 +9845,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9815,6 +9905,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9875,6 +9970,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
@@ -9937,6 +10037,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }

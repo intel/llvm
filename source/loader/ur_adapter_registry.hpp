@@ -33,6 +33,14 @@ class AdapterRegistry {
         if (forceLoadedAdaptersOpt.has_value()) {
             for (const auto &s : forceLoadedAdaptersOpt.value()) {
                 auto path = fs::path(s);
+                if (path.filename().extension() == STATIC_LIBRARY_EXTENSION) {
+                    logger::warning(
+                        "UR_ADAPTERS_FORCE_LOAD contains a path to a static"
+                        "library {}, it will be skipped",
+                        s);
+                    continue;
+                }
+
                 bool exists = false;
                 try {
                     exists = fs::exists(path);
@@ -41,11 +49,12 @@ class AdapterRegistry {
                 }
 
                 if (exists) {
+                    forceLoaded = true;
                     adaptersLoadPaths.emplace_back(
                         std::vector{std::move(path)});
                 } else {
                     logger::warning(
-                        "Detected nonexistent path {} in environmental "
+                        "Detected nonexistent path {} in environment "
                         "variable UR_ADAPTERS_FORCE_LOAD",
                         s);
                 }
@@ -91,6 +100,8 @@ class AdapterRegistry {
     bool empty() const noexcept { return adaptersLoadPaths.size() == 0; }
 
     size_t size() const noexcept { return adaptersLoadPaths.size(); }
+
+    bool adaptersForceLoaded() { return forceLoaded; }
 
     std::vector<std::vector<fs::path>>::const_iterator begin() const noexcept {
         return adaptersLoadPaths.begin();
@@ -182,6 +193,8 @@ class AdapterRegistry {
             adaptersLoadPaths.emplace_back(loadPaths);
         }
     }
+
+    bool forceLoaded = false;
 
   public:
     void enableMock() {

@@ -11,8 +11,10 @@
 #include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
-    ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
+namespace ur::level_zero {
+
+ur_result_t urUsmP2PEnablePeerAccessExp(ur_device_handle_t commandDevice,
+                                        ur_device_handle_t peerDevice) {
 
   std::ignore = commandDevice;
   std::ignore = peerDevice;
@@ -21,8 +23,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
-    ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
+ur_result_t urUsmP2PDisablePeerAccessExp(ur_device_handle_t commandDevice,
+                                         ur_device_handle_t peerDevice) {
 
   std::ignore = commandDevice;
   std::ignore = peerDevice;
@@ -31,10 +33,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
-    ur_device_handle_t commandDevice, ur_device_handle_t peerDevice,
-    ur_exp_peer_info_t propName, size_t propSize, void *pPropValue,
-    size_t *pPropSizeRet) {
+ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
+                                         ur_device_handle_t peerDevice,
+                                         ur_exp_peer_info_t propName,
+                                         size_t propSize, void *pPropValue,
+                                         size_t *pPropSizeRet) {
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
@@ -69,3 +72,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 
   return ReturnValue(propertyValue);
 }
+} // namespace ur::level_zero
