@@ -69,6 +69,10 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  # TODO: Remove debug print. Need this to figure out why zstd is not
+  # being found on Windows CI machines.
+  set(CMAKE_FIND_DEBUG_MODE 1)
+
   # Need zstd for device image compression.
   find_package(zstd REQUIRED)
   target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})

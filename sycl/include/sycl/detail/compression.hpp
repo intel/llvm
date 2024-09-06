@@ -84,8 +84,8 @@ public:
     return std::move(dstBuffer);
   }
 
-  static std::unique_ptr<unsigned char> DecompressBlob(const char *src, size_t srcSize,
-                                              size_t &dstSize) {
+  static std::unique_ptr<unsigned char>
+  DecompressBlob(const char *src, size_t srcSize, size_t &dstSize) {
     auto &instance = GetSingletonInstance();
 
     // Size of decompressed image can be larger than what we can allocate
@@ -103,7 +103,8 @@ public:
     }
 
     // Allocate buffer for decompressed data.
-    auto dstBuffer = std::unique_ptr<unsigned char>(new unsigned char[dstBufferSize]);
+    auto dstBuffer =
+        std::unique_ptr<unsigned char>(new unsigned char[dstBufferSize]);
 
     dstSize = ZSTD_decompressDCtx(
         static_cast<ZSTD_DCtx *>(instance.m_ZSTD_decompression_ctx),
