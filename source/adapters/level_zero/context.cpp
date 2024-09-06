@@ -512,7 +512,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
-        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC};
+        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = 0;
