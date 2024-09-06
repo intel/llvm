@@ -535,9 +535,13 @@ private:
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
-  void throwOnLocalAccessorMisuse(
-      const std::vector<detail::kernel_param_desc_t> &ParamDescs) const {
-    for (const auto &ParamDesc : ParamDescs) {
+  template <typename KernelName, typename KernelType>
+  void throwOnLocalAccessorMisuse() const {
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
+    for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
+      const detail::kernel_param_desc_t ParamDesc =
+          detail::getKernelParamDesc<NameT>(I);
       const detail::kernel_param_kind_t &Kind = ParamDesc.kind;
       const access::target AccTarget =
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
@@ -908,9 +912,7 @@ private:
   /// \param ParamDescs is the vector of kernel parameter descriptors.
   template <typename KernelName, typename KernelType, int Dims,
             typename LambdaArgType>
-  void StoreLambda(KernelType KernelFunc,
-                   const std::vector<detail::kernel_param_desc_t> &ParamDescs =
-                       detail::getKernelParamDescs<KernelName>()) {
+  void StoreLambda(KernelType KernelFunc) {
     constexpr bool IsCallableWithKernelHandler =
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
@@ -948,7 +950,7 @@ private:
       // TODO support ESIMD in no-integration-header case too.
       clearArgs();
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
-                                   ParamDescs,
+                                   detail::getKernelParamDescs<KernelName>(),
                                    detail::isKernelESIMD<KernelName>());
       MKernelName = detail::getKernelName<KernelName>();
     } else {
@@ -1313,13 +1315,7 @@ private:
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    // TODO: Properties may change the kernel function, so in order to avoid
-    //       conflicts they should be included in the name.
-    using NameT =
-        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::vector<detail::kernel_param_desc_t> ParamDescs =
-        detail::getKernelParamDescs<NameT>();
-    throwOnLocalAccessorMisuse(ParamDescs);
+    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1351,6 +1347,10 @@ private:
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
 
+    // TODO: Properties may change the kernel function, so in order to avoid
+    //       conflicts they should be included in the name.
+    using NameT =
+        typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::getKernelName<NameT>());
 
     // Range rounding can be disabled by the user.
@@ -1401,7 +1401,7 @@ private:
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
-          std::move(KernelFunc), ParamDescs);
+          std::move(KernelFunc));
       setType(detail::CGType::Kernel);
       setNDRangeUsed(false);
 #endif
@@ -1840,13 +1840,12 @@ private:
                                _KERNELFUNCPARAM(KernelFunc)) {
     (void)Props;
     throwIfActionIsCreated();
+    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    std::vector<detail::kernel_param_desc_t> ParamDescs =
-        detail::getKernelParamDescs<NameT>();
-    throwOnLocalAccessorMisuse(ParamDescs);
+
     verifyUsedKernelBundle(detail::getKernelName<NameT>());
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1854,7 +1853,7 @@ private:
     // known constant.
     setNDRangeDescriptor(range<1>{1});
     processProperties<NameT, PropertiesT>(Props);
-    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc, ParamDescs);
+    StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CGType::Kernel);
 #endif
   }
