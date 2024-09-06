@@ -102,8 +102,9 @@ public:
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          ur_result_t Err = Plugin->call_nocheck(urProgramRelease, Val);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Plugin->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -140,8 +141,9 @@ public:
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          ur_result_t Err = Plugin->call_nocheck(urKernelRelease, Val.first);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Plugin->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);

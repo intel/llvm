@@ -37,13 +37,13 @@ device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
   ur_device_handle_t Device;
-  Plugin->call(urDeviceCreateWithNativeHandle,
-               detail::ur::cast<ur_native_handle_t>(DeviceId),
-               Plugin->getUrAdapter(), nullptr, &Device);
+  Plugin->call<detail::UrApiKind::urDeviceCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(DeviceId), Plugin->getUrAdapter(),
+      nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromUrDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Plugin->call(urDeviceRetain, impl->getHandleRef());
+  Plugin->call<detail::UrApiKind::urDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -211,7 +211,7 @@ void device::ext_oneapi_enable_peer_access(const device &peer) {
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    Plugin->call(urUsmP2PEnablePeerAccessExp, Device, Peer);
+    Plugin->call<detail::UrApiKind::urUsmP2PEnablePeerAccessExp>(Device, Peer);
   }
 }
 
@@ -220,7 +220,7 @@ void device::ext_oneapi_disable_peer_access(const device &peer) {
   ur_device_handle_t Peer = peer.impl->getHandleRef();
   if (Device != Peer) {
     auto Plugin = impl->getPlugin();
-    Plugin->call(urUsmP2PDisablePeerAccessExp, Device, Peer);
+    Plugin->call<detail::UrApiKind::urUsmP2PDisablePeerAccessExp>(Device, Peer);
   }
 }
 
@@ -247,11 +247,11 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                           "Unrecognized peer access attribute.");
   }();
   auto Plugin = impl->getPlugin();
-  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, 0, nullptr,
-               &returnSize);
+  Plugin->call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
+      Device, Peer, UrAttr, 0, nullptr, &returnSize);
 
-  Plugin->call(urUsmP2PPeerAccessGetInfoExp, Device, Peer, UrAttr, returnSize,
-               &value, nullptr);
+  Plugin->call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
+      Device, Peer, UrAttr, returnSize, &value, nullptr);
 
   return value == 1;
 }
@@ -276,9 +276,8 @@ bool device::ext_oneapi_supports_cl_c_feature(detail::string_view Feature) {
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
-  auto res =
-      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
-                           sizeof(uint32_t), &ipVersion, nullptr);
+  auto res = Plugin->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
 
@@ -291,9 +290,8 @@ bool device::ext_oneapi_supports_cl_c_version(
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
-  auto res =
-      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
-                           sizeof(uint32_t), &ipVersion, nullptr);
+  auto res = Plugin->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
 
@@ -307,9 +305,8 @@ bool device::ext_oneapi_supports_cl_extension(
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
-  auto res =
-      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
-                           sizeof(uint32_t), &ipVersion, nullptr);
+  auto res = Plugin->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return false;
 
@@ -321,9 +318,8 @@ detail::string device::ext_oneapi_cl_profile_impl() const {
   ur_device_handle_t Device = impl->getHandleRef();
   auto Plugin = impl->getPlugin();
   uint32_t ipVersion = 0;
-  auto res =
-      Plugin->call_nocheck(urDeviceGetInfo, Device, UR_DEVICE_INFO_IP_VERSION,
-                           sizeof(uint32_t), &ipVersion, nullptr);
+  auto res = Plugin->call_nocheck<detail::UrApiKind::urDeviceGetInfo>(
+      Device, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t), &ipVersion, nullptr);
   if (res != UR_RESULT_SUCCESS)
     return detail::string{""};
 

@@ -333,6 +333,9 @@ template <typename T>
 struct is_floating_point
     : is_floating_point_impl<std::remove_cv_t<get_elem_type_t<T>>> {};
 
+template <typename T>
+constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
 // is_arithmetic
 template <typename T>
 struct is_arithmetic

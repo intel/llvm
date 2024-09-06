@@ -235,6 +235,7 @@ ENUM_CODEGENOPT(StructReturnConvention, StructReturnConventionKind, 2, SRCK_Defa
 
 CODEGENOPT(RelaxAll          , 1, 0) ///< Relax all machine code instructions.
 CODEGENOPT(RelaxedAliasing   , 1, 0) ///< Set when -fno-strict-aliasing is enabled.
+CODEGENOPT(PointerTBAA, 1, 0)        ///< Whether or not to use distinct TBAA tags for pointers.
 CODEGENOPT(StructPathTBAA    , 1, 0) ///< Whether or not to use struct-path TBAA.
 CODEGENOPT(NewStructPathTBAA , 1, 0) ///< Whether or not to use enhanced struct-path TBAA.
 CODEGENOPT(SaveTempLabels    , 1, 0) ///< Save temporary labels.
@@ -431,6 +432,9 @@ CODEGENOPT(ForceAAPCSBitfieldLoad, 1, 0)
 /// Assume that by-value parameters do not alias any other values.
 CODEGENOPT(PassByValueIsNoAlias, 1, 0)
 
+/// Whether to store register parameters to stack.
+CODEGENOPT(SaveRegParams, 1, 0)
+
 /// Whether to not follow the AAPCS that enforces volatile bit-field access width to be
 /// according to the field declaring type width.
 CODEGENOPT(AAPCSBitfieldWidth, 1, 1)
@@ -454,11 +458,6 @@ CODEGENOPT(SkipRaxSetup, 1, 0)
 /// Whether to zero out caller-used registers before returning.
 ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
                 5, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind::Skip)
-
-/// Whether to expect -main-file-name to be an absolute path to use it for
-/// checksum calculations or not.
-CODEGENOPT(SYCLUseMainFileName, 1, 0)
-
 
 /// Modify C++ ABI to returning `this` pointer from constructors and
 /// non-deleting destructors. (No effect on Microsoft ABI.)
