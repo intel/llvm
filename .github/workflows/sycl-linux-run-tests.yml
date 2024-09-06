@@ -367,7 +367,7 @@ jobs:
     - name: Run sycl-bench microbenchmarks
       id: run_benchmarks
       if: inputs.tests_selector == 'benchmark'
-      run: ./devops/scripts/sycl-bench.sh https://github.com/ianayl/sycl-bench
+      run: ./devops/scripts/benchmarking/benchmark.sh
     - name: Upload sycl-bench microbenchmark results
       if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
       uses: actions/upload-artifact@v4

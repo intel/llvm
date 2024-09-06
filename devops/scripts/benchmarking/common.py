@@ -1,0 +1,43 @@
+import os
+import re
+import ast
+
+PERF_RES_PATH, metrics_variance, metrics_recorded = None, None, None
+
+def sanitize(stat: str) -> float:
+	# Get rid of %
+	if stat[-1] == '%':
+		stat = stat[:-1]
+	return float(stat)
+
+
+def load_configs():
+    BENCHMARKING_ROOT = os.getenv("BENCHMARKING_ROOT")
+    if BENCHMARKING_ROOT is None:
+        # Try to predict where BENCHMARKING_ROOT is based on executable
+        BENCHMARKING_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+    benchmarking_ci_conf_path = f"{BENCHMARKING_ROOT}/benchmark-ci.conf"
+    if not os.path.isfile(benchmarking_ci_conf_path):
+        raise Exception(f"Please provide path to a valid BENCHMARKING_ROOT.")
+
+    global PERF_RES_PATH, metrics_variance, metrics_recorded
+    perf_res_re   = re.compile(r'^PERF_RES_PATH=(.*)$', re.M)
+    m_variance_re = re.compile(r'^METRICS_VARIANCE=(.*)$', re.M)
+    m_recorded_re = re.compile(r'^METRICS_RECORDED=(.*)$', re.M)
+
+    with open(benchmarking_ci_conf_path, 'r') as configs_file:
+        configs_str = configs_file.read()
+
+        for m_variance in m_variance_re.findall(configs_str):
+            metrics_variance = ast.literal_eval(m_variance.strip()[1:-1])
+            if not isinstance(metrics_variance, dict):
+                raise TypeError("Error in benchmark-ci.conf: METRICS_VARIANCE is not a python dict.")
+
+        for m_recorded in m_recorded_re.findall(configs_str):
+            metrics_recorded = ast.literal_eval(m_recorded.strip()[1:-1])
+            if not isinstance(metrics_recorded, list):
+                raise TypeError("Error in benchmark-ci.conf: METRICS_RECORDED is not a python list.")
+
+        for perf_res in perf_res_re.findall(configs_str):
+            PERF_RES_PATH = str(perf_res[1:-1])
