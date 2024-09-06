@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9d71afb85694c133ec5aede5bad11dc4d9d05972 (HEAD, upstream/main, upstream/HEAD)
-  # Merge: d50a59ec 5be1aa41
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 09:45:31 2024 +0200
-  #   Merge pull request #2062 from nrspruit/fix_inorder_cache
-  #   [L0] Fix Command List Cache to correctly set In order List property
-  set(UNIFIED_RUNTIME_TAG 9d71afb85694c133ec5aede5bad11dc4d9d05972)
+  # commit a99dbcee3404a56d05b8803c63caede64a073076 (HEAD, origin/main, origin/HEAD)
+  # Merge: 9d71afb8 4bf58035
+  # Author: Callum Fare <callum@codeplay.com>
+  # Date:   Fri Sep 6 16:00:14 2024 +0100
+  #  Merge pull request #2067 from sarnex/fixbuild
+  #  [OpenCL] Use older OpenCL-Headers commit to fix build
+  set(UNIFIED_RUNTIME_TAG a99dbcee3404a56d05b8803c63caede64a073076)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
