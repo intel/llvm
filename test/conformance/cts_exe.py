@@ -28,7 +28,7 @@ if __name__ == '__main__':
     result = subprocess.Popen([args.test_command, '--gtest_brief=1',        # nosec B603
                                f'--devices_count={args.devices_count}',
                                f'--platforms_count={args.platforms_count}'],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
 
     pat = re.compile(r'\[( )*FAILED( )*\]')
     output_list = []

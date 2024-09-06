@@ -56,11 +56,11 @@ using provider_unique_handle_t =
         return UMF_RESULT_ERROR_NOT_SUPPORTED;                                 \
     }
 
-DEFINE_CHECK_OP(get_ipc_handle_size);
-DEFINE_CHECK_OP(get_ipc_handle);
-DEFINE_CHECK_OP(put_ipc_handle);
-DEFINE_CHECK_OP(open_ipc_handle);
-DEFINE_CHECK_OP(close_ipc_handle);
+DEFINE_CHECK_OP(get_ipc_handle_size)
+DEFINE_CHECK_OP(get_ipc_handle)
+DEFINE_CHECK_OP(put_ipc_handle)
+DEFINE_CHECK_OP(open_ipc_handle)
+DEFINE_CHECK_OP(close_ipc_handle)
 
 #define UMF_ASSIGN_OP(ops, type, func, default_return)                         \
     ops.func = [](void *obj, auto... args) {                                   \
