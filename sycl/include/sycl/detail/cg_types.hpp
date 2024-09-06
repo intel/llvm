@@ -158,7 +158,7 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
-  // NOTE: InstatitateKernelOnHost() should not be called.
+  // NOTE: InstatiateKernelOnHost() should not be called.
   virtual void InstantiateKernelOnHost() = 0;
 };
 
@@ -181,7 +181,7 @@ public:
   // This function is needed for host-side compilation to keep kernels
   // instantitated. This is important for debuggers to be able to associate
   // kernel code instructions with source code lines.
-  // NOTE: InstatitateKernelOnHost() should not be called.
+  // NOTE: InstatiateKernelOnHost() should not be called.
   void InstantiateKernelOnHost() override {
     if constexpr (std::is_same_v<KernelArgType, void>) {
       runKernelWithoutArg(MKernel);
