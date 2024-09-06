@@ -24,7 +24,10 @@ namespace multi_llvm {
 inline llvm::Value *createSimpleTargetReduction(
     llvm::IRBuilderBase &B, const llvm::TargetTransformInfo *TTI,
     llvm::Value *Src, llvm::RecurKind RdxKind) {
-#if LLVM_VERSION_MAJOR >= 18
+#if LLVM_VERSION_MAJOR >= 20
+  (void)TTI;
+  return llvm::createSimpleReduction(B, Src, RdxKind);
+#elif LLVM_VERSION_MAJOR >= 18
   (void)TTI;
   return llvm::createSimpleTargetReduction(B, Src, RdxKind);
 #else
