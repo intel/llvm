@@ -123,7 +123,6 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Fri Sep 6 16:00:14 2024 +0100
   #  Merge pull request #2067 from sarnex/fixbuild
   #  [OpenCL] Use older OpenCL-Headers commit to fix build
-
   set(UNIFIED_RUNTIME_TAG a99dbcee3404a56d05b8803c63caede64a073076)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
