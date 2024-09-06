@@ -32,6 +32,7 @@
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/PropertySetIO.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -740,4 +741,13 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
   W.createRegisterFatbinFunction(Desc);
   W.createUnregisterFunction(Desc);
   return Error::success();
+}
+
+SmallString<64> llvm::offloading::convertWrappingOptionsToString(
+    const SYCLWrappingOptions &Options) {
+  return formatv("CompileOptions: {0}, LinkOptions: {1}, "
+                 "EmitRegistrationFuncs: {2}",
+                 Options.CompileOptions, Options.LinkOptions,
+                 Options.EmitRegistrationFunctions)
+      .sstr<64>();
 }

@@ -67,6 +67,9 @@ struct SYCLWrappingOptions {
   std::string LinkOptions;
 };
 
+SmallString<64>
+convertWrappingOptionsToString(const SYCLWrappingOptions &Options);
+
 /// Wraps the input bundled images and accompanied data into the module \p M
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
