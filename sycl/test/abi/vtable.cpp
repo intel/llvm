@@ -9,16 +9,16 @@
 // Guide for further instructions.
 
 void foo(sycl::detail::HostKernelBase &HKB) {
-  HKB.InstatitateKernelOnHost();
+  HKB.InstantiateKernelOnHost();
 }
 // CHECK:      Vtable for 'sycl::detail::HostKernelBase' (6 entries).
 // CHECK-NEXT:   0 | offset_to_top (0)
 // CHECK-NEXT:   1 | sycl::detail::HostKernelBase RTTI
 // CHECK-NEXT:       -- (sycl::detail::HostKernelBase, 0) vtable address --
-// CHECK-NEXT:   2 | void sycl::detail::HostKernelBase::InstatitateKernelOnHost() [pure]
-// CHECK-NEXT:   3 | char *sycl::detail::HostKernelBase::getPtr() [pure]
-// CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
-// CHECK-NEXT:   5 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
+// CHECK-NEXT:   2 | char *sycl::detail::HostKernelBase::getPtr() [pure]
+// CHECK-NEXT:   3 | sycl::detail::HostKernelBase::~HostKernelBase() [complete]
+// CHECK-NEXT:   4 | sycl::detail::HostKernelBase::~HostKernelBase() [deleting]
+// CHECK-NEXT:   5 | void sycl::detail::HostKernelBase::InstantiateKernelOnHost() [pure]
 
 void foo(sycl::detail::PropertyWithDataBase *Prop) { delete Prop; }
 // CHECK:    Vtable for 'sycl::detail::PropertyWithDataBase' (4 entries).
