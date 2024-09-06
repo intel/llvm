@@ -76,6 +76,11 @@ on:
         default: '{}'
         required: False
 
+      run_condition:
+        type: string
+        default: 'true'
+        required: False
+
   workflow_dispatch:
     inputs:
       runner:
@@ -146,6 +151,7 @@ permissions:
 
 jobs:
   run:
+    if: inputs.run_condition == 'true'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
