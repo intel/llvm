@@ -100,7 +100,7 @@ jobs:
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
@@ -110,6 +110,8 @@ jobs:
             use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+            # Run only if the PR does not have the 'ci-no-devigc' label.
+            skip_run: ${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') }}
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -123,6 +125,7 @@ jobs:
       use_dev_igc: ${{ matrix.use_dev_igc }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
+      skip_run: ${{ matrix.skip_run || 'false' }}
 
       ref: ${{ github.sha }}
       merge_ref: ''

@@ -301,9 +301,9 @@ public:
     const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
-      Plugin->call(urProgramRetain, MProgram);
+      Plugin->call<UrApiKind::urProgramRetain>(MProgram);
     ur_native_handle_t NativeProgram = 0;
-    Plugin->call(urProgramGetNativeHandle, MProgram, &NativeProgram);
+    Plugin->call<UrApiKind::urProgramGetNativeHandle>(MProgram, &NativeProgram);
 
     return NativeProgram;
   }
@@ -312,7 +312,7 @@ public:
     try {
       if (MProgram) {
         const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-        Plugin->call(urProgramRelease, MProgram);
+        Plugin->call<UrApiKind::urProgramRelease>(MProgram);
       }
       if (MSpecConstsBuffer) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
