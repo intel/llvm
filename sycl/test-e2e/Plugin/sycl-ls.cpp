@@ -14,3 +14,5 @@
 // UNSUPPORTED: cuda
 // Temporarily disable on L0 due to fails in CI
 // UNSUPPORTED: level_zero
+// https://github.com/intel/llvm/issues/15313
+// UNSUPPORTED: hip_amd
