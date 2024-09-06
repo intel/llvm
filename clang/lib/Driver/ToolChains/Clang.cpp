@@ -10783,7 +10783,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
   if (allowDeviceDependencies(TCArgs))
-    addArgs(PostLinkArgs, TCArgs, {"-allow-device-dependencies"});
+    addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
