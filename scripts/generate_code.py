@@ -401,6 +401,32 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
     print("Generated %s lines of code.\n"%loc)
 
 """
+    generates c/c++ files from the specification documents
+"""
+def _mako_interface_loader_api(path, adapter, ext, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, adapter)
+    os.makedirs(dstpath, exist_ok=True)
+
+    template = f"ur_interface_loader.{ext}.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = f"ur_interface_loader"
+
+    filename = f"{name}.{ext}"
+    fout = os.path.join(dstpath, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        adapter=adapter,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta,)
+
+"""
 Entry-point:
     generates adapter for unified_runtime
 """
@@ -416,6 +442,10 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
     loc += _mako_linker_scripts(
         dstpath, "adapter", "def", namespace, tags, version, specs, meta
     )
+
+    loc += _mako_interface_loader_api(dstpath, "level_zero", "cpp", namespace, tags, version, specs, meta)
+    loc += _mako_interface_loader_api(dstpath, "level_zero", "hpp", namespace, tags, version, specs, meta)
+
     print("Generated %s lines of code.\n"%loc)
 
 """

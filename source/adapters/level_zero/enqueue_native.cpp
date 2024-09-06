@@ -12,7 +12,9 @@
 #include <ur_api.h>
 #include <utility>
 
-UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
+namespace ur::level_zero {
+
+ur_result_t urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue,
     ur_exp_enqueue_native_command_function_t pfnNativeEnqueue, void *data,
     uint32_t numMemsInMemList, const ur_mem_handle_t *phMemList,
@@ -31,3 +33,5 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::level_zero

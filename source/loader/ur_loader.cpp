@@ -8,13 +8,24 @@
  *
  */
 #include "ur_loader.hpp"
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+#include "adapters/level_zero/ur_interface_loader.hpp"
+#endif
 
 namespace ur_loader {
 ///////////////////////////////////////////////////////////////////////////////
 context_t *getContext() { return context_t::get_direct(); }
 
-///////////////////////////////////////////////////////////////////////////////
 ur_result_t context_t::init() {
+#ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
+    // If the adapters were force loaded, it means the user wants to use
+    // a specific adapter library. Don't load any static adapters.
+    if (!adapter_registry.adaptersForceLoaded()) {
+        auto &level_zero = platforms.emplace_back(nullptr);
+        ur::level_zero::urAdapterGetDdiTables(&level_zero.dditable.ur);
+    }
+#endif
+
     for (const auto &adapterPaths : adapter_registry) {
         for (const auto &path : adapterPaths) {
             auto handle = LibLoader::loadAdapterLibrary(path.string().c_str());
