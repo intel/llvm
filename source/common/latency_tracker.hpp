@@ -42,6 +42,7 @@ static constexpr double percentiles[numPercentiles] = {
     50.0, 90.0, 99.0, 99.9, 99.99, 99.999, 99.9999};
 
 struct latencyValues {
+    int64_t count;
     int64_t min;
     int64_t max;
     int64_t mean;
@@ -54,6 +55,7 @@ using histogram_ptr =
 
 static inline latencyValues getValues(const struct hdr_histogram *histogram) {
     latencyValues values;
+    values.count = histogram->total_count;
     values.max = hdr_max(histogram);
     values.min = hdr_min(histogram);
     values.mean = static_cast<int64_t>(hdr_mean(histogram));
@@ -92,13 +94,16 @@ class latency_printer {
 
         for (auto &[name, histogram] : values) {
             auto value = getValues(histogram.get());
-            logger.log(logger::Level::INFO,
-                       "{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
-                       value.min, value.max, value.mean, value.stddev,
-                       value.percentileValues[0], value.percentileValues[1],
-                       value.percentileValues[2], value.percentileValues[3],
-                       value.percentileValues[4], value.percentileValues[5],
-                       value.percentileValues[6]);
+            auto f = groupDigits<int64_t>;
+            logger.log(
+                logger::Level::INFO,
+                "{},{},{},{},{},{},{},{},{},{},{},{},{},{},ns", name,
+                f(value.mean), f(value.percentileValues[0]),
+                f(value.percentileValues[1]), f(value.percentileValues[2]),
+                f(value.percentileValues[3]), f(value.percentileValues[4]),
+                f(value.percentileValues[5]), f(value.percentileValues[6]),
+                f(value.count), f(value.count * value.mean), f(value.min),
+                f(value.max), value.stddev);
         }
     }
 
@@ -106,7 +111,8 @@ class latency_printer {
     inline void printHeader() {
         logger.log(logger::Level::INFO, "Latency histogram:");
         logger.log(logger::Level::INFO,
-                   "name,min,max,mean,stdev,p{},p{},p{},p{},p{},p{},p{},unit",
+                   "name,mean,p{},p{},p{},p{},p{},p{}"
+                   ",p{},count,sum,min,max,stdev,unit",
                    percentiles[0], percentiles[1], percentiles[2],
                    percentiles[3], percentiles[4], percentiles[5],
                    percentiles[6]);
