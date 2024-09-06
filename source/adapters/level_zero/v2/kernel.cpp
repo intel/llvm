@@ -324,6 +324,17 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   }
 }
 
+ur_result_t
+urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                    size_t argSize,
+                    const ur_kernel_arg_local_properties_t *pProperties) {
+  TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgLocal");
+
+  std::ignore = pProperties;
+
+  return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
+}
+
 ur_result_t urKernelSetExecInfo(
     ur_kernel_handle_t hKernel,     ///< [in] handle of the kernel object
     ur_kernel_exec_info_t propName, ///< [in] name of the execution attribute
@@ -337,5 +348,115 @@ ur_result_t urKernelSetExecInfo(
   std::ignore = pProperties;
 
   return hKernel->setExecInfo(propName, pPropValue);
+}
+
+ur_result_t urKernelGetGroupInfo(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
+    ur_device_handle_t hDevice, ///< [in] handle of the Device object
+    ur_kernel_group_info_t
+        paramName, ///< [in] name of the work Group property to query
+    size_t
+        paramValueSize, ///< [in] size of the Kernel Work Group property value
+    void *pParamValue,  ///< [in,out][optional][range(0, propSize)] value of the
+                        ///< Kernel Work Group property.
+    size_t *pParamValueSizeRet ///< [out][optional] pointer to the actual size
+                               ///< in bytes of data being queried by propName.
+) {
+  UrReturnHelper returnValue(paramValueSize, pParamValue, pParamValueSizeRet);
+
+  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  switch (paramName) {
+  case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
+    // TODO: To revisit after level_zero/issues/262 is resolved
+    struct {
+      size_t Arr[3];
+    } GlobalWorkSize = {{(hDevice->ZeDeviceComputeProperties->maxGroupSizeX *
+                          hDevice->ZeDeviceComputeProperties->maxGroupCountX),
+                         (hDevice->ZeDeviceComputeProperties->maxGroupSizeY *
+                          hDevice->ZeDeviceComputeProperties->maxGroupCountY),
+                         (hDevice->ZeDeviceComputeProperties->maxGroupSizeZ *
+                          hDevice->ZeDeviceComputeProperties->maxGroupCountZ)}};
+    return returnValue(GlobalWorkSize);
+  }
+  case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
+    ZeStruct<ze_kernel_max_group_size_properties_ext_t> workGroupProperties;
+    workGroupProperties.maxGroupSize = 0;
+
+    ZeStruct<ze_kernel_properties_t> kernelProperties;
+    kernelProperties.pNext = &workGroupProperties;
+
+    auto zeDevice = hKernel->getZeHandle(hDevice);
+    if (zeDevice) {
+      auto zeResult =
+          ZE_CALL_NOCHECK(zeKernelGetProperties, (zeDevice, &kernelProperties));
+      if (zeResult == ZE_RESULT_SUCCESS &&
+          workGroupProperties.maxGroupSize != 0) {
+        return returnValue(workGroupProperties.maxGroupSize);
+      }
+      return returnValue(
+          uint64_t{hDevice->ZeDeviceComputeProperties->maxTotalGroupSize});
+    }
+  }
+  case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
+    auto props = hKernel->getProperties(hDevice);
+    struct {
+      size_t Arr[3];
+    } WgSize = {{props.requiredGroupSizeX, props.requiredGroupSizeY,
+                 props.requiredGroupSizeZ}};
+    return returnValue(WgSize);
+  }
+  case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
+    auto props = hKernel->getProperties(hDevice);
+    return returnValue(uint32_t{props.localMemSize});
+  }
+  case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
+    return returnValue(
+        size_t{hDevice->ZeDeviceProperties->physicalEUSimdWidth});
+  }
+  case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
+    auto props = hKernel->getProperties(hDevice);
+    return returnValue(uint32_t{props.privateMemSize});
+  }
+  default: {
+    logger::error(
+        "Unknown ParamName in urKernelGetGroupInfo: ParamName={}(0x{})",
+        paramName, logger::toHex(paramName));
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urKernelGetSubGroupInfo(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the Kernel object
+    ur_device_handle_t hDevice, ///< [in] handle of the Device object
+    ur_kernel_sub_group_info_t
+        propName,     ///< [in] name of the SubGroup property to query
+    size_t propSize,  ///< [in] size of the Kernel SubGroup property value
+    void *pPropValue, ///< [in,out][range(0, propSize)][optional] value of the
+                      ///< Kernel SubGroup property.
+    size_t *pPropSizeRet ///< [out][optional] pointer to the actual size in
+                         ///< bytes of data being queried by propName.
+) {
+  std::ignore = hDevice;
+
+  UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
+
+  auto props = hKernel->getProperties(hDevice);
+
+  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
+    returnValue(uint32_t{props.maxSubgroupSize});
+  } else if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS) {
+    returnValue(uint32_t{props.maxNumSubgroups});
+  } else if (propName == UR_KERNEL_SUB_GROUP_INFO_COMPILE_NUM_SUB_GROUPS) {
+    returnValue(uint32_t{props.requiredNumSubGroups});
+  } else if (propName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
+    returnValue(uint32_t{props.requiredSubgroupSize});
+  } else {
+    die("urKernelGetSubGroupInfo: parameter not implemented");
+    return {};
+  }
+  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero

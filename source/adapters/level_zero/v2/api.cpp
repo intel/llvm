@@ -184,35 +184,9 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                             ur_kernel_info_t propName, size_t propSize,
                             void *pPropValue, size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urKernelGetGroupInfo(ur_kernel_handle_t hKernel,
-                                 ur_device_handle_t hDevice,
-                                 ur_kernel_group_info_t propName,
-                                 size_t propSize, void *pPropValue,
-                                 size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
-                                    ur_device_handle_t hDevice,
-                                    ur_kernel_sub_group_info_t propName,
-                                    size_t propSize, void *pPropValue,
-                                    size_t *pPropSizeRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
