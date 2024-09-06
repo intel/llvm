@@ -80,6 +80,6 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
       be = "END";
     else
       be = "BEGIN";
-    printf("SYCL_PI: %-35s %s\n", Name, be);
+    printf("SYCL_UR: %-35s %s\n", Name, be);
   }
 }
