@@ -23,6 +23,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 
 namespace sycl {
@@ -196,6 +197,7 @@ public:
         MUserPtr = HostPtr;
       } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -229,6 +231,7 @@ public:
         MUserPtr = HostPtr.get();
       } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
         MUserPtr = HostPtr.get();
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -375,6 +378,7 @@ protected:
   // defer the memory allocation and copying to the point where a writable
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
+  std::mutex MCreateShadowCopyMtx;
   bool MOwnNativeHandle = true;
 };
 } // namespace detail

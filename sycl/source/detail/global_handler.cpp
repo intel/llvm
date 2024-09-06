@@ -355,8 +355,14 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  bool PrintUrTrace =
-      sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+  bool PrintUrTrace = false;
+  try {
+    PrintUrTrace =
+        sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
+    return FALSE;
+  }
 
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
@@ -367,7 +373,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents release.
+                   // TODO: figure out what XPTI is doing that prevents
+                   // release.
 #endif
 
     shutdown_win();
