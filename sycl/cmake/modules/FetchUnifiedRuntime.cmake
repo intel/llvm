@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a99dbcee3404a56d05b8803c63caede64a073076 (HEAD, origin/main, origin/HEAD)
-  # Merge: 9d71afb8 4bf58035
-  # Author: Callum Fare <callum@codeplay.com>
-  # Date:   Fri Sep 6 16:00:14 2024 +0100
-  #  Merge pull request #2067 from sarnex/fixbuild
-  #  [OpenCL] Use older OpenCL-Headers commit to fix build
-  set(UNIFIED_RUNTIME_TAG a99dbcee3404a56d05b8803c63caede64a073076)
+  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
+  # Merge: a99dbcee 3abe18cf
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Sep 6 17:21:17 2024 +0200
+  #   Merge pull request #1820 from pbalcer/static-linking
+  #   Add support for static linking of the L0 adapter
+  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
