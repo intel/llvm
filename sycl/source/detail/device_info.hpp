@@ -142,9 +142,9 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 template <typename ReturnT, typename Param> struct get_device_info_impl {
   static ReturnT get(const DeviceImplPtr &Dev) {
     typename sycl_to_ur<ReturnT>::type result;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<Param>::value, sizeof(result), &result,
-                           nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
+        nullptr);
     return ReturnT(result);
   }
 };
@@ -153,9 +153,9 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 template <typename Param> struct get_device_info_impl<platform, Param> {
   static platform get(const DeviceImplPtr &Dev) {
     typename sycl_to_ur<platform>::type result;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<Param>::value, sizeof(result), &result,
-                           nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
+        nullptr);
     // TODO: Change UrDevice to device_impl.
     // Use the Plugin from the device_impl class after plugin details
     // are added to the class.
@@ -169,14 +169,14 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 inline std::string
 device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   size_t resultSize = 0;
-  getPlugin()->call(urDeviceGetInfo, getHandleRef(), InfoCode, 0, nullptr,
-                    &resultSize);
+  getPlugin()->call<UrApiKind::urDeviceGetInfo>(getHandleRef(), InfoCode, 0,
+                                                nullptr, &resultSize);
   if (resultSize == 0) {
     return std::string();
   }
   std::unique_ptr<char[]> result(new char[resultSize]);
-  getPlugin()->call(urDeviceGetInfo, getHandleRef(), InfoCode, resultSize,
-                    result.get(), nullptr);
+  getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+      getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
 
   return std::string(result.get());
 }
@@ -205,9 +205,9 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
       return {};
     }
     ur_device_fp_capability_flags_t result;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<Param>::value, sizeof(result), &result,
-                           nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<Param>::value, sizeof(result), &result,
+        nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -226,9 +226,9 @@ struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
     ur_device_fp_capability_flags_t result;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<info::device::single_fp_config>::value,
-                           sizeof(result), &result, nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<info::device::single_fp_config>::value,
+        sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
   }
 };
@@ -239,9 +239,9 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_queue_flags_t Properties;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<info::device::queue_profiling>::value,
-                           sizeof(Properties), &Properties, nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
     return Properties & UR_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
@@ -252,8 +252,8 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     ur_memory_order_capability_flag_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::atomic_memory_order_capabilities>::value,
         sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
@@ -266,8 +266,8 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     ur_memory_order_capability_flag_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::atomic_fence_order_capabilities>::value,
         sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
@@ -280,8 +280,8 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     size_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::atomic_memory_scope_capabilities>::value,
         sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
@@ -294,8 +294,8 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     size_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::atomic_fence_scope_capabilities>::value,
         sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
@@ -308,8 +308,8 @@ struct get_device_info_impl<bool, info::device::ext_oneapi_cuda_cluster_group> {
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
     if (Dev->getBackend() == backend::ext_oneapi_cuda) {
-      auto Err = Dev->getPlugin()->call_nocheck(
-          urDeviceGetInfo, Dev->getHandleRef(),
+      auto Err = Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(),
           UrInfoCode<info::device::ext_oneapi_cuda_cluster_group>::value,
           sizeof(result), &result, nullptr);
       if (Err != UR_RESULT_SUCCESS) {
@@ -326,8 +326,8 @@ struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
     ur_device_exec_capability_flag_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
         &result, nullptr);
     return read_execution_bitfield(result);
@@ -395,8 +395,8 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     const auto &Plugin = Dev->getPlugin();
 
     size_t resultSize;
-    Plugin->call(urDeviceGetInfo, Dev->getHandleRef(), info_partition, 0,
-                 nullptr, &resultSize);
+    Plugin->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
 
     size_t arrayLength = resultSize / sizeof(ur_device_partition_t);
     if (arrayLength == 0) {
@@ -404,8 +404,9 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     }
     std::unique_ptr<ur_device_partition_t[]> arrayResult(
         new ur_device_partition_t[arrayLength]);
-    Plugin->call(urDeviceGetInfo, Dev->getHandleRef(), info_partition,
-                 resultSize, arrayResult.get(), nullptr);
+    Plugin->call<UrApiKind::urDeviceGetInfo>(Dev->getHandleRef(),
+                                             info_partition, resultSize,
+                                             arrayResult.get(), nullptr);
 
     std::vector<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
@@ -427,8 +428,8 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
     ur_device_affinity_domain_flags_t result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::partition_affinity_domains>::value,
         sizeof(result), &result, nullptr);
     return read_domain_bitfield(result);
@@ -443,8 +444,8 @@ struct get_device_info_impl<info::partition_affinity_domain,
   static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
     std::vector<ur_device_partition_property_t> PartitionProperties;
     size_t PropertiesSize = 0;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
         nullptr, &PropertiesSize);
     if (PropertiesSize == 0)
@@ -453,8 +454,8 @@ struct get_device_info_impl<info::partition_affinity_domain,
     PartitionProperties.resize(PropertiesSize /
                                sizeof(ur_device_partition_property_t));
 
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
         PropertiesSize, PartitionProperties.data(), nullptr);
 
@@ -475,8 +476,8 @@ struct get_device_info_impl<info::partition_property,
   static info::partition_property get(const DeviceImplPtr &Dev) {
     std::vector<ur_device_partition_property_t> PartitionProperties;
     size_t PropertiesSize = 0;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
         nullptr, &PropertiesSize);
     if (PropertiesSize == 0)
@@ -485,8 +486,8 @@ struct get_device_info_impl<info::partition_property,
     PartitionProperties.resize(PropertiesSize /
                                sizeof(ur_device_partition_property_t));
 
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
         PropertiesSize, PartitionProperties.data(), nullptr);
     // The old UR implementation also just checked the first element, is that
@@ -501,14 +502,14 @@ struct get_device_info_impl<std::vector<size_t>,
                             info::device::sub_group_sizes> {
   static std::vector<size_t> get(const DeviceImplPtr &Dev) {
     size_t resultSize = 0;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<info::device::sub_group_sizes>::value, 0,
-                           nullptr, &resultSize);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value,
+        0, nullptr, &resultSize);
 
     std::vector<uint32_t> result32(resultSize / sizeof(uint32_t));
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<info::device::sub_group_sizes>::value,
-                           resultSize, result32.data(), nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<info::device::sub_group_sizes>::value,
+        resultSize, result32.data(), nullptr);
 
     std::vector<size_t> result;
     result.reserve(result32.size());
@@ -562,8 +563,8 @@ struct get_device_info_impl<range<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
   static range<Dimensions> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
         sizeof(result), &result, nullptr);
     return construct_range<Dimensions>(result);
@@ -698,8 +699,8 @@ struct get_device_info_impl<
         return ext::oneapi::experimental::architecture::unknown;
       };
       uint32_t DeviceIp;
-      Dev->getPlugin()->call(
-          urDeviceGetInfo, Dev->getHandleRef(),
+      Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(),
           UrInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
@@ -714,13 +715,13 @@ struct get_device_info_impl<
         return ext::oneapi::experimental::architecture::unknown;
       };
       size_t ResultSize = 0;
-      Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                             UrInfoCode<info::device::version>::value, 0,
-                             nullptr, &ResultSize);
+      Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(), UrInfoCode<info::device::version>::value, 0,
+          nullptr, &ResultSize);
       std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
-      Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                             UrInfoCode<info::device::version>::value,
-                             ResultSize, DeviceArch.get(), nullptr);
+      Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(), UrInfoCode<info::device::version>::value,
+          ResultSize, DeviceArch.get(), nullptr);
       std::string DeviceArchCopy(DeviceArch.get());
       std::string DeviceArchSubstr =
           DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
@@ -734,8 +735,8 @@ struct get_device_info_impl<
         return sycl::ext::oneapi::experimental::architecture::x86_64;
       };
       uint32_t DeviceIp;
-      Dev->getPlugin()->call(
-          urDeviceGetInfo, Dev->getHandleRef(),
+      Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+          Dev->getHandleRef(),
           UrInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
@@ -971,8 +972,8 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
@@ -988,8 +989,8 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
@@ -1005,8 +1006,8 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
         sizeof(result), &result, nullptr);
@@ -1067,9 +1068,9 @@ struct get_device_info_impl<id<3>,
 template <> struct get_device_info_impl<device, info::device::parent_device> {
   static device get(const DeviceImplPtr &Dev) {
     typename sycl_to_ur<device>::type result;
-    Dev->getPlugin()->call(urDeviceGetInfo, Dev->getHandleRef(),
-                           UrInfoCode<info::device::parent_device>::value,
-                           sizeof(result), &result, nullptr);
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(), UrInfoCode<info::device::parent_device>::value,
+        sizeof(result), &result, nullptr);
     if (result == nullptr)
       throw exception(make_error_code(errc::invalid),
                       "No parent for device because it is not a subdevice");
@@ -1096,10 +1097,11 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_device_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<info::device::usm_device_allocations>::value,
-        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<info::device::usm_device_allocations>::value,
+            sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
     return (Err != UR_RESULT_SUCCESS)
                ? false
@@ -1113,10 +1115,11 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_host_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<info::device::usm_host_allocations>::value,
-        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<info::device::usm_host_allocations>::value,
+            sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
 
     return (Err != UR_RESULT_SUCCESS)
                ? false
@@ -1129,10 +1132,11 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<info::device::usm_shared_allocations>::value,
-        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<info::device::usm_shared_allocations>::value,
+            sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     return (Err != UR_RESULT_SUCCESS)
                ? false
                : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
@@ -1145,10 +1149,11 @@ struct get_device_info_impl<bool,
                             info::device::usm_restricted_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<info::device::usm_restricted_shared_allocations>::value,
-        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<info::device::usm_restricted_shared_allocations>::value,
+            sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     // Check that we don't support any cross device sharing
     return (Err != UR_RESULT_SUCCESS)
                ? false
@@ -1163,10 +1168,11 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     ur_device_usm_access_capability_flags_t caps;
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<info::device::usm_system_allocations>::value,
-        sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<info::device::usm_system_allocations>::value,
+            sizeof(ur_device_usm_access_capability_flags_t), &caps, nullptr);
     return (Err != UR_RESULT_SUCCESS)
                ? false
                : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
@@ -1209,8 +1215,8 @@ struct get_device_info_impl<
     ext::codeplay::experimental::info::device::max_registers_per_work_group> {
   static uint32_t get(const DeviceImplPtr &Dev) {
     uint32_t maxRegsPerWG;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<ext::codeplay::experimental::info::device::
                        max_registers_per_work_group>::value,
         sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
@@ -1226,11 +1232,12 @@ struct get_device_info_impl<
   static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
     size_t ResultSize = 0;
     // First call to get DevCount.
-    ur_result_t Err = Dev->getPlugin()->call_nocheck(
-        urDeviceGetInfo, Dev->getHandleRef(),
-        UrInfoCode<
-            ext::oneapi::experimental::info::device::component_devices>::value,
-        0, nullptr, &ResultSize);
+    ur_result_t Err =
+        Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+            Dev->getHandleRef(),
+            UrInfoCode<ext::oneapi::experimental::info::device::
+                           component_devices>::value,
+            0, nullptr, &ResultSize);
 
     // If the feature is unsupported or if the result was empty, return an empty
     // list of devices.
@@ -1246,8 +1253,8 @@ struct get_device_info_impl<
 
     // Second call to get the list.
     std::vector<ur_device_handle_t> Devs(DevCount);
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::component_devices>::value,
         ResultSize, Devs.data(), nullptr);
@@ -1271,8 +1278,8 @@ struct get_device_info_impl<
                             "can call this function.");
 
     typename sycl_to_ur<device>::type Result;
-    Dev->getPlugin()->call(
-        urDeviceGetInfo, Dev->getHandleRef(),
+    Dev->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+        Dev->getHandleRef(),
         UrInfoCode<
             ext::oneapi::experimental::info::device::composite_device>::value,
         sizeof(Result), &Result, nullptr);

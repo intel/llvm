@@ -77,10 +77,9 @@ context::context(cl_context ClContext, async_handler AsyncHandler) {
   ur_context_handle_t hContext = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClContext);
-  Plugin->call(urContextCreateWithNativeHandle, nativeHandle, Plugin->getUrAdapter(),
-               0, nullptr, nullptr,
-               &hContext);
-  
+  Plugin->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Plugin->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+
   impl = std::make_shared<detail::context_impl>(
       hContext, AsyncHandler, Plugin);
 }

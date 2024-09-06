@@ -40,16 +40,16 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
 
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
-  Plugin->call(urMemBufferCreateWithNativeHandle, MemObject,
-               MInteropContext->getHandleRef(), &MemProperties,
-               &MInteropMemObject);
+  Plugin->call<UrApiKind::urMemBufferCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &MemProperties,
+      &MInteropMemObject);
 
   // Get the size of the buffer in bytes
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_SIZE,
-               sizeof(size_t), &MSizeInBytes, nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
+                                        sizeof(size_t), &MSizeInBytes, nullptr);
 
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
-               sizeof(Context), &Context, nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -57,7 +57,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call(urMemRetain, MInteropMemObject);
+    Plugin->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
 ur_mem_type_t getImageType(int Dimensions) {
@@ -99,12 +99,12 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   ur_mem_native_properties_t NativeProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
-  Plugin->call(urMemImageCreateWithNativeHandle, MemObject,
-               MInteropContext->getHandleRef(), &Format, &Desc,
-               &NativeProperties, &MInteropMemObject);
+  Plugin->call<UrApiKind::urMemImageCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &Format, &Desc,
+      &NativeProperties, &MInteropMemObject);
 
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
-               sizeof(Context), &Context, nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                        sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -112,7 +112,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call(urMemRetain, MInteropMemObject);
+    Plugin->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -155,7 +155,7 @@ void SYCLMemObjT::updateHostMemory() {
 
   if (MOpenCLInterop) {
     const PluginPtr &Plugin = getPlugin();
-    Plugin->call(urMemRelease, MInteropMemObject);
+    Plugin->call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
 const PluginPtr &SYCLMemObjT::getPlugin() const {
@@ -169,8 +169,9 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   size_t BufSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin->call(urMemGetInfo, detail::ur::cast<ur_mem_handle_t>(MemObject),
-               UR_MEM_INFO_SIZE, sizeof(size_t), &BufSize, nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(
+      detail::ur::cast<ur_mem_handle_t>(MemObject), UR_MEM_INFO_SIZE,
+      sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
 

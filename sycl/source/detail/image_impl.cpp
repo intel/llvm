@@ -262,8 +262,8 @@ template <typename T>
 static void getImageInfo(const ContextImplPtr Context, ur_image_info_t Info,
                          T &Dest, ur_mem_handle_t InteropMemObject) {
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urMemImageGetInfo, InteropMemObject, Info, sizeof(T), &Dest,
-               nullptr);
+  Plugin->call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
+                                             &Dest, nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -276,8 +276,8 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
   const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call(urMemGetInfo, Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
-               &(BaseT::MSizeInBytes), nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
+                                        &(BaseT::MSizeInBytes), nullptr);
 
   ur_image_format_t Format;
   getImageInfo(Context, UR_IMAGE_INFO_FORMAT, Format, Mem);

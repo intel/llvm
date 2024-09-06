@@ -146,6 +146,7 @@
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
+// CHECK-NEXT: ur_api_funcs.def
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp

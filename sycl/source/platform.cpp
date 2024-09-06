@@ -25,9 +25,9 @@ platform::platform() : platform(default_selector_v) {}
 platform::platform(cl_platform_id PlatformId) {
   auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
-  Plugin->call(urPlatformCreateWithNativeHandle,
-               detail::ur::cast<ur_native_handle_t>(PlatformId),
-               Plugin->getUrAdapter(), /* pProperties = */ nullptr, &UrPlatform);
+  Plugin->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Plugin->getUrAdapter(),
+      /* pProperties = */ nullptr, &UrPlatform);
   impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
 }
 

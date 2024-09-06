@@ -24,14 +24,15 @@ inline std::string get_platform_info_string_impl(ur_platform_handle_t Plt,
                                                  ur_platform_info_t UrCode) {
   size_t ResultSize = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urPlatformGetInfo, Plt, UrCode, 0, nullptr, &ResultSize);
+  Plugin->call<UrApiKind::urPlatformGetInfo>(Plt, UrCode, 0, nullptr,
+                                             &ResultSize);
   if (ResultSize == 0) {
     return "";
   }
   std::unique_ptr<char[]> Result(new char[ResultSize]);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urPlatformGetInfo, Plt, UrCode, ResultSize, Result.get(),
-               nullptr);
+  Plugin->call<UrApiKind::urPlatformGetInfo>(Plt, UrCode, ResultSize,
+                                             Result.get(), nullptr);
   return Result.get();
 }
 // The platform information methods

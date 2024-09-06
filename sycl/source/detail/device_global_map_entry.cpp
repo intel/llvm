@@ -31,7 +31,7 @@ OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
             *MInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call(urEventRelease, *MInitEvent);
+      Plugin->call<UrApiKind::urEventRelease>(*MInitEvent);
       MInitEvent = {};
       return OwnedUrEvent(Plugin);
     } else {
@@ -100,7 +100,8 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getPlugin()->call(urEventRelease, *USMMem.MInitEvent);
+        CtxImpl->getPlugin()->call<UrApiKind::urEventRelease>(
+            *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.

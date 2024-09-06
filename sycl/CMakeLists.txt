@@ -245,6 +245,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMENT "Copying SYCL headers ...")
 
@@ -256,6 +257,8 @@ install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+  COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)

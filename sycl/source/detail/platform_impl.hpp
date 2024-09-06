@@ -42,9 +42,9 @@ public:
       : MPlatform(APlatform), MPlugin(APlugin) {
     // Find out backend of the platform
     ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-    APlugin->call_nocheck(urPlatformGetInfo, APlatform,
-                          UR_PLATFORM_INFO_BACKEND,
-                          sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+    APlugin->call_nocheck<UrApiKind::urPlatformGetInfo>(
+        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
+        &UrBackend, nullptr);
     MBackend = convertUrBackend(UrBackend);
   }
 
@@ -92,15 +92,17 @@ public:
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
     const auto &Plugin = getPlugin();
-    ur_result_t Err = Plugin->call_nocheck(
-        urPlatformGetBackendOption, MPlatform, frontend_option, backend_option);
+    ur_result_t Err =
+        Plugin->call_nocheck<UrApiKind::urPlatformGetBackendOption>(
+            MPlatform, frontend_option, backend_option);
     Plugin->checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urPlatformGetNativeHandle, MPlatform, &nativeHandle);
+    getPlugin()->call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
+                                                            &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 

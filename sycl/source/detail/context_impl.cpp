@@ -59,8 +59,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
-  getPlugin()->call(urContextCreate, DeviceIds.size(), DeviceIds.data(),
-                    nullptr, &MContext);
+  getPlugin()->call<UrApiKind::urContextCreate>(
+      DeviceIds.size(), DeviceIds.data(), nullptr, &MContext);
 
   MKernelProgramCache.setContextPtr(this);
 }
@@ -78,13 +78,14 @@ context_impl::context_impl(ur_context_handle_t UrContext,
     std::vector<ur_device_handle_t> DeviceIds;
     uint32_t DevicesNum = 0;
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urContextGetInfo, MContext, UR_CONTEXT_INFO_NUM_DEVICES,
-                 sizeof(DevicesNum), &DevicesNum, nullptr);
+    Plugin->call<UrApiKind::urContextGetInfo>(
+        MContext, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(DevicesNum), &DevicesNum,
+        nullptr);
     DeviceIds.resize(DevicesNum);
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urContextGetInfo, MContext, UR_CONTEXT_INFO_DEVICES,
-                 sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0],
-                 nullptr);
+    Plugin->call<UrApiKind::urContextGetInfo>(
+        MContext, UR_CONTEXT_INFO_DEVICES,
+        sizeof(ur_device_handle_t) * DevicesNum, &DeviceIds[0], nullptr);
 
     if (DeviceIds.empty())
       throw exception(
@@ -106,16 +107,17 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
   if (getBackend() == sycl::backend::opencl) {
-    getPlugin()->call(urContextRetain, MContext);
+    getPlugin()->call<UrApiKind::urContextRetain>(MContext);
   }
   MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getPlugin()->call(urContextRetain, MContext);
+  getPlugin()->call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
-  getPlugin()->call(urContextGetNativeHandle, MContext, &nativeHandle);
+  getPlugin()->call<UrApiKind::urContextGetNativeHandle>(MContext,
+                                                         &nativeHandle);
   return ur::cast<cl_context>(nativeHandle);
 }
 
@@ -133,10 +135,10 @@ context_impl::~context_impl() {
     }
     for (auto LibProg : MCachedLibPrograms) {
       assert(LibProg.second && "Null program must not be kept in the cache");
-      getPlugin()->call(urProgramRelease, LibProg.second);
+      getPlugin()->call<UrApiKind::urProgramRelease>(LibProg.second);
     }
     // TODO catch an exception and put it to list of asynchronous exceptions
-    getPlugin()->call_nocheck(urContextRelease, MContext);
+    getPlugin()->call_nocheck<UrApiKind::urContextRelease>(MContext);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~context_impl", e);
   }
@@ -292,9 +294,9 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 ur_native_handle_t context_impl::getNative() const {
   const auto &Plugin = getPlugin();
   if (getBackend() == backend::opencl)
-    Plugin->call(urContextRetain, getHandleRef());
+    Plugin->call<UrApiKind::urContextRetain>(getHandleRef());
   ur_native_handle_t Handle;
-  Plugin->call(urContextGetNativeHandle, getHandleRef(), &Handle);
+  Plugin->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -355,7 +357,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
           });
       // Release the removed events.
       for (auto EventIt = NewEnd; EventIt != InitEventsRef.end(); ++EventIt)
-        Plugin->call(urEventRelease, *EventIt);
+        Plugin->call<UrApiKind::urEventRelease>(*EventIt);
       // Remove them from the collection.
       InitEventsRef.erase(NewEnd, InitEventsRef.end());
       // If there are no more events, we can mark it as fully initialized.
@@ -412,10 +414,10 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
       // initialize events list.
       ur_event_handle_t InitEvent;
       void *const &USMPtr = DeviceGlobalUSM.getPtr();
-      Plugin->call(urEnqueueDeviceGlobalVariableWrite,
-                   QueueImpl->getHandleRef(), NativePrg,
-                   DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *),
-                   0, &USMPtr, 0, nullptr, &InitEvent);
+      Plugin->call<UrApiKind::urEnqueueDeviceGlobalVariableWrite>(
+          QueueImpl->getHandleRef(), NativePrg,
+          DeviceGlobalEntry->MUniqueId.c_str(), false, sizeof(void *), 0,
+          &USMPtr, 0, nullptr, &InitEvent);
 
       InitEventsRef.push_back(InitEvent);
     }
@@ -426,7 +428,7 @@ std::vector<ur_event_handle_t> context_impl::initializeDeviceGlobals(
 void context_impl::DeviceGlobalInitializer::ClearEvents(
     const PluginPtr &Plugin) {
   for (const ur_event_handle_t &Event : MDeviceGlobalInitEvents)
-    Plugin->call(urEventRelease, Event);
+    Plugin->call<UrApiKind::urEventRelease>(Event);
   MDeviceGlobalInitEvents.clear();
 }
 

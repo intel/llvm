@@ -49,9 +49,9 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   const auto &Plugin = impl->getPlugin();
-  Plugin->call(urContextSetExtendedDeleter, impl->getHandleRef(),
-               reinterpret_cast<ur_context_extended_deleter_t>(func),
-               user_data);
+  Plugin->call<UrApiKind::urContextSetExtendedDeleter>(
+      impl->getHandleRef(),
+      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
 }
 } // namespace pi
 
@@ -108,10 +108,35 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 #define CHECK_UR_SUCCESS(Call)                                                 \
   __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
 
+  UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
+  auto loaderConfigCreate =
+      loaderConfigCreateInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigEnableLayer> loaderConfigEnableLayerInfo;
+  auto loaderConfigEnableLayer =
+      loaderConfigEnableLayerInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigRelease> loaderConfigReleaseInfo;
+  auto loaderConfigRelease =
+      loaderConfigReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigSetCodeLocationCallback>
+      loaderConfigSetCodeLocationCallbackInfo;
+  auto loaderConfigSetCodeLocationCallback =
+      loaderConfigSetCodeLocationCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderInit> loaderInitInfo;
+  auto loaderInit =
+      loaderInitInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGet> adapterGet_Info;
+  auto adapterGet =
+      adapterGet_Info.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
+  auto adapterGetInfo =
+      adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+
   bool OwnLoaderConfig = false;
   // If we weren't provided with a custom config handle create our own.
   if(!LoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
+    CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
 
@@ -122,8 +147,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 #else
     setenv("UR_LOG_TRACING", LogOptions, 1);
 #endif
-    CHECK_UR_SUCCESS(
-        urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
   }
 
   if (trace(TraceLevel::TRACE_BASIC)) {
@@ -134,39 +158,39 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 #endif
   }
 
-  CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(
+  CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
-  urLoaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                        nullptr);
+  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
+                                      nullptr);
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
   ur_device_init_flags_t device_flags = 0;
-  CHECK_UR_SUCCESS(urLoaderInit(device_flags, LoaderConfig));
+  CHECK_UR_SUCCESS(loaderInit(device_flags, LoaderConfig));
 
   if (OwnLoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigRelease(LoaderConfig));
+    CHECK_UR_SUCCESS(loaderConfigRelease(LoaderConfig));
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(urAdapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
-  CHECK_UR_SUCCESS(urAdapterGet(adapterCount, adapters.data(), nullptr));
+  CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
   auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
     switch (backend) {
@@ -189,9 +213,9 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 
   for (const auto &adapter : adapters) {
     ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
-    CHECK_UR_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                                      sizeof(adapterBackend), &adapterBackend,
-                                      nullptr));
+    CHECK_UR_SUCCESS(adapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
+                                    sizeof(adapterBackend), &adapterBackend,
+                                    nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
   }

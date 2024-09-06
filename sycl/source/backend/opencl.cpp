@@ -38,15 +38,17 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
   // Manual invocation of plugin API to avoid using deprecated
   // info::platform::extensions call.
   size_t ResultSize = 0;
-  Plugin->call(urPlatformGetInfo, PluginPlatform, UR_PLATFORM_INFO_EXTENSIONS,
-               /*propSize=*/0,
-               /*pPropValue=*/nullptr, &ResultSize);
+  Plugin->call<UrApiKind::urPlatformGetInfo>(
+      PluginPlatform, UR_PLATFORM_INFO_EXTENSIONS,
+      /*propSize=*/0,
+      /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return false;
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call(urPlatformGetInfo, PluginPlatform, UR_PLATFORM_INFO_EXTENSIONS,
-               ResultSize, Result.get(), nullptr);
+  Plugin->call<UrApiKind::urPlatformGetInfo>(PluginPlatform,
+                                             UR_PLATFORM_INFO_EXTENSIONS,
+                                             ResultSize, Result.get(), nullptr);
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;
@@ -68,15 +70,17 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
   // Manual invocation of plugin API to avoid using deprecated
   // info::device::extensions call.
   size_t ResultSize = 0;
-  Plugin->call(urDeviceGetInfo, PluginDevice, UR_DEVICE_INFO_EXTENSIONS,
-               /*propSize=*/0,
-               /*pPropValue=*/nullptr, &ResultSize);
+  Plugin->call<UrApiKind::urDeviceGetInfo>(PluginDevice,
+                                           UR_DEVICE_INFO_EXTENSIONS,
+                                           /*propSize=*/0,
+                                           /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return false;
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call(urDeviceGetInfo, PluginDevice, UR_DEVICE_INFO_EXTENSIONS,
-               ResultSize, Result.get(), nullptr);
+  Plugin->call<UrApiKind::urDeviceGetInfo>(PluginDevice,
+                                           UR_DEVICE_INFO_EXTENSIONS,
+                                           ResultSize, Result.get(), nullptr);
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;

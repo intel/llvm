@@ -273,7 +273,11 @@ void GlobalHandler::unloadPlugins() {
     }
   }
 
-  urLoaderTearDown();
+  UrFuncInfo<UrApiKind::urLoaderTearDown> loaderTearDownInfo;
+  auto loaderTearDown =
+      loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  loaderTearDown();
+  // urLoaderTearDown();
 
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();

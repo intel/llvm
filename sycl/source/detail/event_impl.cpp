@@ -46,7 +46,7 @@ event_impl::~event_impl() {
   try {
     auto Handle = this->getHandle();
     if (Handle)
-      getPlugin()->call(urEventRelease, Handle);
+      getPlugin()->call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
@@ -56,7 +56,8 @@ void event_impl::waitInternal(bool *Success) {
   auto Handle = this->getHandle();
   if (!MIsHostEvent && Handle) {
     // Wait for the native event
-    ur_result_t Err = getPlugin()->call_nocheck(urEventWait, 1, &Handle);
+    ur_result_t Err =
+        getPlugin()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
     // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
     // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
     // closed).
@@ -146,8 +147,9 @@ event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
       MIsFlushed(true), MState(HES_Complete) {
 
   ur_context_handle_t TempContext;
-  getPlugin()->call(urEventGetInfo, this->getHandle(), UR_EVENT_INFO_CONTEXT,
-                    sizeof(ur_context_handle_t), &TempContext, nullptr);
+  getPlugin()->call<UrApiKind::urEventGetInfo>(
+      this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
+      &TempContext, nullptr);
 
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -481,14 +483,14 @@ ur_native_handle_t event_impl::getNative() {
     auto TempContext = MContext.get()->getHandleRef();
     ur_event_native_properties_t NativeProperties{};
     ur_event_handle_t UREvent = nullptr;
-    Plugin->call(urEventCreateWithNativeHandle, 0, TempContext,
-                 &NativeProperties, &UREvent);
+    Plugin->call<UrApiKind::urEventCreateWithNativeHandle>(
+        0, TempContext, &NativeProperties, &UREvent);
     this->setHandle(UREvent);
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin->call(urEventRetain, Handle);
+    Plugin->call<UrApiKind::urEventRetain>(Handle);
   ur_native_handle_t OutHandle;
-  Plugin->call(urEventGetNativeHandle, Handle, &OutHandle);
+  Plugin->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
   return OutHandle;
 }
 
@@ -529,11 +531,11 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   // Check if the task for this event has already been submitted.
   ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
-  getPlugin()->call(urEventGetInfo, Handle,
-                    UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
-                    sizeof(ur_event_status_t), &Status, nullptr);
+  getPlugin()->call<UrApiKind::urEventGetInfo>(
+      Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
+      &Status, nullptr);
   if (Status == UR_EVENT_STATUS_QUEUED) {
-    getPlugin()->call(urQueueFlush, Queue->getHandleRef());
+    getPlugin()->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
