@@ -223,7 +223,9 @@ private:
   // represents the unique ids of the last device of each platform
   // index of this vector corresponds to the index in UrPlatforms vector.
   std::vector<int> LastDeviceIds;
+#ifdef _WIN32
   void *UrLoaderHandle = nullptr;
+#endif
   UrFuncPtrMapT UrFuncPtrs;
 }; // class plugin
 
