@@ -10,9 +10,7 @@
 #include <sycl/detail/ur.hpp>
 
 // For device image compression.
-#include <llvm/Support/Compression.h>
-#include <llvm/Support/Endian.h>
-#include <llvm/Support/Error.h>
+#include <sycl/detail/compression.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -240,26 +238,16 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
   size_t compressedDataSize = static_cast<size_t>(CompressedBin->BinaryEnd -
                                                   CompressedBin->BinaryStart);
 
-  // Get ArrayRef of compressed data.
-  llvm::ArrayRef<unsigned char> CompressedData(
-      reinterpret_cast<const unsigned char *>(CompressedBin->BinaryStart),
-      compressedDataSize);
+  size_t DecompressedSize = 0;
+  m_DecompressedData = std::move(ZSTDCompressor::DecompressBlob(
+      reinterpret_cast<const char *>(CompressedBin->BinaryStart),
+      compressedDataSize, DecompressedSize));
 
-  // Decompress the binary image.
-  size_t DecompressedSize =
-      llvm::compression::zstd::getDecompressedSize(CompressedData);
-
-  m_DecompressedData =
-      std::unique_ptr<unsigned char>(new unsigned char[DecompressedSize]);
-
-  if (llvm::compression::zstd::isAvailable()) {
-
-    auto Err = llvm::compression::zstd::decompress(
-        CompressedData, m_DecompressedData.get(), DecompressedSize);
-
-    assert(!Err && "Failed to decompress ZSTD data");
-  } else {
-    assert(false && "ZSTD not available");
+  if (!m_DecompressedData) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::runtime),
+        "Failed to decompress device binary image. " +
+            ZSTDCompressor::GetErrorString(ZSTDCompressor::GetLastError()));
   }
 
   Bin = new sycl_device_binary_struct(*CompressedBin);

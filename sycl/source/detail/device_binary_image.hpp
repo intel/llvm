@@ -16,9 +16,6 @@
 
 #include <sycl/detail/iostream_proxy.hpp>
 
-#include <llvm/ADT/ArrayRef.h>
-#include <llvm/ADT/SmallVector.h>
-
 #include <atomic>
 #include <cstring>
 #include <memory>

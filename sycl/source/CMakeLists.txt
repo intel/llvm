@@ -69,10 +69,11 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  # Need LLVMSUpport for device image compression.
-  add_dependencies(${LIB_NAME} LLVMSupport)
-  target_link_libraries(${LIB_NAME} PRIVATE LLVMSupport)
-  
+  # Need zstd for device image compression.
+  find_package(zstd REQUIRED)
+  target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
+  target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
+
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 
   # ur_win_proxy_loader
