@@ -998,9 +998,9 @@ const char *Command::getBlockReason() const {
     return "A Buffer is locked by the host accessor";
   case BlockReason::HostTask:
     return "Blocked by host task";
+  default:
+    return "Unknown block reason";
   }
-
-  return "Unknown block reason";
 }
 
 void Command::copySubmissionCodeLocation() {

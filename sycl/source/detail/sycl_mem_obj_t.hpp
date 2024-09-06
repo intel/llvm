@@ -350,7 +350,7 @@ protected:
   // Indicates if memory object should write memory to the host on destruction.
   bool MNeedWriteBack;
   // Size of memory.
-  size_t MSizeInBytes;
+  size_t MSizeInBytes = 0;
   // User's pointer passed to constructor.
   void *MUserPtr;
   // Copy of memory passed by user to constructor.

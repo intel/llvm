@@ -390,7 +390,7 @@ protected:
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
-  ur_exp_command_buffer_sync_point_t MSyncPoint;
+  ur_exp_command_buffer_sync_point_t MSyncPoint = 0;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_command_handle_t the command-buffer command
