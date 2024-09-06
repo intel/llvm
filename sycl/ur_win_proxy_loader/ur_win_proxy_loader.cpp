@@ -164,7 +164,15 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
 {
   bool PrintUrTrace = false;
   static const char *UrTrace = std::getenv("SYCL_UR_TRACE");
-  static const int UrTraceValue = UrTrace ? std::stoi(UrTrace) : 0;
+  static int UrTraceValue = 0;
+  if (UrTrace) {
+    try {
+      UrTraceValue = std::stoi(UrTrace);
+    } catch (...) {
+      // ignore malformed SYCL_UR_TRACE
+    }
+  }
+
   if (UrTraceValue == -1 || UrTraceValue == 2) { // Means print all UR traces
     PrintUrTrace = true;
   }
