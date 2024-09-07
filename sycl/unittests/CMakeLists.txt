@@ -53,6 +53,7 @@ add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
+add_subdirectory(compression)
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
     add_subdirectory(xpti_trace)
