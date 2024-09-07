@@ -6,10 +6,10 @@
 #include <cstdint>
 
 #define DEFINE_CONSTEXPR_VECTOR(name, type, size)                              \
-  constexpr sycl::vec<type, size> name##_##size{0};
+  constexpr sycl::vec<type, size> name##_##size{(type){0}};
 
 #define DEFINE_CONSTEXPR_VECTOR_INIT_NON_ZERO(name, type, size, init)          \
-  constexpr sycl::vec<type, size> name##_##size{init};
+  constexpr sycl::vec<type, size> name##_##size{(type){init}};
 
 #define DEFINE_CONSTEXPR_VECTOR_FOR_TYPE(type)                                 \
   DEFINE_CONSTEXPR_VECTOR(type, type, 1)                                       \

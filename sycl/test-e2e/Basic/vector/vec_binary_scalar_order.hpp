@@ -51,8 +51,9 @@ bool CheckResult(sycl::vec<T1, N> V, T2 Ref) {
             auto OutVec2 = RefVal OP InVec;                                    \
             static_assert(std::is_same_v<decltype(OutVec1), ResT>);            \
             static_assert(std::is_same_v<decltype(OutVec2), ResT>);            \
-            OutVecsAcc[0] = OutVec1;                                           \
-            OutVecsAcc[1] = OutVec2;                                           \
+            /* half2{short2} is allowed but half2 = short2 isn't */            \
+            OutVecsAcc[0] = VecT{OutVec1};                                     \
+            OutVecsAcc[1] = VecT{OutVec2};                                     \
             OutRefsAcc[0] = RefVal OP RefVal;                                  \
             OutRefsAcc[1] = RefVal OP RefVal;                                  \
           });                                                                  \

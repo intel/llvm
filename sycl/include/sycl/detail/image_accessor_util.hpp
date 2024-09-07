@@ -356,7 +356,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
     // Assuming: (float)c / 31.0f; c represents the 5-bit integer.
     //           (float)c / 63.0f; c represents the 6-bit integer.
     // PixelData.x will be of type std::uint16_t.
-    ushort4 Temp(PixelData.x());
+    ushort4 Temp(PixelData[0]);
     ushort4 MaskBits(0xF800 /*r:bits 11-15*/, 0x07E0 /*g:bits 5-10*/,
                      0x001F /*b:bits 0-4*/, 0x0000);
     ushort4 ShiftBits(11, 5, 0, 0);
@@ -372,7 +372,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
 
     // Extracting each 5-bit channel data.
     // PixelData.x will be of type std::uint16_t.
-    ushort4 Temp(PixelData.x());
+    ushort4 Temp(PixelData[0]);
     ushort4 MaskBits(0x7C00 /*r:bits 10-14*/, 0x03E0 /*g:bits 5-9*/,
                      0x001F /*b:bits 0-4*/, 0x0000);
     ushort4 ShiftBits(10, 5, 0, 0);
@@ -383,7 +383,7 @@ void convertReadData(const vec<ChannelType, 4> PixelData,
   case image_channel_type::unorm_int_101010: {
     // Extracting each 10-bit channel data.
     // PixelData.x will be of type std::uint32_t.
-    uint4 Temp(PixelData.x());
+    uint4 Temp(PixelData[0]);
     uint4 MaskBits(0x3FF00000 /*r:bits 20-29*/, 0x000FFC00 /*g:bits 10-19*/,
                    0x000003FF /*b:bits 0-9*/, 0x00000000);
     uint4 ShiftBits(20, 10, 0, 0);

@@ -22,48 +22,130 @@ using namespace sycl;
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META8:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i32>, ptr [[A]], align 8, !tbaa [[TBAA11:![0-9]+]], !noalias [[META8]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i32>, ptr [[B]], align 8, !tbaa [[TBAA11]], !noalias [[META8]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add <2 x i32> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <2 x i32> [[ADD_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META8]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META11:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i32>, ptr [[A]], align 8, !noalias [[META14:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i32>, ptr [[B]], align 8, !noalias [[META14]]
+// CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add <2 x i32> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <2 x i32> [[ADD_I_I_I]], i64 0
+// CHECK-NEXT:    [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <2 x i32> [[ADD_I_I_I]], i64 1
+// CHECK-NEXT:    store i32 [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA15:![0-9]+]], !alias.scope [[META14]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i32 [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META14]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<int, 2> a, vec<int, 2> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIfLi3EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.0") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.0") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.0") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META14:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.45") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.45") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.45") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META19:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META15:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x float>, ptr [[A]], align 16, !noalias [[META15]]
-// CHECK-NEXT:    [[LOADVEC4_I6_I:%.*]] = load <4 x float>, ptr [[B]], align 16, !noalias [[META15]]
-// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x float> [[LOADVEC4_I_I]], [[LOADVEC4_I6_I]]
-// CHECK-NEXT:    [[EXTRACTVEC_I8_I:%.*]] = shufflevector <4 x float> [[TMP0]], <4 x float> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-// CHECK-NEXT:    store <4 x float> [[EXTRACTVEC_I8_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META15]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META20:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META23:![0-9]+]])
+// CHECK-NEXT:    [[REF_TMP2_SROA_0_0_COPYLOAD_I_I:%.*]] = load <4 x float>, ptr [[A]], align 16, !noalias [[META26:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP4_SROA_0_0_COPYLOAD_I_I:%.*]] = load <4 x float>, ptr [[B]], align 16, !noalias [[META26]]
+// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x float> [[REF_TMP2_SROA_0_0_COPYLOAD_I_I]], [[REF_TMP4_SROA_0_0_COPYLOAD_I_I]]
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_SROA_0_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x float> [[TMP0]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_SROA_0_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x float> [[TMP0]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_SROA_0_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x float> [[TMP0]], i64 2
+// CHECK-NEXT:    store float [[OPENCLVECTOR_ADDR_SROA_0_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA27:![0-9]+]], !alias.scope [[META26]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store float [[OPENCLVECTOR_ADDR_SROA_0_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 4, !tbaa [[TBAA27]], !alias.scope [[META26]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store float [[OPENCLVECTOR_ADDR_SROA_0_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA27]], !alias.scope [[META26]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<float, 3> a, vec<float, 3> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIcLi16EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.5") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.5") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META18:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.103") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.103") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.103") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META29:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META19:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META19]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[B]], align 16, !tbaa [[TBAA11]], !noalias [[META19]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add <16 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <16 x i8> [[ADD_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META19]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META30:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META33:![0-9]+]])
+// CHECK-NEXT:    [[REF_TMP2_SROA_0_0_COPYLOAD_I_I:%.*]] = load <16 x i8>, ptr [[A]], align 16, !noalias [[META36:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP4_SROA_0_0_COPYLOAD_I_I:%.*]] = load <16 x i8>, ptr [[B]], align 16, !noalias [[META36]]
+// CHECK-NEXT:    [[ADD_I_I_I:%.*]] = add <16 x i8> [[REF_TMP2_SROA_0_0_COPYLOAD_I_I]], [[REF_TMP4_SROA_0_0_COPYLOAD_I_I]]
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_1_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_3_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 3
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 4
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_5_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 5
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 6
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_7_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 7
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 8
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_9_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 9
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 10
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_11_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 11
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 12
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_13_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 13
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 14
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_15_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[ADD_I_I_I]], i64 15
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 1, !tbaa [[TBAA37:![0-9]+]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 1
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_1_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 3
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_3_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 5
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_5_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 7
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_7_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT15_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT15_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT17_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 9
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_9_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT17_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT19_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 10
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT19_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT21_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 11
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_11_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT21_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT23_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT23_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT25_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 13
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_13_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT25_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT27_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 14
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT27_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT29_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 15
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_15_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT29_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META36]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<char, 16> a, vec<char, 16> b) { return a + b; }
 
 // std::byte does not support '+'. Therefore, using bitwise XOR as a substitute.
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestXorN4sycl3_V13vecISt4byteLi8EEES3_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.10") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.10") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.10") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META22:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.161") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.161") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.161") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META38:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META23:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i8>, ptr [[A]], align 8, !tbaa [[TBAA11]], !noalias [[META23]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[B]], align 8, !tbaa [[TBAA11]], !noalias [[META23]]
-// CHECK-NEXT:    [[XOR_I:%.*]] = xor <8 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <8 x i8> [[XOR_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META23]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META39:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META42:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x i8>, ptr [[A]], align 8, !noalias [[META45:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[B]], align 8, !noalias [[META45]]
+// CHECK-NEXT:    [[XOR_I_I_I:%.*]] = xor <8 x i8> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 0
+// CHECK-NEXT:    [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 1
+// CHECK-NEXT:    [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 2
+// CHECK-NEXT:    [[REF_TMP_SROA_4_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 3
+// CHECK-NEXT:    [[REF_TMP_SROA_5_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 4
+// CHECK-NEXT:    [[REF_TMP_SROA_6_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 5
+// CHECK-NEXT:    [[REF_TMP_SROA_7_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 6
+// CHECK-NEXT:    [[REF_TMP_SROA_8_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <8 x i8> [[XOR_I_I_I]], i64 7
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 1
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 3
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_4_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_5_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 5
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_6_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_7_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 7
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_8_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META45]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestXor(vec<std::byte, 8> a, vec<std::byte, 8> b) {
@@ -71,72 +153,106 @@ SYCL_EXTERNAL auto TestXor(vec<std::byte, 8> a, vec<std::byte, 8> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecIbLi4EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable sret(%"class.sycl::_V1::vec.15") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.15") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.15") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] !srcloc [[META26:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.219") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.219") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.219") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR1:[0-9]+]] !srcloc [[META46:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META27:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A]], align 4, !tbaa [[TBAA11]], !noalias [[META27]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i8>, ptr [[B]], align 4, !tbaa [[TBAA11]], !noalias [[META27]]
-// CHECK-NEXT:    [[ADD_I:%.*]] = add <4 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    store <4 x i8> [[ADD_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META27]]
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.219", align 4
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META47:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META50:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META47]]
+// CHECK-NEXT:    store i32 0, ptr [[TMP_I_I]], align 4, !noalias [[META53:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
 // CHECK:       for.cond.i.i:
-// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i64 [[I_0_I_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLIBEENS0_3VECIBLI4EEERKS4_S6__EXIT:%.*]]
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLERKNS0_3VECIBLI4EEES5__EXIT:%.*]]
 // CHECK:       for.body.i.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i8, ptr addrspace(4) [[ARRAYIDX_I_I_I_I_I]], align 1, !tbaa [[TBAA11]], !alias.scope [[META27]]
-// CHECK-NEXT:    [[CMP3_I_I:%.*]] = icmp ne i8 [[TMP2]], 0
-// CHECK-NEXT:    [[FROMBOOL_I_I:%.*]] = zext i1 [[CMP3_I_I]] to i8
-// CHECK-NEXT:    store i8 [[FROMBOOL_I_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I_I_I]], align 1, !tbaa [[TBAA30:![0-9]+]], !alias.scope [[META27]]
-// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i64 [[I_0_I_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP32:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailplIbEENS0_3vecIbLi4EEERKS4_S6_.exit:
+// CHECK-NEXT:    [[CONV_I_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I_I_I_I]], align 1, !tbaa [[TBAA54:![0-9]+]], !range [[RNG56:![0-9]+]], !noalias [[META53]], !noundef [[META7]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I13_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[B]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I_I13_I_I]], align 1, !tbaa [[TBAA54]], !range [[RNG56]], !noalias [[META53]], !noundef [[META7]]
+// CHECK-NEXT:    [[TMP2:%.*]] = or i8 [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    store i8 [[TMP2]], ptr [[ARRAYIDX_I_I_I_I_I]], align 1, !tbaa [[TBAA54]], !noalias [[META53]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP57:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailplERKNS0_3vecIbLi4EEES5_.exit:
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[TMP_I_I]], align 4, !noalias [[META53]]
+// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META53]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META47]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<bool, 4> a, vec<bool, 4> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_6detail9half_impl4halfELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.20") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.20") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.20") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META34:![0-9]+]] !sycl_used_aspects [[META35:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.276") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.276") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.276") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META59:![0-9]+]] !sycl_used_aspects [[META60:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META37:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META37]]
-// CHECK-NEXT:    [[LOADVEC4_I6_I:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META37]]
-// CHECK-NEXT:    [[TMP0:%.*]] = fadd <4 x half> [[LOADVEC4_I_I]], [[LOADVEC4_I6_I]]
-// CHECK-NEXT:    [[EXTRACTVEC_I8_I:%.*]] = shufflevector <4 x half> [[TMP0]], <4 x half> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-// CHECK-NEXT:    store <4 x half> [[EXTRACTVEC_I8_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META37]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META62:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META65:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x half>, ptr [[A]], align 8, !noalias [[META68:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <4 x half>, ptr [[B]], align 8, !noalias [[META68]]
+// CHECK-NEXT:    [[TMP2:%.*]] = fadd <4 x half> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[TMP3:%.*]] = bitcast <4 x half> [[TMP2]] to <4 x i16>
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <4 x i16> [[TMP3]], i64 0
+// CHECK-NEXT:    [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <4 x i16> [[TMP3]], i64 1
+// CHECK-NEXT:    [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <4 x i16> [[TMP3]], i64 2
+// CHECK-NEXT:    store i16 [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 8, !tbaa [[TBAA69:![0-9]+]], !alias.scope [[META68]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i16 [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 2, !tbaa [[TBAA69]], !alias.scope [[META68]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i16 [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA69]], !alias.scope [[META68]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<half, 3> a, vec<half, 3> b) { return a + b; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z7TestAddN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.25") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.25") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.25") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] !srcloc [[META40:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.333") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.333") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.333") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR2:[0-9]+]] !srcloc [[META71:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META41:![0-9]+]])
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I]] to ptr addrspace(4)
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V16DETAILPLINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECIS5_LI3EEERKS7_S9__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META41]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8:[0-9]+]], !noalias [[META44:![0-9]+]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I10_I]]) #[[ATTR8]], !noalias [[META44]]
-// CHECK-NEXT:    [[ADD_I_I:%.*]] = fadd float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
-// CHECK-NEXT:    store float [[ADD_I_I]], ptr [[REF_TMP_I_I]], align 4, !tbaa [[TBAA47:![0-9]+]], !noalias [[META44]]
-// CHECK-NEXT:    [[CALL_I_I3_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I]]) #[[ATTR8]], !noalias [[META44]]
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META41]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I12_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I12_I]], align 2, !tbaa [[TBAA49:![0-9]+]], !alias.scope [[META41]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP51:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailplINS0_3ext6oneapi8bfloat16EEENS0_3vecIS5_Li3EEERKS7_S9_.exit:
+// CHECK-NEXT:    [[REF_TMP_I_I_I_I:%.*]] = alloca float, align 4
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.333", align 8
+// CHECK-NEXT:    [[REF_TMP2_I_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
+// CHECK-NEXT:    [[REF_TMP3_I_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META72:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META75:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 2, ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 2, ptr nonnull [[REF_TMP3_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    [[REF_TMP2_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP2_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[REF_TMP3_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP3_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    store i64 0, ptr [[TMP_I_I]], align 8, !noalias [[META78:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILPLERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEES8__EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META79:![0-9]+]])
+// CHECK-NEXT:    [[CONV_I_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[A]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I_I_I_I]], align 2, !tbaa [[TBAA82:![0-9]+]], !noalias [[META84:![0-9]+]]
+// CHECK-NEXT:    store i16 [[TMP0]], ptr [[REF_TMP2_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META79]], !noalias [[META78]]
+// CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META85:![0-9]+]])
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I9_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[B]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I_I9_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META88:![0-9]+]]
+// CHECK-NEXT:    store i16 [[TMP1]], ptr [[REF_TMP3_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META85]], !noalias [[META78]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META89:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[REF_TMP2_ASCAST_I_I]]) #[[ATTR8:[0-9]+]], !noalias [[META92:![0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[REF_TMP3_ASCAST_I_I]]) #[[ATTR8]], !noalias [[META92]]
+// CHECK-NEXT:    [[ADD_I_I_I_I:%.*]] = fadd float [[CALL_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I]]
+// CHECK-NEXT:    store float [[ADD_I_I_I_I]], ptr [[REF_TMP_I_I_I_I]], align 4, !tbaa [[TBAA27]], !noalias [[META92]]
+// CHECK-NEXT:    [[CALL_I_I3_I_I_I_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I_I_I_I]]) #[[ATTR8]], !noalias [[META92]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[REF_TMP_I_I_I_I]]), !noalias [[META89]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    store i16 [[CALL_I_I3_I_I_I_I]], ptr [[ARRAYIDX_I_I_I_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META78]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP95:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailplERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi3EEES8_.exit:
+// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[TMP_I_I]], align 8, !noalias [[META78]]
+// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META78]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 2, ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META72]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 2, ptr nonnull [[REF_TMP3_I_I]]), !noalias [[META72]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestAdd(vec<ext::oneapi::bfloat16, 3> a,
@@ -147,43 +263,120 @@ SYCL_EXTERNAL auto TestAdd(vec<ext::oneapi::bfloat16, 3> a,
 /***************** Binary Logical Ops *******************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIiLi16EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.30") align 64 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.30") align 64 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.30") align 64 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META52:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.390") align 64 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.390") align 64 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.390") align 64 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META96:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META53:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i32>, ptr [[A]], align 64, !tbaa [[TBAA11]], !noalias [[META53]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i32>, ptr [[B]], align 64, !tbaa [[TBAA11]], !noalias [[META53]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp sgt <16 x i32> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <16 x i1> [[CMP_I]] to <16 x i32>
-// CHECK-NEXT:    store <16 x i32> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 64, !alias.scope [[META53]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META97:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META100:![0-9]+]])
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_COPYLOAD_I_I:%.*]] = load <16 x i32>, ptr [[A]], align 64, !noalias [[META103:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP2_SROA_0_0_COPYLOAD_I_I:%.*]] = load <16 x i32>, ptr [[B]], align 64, !noalias [[META103]]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp sgt <16 x i32> [[REF_TMP_SROA_0_0_COPYLOAD_I_I]], [[REF_TMP2_SROA_0_0_COPYLOAD_I_I]]
+// CHECK-NEXT:    [[SEXT_I_I_I:%.*]] = sext <16 x i1> [[CMP_I_I_I]] to <16 x i32>
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 3
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_16_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 4
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_20_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 5
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_24_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 6
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_28_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 7
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_32_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 8
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_36_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 9
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_40_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 10
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_44_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 11
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_48_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 12
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_52_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 13
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_56_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 14
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_60_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i32> [[SEXT_I_I_I]], i64 15
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 16
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_16_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 20
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_20_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 24
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_24_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 28
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_28_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT15_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 32
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_32_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT15_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT17_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 36
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_36_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT17_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT19_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 40
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_40_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT19_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT21_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 44
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_44_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT21_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT23_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 48
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_48_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT23_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT25_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 52
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_52_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT25_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT27_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 56
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_56_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT27_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT29_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 60
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_60_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT29_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META103]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<int, 16> a, vec<int, 16> b) {
   return a > b;
 }
 
-// CHECK-LABEL: define dso_local spir_func noundef range(i8 -1, 1) <3 x i8> @_Z15TestGreaterThanN4sycl3_V13vecISt4byteLi3EEES3_(
-// CHECK-SAME: ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.35") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.35") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR5:[0-9]+]] !srcloc [[META56:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIcLi3EEES2_(
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.448") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.503") align 4 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.503") align 4 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META104:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x i8>, ptr [[A]], align 1
-// CHECK-NEXT:    [[LOADVEC4_I_I2:%.*]] = load <4 x i8>, ptr [[B]], align 1
-// CHECK-NEXT:    [[TMP0:%.*]] = icmp ugt <4 x i8> [[LOADVEC4_I_I]], [[LOADVEC4_I_I2]]
-// CHECK-NEXT:    [[CMP:%.*]] = shufflevector <4 x i1> [[TMP0]], <4 x i1> poison, <3 x i32> <i32 0, i32 1, i32 2>
-// CHECK-NEXT:    [[SEXT:%.*]] = sext <3 x i1> [[CMP]] to <3 x i8>
-// CHECK-NEXT:    ret <3 x i8> [[SEXT]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META105:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META108:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A]], align 4, !noalias [[META111:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load <4 x i8>, ptr [[B]], align 4, !noalias [[META111]]
+// CHECK-NEXT:    [[TMP2:%.*]] = icmp sgt <4 x i8> [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = shufflevector <4 x i1> [[TMP2]], <4 x i1> poison, <3 x i32> <i32 0, i32 1, i32 2>
+// CHECK-NEXT:    [[SEXT_I_I_I:%.*]] = sext <3 x i1> [[CMP_I_I_I]] to <3 x i8>
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <3 x i8> [[SEXT_I_I_I]], i64 0
+// CHECK-NEXT:    [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <3 x i8> [[SEXT_I_I_I]], i64 1
+// CHECK-NEXT:    [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I:%.*]] = extractelement <3 x i8> [[SEXT_I_I_I]], i64 2
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_0_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 1, !tbaa [[TBAA37]], !alias.scope [[META111]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 1
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_2_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META111]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i8 [[REF_TMP_SROA_3_0_EXTRACT_TRUNC_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META111]]
+// CHECK-NEXT:    ret void
 //
-SYCL_EXTERNAL auto TestGreaterThan(vec<std::byte, 3> a, vec<std::byte, 3> b) {
+SYCL_EXTERNAL auto TestGreaterThan(vec<char, 3> a, vec<char, 3> b) {
   return a > b;
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecIbLi2EEES2_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.40") align 2 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.45") align 2 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.45") align 2 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META57:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.561") align 2 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.616") align 2 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.616") align 2 [[B:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META112:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META58:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x i8>, ptr [[A]], align 2, !tbaa [[TBAA11]], !noalias [[META58]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <2 x i8>, ptr [[B]], align 2, !tbaa [[TBAA11]], !noalias [[META58]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ugt <2 x i8> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <2 x i1> [[CMP_I]] to <2 x i8>
-// CHECK-NEXT:    store <2 x i8> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 2, !alias.scope [[META58]]
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.561", align 2
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META113:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META116:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 2, ptr nonnull [[TMP_I_I]]), !noalias [[META113]]
+// CHECK-NEXT:    store i16 0, ptr [[TMP_I_I]], align 2, !noalias [[META119:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTERKNS0_3VECIBLI2EEES5__EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[A]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I_I_I_I]], align 1, !tbaa [[TBAA54]], !range [[RNG56]], !noalias [[META119]], !noundef [[META7]]
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I12_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[B]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I_I12_I_I]], align 1, !tbaa [[TBAA54]], !range [[RNG56]], !noalias [[META119]], !noundef [[META7]]
+// CHECK-NEXT:    [[CMP_I_I_I_I:%.*]] = icmp ugt i8 [[TMP0]], [[TMP1]]
+// CHECK-NEXT:    [[CONV_I_I:%.*]] = sext i1 [[CMP_I_I_I_I]] to i8
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [2 x i8], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    store i8 [[CONV_I_I]], ptr [[ARRAYIDX_I_I_I_I_I]], align 1, !tbaa [[TBAA37]], !noalias [[META119]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP120:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailgtERKNS0_3vecIbLi2EEES5_.exit:
+// CHECK-NEXT:    [[TMP2:%.*]] = load i16, ptr [[TMP_I_I]], align 2, !noalias [[META119]]
+// CHECK-NEXT:    store i16 [[TMP2]], ptr addrspace(4) [[AGG_RESULT]], align 2, !alias.scope [[META119]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 2, ptr nonnull [[TMP_I_I]]), !noalias [[META113]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
@@ -191,14 +384,37 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<bool, 2> a, vec<bool, 2> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.50") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.55") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.55") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META61:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.674") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.729") align 16 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.729") align 16 [[B:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META121:![0-9]+]] !sycl_used_aspects [[META60]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META62:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META62]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load <8 x half>, ptr [[B]], align 16, !tbaa [[TBAA11]], !noalias [[META62]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = fcmp ogt <8 x half> [[TMP0]], [[TMP1]]
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <8 x i1> [[CMP_I]] to <8 x i16>
-// CHECK-NEXT:    store <8 x i16> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META62]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META122:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META125:![0-9]+]])
+// CHECK-NEXT:    [[REF_TMP_SROA_0_0_COPYLOAD_I_I:%.*]] = load <8 x half>, ptr [[A]], align 16, !noalias [[META128:![0-9]+]]
+// CHECK-NEXT:    [[REF_TMP2_SROA_0_0_COPYLOAD_I_I:%.*]] = load <8 x half>, ptr [[B]], align 16, !noalias [[META128]]
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = fcmp ogt <8 x half> [[REF_TMP_SROA_0_0_COPYLOAD_I_I]], [[REF_TMP2_SROA_0_0_COPYLOAD_I_I]]
+// CHECK-NEXT:    [[SEXT_I_I_I:%.*]] = sext <8 x i1> [[CMP_I_I_I]] to <8 x i16>
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 3
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 4
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 5
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 6
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I:%.*]] = extractelement <8 x i16> [[SEXT_I_I_I]], i64 7
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 10
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 14
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META128]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
@@ -206,29 +422,48 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<half, 8> a, vec<half, 8> b) {
 }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z15TestGreaterThanN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi4EEES5_(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.60") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.65") align 8 [[A:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.65") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META65:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.787") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.842") align 8 [[A:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.842") align 8 [[B:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META129:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    [[B_ASCAST:%.*]] = addrspacecast ptr [[B]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META66:![0-9]+]])
-// CHECK-NEXT:    store i64 0, ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META66]]
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V16DETAILGTINS0_3EXT6ONEAPI8BFLOAT16EEENS0_3VECISLI4EEERKNS6_IS5_LI4EEESA__EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I13_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[B_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META66]]
-// CHECK-NEXT:    [[CALL_I_I2_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I13_I]]) #[[ATTR8]], !noalias [[META66]]
-// CHECK-NEXT:    [[CMP_I_I:%.*]] = fcmp ogt float [[CALL_I_I_I_I]], [[CALL_I_I2_I_I]]
-// CHECK-NEXT:    [[CONV5_I:%.*]] = sext i1 [[CMP_I_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I15_I:%.*]] = getelementptr inbounds [4 x i16], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CONV5_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I15_I]], align 2, !tbaa [[TBAA49]], !alias.scope [[META66]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP69:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailgtINS0_3ext6oneapi8bfloat16EEENS0_3vecIsLi4EEERKNS6_IS5_Li4EEESA_.exit:
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.787", align 8
+// CHECK-NEXT:    [[REF_TMP_I_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
+// CHECK-NEXT:    [[REF_TMP2_I_I:%.*]] = alloca %"class.sycl::_V1::ext::oneapi::bfloat16", align 2
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META130:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META133:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META130]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 2, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META130]]
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 2, ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META130]]
+// CHECK-NEXT:    [[REF_TMP_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    [[REF_TMP2_ASCAST_I_I:%.*]] = addrspacecast ptr [[REF_TMP2_I_I]] to ptr addrspace(4)
+// CHECK-NEXT:    store i64 0, ptr [[TMP_I_I]], align 8, !noalias [[META136:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILGTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI4EEES8__EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META137:![0-9]+]])
+// CHECK-NEXT:    [[CONV_I_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[A]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I_I_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META140:![0-9]+]]
+// CHECK-NEXT:    store i16 [[TMP0]], ptr [[REF_TMP_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META137]], !noalias [[META136]]
+// CHECK-NEXT:    call void @llvm.experimental.noalias.scope.decl(metadata [[META141:![0-9]+]])
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I9_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr [[B]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i16, ptr [[ARRAYIDX_I_I_I_I9_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META144:![0-9]+]]
+// CHECK-NEXT:    store i16 [[TMP1]], ptr [[REF_TMP2_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META141]], !noalias [[META136]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[REF_TMP_ASCAST_I_I]]) #[[ATTR8]], !noalias [[META136]]
+// CHECK-NEXT:    [[CALL_I_I2_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[REF_TMP2_ASCAST_I_I]]) #[[ATTR8]], !noalias [[META136]]
+// CHECK-NEXT:    [[CMP_I_I_I_I_I:%.*]] = fcmp ogt float [[CALL_I_I_I_I_I_I_I]], [[CALL_I_I2_I_I_I_I_I]]
+// CHECK-NEXT:    [[CONV_I_I:%.*]] = sext i1 [[CMP_I_I_I_I_I]] to i16
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i16], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I_I]]
+// CHECK-NEXT:    store i16 [[CONV_I_I]], ptr [[ARRAYIDX_I_I_I_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META136]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP145:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailgtERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi4EEES8_.exit:
+// CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr [[TMP_I_I]], align 8, !noalias [[META136]]
+// CHECK-NEXT:    store i64 [[TMP2]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META136]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META130]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 2, ptr nonnull [[REF_TMP_I_I]]), !noalias [[META130]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 2, ptr nonnull [[REF_TMP2_I_I]]), !noalias [[META130]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
@@ -239,128 +474,292 @@ SYCL_EXTERNAL auto TestGreaterThan(vec<ext::oneapi::bfloat16, 4> a,
 /********************** Unary Ops **********************/
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIiLi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.69") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.69") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META70:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.899") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.899") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR4:[0-9]+]] !srcloc [[META146:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META71:![0-9]+]])
-// CHECK-NEXT:    [[LOADVEC4_I_I:%.*]] = load <4 x i32>, ptr [[A]], align 16, !noalias [[META71]]
-// CHECK-NEXT:    [[EXTRACTVEC_I_I:%.*]] = shufflevector <4 x i32> [[LOADVEC4_I_I]], <4 x i32> poison, <3 x i32> <i32 0, i32 1, i32 2>
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq <3 x i32> [[EXTRACTVEC_I_I]], zeroinitializer
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <3 x i1> [[CMP_I]] to <3 x i32>
-// CHECK-NEXT:    [[EXTRACTVEC_I2_I:%.*]] = shufflevector <3 x i32> [[SEXT_I]], <3 x i32> poison, <4 x i32> <i32 0, i32 1, i32 2, i32 poison>
-// CHECK-NEXT:    store <4 x i32> [[EXTRACTVEC_I2_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !tbaa [[TBAA11]], !alias.scope [[META71]]
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.899", align 16
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 16, ptr nonnull [[TMP_I_I]]), !noalias [[META147:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECIILI3EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i32], ptr [[A]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX_I_I_I_I_I]], align 4, !tbaa [[TBAA15]], !noalias [[META150:![0-9]+]]
+// CHECK-NEXT:    [[TOBOOL_NOT_I_I_I:%.*]] = icmp eq i32 [[TMP0]], 0
+// CHECK-NEXT:    [[COND_I_I:%.*]] = sext i1 [[TOBOOL_NOT_I_I_I]] to i32
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I9_I_I:%.*]] = getelementptr inbounds [4 x i32], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    store i32 [[COND_I_I]], ptr [[ARRAYIDX_I_I_I9_I_I]], align 4, !tbaa [[TBAA15]], !noalias [[META150]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP153:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailntERKNS0_3vecIiLi3EEE.exit:
+// CHECK-NEXT:    call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 16 [[AGG_RESULT]], ptr align 16 [[TMP_I_I]], i64 16, i1 false)
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 16, ptr nonnull [[TMP_I_I]]), !noalias [[META147]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<int, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecIiLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.74") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.74") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META74:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.954") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.954") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META154:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META75:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META75]]
-// CHECK-NEXT:    [[SUB_I:%.*]] = sub <4 x i32> zeroinitializer, [[TMP0]]
-// CHECK-NEXT:    store <4 x i32> [[SUB_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META75]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META155:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META158:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i32>, ptr [[A]], align 4, !tbaa [[TBAA37]], !noalias [[META161:![0-9]+]]
+// CHECK-NEXT:    [[SUB_I_I_I:%.*]] = sub <4 x i32> zeroinitializer, [[TMP0]]
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x i32> [[SUB_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x i32> [[SUB_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x i32> [[SUB_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <4 x i32> [[SUB_I_I_I]], i64 3
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA15]], !alias.scope [[META161]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META161]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META161]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i32 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 4, !tbaa [[TBAA15]], !alias.scope [[META161]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<int, 4> a) { return -a; }
 
 // Negation is not valid for std::byte. Therefore, using bitwise negation.
 // CHECK-LABEL: define dso_local spir_func void @_Z19TestBitwiseNegationN4sycl3_V13vecISt4byteLi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.78") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.78") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META78:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1008") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.1008") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META162:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META79:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META79]]
-// CHECK-NEXT:    [[NOT_I:%.*]] = xor <16 x i8> [[TMP0]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
-// CHECK-NEXT:    store <16 x i8> [[NOT_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !tbaa [[TBAA11]], !alias.scope [[META79]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META163:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META166:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i8>, ptr [[A]], align 1, !tbaa [[TBAA37]], !noalias [[META169:![0-9]+]]
+// CHECK-NEXT:    [[NOT_I_I_I:%.*]] = xor <16 x i8> [[TMP0]], <i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1, i8 -1>
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_1_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_3_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 3
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 4
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_5_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 5
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 6
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_7_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 7
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 8
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_9_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 9
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 10
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_11_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 11
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 12
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_13_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 13
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 14
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_15_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i8> [[NOT_I_I_I]], i64 15
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 1
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_1_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 3
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_3_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 5
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_5_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 7
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_7_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT15_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT15_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT17_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 9
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_9_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT17_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT19_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 10
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT19_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT21_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 11
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_11_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT21_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT23_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT23_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT25_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 13
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_13_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT25_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT27_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 14
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT27_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT29_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 15
+// CHECK-NEXT:    store i8 [[OPENCLVECTOR_ADDR_15_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT29_I_I_I_I]], align 1, !tbaa [[TBAA37]], !alias.scope [[META169]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestBitwiseNegation(vec<std::byte, 16> a) { return ~a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecIbLi4EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.83") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.15") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META82:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1063") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.219") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META170:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META83:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <4 x i8>, ptr [[A]], align 4, !tbaa [[TBAA11]], !noalias [[META83]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp eq <4 x i8> [[TMP0]], zeroinitializer
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <4 x i1> [[CMP_I]] to <4 x i8>
-// CHECK-NEXT:    store <4 x i8> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA11]], !alias.scope [[META83]]
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.1063", align 4
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META171:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META174:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META171]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECIBLI4EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[A]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX_I_I_I_I_I]], align 1, !tbaa [[TBAA54]], !range [[RNG56]], !noalias [[META177:![0-9]+]], !noundef [[META7]]
+// CHECK-NEXT:    [[DOTNEG_I_I:%.*]] = add nsw i8 [[TMP0]], -1
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I_I:%.*]] = getelementptr inbounds [4 x i8], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    store i8 [[DOTNEG_I_I]], ptr [[ARRAYIDX_I_I_I10_I_I]], align 1, !tbaa [[TBAA37]], !noalias [[META177]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP178:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailntERKNS0_3vecIbLi4EEE.exit:
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP_I_I]], align 4, !noalias [[META177]]
+// CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META177]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META171]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<bool, 4> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_6detail9half_impl4halfELi2EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.88") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.93") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META86:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1117") align 4 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.1172") align 4 [[A:%.*]]) local_unnamed_addr #[[ATTR1]] !srcloc [[META179:![0-9]+]] !sycl_used_aspects [[META60]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META87:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <2 x half>, ptr [[A]], align 4, !tbaa [[TBAA11]], !noalias [[META87]]
-// CHECK-NEXT:    [[CMP_I:%.*]] = fcmp oeq <2 x half> [[TMP0]], zeroinitializer
-// CHECK-NEXT:    [[SEXT_I:%.*]] = sext <2 x i1> [[CMP_I]] to <2 x i16>
-// CHECK-NEXT:    store <2 x i16> [[SEXT_I]], ptr addrspace(4) [[AGG_RESULT]], align 4, !tbaa [[TBAA11]], !alias.scope [[META87]]
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.1117", align 4
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META180:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META183:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META180]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECINS1_9HALF_IMPL4HALFELI2EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::detail::half_impl::half"], ptr [[A]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load half, ptr [[ARRAYIDX_I_I_I_I_I]], align 2, !tbaa [[TBAA186:![0-9]+]], !noalias [[META188:![0-9]+]]
+// CHECK-NEXT:    [[TOBOOL_I_I_I:%.*]] = fcmp oeq half [[TMP0]], 0xH0000
+// CHECK-NEXT:    [[CONV4_I_I:%.*]] = sext i1 [[TOBOOL_I_I_I]] to i16
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I_I:%.*]] = getelementptr inbounds [2 x i16], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    store i16 [[CONV4_I_I]], ptr [[ARRAYIDX_I_I_I10_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META188]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP189:![0-9]+]]
+// CHECK:       _ZN4sycl3_V16detailntERKNS0_3vecINS1_9half_impl4halfELi2EEE.exit:
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP_I_I]], align 4, !noalias [[META188]]
+// CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(4) [[AGG_RESULT]], align 4, !alias.scope [[META188]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[TMP_I_I]]), !noalias [[META180]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<half, 2> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_6detail9half_impl4halfELi8EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.55") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.55") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META90:![0-9]+]] !sycl_used_aspects [[META35]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.729") align 16 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.729") align 16 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META190:![0-9]+]] !sycl_used_aspects [[META60]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META91:![0-9]+]])
-// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 16, !tbaa [[TBAA11]], !noalias [[META91]]
-// CHECK-NEXT:    [[FNEG_I:%.*]] = fneg <8 x half> [[TMP0]]
-// CHECK-NEXT:    store <8 x half> [[FNEG_I]], ptr addrspace(4) [[AGG_RESULT]], align 16, !alias.scope [[META91]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META191:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META194:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <8 x half>, ptr [[A]], align 2, !tbaa [[TBAA37]], !noalias [[META197:![0-9]+]]
+// CHECK-NEXT:    [[FNEG_I_I_I:%.*]] = fneg <8 x half> [[TMP0]]
+// CHECK-NEXT:    [[BC_I_I_I:%.*]] = bitcast <8 x half> [[FNEG_I_I_I]] to <8 x i16>
+// CHECK-NEXT:    [[TMP1:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 0
+// CHECK-NEXT:    [[TMP2:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 1
+// CHECK-NEXT:    [[TMP3:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 2
+// CHECK-NEXT:    [[TMP4:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 3
+// CHECK-NEXT:    [[TMP5:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 4
+// CHECK-NEXT:    [[TMP6:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 5
+// CHECK-NEXT:    [[TMP7:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 6
+// CHECK-NEXT:    [[TMP8:%.*]] = extractelement <8 x i16> [[BC_I_I_I]], i64 7
+// CHECK-NEXT:    store i16 [[TMP1]], ptr addrspace(4) [[AGG_RESULT]], align 16, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i16 [[TMP2]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 2, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i16 [[TMP3]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 2, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 8, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 10
+// CHECK-NEXT:    store i16 [[TMP6]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 2, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i16 [[TMP7]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 4, !tbaa [[TBAA69]], !alias.scope [[META197]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 14
+// CHECK-NEXT:    store i16 [[TMP8]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 2, !tbaa [[TBAA69]], !alias.scope [[META197]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<half, 8> a) { return -a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z12TestNegationN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi3EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.98") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.25") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META94:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1227") align 8 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.333") align 8 [[A:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META198:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
+// CHECK-NEXT:    [[TMP_I_I:%.*]] = alloca %"class.sycl::_V1::vec.1227", align 8
 // CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META95:![0-9]+]])
-// CHECK-NEXT:    store i64 0, ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META95]]
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEE_EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META95]]
-// CHECK-NEXT:    [[TOBOOL_I:%.*]] = fcmp oeq float [[CALL_I_I_I]], 0.000000e+00
-// CHECK-NEXT:    [[CONV3_I:%.*]] = sext i1 [[TOBOOL_I]] to i16
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I:%.*]] = getelementptr inbounds [4 x i16], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    store i16 [[CONV3_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I10_I]], align 2, !tbaa [[TBAA49]], !alias.scope [[META95]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP98:![0-9]+]]
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META199:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META202:![0-9]+]])
+// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META199]]
+// CHECK-NEXT:    br label [[FOR_COND_I_I:%.*]]
+// CHECK:       for.cond.i.i:
+// CHECK-NEXT:    [[I_0_I_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I_I:%.*]], [[FOR_BODY_I_I:%.*]] ]
+// CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ult i32 [[I_0_I_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I_I]], label [[FOR_BODY_I_I]], label [[_ZN4SYCL3_V16DETAILNTERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EEE_EXIT:%.*]]
+// CHECK:       for.body.i.i:
+// CHECK-NEXT:    [[CONV_I_I_I:%.*]] = zext nneg i32 [[I_0_I_I]] to i64
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I_I:%.*]] = getelementptr inbounds [4 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I_I]]) #[[ATTR8]], !noalias [[META205:![0-9]+]]
+// CHECK-NEXT:    [[TOBOOL_I_I_I:%.*]] = fcmp oeq float [[CALL_I_I_I_I_I]], 0.000000e+00
+// CHECK-NEXT:    [[CONV4_I_I:%.*]] = sext i1 [[TOBOOL_I_I_I]] to i16
+// CHECK-NEXT:    [[ARRAYIDX_I_I_I10_I_I:%.*]] = getelementptr inbounds [4 x i16], ptr [[TMP_I_I]], i64 0, i64 [[CONV_I_I_I]]
+// CHECK-NEXT:    store i16 [[CONV4_I_I]], ptr [[ARRAYIDX_I_I_I10_I_I]], align 2, !tbaa [[TBAA82]], !noalias [[META205]]
+// CHECK-NEXT:    [[INC_I_I]] = add nuw nsw i32 [[I_0_I_I]], 1
+// CHECK-NEXT:    br label [[FOR_COND_I_I]], !llvm.loop [[LOOP206:![0-9]+]]
 // CHECK:       _ZN4sycl3_V16detailntERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi3EEE.exit:
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[TMP_I_I]], align 8, !noalias [[META205]]
+// CHECK-NEXT:    store i64 [[TMP0]], ptr addrspace(4) [[AGG_RESULT]], align 8, !alias.scope [[META205]]
+// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[TMP_I_I]]), !noalias [[META199]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestNegation(vec<ext::oneapi::bfloat16, 3> a) { return !a; }
 
 // CHECK-LABEL: define dso_local spir_func void @_Z9TestMinusN4sycl3_V13vecINS0_3ext6oneapi8bfloat16ELi16EEE(
-// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.102") align 32 [[AGG_RESULT:%.*]], ptr noundef byval(%"class.sycl::_V1::vec.102") align 32 [[A:%.*]]) local_unnamed_addr #[[ATTR2]] !srcloc [[META99:![0-9]+]] !sycl_fixed_targets [[META7]] {
+// CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::vec.1281") align 32 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::vec.1281") align 32 [[A:%.*]]) local_unnamed_addr #[[ATTR0]] !srcloc [[META207:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[REF_TMP_I:%.*]] = alloca float, align 4
-// CHECK-NEXT:    [[A_ASCAST:%.*]] = addrspacecast ptr [[A]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META100:![0-9]+]])
-// CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 4, ptr nonnull [[REF_TMP_I]])
-// CHECK-NEXT:    [[REF_TMP_ASCAST_I:%.*]] = addrspacecast ptr [[REF_TMP_I]] to ptr addrspace(4)
-// CHECK-NEXT:    tail call void @llvm.memset.p4.i64(ptr addrspace(4) noundef align 32 dereferenceable(32) [[AGG_RESULT]], i8 0, i64 32, i1 false), !alias.scope [[META100]]
-// CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
-// CHECK:       for.cond.i:
-// CHECK-NEXT:    [[I_0_I:%.*]] = phi i64 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i64 [[I_0_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V16DETAILNGERKNS0_3VECINS0_3EXT6ONEAPI8BFLOAT16ELI16EEE_EXIT:%.*]]
-// CHECK:       for.body.i:
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I_I:%.*]] = getelementptr inbounds [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[A_ASCAST]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I_I:%.*]] = call spir_func noundef float @__devicelib_ConvertBF16ToFINTEL(ptr addrspace(4) noundef align 2 dereferenceable(2) [[ARRAYIDX_I_I_I_I]]) #[[ATTR8]], !noalias [[META100]]
-// CHECK-NEXT:    [[FNEG_I:%.*]] = fneg float [[CALL_I_I_I]]
-// CHECK-NEXT:    store float [[FNEG_I]], ptr [[REF_TMP_I]], align 4, !tbaa [[TBAA47]], !noalias [[META100]]
-// CHECK-NEXT:    [[ARRAYIDX_I_I_I9_I:%.*]] = getelementptr inbounds [16 x %"class.sycl::_V1::ext::oneapi::bfloat16"], ptr addrspace(4) [[AGG_RESULT]], i64 0, i64 [[I_0_I]]
-// CHECK-NEXT:    [[CALL_I_I10_I:%.*]] = call spir_func noundef zeroext i16 @__devicelib_ConvertFToBF16INTEL(ptr addrspace(4) noundef align 4 dereferenceable(4) [[REF_TMP_ASCAST_I]]) #[[ATTR8]], !noalias [[META100]]
-// CHECK-NEXT:    store i16 [[CALL_I_I10_I]], ptr addrspace(4) [[ARRAYIDX_I_I_I9_I]], align 2, !tbaa [[TBAA103:![0-9]+]], !alias.scope [[META100]]
-// CHECK-NEXT:    [[INC_I]] = add nuw nsw i64 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP105:![0-9]+]]
-// CHECK:       _ZN4sycl3_V16detailngERKNS0_3vecINS0_3ext6oneapi8bfloat16ELi16EEE.exit:
-// CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 4, ptr nonnull [[REF_TMP_I]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META208:![0-9]+]])
+// CHECK-NEXT:    tail call void @llvm.experimental.noalias.scope.decl(metadata [[META211:![0-9]+]])
+// CHECK-NEXT:    [[TMP0:%.*]] = load <16 x i16>, ptr [[A]], align 2, !tbaa [[TBAA37]], !noalias [[META214:![0-9]+]]
+// CHECK-NEXT:    [[SUB_I_I_I:%.*]] = sub <16 x i16> zeroinitializer, [[TMP0]]
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 0
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 1
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 2
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 3
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 4
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 5
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 6
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 7
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_16_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 8
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_18_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 9
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_20_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 10
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_22_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 11
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_24_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 12
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_26_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 13
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_28_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 14
+// CHECK-NEXT:    [[OPENCLVECTOR_ADDR_30_VEC_EXTRACT_I_I_I:%.*]] = extractelement <16 x i16> [[SUB_I_I_I]], i64 15
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_0_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[AGG_RESULT]], align 32, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 2
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_2_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT3_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 4
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_4_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT3_I_I_I_I]], align 4, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT5_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 6
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_6_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT5_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT7_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 8
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_8_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT7_I_I_I_I]], align 8, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT9_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 10
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_10_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT9_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT11_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 12
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_12_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT11_I_I_I_I]], align 4, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT13_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 14
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_14_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT13_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT15_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 16
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_16_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT15_I_I_I_I]], align 16, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT17_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 18
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_18_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT17_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT19_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 20
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_20_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT19_I_I_I_I]], align 4, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT21_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 22
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_22_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT21_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT23_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 24
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_24_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT23_I_I_I_I]], align 8, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT25_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 26
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_26_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT25_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT27_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 28
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_28_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT27_I_I_I_I]], align 4, !tbaa [[TBAA82]], !alias.scope [[META214]]
+// CHECK-NEXT:    [[ARRAYINIT_ELEMENT29_I_I_I_I:%.*]] = getelementptr inbounds i8, ptr addrspace(4) [[AGG_RESULT]], i64 30
+// CHECK-NEXT:    store i16 [[OPENCLVECTOR_ADDR_30_VEC_EXTRACT_I_I_I]], ptr addrspace(4) [[ARRAYINIT_ELEMENT29_I_I_I_I]], align 2, !tbaa [[TBAA82]], !alias.scope [[META214]]
 // CHECK-NEXT:    ret void
 //
 SYCL_EXTERNAL auto TestMinus(vec<ext::oneapi::bfloat16, 16> a) { return -a; }

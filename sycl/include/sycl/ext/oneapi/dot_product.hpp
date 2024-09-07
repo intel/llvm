@@ -54,24 +54,30 @@ int32_t dot_acc(uint32_t pa, int32_t pb, int32_t c) {
          c;
 }
 
+namespace detail {
+template <typename T0, typename T1>
+int32_t dot_acc(vec<T0, 4> a, vec<T1, 4> b, int32_t c) {
+  int32_t res = c;
+  for (int i = 0; i < 4; ++i)
+    res += a[i] * b[i];
+  return res;
+}
+} // namespace detail
+
 int32_t dot_acc(vec<int8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
+  return detail::dot_acc(a, b, c);
 }
 
 int32_t dot_acc(vec<uint8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
+  return detail::dot_acc(a, b, c);
 }
 
 int32_t dot_acc(vec<uint8_t, 4> a, vec<int8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
+  return detail::dot_acc(a, b, c);
 }
 
 int32_t dot_acc(vec<int8_t, 4> a, vec<uint8_t, 4> b, int32_t c) {
-  return a.s0() * b.s0() + a.s1() * b.s1() + a.s2() * b.s2() + a.s3() * b.s3() +
-         c;
+  return detail::dot_acc(a, b, c);
 }
 
 } // namespace ext::oneapi

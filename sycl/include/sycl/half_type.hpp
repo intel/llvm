@@ -8,12 +8,16 @@
 
 #pragma once
 
+#if defined(__SYCL_VEC_STANDALONE)
+#include <iostream>
+// use sycl::bit_cast from vector.hpp
+#else
 #include <sycl/bit_cast.hpp>              // for bit_cast
-#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
 #include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
+#endif
 #endif
 
 #include <cstddef>     // for size_t
@@ -182,7 +186,7 @@ struct RawHostHalfToken {
   uint16_t Value;
 };
 
-#ifndef __SYCL_DEVICE_ONLY__
+#if !defined(__SYCL_DEVICE_ONLY__) || defined(__SYCL_VEC_STANDALONE)
 class half {
 #else
 class [[__sycl_detail__::__uses_aspects__(aspect::fp16)]] half {

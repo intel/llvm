@@ -202,8 +202,8 @@ void checkVariousVecUnaryOps() {
 
 int main() {
   // Test for creating constexpr expressions
-  constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
-  constexpr sycl::marray<sycl::half, 2> MH(3);
+  constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(sycl::half{1.0});
+  constexpr sycl::marray<sycl::half, 2> MH(sycl::half{3});
   // Check the size and alignment of the SYCL vectors.
   checkVectors();
 
