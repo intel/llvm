@@ -7,7 +7,6 @@
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
 
-
 #include <iostream>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
