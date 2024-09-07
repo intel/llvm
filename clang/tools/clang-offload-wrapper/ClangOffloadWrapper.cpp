@@ -143,9 +143,8 @@ static cl::list<std::string> Inputs(cl::Positional, cl::OneOrMore,
                                     cl::cat(ClangOffloadWrapperCategory));
 
 // CLI options for device image compression.
-// TODO: Turn off this option by default.
 static cl::opt<bool> OffloadCompressDevImgs(
-    "offload-compress", cl::init(true), cl::Optional,
+    "offload-compress", cl::init(false), cl::Optional,
     cl::desc("Enable device image compression using ZSTD."),
     cl::cat(ClangOffloadWrapperCategory));
 
@@ -154,6 +153,13 @@ static cl::opt<int>
                          cl::Optional,
                          cl::desc("ZSTD Compression level. Default: 10"),
                          cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<int>
+    OffloadCompressThreshold("offload-compression-threshold", cl::init(512),
+                             cl::Optional,
+                             cl::desc("Threshold (in bytes) over which to "
+                                      "compress images. Default: 512"),
+                             cl::cat(ClangOffloadWrapperCategory));
 
 // Binary image formats supported by this tool. The support basically means
 // mapping string representation given at the command line to a value from this
@@ -1103,20 +1109,29 @@ private:
         Fbin = *FBinOrErr;
       } else {
 
+        // If '--offload-compress' option is specified and zstd is not available
+        // then warn the user that the image will not be compressed.
+        if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
+          WithColor::warning(errs(), ToolName)
+              << "'--offload-compress' option is specified but zstd is not "
+                 "available. The device image will not be compressed.\n";
+        }
+
         // Don't compress if the user explicitly specifies the binary image
-        // format or if the image is smaller than 512 bytes.
+        // format or if the image is smaller than OffloadCompressThreshold
+        // bytes.
         if (Kind != OffloadKind::SYCL || !OffloadCompressDevImgs ||
             Img.Fmt != BinaryImageFormat::none ||
             !llvm::compression::zstd::isAvailable() ||
-            static_cast<int>(Bin->getBufferSize()) < 512) {
+            static_cast<int>(Bin->getBufferSize()) < OffloadCompressThreshold) {
           Fbin = addDeviceImageToModule(
               ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
               Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
               Img.Tgt);
         } else {
 
+          // Compress the image using zstd.
           SmallVector<uint8_t, 512> CompressedBuffer;
-
           llvm::compression::zstd::compress(
               ArrayRef<unsigned char>(
                   (const unsigned char *)(Bin->getBufferStart()),
@@ -1124,11 +1139,14 @@ private:
               CompressedBuffer, OffloadCompressLevel);
 
           if (Verbose)
-            errs() << " Compression succeeded. Original image size:"
-                   << Bin->getBufferSize()
-                   << " Compressed image size:" << CompressedBuffer.size()
-                   << "\n";
+            errs() << "[Compression] Original image size: "
+                   << Bin->getBufferSize() << "\n"
+                   << "[Compression] Compressed image size: "
+                   << CompressedBuffer.size() << "\n"
+                   << "[Compression] Compression level used: "
+                   << OffloadCompressLevel << "\n";
 
+          // Add the compressed image to the module.
           Fbin = addDeviceImageToModule(
               ArrayRef<char>((const char *)CompressedBuffer.data(),
                              CompressedBuffer.size()),
