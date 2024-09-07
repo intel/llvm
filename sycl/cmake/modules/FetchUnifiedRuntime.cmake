@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9d71afb85694c133ec5aede5bad11dc4d9d05972 (HEAD, upstream/main, upstream/HEAD)
-  # Merge: d50a59ec 5be1aa41
+  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
+  # Merge: a99dbcee 3abe18cf
   # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 09:45:31 2024 +0200
-  #   Merge pull request #2062 from nrspruit/fix_inorder_cache
-  #   [L0] Fix Command List Cache to correctly set In order List property
-  set(UNIFIED_RUNTIME_TAG 9d71afb85694c133ec5aede5bad11dc4d9d05972)
+  # Date:   Fri Sep 6 17:21:17 2024 +0200
+  #   Merge pull request #1820 from pbalcer/static-linking
+  #   Add support for static linking of the L0 adapter
+  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
