@@ -5,8 +5,4 @@ if [ -d "$GITHUB_WORKSPACE" ]; then
   su sycl
 fi
 
-groups sycl
-usermod -aG render sycl || true
-groups sycl
-
 exec "$@"
