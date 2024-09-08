@@ -30,6 +30,7 @@
 #include "llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/Analysis/MemoryBuiltins.h"
 #include "llvm/Analysis/OverflowInstAnalysis.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/ConstantRange.h"
@@ -5179,6 +5180,10 @@ Value *llvm::simplifyInsertElementInst(Value *Vec, Value *Val, Value *Idx,
   // propagating poison from the vector value, simplify to the vector value.
   if (isa<PoisonValue>(Val) ||
       (Q.isUndefValue(Val) && isGuaranteedNotToBePoison(Vec)))
+    return Vec;
+
+  // Inserting the splatted value into a constant splat does nothing.
+  if (VecC && ValC && VecC->getSplatValue() == ValC)
     return Vec;
 
   // If we are extracting a value from a vector, then inserting it into the same
