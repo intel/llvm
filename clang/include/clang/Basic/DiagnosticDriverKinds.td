@@ -899,8 +899,4 @@ def err_drv_triple_version_invalid : Error<
 
 def warn_missing_include_dirs : Warning<
   "no such include directory: '%0'">, InGroup<MissingIncludeDirs>, DefaultIgnore;
-
-def warn_compress_opt_ignored : Warning<
-  "CLI option '%0' ignored as it can not be used without '-offload-compress'">,
-  InGroup<OptionIgnored>, DefaultIgnore;
 }

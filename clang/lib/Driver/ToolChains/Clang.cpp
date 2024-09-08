@@ -10102,10 +10102,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (Arg *A = C.getInputArgs().getLastArg(
               options::OPT_offload_compression_level_EQ)) {
 
-        if (!isImgCompress)
-          C.getDriver().Diag(diag::warn_compress_opt_ignored)
-              << A->getAsString(C.getInputArgs());
-        else
+        if (isImgCompress)
           WrapperArgs.push_back(C.getArgs().MakeArgString(
               Twine("-offload-compression-level=") + A->getValue()));
       }

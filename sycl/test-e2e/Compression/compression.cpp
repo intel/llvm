@@ -1,6 +1,6 @@
 // End-to-End test for testing device image compression.
 // RUN: %{build} -O0 -g -o %t_not_compress.out
-// RUN: %{build} -O0 -g --offload-compress -o %t_compress.out
+// RUN: %{build} -O0 -g --offload-compress --offload-compression-level=3 -o %t_compress.out
 // RUN: %{run} %t_not_compress.out
 // RUN: %{run} %t_compress.out
 // RUN: not diff %t_not_compress.out %t_compress.out
