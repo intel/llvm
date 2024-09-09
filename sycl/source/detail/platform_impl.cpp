@@ -64,8 +64,8 @@ platform_impl::getPlatformFromUrDevice(ur_device_handle_t UrDevice,
   ur_platform_handle_t Plt =
       nullptr; // TODO catch an exception and put it to list
   // of asynchronous exceptions
-  Plugin->call(urDeviceGetInfo, UrDevice, UR_DEVICE_INFO_PLATFORM, sizeof(Plt),
-               &Plt, nullptr);
+  Plugin->call<UrApiKind::urDeviceGetInfo>(UrDevice, UR_DEVICE_INFO_PLATFORM,
+                                           sizeof(Plt), &Plt, nullptr);
   return getOrMakePlatformImpl(Plt, Plugin);
 }
 
@@ -227,8 +227,9 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
 
   // Find out backend of the platform
   ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-  MPlugin->call(urPlatformGetInfo, MPlatform, UR_PLATFORM_INFO_BACKEND,
-                sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+  MPlugin->call<UrApiKind::urPlatformGetInfo>(
+      MPlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
+      &UrBackend, nullptr);
   backend Backend = convertUrBackend(UrBackend);
 
   int InsertIDx = 0;
@@ -238,8 +239,9 @@ platform_impl::filterDeviceFilter(std::vector<ur_device_handle_t> &UrDevices,
   int DeviceNum = MPlugin->getStartingDeviceId(MPlatform);
   for (ur_device_handle_t Device : UrDevices) {
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    MPlugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
-                  sizeof(ur_device_type_t), &UrDevType, nullptr);
+    MPlugin->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_TYPE,
+                                              sizeof(ur_device_type_t),
+                                              &UrDevType, nullptr);
     // Assumption here is that there is 1-to-1 mapping between UrDevType and
     // Sycl device type for GPU, CPU, and ACC.
     info::device_type DeviceType = info::device_type::all;
@@ -489,9 +491,9 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   }
 
   uint32_t NumDevices = 0;
-  MPlugin->call(urDeviceGet, MPlatform, UrDeviceType,
-                0, // CP info::device_type::all
-                nullptr, &NumDevices);
+  MPlugin->call<UrApiKind::urDeviceGet>(MPlatform, UrDeviceType,
+                                        0, // CP info::device_type::all
+                                        nullptr, &NumDevices);
   const backend Backend = getBackend();
 
   if (NumDevices == 0) {
@@ -515,9 +517,10 @@ platform_impl::get_devices(info::device_type DeviceType) const {
 
   std::vector<ur_device_handle_t> UrDevices(NumDevices);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  MPlugin->call(urDeviceGet, MPlatform,
-                UrDeviceType, // CP info::device_type::all
-                NumDevices, UrDevices.data(), nullptr);
+  MPlugin->call<UrApiKind::urDeviceGet>(
+      MPlatform,
+      UrDeviceType, // CP info::device_type::all
+      NumDevices, UrDevices.data(), nullptr);
 
   // Some elements of UrDevices vector might be filtered out, so make a copy of
   // handles to do a cleanup later
@@ -549,7 +552,7 @@ platform_impl::get_devices(info::device_type DeviceType) const {
   // The reference counter for handles, that we used to create sycl objects, is
   // incremented, so we need to call release here.
   for (ur_device_handle_t &UrDev : UrDevicesToCleanUp)
-    MPlugin->call(urDeviceRelease, UrDev);
+    MPlugin->call<UrApiKind::urDeviceRelease>(UrDev);
 
   // If we aren't using ONEAPI_DEVICE_SELECTOR, then we are done.
   // and if there are no devices so far, there won't be any need to replace them
@@ -578,7 +581,7 @@ bool platform_impl::supports_usm() const {
 ur_native_handle_t platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
   ur_native_handle_t Handle = 0;
-  Plugin->call(urPlatformGetNativeHandle, getHandleRef(), &Handle);
+  Plugin->call<UrApiKind::urPlatformGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
