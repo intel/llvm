@@ -20,8 +20,10 @@
 #include <utility>     // for declval
 
 #ifdef __SYCL_DEVICE_ONLY__
+#define __SYCL_DEVICE_ONLY_NOEXCEPT noexcept
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
 #else
+#define __SYCL_DEVICE_ONLY_NOEXCEPT
 #define __SYCL_HOST_NOT_SUPPORTED(Op)                                          \
   throw sycl::exception(                                                       \
       sycl::make_error_code(sycl::errc::feature_not_supported),                \
@@ -73,7 +75,7 @@ public:
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() noexcept {
+  get_multi_ptr() __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return multi_ptr<T, access::address_space::global_space, IsDecorated>{
         get_ptr()};
@@ -81,7 +83,7 @@ public:
 
   template <access::decorated IsDecorated>
   multi_ptr<const T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() const noexcept {
+  get_multi_ptr() const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return multi_ptr<const T, access::address_space::global_space, IsDecorated>{
         get_ptr()};
@@ -110,7 +112,7 @@ public:
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() noexcept {
+  get_multi_ptr() __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return address_space_cast<access::address_space::global_space, IsDecorated,
                               T>(this->get_ptr());
@@ -118,7 +120,7 @@ public:
 
   template <access::decorated IsDecorated>
   multi_ptr<const T, access::address_space::global_space, IsDecorated>
-  get_multi_ptr() const noexcept {
+  get_multi_ptr() const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get_multi_ptr()")
     return address_space_cast<access::address_space::global_space, IsDecorated,
                               const T>(this->get_ptr());
@@ -175,27 +177,27 @@ public:
   device_global &operator=(const device_global &) = delete;
   device_global &operator=(const device_global &&) = delete;
 
-  T &get() noexcept {
+  T &get() __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get()")
     return *this->get_ptr();
   }
 
-  const T &get() const noexcept {
+  const T &get() const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("get()")
     return *this->get_ptr();
   }
 
-  operator T &() noexcept {
+  operator T &() __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
   }
 
-  operator const T &() const noexcept {
+  operator const T &() const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
   }
 
-  device_global &operator=(const T &newValue) noexcept {
+  device_global &operator=(const T &newValue) __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("Assignment operator")
     *this->get_ptr() = newValue;
     return *this;
@@ -204,7 +206,7 @@ public:
   template <class RelayT = T>
   std::remove_reference_t<
       decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
-  operator[](std::ptrdiff_t idx) noexcept {
+  operator[](std::ptrdiff_t idx) __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
@@ -212,7 +214,7 @@ public:
   template <class RelayT = T>
   const std::remove_reference_t<
       decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
-  operator[](std::ptrdiff_t idx) const noexcept {
+  operator[](std::ptrdiff_t idx) const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
@@ -221,7 +223,7 @@ public:
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
                        std::is_pointer_v<RelayT>,
                    RelayT> &
-  operator->() noexcept {
+  operator->() __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
@@ -230,7 +232,7 @@ public:
   std::enable_if_t<detail::HasArrowOperator<RelayT>::value ||
                        std::is_pointer_v<RelayT>,
                    const RelayT> &
-  operator->() const noexcept {
+  operator->() const __SYCL_DEVICE_ONLY_NOEXCEPT {
     __SYCL_HOST_NOT_SUPPORTED("operator-> on a device_global")
     return *this->get_ptr();
   }
@@ -248,5 +250,6 @@ public:
 } // namespace _V1
 } // namespace sycl
 
+#undef __SYCL_DEVICE_ONLY_NOEXCEPT
 #undef __SYCL_HOST_NOT_SUPPORTED
 #undef __SYCL_DEVICE_GLOBAL_PROP_META_INFO
