@@ -541,7 +541,14 @@ inline UrImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames) {
   UrPropertySet PropSet;
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::string Combined;
+  for (auto it = KernelNames.begin(); it != KernelNames.end(); ++it) {
+    if (it != KernelNames.begin())
+      Combined += ", ";
+    Combined += *it;
+  }
+  std::vector<unsigned char> Bin(Combined.begin(), Combined.end());
+  Bin.push_back(0);
 
   UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 

@@ -139,6 +139,7 @@
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLConditionalCallOnDevice.h"
 #include "llvm/SYCLLowerIR/SYCLCreateNVVMAnnotations.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateJointMatrixUsage.h"
 #include "llvm/SYCLLowerIR/SYCLVirtualFunctionsAnalysis.h"
@@ -862,6 +863,8 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
       Result.hoistCommonInsts(Enable);
     } else if (ParamName == "sink-common-insts") {
       Result.sinkCommonInsts(Enable);
+    } else if (ParamName == "speculate-unpredictables") {
+      Result.speculateUnpredictables(Enable);
     } else if (Enable && ParamName.consume_front("bonus-inst-threshold=")) {
       APInt BonusInstThreshold;
       if (ParamName.getAsInteger(0, BonusInstThreshold))
@@ -1197,7 +1200,7 @@ parseRegAllocFastPassOptions(PassBuilder &PB, StringRef Params) {
     std::tie(ParamName, Params) = Params.split(';');
 
     if (ParamName.consume_front("filter=")) {
-      std::optional<RegClassFilterFunc> Filter =
+      std::optional<RegAllocFilterFunc> Filter =
           PB.parseRegAllocFilter(ParamName);
       if (!Filter) {
         return make_error<StringError>(
@@ -2207,7 +2210,7 @@ Error PassBuilder::parseAAPipeline(AAManager &AA, StringRef PipelineText) {
   return Error::success();
 }
 
-std::optional<RegClassFilterFunc>
+std::optional<RegAllocFilterFunc>
 PassBuilder::parseRegAllocFilter(StringRef FilterName) {
   if (FilterName == "all")
     return nullptr;

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // XFAIL: igc-dev
-// REQUIRES: ocloc
+// REQUIRES: ocloc && arch-intel_gpu_tgllp
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp %s -o %t.out
 // RUN: %t.out
 

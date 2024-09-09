@@ -16,10 +16,15 @@ if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()
 
-# If SYCL_ENABLE_PLUGINS is undefined, we default to enabling OpenCL and Level
-# Zero plugins.
-if (NOT DEFINED SYCL_ENABLE_PLUGINS)
-  set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
+if (SYCL_ENABLE_PLUGINS)
+  message(WARNING "SYCL_ENABLE_PLUGINS has been renamed, please use SYCL_ENABLE_BACKENDS instead")
+  set(SYCL_ENABLE_BACKENDS "${SYCL_ENABLE_PLUGINS}" CACHE STRING "Backends enabled for SYCL" FORCE)
+endif()
+
+# If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
+# Zero backends.
+if (NOT DEFINED SYCL_ENABLE_BACKENDS)
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
@@ -52,8 +57,8 @@ if(MSVC)
 
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-  include(LLVMCheckLinkerFlag)
-  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -75,7 +80,7 @@ if(MSVC)
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("/OPT:REF" "/OPT:ICF")
     endif()
@@ -167,19 +172,19 @@ install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
 
 # Needed for feature_test.hpp
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_CUDA ON)
 endif()
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_HIP ON)
 endif()
-if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
 endif()
-if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
 
@@ -246,6 +251,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMENT "Copying SYCL headers ...")
 
@@ -257,6 +263,8 @@ install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+  COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)
@@ -483,7 +491,7 @@ if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -495,7 +503,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )

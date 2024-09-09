@@ -348,22 +348,22 @@ specific repository URL and revision tag used can be found in the file
 In order to enable developers, a number of CMake variables are available to
 control which revision of Unified Runtime should be used when building DPC++:
 
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO` is a variable which can be used to
   override the `UNIFIED_RUNTIME_REPO` variable used by `FetchContent` to attain
   the Unified Runtime source code.
-* `SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
+* `SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG` is a variable which can be used to
   override the `UNIFIED_RUNTIME_TAG` variable used by `FetchContent` to attain
   the Unified Runtime source code.
-* `SYCL_PI_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
+* `SYCL_UR_USE_FETCH_CONTENT` is an option to control if CMake should use
   `FetchContent` to pull in the Unified Runtime repository, it defaults to `ON`.
   When set to `OFF`, `FetchContent` will not be used, instead:
-  * The path specified by variable `SYCL_PI_UR_SOURCE_DIR` will be used with
+  * The path specified by variable `SYCL_UR_SOURCE_DIR` will be used with
     `add_directory()`. This can be used to point at an adjacent directory
     containing a clone of the Unified Runtime repository.
   * The path `sycl/plugins/unified_runtime/unified-runtime` will be used, if it
     exists. This can be used as-if an in-tree build.
-* `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
-  Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
+* `SYCL_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
+  Runtime repository when `SYCL_UR_USE_FETCH_CONTENT` is set of `OFF`.
 
 ### Build DPC++ libclc with a custom toolchain
 
@@ -784,7 +784,7 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
-if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
+if clang was built with the cmake option `SYCL_ENABLE_BACKENDS=cuda`.
 
 ### Build DPC++ application with CMake
 
