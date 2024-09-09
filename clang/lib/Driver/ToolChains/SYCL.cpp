@@ -27,6 +27,31 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+struct StringToOffloadArchIntelMap {
+  const char *ArchName;
+  OffloadArchIntel IntelArch;
+};
+
+static const StringToOffloadArchIntelMap StringToArchNamesMap[] = {
+    {"broadwell", OffloadArchIntel::BROADWELL},
+    {"coffeelake", OffloadArchIntel::COFFEELAKE},
+    {"icelake-client", OffloadArchIntel::ICELAKECLIENT},
+    {"bdw", OffloadArchIntel::BDW},
+    {"cfl", OffloadArchIntel::CFL},
+    {"icl", OffloadArchIntel::ICL}};
+
+OffloadArchIntel
+clang::driver::StringToOffloadArchIntel(llvm::StringRef ArchNameAsString) {
+  auto result = std::find_if(
+      std::begin(StringToArchNamesMap), std::end(StringToArchNamesMap),
+      [ArchNameAsString](const StringToOffloadArchIntelMap &map) {
+        return ArchNameAsString == map.ArchName;
+      });
+  if (result == std::end(StringToArchNamesMap))
+    return OffloadArchIntel::UNKNOWN;
+  return result->IntelArch;
+}
+
 SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
     : D(D), InstallationCandidates() {
   InstallationCandidates.emplace_back(D.Dir + "/..");

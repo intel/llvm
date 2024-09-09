@@ -16,6 +16,82 @@
 namespace clang {
 namespace driver {
 
+// List of supported Intel values for CPUs
+// and GPUs.
+enum class OffloadArchIntel {
+  // CPUs
+  UNKNOWN,
+  SKYLAKEAVX512,
+  COREAVX2,
+  COREI7AVX,
+  COREI7,
+  WESTMERE,
+  SANDYBRIDGE,
+  IVYBRIDGE,
+  BROADWELL,
+  COFFEELAKE,
+  ALDERLAKE,
+  SKYLAKE,
+  SKX,
+  CASCADELAKE,
+  ICELAKECLIENT,
+  ICELAKESERVER,
+  SAPPHIRERAPIDS,
+  GRANITERAPIDS,
+  // GPUs
+  BDW,
+  SKL,
+  KBL,
+  CFL,
+  APL,
+  BXT,
+  GLK,
+  WHL,
+  AML,
+  CML,
+  ICLLP,
+  ICL,
+  EHL,
+  JSL,
+  TGLLP,
+  TGL,
+  RKL,
+  ADL_S,
+  RPL_S,
+  ADL_P,
+  ADL_N,
+  DG1,
+  ACM_G10,
+  DG2_G10,
+  ACM_G11,
+  DG2_GLL,
+  ACM_G12,
+  DG2_G12,
+  PVC,
+  PVC_VG,
+  MTL_U,
+  MTL_S,
+  ARL_U,
+  ARL_S,
+  MTL_H,
+  ARL_H,
+  BMG_G21,
+  LNL_M
+};
+
+// Check if the given Arch value is a valid Intel CPU.
+static inline bool IsIntelCPUOffloadArch(OffloadArchIntel Arch) {
+  return Arch >= OffloadArchIntel::SKYLAKEAVX512 &&
+         Arch < OffloadArchIntel::BDW;
+}
+
+// Check if the given Arch value is a valid Intel GPU.
+static inline bool IsIntelGPUOffloadArch(OffloadArchIntel Arch) {
+  return Arch >= OffloadArchIntel::BDW && Arch <= OffloadArchIntel::LNL_M;
+}
+
+OffloadArchIntel StringToOffloadArchIntel(llvm::StringRef ArchNameAsString);
+
 class SYCLInstallationDetector {
 public:
   SYCLInstallationDetector(const Driver &D);
