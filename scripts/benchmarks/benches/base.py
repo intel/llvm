@@ -16,9 +16,12 @@ import tarfile
 class Benchmark:
     def __init__(self, directory):
         self.directory = directory
+        self.adapter_path = os.path.join(options.ur_dir, 'build', 'lib', f"libur_adapter_{options.ur_adapter_name}.so")
 
     def run_bench(self, command, env_vars):
-        return run(command=command, env_vars=env_vars, add_sycl=True, cwd=options.benchmark_cwd).stdout.decode()
+        env_vars_with_forced_adapter = env_vars.copy()
+        env_vars_with_forced_adapter.update({'UR_ADAPTERS_FORCE_LOAD': self.adapter_path})
+        return run(command=command, env_vars=env_vars_with_forced_adapter, add_sycl=True, cwd=options.benchmark_cwd).stdout.decode()
 
     def create_data_path(self, name):
         data_path = os.path.join(self.directory, "data", name)

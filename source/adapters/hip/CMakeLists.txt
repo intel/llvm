@@ -8,8 +8,13 @@ set(TARGET_NAME ur_adapter_hip)
 # Set default UR HIP platform to AMD
 set(UR_HIP_PLATFORM "AMD" CACHE STRING "UR HIP platform, AMD or NVIDIA")
 
+set(DEFAULT_ROCM_PATH "/opt/rocm")
+if(DEFINED ENV{ROCM_PATH})
+  set(DEFAULT_ROCM_PATH $ENV{ROCM_PATH})
+endif()
+
 # Set default ROCm installation directory
-set(UR_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
+set(UR_HIP_ROCM_DIR "${DEFAULT_ROCM_PATH}" CACHE STRING "ROCm installation dir")
 # Allow custom location of HIP/HSA include and HIP library directories
 set(UR_HIP_INCLUDE_DIR "${UR_HIP_ROCM_DIR}/include" CACHE PATH
   "Custom ROCm HIP include dir")
