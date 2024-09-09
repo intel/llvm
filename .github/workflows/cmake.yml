@@ -20,7 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
-        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
+        latency_tracking: ['-DUR_ENABLE_LATENCY_HISTOGRAM=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -40,7 +40,7 @@ jobs:
           - os: 'ubuntu-22.04'
             build_type: Release
             compiler: {c: clang, cxx: clang++}
-            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
+            latency_tracking: '-DUR_ENABLE_LATENCY_HISTOGRAM=ON'
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:

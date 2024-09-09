@@ -39,7 +39,7 @@ event_allocation provider_counter::allocate() {
   if (freelist.empty()) {
     ZeStruct<ze_event_desc_t> desc;
     desc.index = 0;
-    desc.signal = 0;
+    desc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
     desc.wait = 0;
     ze_event_handle_t handle;
 
