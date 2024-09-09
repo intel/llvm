@@ -8,7 +8,6 @@
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
-
 constexpr size_t Size = 1024;
 using DataType = int;
 
