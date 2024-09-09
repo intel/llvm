@@ -1942,6 +1942,7 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::SYCLBuiltinFieldTypeExprClass:
     case Stmt::SYCLBuiltinNumBasesExprClass:
     case Stmt::SYCLBuiltinBaseTypeExprClass:
+    case Stmt::EmbedExprClass:
       // Fall through.
 
     // Cases we intentionally don't evaluate, since they don't need
@@ -2445,10 +2446,6 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
       Bldr.addNodes(Dst);
       break;
     }
-
-    case Stmt::EmbedExprClass:
-      llvm::report_fatal_error("Support for EmbedExpr is not implemented.");
-      break;
   }
 }
 
