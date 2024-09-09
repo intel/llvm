@@ -43,6 +43,10 @@ Release notes for commit range
 - Added support for detecting misaligned data accesses via address sanitizer. intell/llvm#14148
 - Added support for emitting multiple error reports via address sanitizer
   through `-fsanitize-recover=address`. intel/llvm#13948
+- Added initial support for
+  [dynamic linking](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/SharedLibraries.md).
+  Current implementation lacks support for `kernel_bundle` API and AOT mode.
+  intel/llvm#14587 intel/llvm#14189 intel/llvm#14103
 
 ### SYCL Library
 
@@ -61,8 +65,6 @@ Release notes for commit range
   load/store could be done without this extension using simple `for` loop and
   group barriers. intel/llvm#13043
 - Implemented [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
-- Added initial support for [dynamic linking](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/SharedLibraries.md).
-  Current implementation lacks support for `kernel_bundle` API and AOT mode. intel/llvm#14587
 - Added initial support for [`sycl_ext_oneapi_free_function_kernels`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) extension. intel/llvm#13207 intel/llvm#13885
   Known limitations:
     - free function kernels are only supported if defined at file scope
@@ -77,6 +79,9 @@ Release notes for commit range
       kernels
 - Added experimental ESIMD function `fma` which results in a guaranteed fused
   multiply-add operation performed. intel/llvm#13366
+- Implemented revision 2 of
+  [`sycl_ext_oneapi_group_sort`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
+  extension. intel/llvm14399 intel/llvm#14185 intel/llvm#13942 intel/llvm#13908
 
 
 ### SYCLcompat library
@@ -129,23 +134,11 @@ commit https://github.com/intel/llvm/commit/9876e19f4ff387b35b0c98c7d62e5f50e6de
     [SYCL][XPTI] 'queue_id' metadata feature refactoring (#13070)
     bugfix?
 
-commit https://github.com/intel/llvm/commit/3800814750da51d6da852ce404bde91e1dbe02b8
-    [SYCL] Key/Value sorting with fixed-size private array input (#14399)
-
 commit https://github.com/intel/llvm/commit/7b3f21527abb904cb5c63e9ea32c7f0d65636436
     [SYCL] [ABI-Break] Partial implementation of sycl_ext_oneapi_cuda_cluster_group (#14113)
 
-commit https://github.com/intel/llvm/commit/8e3b8ce77f41d85687ae3bceedf5d1dc6e0e3155
-    [SYCL] Add sorting APIs for fixed-size private array input (#14185)
-
 commit https://github.com/intel/llvm/commit/bd97f283c9f982b89a3347754edf184a38762a4a
     [Bindless][Exp] Windows & DX12 interop. Semaphore ops can take values. (#13860)
-
-commit https://github.com/intel/llvm/commit/3910d0c1393247313c8987b3f68a8d540d940673
-    [SYCL] Add support for key/value sorting APIs (#13942)
-
-commit https://github.com/intel/llvm/commit/5e269c88bcfafd82719d1266a5b8a2bb7b90045d
-    [SYCL] Initial changes for the second version of sycl_ext_oneapi_group_sort extension (#13908)
 
 commit https://github.com/intel/llvm/commit/55b547e59a28c4c446a797bb8c51a83156609327
     [SYCL][ESIMD] Introduce load2d/store2d/prefetch2d API that accepts compile time properties (#13046)
@@ -287,6 +280,11 @@ commit https://github.com/intel/llvm/commit/c8ae6c68943b9635cd9822f3c9ee7b5cc8d9
   by making it a non-template. intel/llvm#14668
 - Removed deprecation warnings from math built-ins that accept raw pointers to
   align with the SYCL 2020 spec changes. intel/llvm#13238 intel/llvm#13893
+- Added support for 1- and 2-byte data types to ESIMD prefetch APIs.
+  intel/llvm#13452
+- Enabled `ext_intel_matrix` support for Intel GNR devices. intel/llvm#14436
+- Added initial support for sub-groups on Native CPU backend. intel/llvm#13979
+- Added support for 1x64x16 `bfloat16` matrices on PVC> intel/llvm#13391
 
 
 commit https://github.com/intel/llvm/commit/c5b174d8507cad1328b3121e650120e85f1da213
@@ -334,6 +332,10 @@ commit https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83
 - Updated
   [`sycl_ext_oneapi_work_group_static`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_static.asciidoc)
   extension (it is not `work_group_specific` anymore). intel/llvm#14271
+- Updated
+  [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc)
+  extension to list 1x64x16 `bfloat16` matrix combination available on PVC.
+  intel/llvm#13587
 
 commit https://github.com/intel/llvm/commit/0678c5ce0fe3af6363bd4b374ffaedb800a5b1e1
     [SYCL][Joint matrix] clarify the range of the prefetch templated arguments (#13796)
@@ -416,9 +418,6 @@ commit https://github.com/intel/llvm/commit/c65bed1073460fb8d6dbb319f5e7ff2c9c7c
 commit https://github.com/intel/llvm/commit/d6dfd0c77b2212f4e3e926d2e289bd3dc6e18b49
     [SYCL][Graph][DOC] add an edge case for record&replay mode (#12916)
 
-commit https://github.com/intel/llvm/commit/89132855d4312536f5f40792194b6251d4cde819
-    [SYCL][Joint Matrix] Add a new overload for joint_matrix_apply to be able to return result into a different matrix (#13151)
-
 commit https://github.com/intel/llvm/commit/8847c110c78684a86ec7e62d7255f1bb9c6efd4f
     [SYCL][NATIVECPU][libclc]Mark opencl_c_generic_address_space as unsupported on Native CPU (#13109)
 commit https://github.com/intel/llvm/commit/a25d27bc9fbb2925519e966b9e7043be04274b27
@@ -434,11 +433,9 @@ commit https://github.com/intel/llvm/commit/267a03cd1ba5eaa55db95800712f978b9384
 commit https://github.com/intel/llvm/commit/07e3bcf9f3be46234deb471e25d94b5692353688
     [SYCL][ESIMD] Use LSC for unsupported surface index block stores (#13150)
 
-commit https://github.com/intel/llvm/commit/ed0619b4caa24af8e78053ecef2e5e808e0e2b08
-    [SYCL][Joint Matrix] Support 1x64x16 bf16 combination (#13391)
-
 commit https://github.com/intel/llvm/commit/03233e57e5585813ec2c0dbc7a10ceb4a6d15a71
     [SYCL] Add missed intel math functions in sycl_ext_intel_math header (#13762)
+    Is it user-visible?
 
 commit https://github.com/intel/llvm/commit/6cb77fcfb37ffb445ab62ea1545422dc52128da1
     [SYCL] Add -fPIC for Intel math function host code (#13800)
@@ -471,12 +468,6 @@ commit https://github.com/intel/llvm/commit/fe1859085b621ea901cd8da8165992312241
 commit https://github.com/intel/llvm/commit/7a9d3b1e9483b69baa0b8c6f1097016efd52854c
     [SYCL][NVPTX] Do not decompose SYCL functor unless necessary (#14434)
 
-commit https://github.com/intel/llvm/commit/e51002c81cdf32f383104907cca820e4ed3452ba
-    [SYCL] Enable intel joint matrix on GNR. (#14436)
-
-commit https://github.com/intel/llvm/commit/17ee3e24e2874690f7526dcda9d8bc4679fe7edc
-    [SYCL][NATIVECPU] Add device library and initial subgroup support (#13979)
-
 commit https://github.com/intel/llvm/commit/0b9fc099f63feadb5e476c5862de3d8fa977a655
     [SYCL][Graph] Test WGU kernel mismatch (#14379)
 
@@ -494,12 +485,7 @@ commit https://github.com/intel/llvm/commit/f2cd2a80e7277fc62d8802673ce6ab2fac6f
 
 commit https://github.com/intel/llvm/commit/2e1f14adb3bf6d9e9c55e4b0ced9e1ece2172a4a
     [SYCL] Fix UB and alignment issues in the SYCL default sorter (#13975)
-
-commit https://github.com/intel/llvm/commit/4222b4ccd6dc499248c8bf026bcdd0f207000b35
-    [SYCL] Restrict `sycl::vec` and swizzle operations to types mentioned in the SPEC (#13947)
-
-commit https://github.com/intel/llvm/commit/5b6cc5eb7bb2106ff426815702d89569e166c4f9
-    [SYCL][Matrix] Enable SPV_KHR_cooperative_matrix extension (#13923)
+    May not be user-visible anymore since default sorter was removed
 
 commit https://github.com/intel/llvm/commit/ccca3b73769bfd8a27eff9956630fe86a2e4832d
     [SYCL] Optimize SG group_store via BlockWriteINTEL in simple cases (#13734)
@@ -514,18 +500,12 @@ commit https://github.com/intel/llvm/commit/ece19f298b1029121da17a423b801bc2a926
 commit https://github.com/intel/llvm/commit/7d55eb8a8419dac64f065bbf84125ed1d78dc992
     [SYCL][Docs] Behavioral changes to in-order queue events extension (#13624)
 
-commit https://github.com/intel/llvm/commit/ef6d2bb3caf36eaa1149369f8aee1578d6e31a6e
-    [SYCL][ESIMD] Add support for transposed prefetch for 1/2 byte elements (#13452)
-
 commit https://github.com/intel/llvm/commit/0c0b58686a79c8d9a8ef547a96b5c1642480e591
     [XPTI][INFRA] Sample E2E data collection timing test for XPTI (#13045)
 
 commit https://github.com/intel/llvm/commit/38e663ecd37de513d8e31afdfdf245cf8c9d17f0
     [SYCL] Declare __devicelib_assert_read only when fallback assert is enabled (#13241)
-
-commit https://github.com/intel/llvm/commit/fb66f1b83559366e541381251de4281bb554613d
-    [SYCL] Replace __builtin_bit_cast with sycl::bit_cast in imf headers (#13313)
-    is it a bugfix?
+    Is there any particular user-visible bug associated with this?
 
 commit https://github.com/intel/llvm/commit/65bdffb1c9d4c474316d3e330fc3c59338e004f6
     [SYCL][libclc][NATIVECPU] Implement generic atomic load for generic target (#13249)
@@ -542,10 +522,6 @@ commit https://github.com/intel/llvm/commit/e9befa2d10f6c23a66ac780df7a1ddda5527
 commit https://github.com/intel/llvm/commit/4f5a5f0fba71593888f1737e0b4dbaf49c85e04b
     [SYCL] Fix WA for ocl query of CL_DEVICE_PROFILE  (#13584)
 
-commit https://github.com/intel/llvm/commit/893059138f61aabeb0e1063549d7f4dd533fdfd1
-    [SYCL][Matrix spec] Add 1x64x16 combination for Intel XMX (PVC only) (#13587)
-    or rather a new feature?
-
 commit https://github.com/intel/llvm/commit/e17632f32fcc160add43742ccdaa6cc80cc1b0c0
     [Driver][SYCL] Use LLVM-IR based device libraries for device linking (#13604)
 commit https://github.com/intel/llvm/commit/67d8ea1cdaef29afd75f7f085f0b6c6d73af81a3
@@ -560,11 +536,6 @@ commit https://github.com/intel/llvm/commit/d13fdbe4ee02c39b1939bae7da61392e75ce
     [Bindless][Exp] Add texture fetch functionality (#12447)
     or a new feature?
 
-commit https://github.com/intel/llvm/commit/24a6b3b2f2d2a160a737fb1162c78f4cce9a8f1d
-    [SYCL] Generate imported symbol files in sycl-post-link (#14189)
-commit https://github.com/intel/llvm/commit/62ea97e34e9245fb50f5718861da06e5e4425c2e
-    [SYCL] Exclude SYCL_EXTERNAL functions from device image with the option -support-dynamic-linking (#14103)
-
 commit https://github.com/intel/llvm/commit/d4f2fe54047a1b415af2402a497f20e918094580
     [SYCL][Bindless][Exp] Remove const from non-reference and non-pointer type parameters (#14238)
 
@@ -578,6 +549,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
     [DeviceSanitizer] Disable handling no return calls (#14652)
     // bugfix?
 
+## Bug Fixes
+
+### SYCL Compiler
 
 - Fixed that using `-fsycl-link-targets` flag would inadvertently trigger some
   additional device code linking steps. intel/llvm#13004
@@ -703,6 +677,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed a bug with invalid handling of discard filters within
   `ONEAPI_DEVICE_SELECTOR` env variable caused RT to mistakenly say that the
   env variable value is ill-formed. intel/llvm#13927
+- Fixed incorrect behavior of ESIMD atomic operations on data types smaller than
+  4 bytes on Gen12 Intel GPUs. intel/llvm#13340
 
 ### Documentation
 
@@ -759,9 +735,6 @@ commit https://github.com/intel/llvm/commit/0fde69dbfa18e0c9b477a916477297a832e1
 commit https://github.com/intel/llvm/commit/f170c63ed329c1fa5271d67e68144ec5d7808079
     [SYCL] Fix kernel shortcut path for inorder queue (#13333)
     could be related to a commit https://github.com/intel/llvm/commit/made post-March release, i.e. it can probably be squashed with some other line
-
-commit https://github.com/intel/llvm/commit/5332773b17efbf10e1b72cd633c1d7e2b4f75125
-    [SYCL][ESIMD] atomic_update with data size less than 4 bytes should use LSC atomics (#13340)
 
 commit https://github.com/intel/llvm/commit/4b14d706d93891cdb5b0e6a8d4b0b027c1d54ab8
     [SYCL][DeviceSanitizer] Use -asan-constructor-kind=none to disable ctor/dtor (#13259)
@@ -835,10 +808,13 @@ of some classes to use so-called preview implementation.
 - Renamed SYCLcompat function `async_free` to `enqueue_free`. intel/llvm#14015
 - Enforced restrictions on first argument of lambdas/functors passed to
   `parallel_for(range)` and `parallel_for(nd_range)`. intel/llvm#13198
-- Switched `sycl::vec` implemetation to use its preview version. New version
-  uses differnt storage type under the hood which should fix several strict
-  aliasing rules violations that we had in the implementation.
-  intel/llvm#14317 intel/llvm#13182 intel/llvm#14130
+- Switched `sycl::vec` implemetation to use its preview version. New version:
+  - uses differnt storage type under the hood which should fix several strict
+    aliasing rules violations that we had in the implementation.
+    intel/llvm#14317 intel/llvm#13182 intel/llvm#14130
+  - restricts math operations available to `vec<std::byte, N>` to those which
+    are available to `std::byte` (bitwise shifts are affected).
+    intel/llvm#13947
 - Switched `sycl::exception` implementation to us its preview version. intel/llvm#14548
 - Switched math built-ins implementation to use their preview version. intel/llvm#13152
 - Switched `bfloat16` implementation to use its preview version. intel/llvm#13233
@@ -858,6 +834,7 @@ of some classes to use so-called preview implementation.
   [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc)
   extension. intel/llvm#13482
 - Simplified template arguments related to `simd_view` of many ESIMD APIs. intel/llvm#13231
+- Removed ESIMD `atomic_op::predec`. intel/llvm#14480
 
 Breaking changes were also made to compiler flags:
 
@@ -870,14 +847,6 @@ Breaking changes were also made to compiler flags:
   special options. intel/llvm#13835
 - Deprecated `-fsycl-disable-range-rounding` flag in favor of the new
   `-fsycl-range-rounding`. intel/llvm#12715
-
-commit https://github.com/intel/llvm/commit/00b9b6d5db3de7257229f5c8b6aba4163a8f8977
-    [SYCL][ESIMD][ABI Break] Remove predec atomic op (#14480)
-    Is it user visible? Is it an API break?
-
-commit https://github.com/intel/llvm/commit/9457144dd784d786c8f7e994bcb804f123cfb587
-    [ABI-Break][SYCL] Remove ESIMD emulator code from pi.cpp (#13234)
-    // is it really user-visible?
 
 ## Known Issues
 
