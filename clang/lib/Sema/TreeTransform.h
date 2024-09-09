@@ -6715,10 +6715,10 @@ TreeTransform<Derived>::TransformPackIndexingType(TypeLocBuilder &TLB,
   bool NotYetExpanded = Types.empty();
   bool FullySubstituted = true;
 
-  if (Types.empty())
+  if (Types.empty() && !PIT->expandsToEmptyPack())
     Types = llvm::ArrayRef<QualType>(&Pattern, 1);
 
-  for (const QualType &T : Types) {
+  for (QualType T : Types) {
     if (!T->containsUnexpandedParameterPack()) {
       QualType Transformed = getDerived().TransformType(T);
       if (Transformed.isNull())
@@ -7490,8 +7490,26 @@ QualType TreeTransform<Derived>::TransformBTFTagAttributedType(
 template <typename Derived>
 QualType TreeTransform<Derived>::TransformHLSLAttributedResourceType(
     TypeLocBuilder &TLB, HLSLAttributedResourceTypeLoc TL) {
-  llvm_unreachable(
-      "Unexpected TreeTransform for HLSLAttributedResourceTypeLoc");
+
+  const HLSLAttributedResourceType *oldType = TL.getTypePtr();
+
+  QualType WrappedTy = getDerived().TransformType(TLB, TL.getWrappedLoc());
+  if (WrappedTy.isNull())
+    return QualType();
+
+  QualType ContainedTy = QualType();
+  if (!oldType->getContainedType().isNull())
+    ContainedTy = getDerived().TransformType(TLB, TL.getContainedLoc());
+
+  QualType Result = TL.getType();
+  if (getDerived().AlwaysRebuild() || WrappedTy != oldType->getWrappedType() ||
+      ContainedTy != oldType->getContainedType()) {
+    Result = SemaRef.Context.getHLSLAttributedResourceType(
+        WrappedTy, ContainedTy, oldType->getAttrs());
+  }
+
+  TLB.push<HLSLAttributedResourceTypeLoc>(Result);
+  return Result;
 }
 
 template<typename Derived>
