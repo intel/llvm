@@ -10,7 +10,7 @@
 #include <sycl/detail/ur.hpp>
 
 // For device image compression.
-#include <sycl/detail/compression.hpp>
+#include <detail/compression.hpp>
 
 #include <algorithm>
 #include <cstring>
@@ -239,9 +239,9 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
                                                   CompressedBin->BinaryStart);
 
   size_t DecompressedSize = 0;
-  m_DecompressedData = std::move(ZSTDCompressor::DecompressBlob(
+  m_DecompressedData = ZSTDCompressor::DecompressBlob(
       reinterpret_cast<const char *>(CompressedBin->BinaryStart),
-      compressedDataSize, DecompressedSize));
+      compressedDataSize, DecompressedSize);
 
   if (!m_DecompressedData) {
     throw sycl::exception(

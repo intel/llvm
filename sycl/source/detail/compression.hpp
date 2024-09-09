@@ -82,7 +82,7 @@ public:
       instance.m_lastError = 0;
 
     // Pass ownership of the buffer to the caller.
-    return std::move(dstBuffer);
+    return dstBuffer;
   }
 
   static std::unique_ptr<unsigned char>
@@ -120,7 +120,7 @@ public:
     }
 
     // Pass ownership of the buffer to the caller.
-    return std::move(dstBuffer);
+    return dstBuffer;
   }
 
   // Data fields

@@ -1653,9 +1653,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
-      Img = std::move(std::make_unique<CompressedRTDeviceBinaryImage>(RawImg));
+      Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
     else
-      Img = std::move(std::make_unique<RTDeviceBinaryImage>(RawImg));
+      Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
 
     static uint32_t SequenceID = 0;
 
