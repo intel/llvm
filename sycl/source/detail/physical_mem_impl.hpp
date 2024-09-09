@@ -43,9 +43,9 @@ public:
         MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
     const PluginPtr &Plugin = MContext->getPlugin();
 
-    auto Err = Plugin->call_nocheck(
-        urPhysicalMemCreate, MContext->getHandleRef(), MDevice->getHandleRef(),
-        MNumBytes, nullptr, &MPhysicalMem);
+    auto Err = Plugin->call_nocheck<UrApiKind::urPhysicalMemCreate>(
+        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes, nullptr,
+        &MPhysicalMem);
 
     if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
         Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
@@ -56,7 +56,7 @@ public:
 
   ~physical_mem_impl() noexcept(false) {
     const PluginPtr &Plugin = MContext->getPlugin();
-    Plugin->call(urPhysicalMemRelease, MPhysicalMem);
+    Plugin->call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
@@ -65,8 +65,9 @@ public:
     auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
     const PluginPtr &Plugin = MContext->getPlugin();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
-    Plugin->call(urVirtualMemMap, MContext->getHandleRef(), ResultPtr, NumBytes,
-                 MPhysicalMem, Offset, AccessFlags);
+    Plugin->call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
+                                             ResultPtr, NumBytes, MPhysicalMem,
+                                             Offset, AccessFlags);
     return ResultPtr;
   }
 

@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
-  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
-  # Merge: 608e9184 c3c57284
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 27 16:30:04 2024 +0100
-  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
-  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
-  set(UNIFIED_RUNTIME_TAG a2e17c823cc0aa420466171a6c9bb1b3c9483a43)
+  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
+  # Merge: a99dbcee 3abe18cf
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Sep 6 17:21:17 2024 +0200
+  #   Merge pull request #1820 from pbalcer/static-linking
+  #   Add support for static linking of the L0 adapter
+  set(UNIFIED_RUNTIME_TAG 1ff0ddf30d2f556710e2a8f9c78e89922e089a7d)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
