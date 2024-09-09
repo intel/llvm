@@ -1,4 +1,4 @@
-// RUN: sycl-ls --verbose | grep "Device \[" | wc -l >%t.verbose.out
+// RUN: sycl-ls --verbose | awk '{print}/Unsupported Platforms:/{exit}' | grep "Device \[" | wc -l >%t.verbose.out
 // RUN: sycl-ls | wc -l >%t.concise.out
 // RUN: diff %t.verbose.out %t.concise.out
 

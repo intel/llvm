@@ -19,5 +19,8 @@
 // This test will be adjusted to run on the CPU
 // XFAIL:cpu
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
+
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

@@ -6779,7 +6779,7 @@ def fintelfpga : Flag<["-"], "fintelfpga">,
   MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
   HelpText<"Perform ahead-of-time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">,
-  HelpText<"Compile SYCL kernels for device">;
+  Alias<offload_device_only>, HelpText<"Compile SYCL kernels for device">;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
@@ -8173,10 +8173,6 @@ def main_file_name : Separate<["-"], "main-file-name">,
   HelpText<"Main file name to use for debug info and source if missing">,
   Visibility<[CC1Option, CC1AsOption]>,
   MarshallingInfoString<CodeGenOpts<"MainFileName">>;
-def full_main_file_name : Separate<["-"], "full-main-file-name">,
-  HelpText<"File name with full path to use for debug info during host and device compile">,
-  Visibility<[CC1Option, CC1AsOption]>,
-  MarshallingInfoString<CodeGenOpts<"FullMainFileName">>;
 def split_dwarf_output : Separate<["-"], "split-dwarf-output">,
   HelpText<"File name to use for split dwarf debug info output">,
   Visibility<[CC1Option, CC1AsOption]>,
@@ -8564,10 +8560,6 @@ def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;
-def fsycl_use_main_file_name : Flag<["-"], "fsycl-use-main-file-name">,
-  HelpText<"Tells compiler that -main-file-name contains an absolute path and "
-           "file specified there should be used for checksum calculation.">,
-  MarshallingInfoFlag<CodeGenOpts<"SYCLUseMainFileName">>;
 def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,

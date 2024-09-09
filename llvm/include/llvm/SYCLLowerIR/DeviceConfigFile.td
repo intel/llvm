@@ -157,9 +157,17 @@ def : TargetInfo<"__TestDeprecatedAspectList",
     AspectUsm_restricted_shared_allocations, AspectHost],
     []>;
 
+defvar IntelCpuAspects = [
+    AspectCpu, AspectFp16, AspectFp64, AspectQueue_profiling, AspectAtomic64,
+    AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
+    AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
+    AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
+] # AllUSMAspects;
+
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
-def : TargetInfo<"spir64_x86_64", [AspectFp16, AspectFp64, AspectAtomic64, AspectExt_oneapi_ballot_group], [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", [], [], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
