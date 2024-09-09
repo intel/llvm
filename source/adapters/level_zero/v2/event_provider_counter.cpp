@@ -27,9 +27,9 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
   ZE2UR_CALL_THROWS(zeDriverGetExtensionFunctionAddress,
                     (platform->ZeDriver, "zexCounterBasedEventCreate",
                      (void **)&this->eventCreateFunc));
-  ZE2UR_CALL_THROWS(
-      zelLoaderTranslateHandle,
-      (ZEL_HANDLE_CONTEXT, context->hContext, (void **)&translatedContext));
+  ZE2UR_CALL_THROWS(zelLoaderTranslateHandle,
+                    (ZEL_HANDLE_CONTEXT, context->getZeHandle(),
+                     (void **)&translatedContext));
   ZE2UR_CALL_THROWS(
       zelLoaderTranslateHandle,
       (ZEL_HANDLE_DEVICE, device->ZeDevice, (void **)&translatedDevice));
