@@ -64,7 +64,7 @@ int main() {
 // CHECK-NEXT:    call spir_func void @_ZN4sycl3_V18accessorIiLi1ELNS0_6access4modeE1026ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYINIT_ELEMENT]]) #[[ATTR4]]
 // CHECK-NEXT:    [[STRUCT_ACC9:%.*]] = getelementptr inbounds nuw [[CLASS_ANON]], ptr addrspace(4) [[__SYCLKERNEL_ASCAST]], i32 0, i32 0
 // CHECK-NEXT:    [[MEMBER_ACC10:%.*]] = getelementptr inbounds nuw [[STRUCT_STRUCT_ACC_T]], ptr addrspace(4) [[STRUCT_ACC9]], i32 0, i32 0
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::accessor"], ptr addrspace(4) [[MEMBER_ACC10]], i64 0, i64 0
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds nuw [2 x %"class.sycl::_V1::accessor"], ptr addrspace(4) [[MEMBER_ACC10]], i64 0, i64 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(1), ptr addrspace(4) [[_ARG_MEMBER_ACC_ADDR_ASCAST]], align 8
 // CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[AGG_TMP_ASCAST]], ptr addrspace(4) align 4 [[_ARG_MEMBER_ACC1_ASCAST]], i64 4, i1 false)
 // CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[AGG_TMP11_ASCAST]], ptr addrspace(4) align 4 [[_ARG_MEMBER_ACC2_ASCAST]], i64 4, i1 false)
@@ -75,7 +75,7 @@ int main() {
 // CHECK-NEXT:    call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) noundef align 4 dereferenceable_or_null(12) [[ARRAYIDX]], ptr addrspace(1) noundef [[TMP0]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::range") align 4 [[AGG_TMP11_ASCAST_ASCAST]], ptr noundef byval(%"struct.sycl::_V1::id") align 4 [[AGG_TMP12_ASCAST_ASCAST]]) #[[ATTR4]]
 // CHECK-NEXT:    [[STRUCT_ACC13:%.*]] = getelementptr inbounds nuw [[CLASS_ANON]], ptr addrspace(4) [[__SYCLKERNEL_ASCAST]], i32 0, i32 0
 // CHECK-NEXT:    [[MEMBER_ACC14:%.*]] = getelementptr inbounds nuw [[STRUCT_STRUCT_ACC_T]], ptr addrspace(4) [[STRUCT_ACC13]], i32 0, i32 0
-// CHECK-NEXT:    [[ARRAYIDX15:%.*]] = getelementptr inbounds [2 x %"class.sycl::_V1::accessor"], ptr addrspace(4) [[MEMBER_ACC14]], i64 0, i64 1
+// CHECK-NEXT:    [[ARRAYIDX15:%.*]] = getelementptr inbounds nuw [2 x %"class.sycl::_V1::accessor"], ptr addrspace(4) [[MEMBER_ACC14]], i64 0, i64 1
 // CHECK-NEXT:    [[TMP1:%.*]] = load ptr addrspace(1), ptr addrspace(4) [[_ARG_MEMBER_ACC_ADDR5_ASCAST]], align 8
 // CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[AGG_TMP16_ASCAST]], ptr addrspace(4) align 4 [[_ARG_MEMBER_ACC6_ASCAST]], i64 4, i1 false)
 // CHECK-NEXT:    call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) align 4 [[AGG_TMP17_ASCAST]], ptr addrspace(4) align 4 [[_ARG_MEMBER_ACC7_ASCAST]], i64 4, i1 false)
