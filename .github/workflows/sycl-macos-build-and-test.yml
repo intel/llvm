@@ -30,7 +30,7 @@ jobs:
       CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
     steps:
     - name: Install dependencies
-      run: brew install ccache ninja hwloc
+      run: brew install ccache ninja hwloc zstd
     - uses: actions/checkout@v4
       with:
         ref: ${{ inputs.build_ref }}
