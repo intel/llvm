@@ -412,8 +412,11 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
                               ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
 
-  if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
-      Expected) {
+  if (atomicCompareAndSet(
+          &(((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->ReportFlag), 1,
+          0) == 0 &&
+      atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
+          Expected) {
     SanitizerReport.ErrorType = error_type;
     SanitizerReport.IsRecover = false;
 
@@ -455,8 +458,12 @@ bool __asan_internal_report_save(
   auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
                               ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
 
-  if (atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
-      Expected) {
+  if ((is_recover ||
+       atomicCompareAndSet(
+           &(((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->ReportFlag), 1,
+           0) == 0) &&
+      atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
+          Expected) {
 
     int FileLength = 0;
     int FuncLength = 0;
