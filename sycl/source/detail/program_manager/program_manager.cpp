@@ -1538,7 +1538,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+      Error == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2360,7 +2361,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+      Error == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }

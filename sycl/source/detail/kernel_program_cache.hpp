@@ -329,7 +329,8 @@ public:
         BuildResult->Error.Code = detail::get_ur_error(Ex);
         if (Ex.code() == errc::memory_allocation ||
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
           continue;
