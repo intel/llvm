@@ -5703,7 +5703,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
-    if (!IsSYCLOffloadDevice && UIH) {
+    if (!IsSYCLDevice && UIH) {
       // Add the -include option to add the integration header
       StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
       // Do not add the integration header if we are compiling after the
@@ -5736,7 +5736,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       }
     }
 
-    if (!IsSYCLOffloadDevice) {
+    if (!IsSYCLDevice) {
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
