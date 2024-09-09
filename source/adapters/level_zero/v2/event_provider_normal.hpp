@@ -23,6 +23,7 @@
 #include "event.hpp"
 
 #include "../device.hpp"
+#include "../ur_interface_loader.hpp"
 
 namespace v2 {
 
@@ -50,10 +51,10 @@ public:
                   event_type etype, queue_type qtype)
       : producedType(etype), queueType(qtype), urContext(context),
         urDevice(device) {
-    urDeviceRetain(device);
+    ur::level_zero::urDeviceRetain(device);
   }
 
-  ~provider_normal() override { urDeviceRelease(urDevice); }
+  ~provider_normal() override { ur::level_zero::urDeviceRelease(urDevice); }
 
   event_allocation allocate() override;
   ur_device_handle_t device() override;
