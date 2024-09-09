@@ -14,6 +14,7 @@
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
 #include "sampler.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
 typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
@@ -631,11 +632,14 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
   return {ZeImageFormatType, ZeImageFormatTypeSize};
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t pool,
-    size_t widthInBytes, size_t height, size_t elementSizeBytes, void **ppMem,
-    size_t *pResultPitch) {
+namespace ur::level_zero {
+
+ur_result_t urUSMPitchedAllocExp(ur_context_handle_t hContext,
+                                 ur_device_handle_t hDevice,
+                                 const ur_usm_desc_t *pUSMDesc,
+                                 ur_usm_pool_handle_t pool, size_t widthInBytes,
+                                 size_t height, size_t elementSizeBytes,
+                                 void **ppMem, size_t *pResultPitch) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
   UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -668,13 +672,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   *pResultPitch = RowPitch;
 
   size_t Size = height * RowPitch;
-  UR_CALL(urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, pool, Size, ppMem));
+  UR_CALL(ur::level_zero::urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, pool,
+                                           Size, ppMem));
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesUnsampledImageHandleDestroyExp(
+ur_result_t urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
   UR_ASSERT(hContext && hDevice && hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -691,17 +695,16 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urBindlessImagesSampledImageHandleDestroyExp(
+ur_result_t urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_native_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
   // Sampler is released in urSamplerRelease.
-  return urBindlessImagesUnsampledImageHandleDestroyExp(hContext, hDevice,
-                                                        hImage);
+  return ur::level_zero::urBindlessImagesUnsampledImageHandleDestroyExp(
+      hContext, hDevice, hImage);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
+ur_result_t urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_image_mem_native_handle_t *phImageMem) {
@@ -730,16 +733,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_native_handle_t hImageMem) {
+ur_result_t
+urBindlessImagesImageFreeExp(ur_context_handle_t hContext,
+                             ur_device_handle_t hDevice,
+                             ur_exp_image_mem_native_handle_t hImageMem) {
   std::ignore = hContext;
   std::ignore = hDevice;
-  UR_CALL(urMemRelease(reinterpret_cast<ur_mem_handle_t>(hImageMem)));
+  UR_CALL(ur::level_zero::urMemRelease(
+      reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
+ur_result_t urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
@@ -749,7 +754,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
+ur_result_t urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
@@ -759,8 +764,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
-    [[maybe_unused]] const void *pSrc, [[maybe_unused]] void *pDst,
+ur_result_t urBindlessImagesImageCopyExp(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pSrc,
+    [[maybe_unused]] void *pDst,
     [[maybe_unused]] const ur_image_desc_t *pSrcImageDesc,
     [[maybe_unused]] const ur_image_desc_t *pDstImageDesc,
     [[maybe_unused]] const ur_image_format_t *pSrcImageFormat,
@@ -770,7 +776,6 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
     [[maybe_unused]] uint32_t numEventsInWaitList,
     [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
     [[maybe_unused]] ur_event_handle_t *phEvent) {
-  auto hQueue = this;
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -920,7 +925,7 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesImageCopyExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
+ur_result_t urBindlessImagesImageGetInfoExp(
     ur_context_handle_t, ur_exp_image_mem_native_handle_t hImageMem,
     ur_image_info_t propName, void *pPropValue, size_t *pPropSizeRet) {
   UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -970,7 +975,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
+ur_result_t urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_native_handle_t hImageMem, uint32_t mipmapLevel,
     ur_exp_image_mem_native_handle_t *phImageMem) {
@@ -984,13 +989,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice,
-    ur_exp_image_mem_native_handle_t hMem) {
-  return urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
+ur_result_t
+urBindlessImagesMipmapFreeExp(ur_context_handle_t hContext,
+                              ur_device_handle_t hDevice,
+                              ur_exp_image_mem_native_handle_t hMem) {
+  return ur::level_zero::urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
+ur_result_t urBindlessImagesImportExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     ur_exp_external_mem_type_t memHandleType,
     ur_exp_external_mem_desc_t *pExternalMemDesc,
@@ -1050,7 +1056,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalMemoryExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
+ur_result_t urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     ur_exp_external_mem_handle_t hExternalMem,
@@ -1085,7 +1091,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
+ur_result_t urBindlessImagesMapExternalLinearMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, uint64_t offset,
     uint64_t size, ur_exp_external_mem_handle_t hExternalMem, void **phRetMem) {
   std::ignore = hContext;
@@ -1099,7 +1105,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalLinearMemoryExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
+ur_result_t urBindlessImagesReleaseExternalMemoryExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_mem_handle_t hExternalMem) {
 
@@ -1109,7 +1115,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
   struct ur_ze_external_memory_data *externalMemoryData =
       reinterpret_cast<ur_ze_external_memory_data *>(hExternalMem);
 
-  UR_CALL(urMemRelease(externalMemoryData->urMemoryHandle));
+  UR_CALL(ur::level_zero::urMemRelease(externalMemoryData->urMemoryHandle));
 
   switch (externalMemoryData->type) {
   case UR_ZE_EXTERNAL_OPAQUE_FD:
@@ -1129,7 +1135,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalMemoryExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
+ur_result_t urBindlessImagesImportExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_type_t semHandleType,
     ur_exp_external_semaphore_desc_t *pExternalSemaphoreDesc,
@@ -1144,7 +1150,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
+ur_result_t urBindlessImagesReleaseExternalSemaphoreExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_external_semaphore_handle_t hExternalSemaphore) {
   std::ignore = hContext;
@@ -1155,10 +1161,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
-    uint64_t waitValue, uint32_t numEventsInWaitList,
+ur_result_t urBindlessImagesWaitExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasValue, uint64_t waitValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
   std::ignore = hSemaphore;
   std::ignore = hasValue;
   std::ignore = waitValue;
@@ -1170,10 +1177,11 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesWaitExternalSemaphoreExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::bindlessImagesSignalExternalSemaphoreExp(
-    ur_exp_external_semaphore_handle_t hSemaphore, bool hasValue,
-    uint64_t signalValue, uint32_t numEventsInWaitList,
+ur_result_t urBindlessImagesSignalExternalSemaphoreExp(
+    ur_queue_handle_t hQueue, ur_exp_external_semaphore_handle_t hSemaphore,
+    bool hasValue, uint64_t signalValue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
   std::ignore = hSemaphore;
   std::ignore = hasValue;
   std::ignore = signalValue;
@@ -1184,3 +1192,5 @@ ur_result_t ur_queue_handle_legacy_t_::bindlessImagesSignalExternalSemaphoreExp(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::level_zero
