@@ -7006,6 +7006,14 @@ defm sycl_use_integration_headers : BoolFOption<"sycl-use-integration-headers",
       "communication between the host and the device compilations. SYCL Only">>;
 } // let Group = sycl_Group
 
+// FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.
+def : Flag<["-"], "fsycl-explicit-simd">, Flags<[Deprecated]>,
+  Group<clang_ignored_legacy_options_Group>,
+  HelpText<"Enable SYCL explicit SIMD extension. (deprecated)">;
+def : Flag<["-"], "fno-sycl-explicit-simd">,
+  Flags<[Deprecated]>, Group<clang_ignored_legacy_options_Group>,
+  HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
+
 // OS-specific options
 let Flags = [TargetSpecific] in {
 defm android_pad_segment : BooleanFFlag<"android-pad-segment">, Group<f_Group>;
