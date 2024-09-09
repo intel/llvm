@@ -28,6 +28,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/AtomicOrdering.h>
 #include <llvm/Target/TargetMachine.h>
+#include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <algorithm>
@@ -444,6 +445,12 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
       AtomicInfo.BinOp = AtomicRMWInst::BinOp::UIncWrap;
     } else if (FnName.consume_front("udecwrap")) {
       AtomicInfo.BinOp = AtomicRMWInst::BinOp::UDecWrap;
+#if LLVM_VERSION_GREATER_EQUAL(20, 0)
+    } else if (FnName.consume_front("usubcond")) {
+      AtomicInfo.BinOp = AtomicRMWInst::BinOp::USubCond;
+    } else if (FnName.consume_front("usubsat")) {
+      AtomicInfo.BinOp = AtomicRMWInst::BinOp::USubSat;
+#endif
     } else {
       return std::nullopt;
     }
@@ -583,6 +590,10 @@ Function *VectorizationContext::getOrCreateMaskedAtomicFunction(
       BINOP_CASE(FMin, "fmin");
       BINOP_CASE(UIncWrap, "uincwrap");
       BINOP_CASE(UDecWrap, "udecwrap");
+#if LLVM_VERSION_GREATER_EQUAL(20, 0)
+      BINOP_CASE(USubCond, "usubcond");
+      BINOP_CASE(USubSat, "usubsat");
+#endif
       case llvm::AtomicRMWInst::BAD_BINOP:
         return nullptr;
     }
