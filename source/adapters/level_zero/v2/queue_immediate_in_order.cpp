@@ -10,6 +10,7 @@
 
 #include "queue_immediate_in_order.hpp"
 #include "kernel.hpp"
+#include "memory.hpp"
 #include "ur.hpp"
 
 #include "../helpers/kernel_helpers.hpp"
@@ -251,49 +252,59 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueEventsWait");
+
+  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+             (handler->commandList.get(), numWaitEvents, pWaitEvents));
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (handler->commandList.get(), signalEvent));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // For in-order queue we don't need a real barrier, just wait for
+  // requested events in potentially different queues and add a "barrier"
+  // event signal because it is already guaranteed that previous commands
+  // in this queue are completed when the signal is started.
+  return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferRead(
     ur_mem_handle_t hBuffer, bool blockingRead, size_t offset, size_t size,
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBuffer;
-  std::ignore = blockingRead;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferRead");
+
+  UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
+
+  auto ptr = ur_cast<char *>(hBuffer->getPtr(hDevice));
+  return enqueueUSMMemcpy(blockingRead, pDst, ptr + offset, size,
+                          numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWrite(
     ur_mem_handle_t hBuffer, bool blockingWrite, size_t offset, size_t size,
     const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBuffer;
-  std::ignore = blockingWrite;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferWrite");
+
+  UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
+
+  auto ptr = ur_cast<char *>(hBuffer->getPtr(hDevice));
+  return enqueueUSMMemcpy(blockingWrite, ptr + offset, pSrc, size,
+                          numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferReadRect(
@@ -344,15 +355,18 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopy(
     ur_mem_handle_t hBufferSrc, ur_mem_handle_t hBufferDst, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBufferSrc;
-  std::ignore = hBufferDst;
-  std::ignore = srcOffset;
-  std::ignore = dstOffset;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferCopy");
+
+  UR_ASSERT(srcOffset + size <= hBufferSrc->getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+  UR_ASSERT(dstOffset + size <= hBufferDst->getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+
+  auto srcPtr = ur_cast<char *>(hBufferSrc->getPtr(hDevice));
+  auto dstPtr = ur_cast<char *>(hBufferDst->getPtr(hDevice));
+
+  return enqueueUSMMemcpy(false, dstPtr + dstOffset, srcPtr + srcOffset, size,
+                          numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect(
@@ -380,15 +394,13 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferFill(
     ur_mem_handle_t hBuffer, const void *pPattern, size_t patternSize,
     size_t offset, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBuffer;
-  std::ignore = pPattern;
-  std::ignore = patternSize;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferFill");
+
+  UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
+
+  auto ptr = ur_cast<char *>(hBuffer->getPtr(hDevice));
+  return enqueueUSMFill(ptr + offset, patternSize, pPattern, size,
+                        numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemImageRead(

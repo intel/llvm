@@ -103,6 +103,12 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
     return ReturnValue(uint32_t(hContext->getDevices().size()));
   case UR_CONTEXT_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hContext->RefCount.load()});
+  case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    // TODO: this is currently not implemented
+    return ReturnValue(uint8_t{false});
+  case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+    // 2D USM fill is not supported.
+    return ReturnValue(uint8_t{false});
   default:
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
