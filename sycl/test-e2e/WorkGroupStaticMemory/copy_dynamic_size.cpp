@@ -3,7 +3,8 @@
 //
 // REQUIRES: cuda
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
 
 constexpr size_t Size = 1024;
 using DataType = int;

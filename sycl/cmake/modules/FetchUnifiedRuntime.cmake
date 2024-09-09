@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Fri Sep 6 17:21:17 2024 +0200
   #   Merge pull request #1820 from pbalcer/static-linking
   #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 1ff0ddf30d2f556710e2a8f9c78e89922e089a7d)
+  set(UNIFIED_RUNTIME_TAG b77358188d359b58dd1365c34e3c4b5285eded44)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
