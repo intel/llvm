@@ -898,9 +898,9 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  template <typename KernelNameT>
-  void verifyUsedKernelBundle() {
-    verifyUsedKernelBundleInternal(detail::string_view{detail::getKernelName<KernelNameT>()});
+  template <typename KernelNameT> void verifyUsedKernelBundle() {
+    verifyUsedKernelBundleInternal(
+        detail::string_view{detail::getKernelName<KernelNameT>()});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
 
