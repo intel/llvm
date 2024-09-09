@@ -4,7 +4,7 @@ bandit==1.6.2
 beautifulsoup4==4.11.1
 breathe==4.33.1
 bs4==0.0.1
-certifi==2023.07.22
+certifi==2024.07.04
 chardet==3.0.4
 clang-format==15.0.7
 colorama==0.4.1
@@ -22,7 +22,7 @@ pyparsing==2.4.5
 pytest>=7.0
 pytz==2019.3
 PyYAML==6.0.1
-requests==2.31.0
+requests==2.32.2
 rst2pdf==0.98
 six==1.13.0
 snowballstemmer==2.0.0
@@ -37,5 +37,5 @@ sphinxcontrib-qthelp==1.0.3
 sphinxcontrib-serializinghtml==1.1.5
 sphinxcontrib-websupport==1.2.4
 sphinx-rtd-theme==1.0.0
-urllib3==2.1.0
+urllib3==2.2.2
 dataclasses-json==0.6.7

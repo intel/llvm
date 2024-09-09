@@ -72,10 +72,11 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
   return false;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextCreate(uint32_t deviceCount, const ur_device_handle_t *phDevices,
-                const ur_context_properties_t *pProperties,
-                ur_context_handle_t *phContext) {
+namespace ur::level_zero {
+ur_result_t urContextCreate(uint32_t deviceCount,
+                            const ur_device_handle_t *phDevices,
+                            const ur_context_properties_t *pProperties,
+                            ur_context_handle_t *phContext) {
   std::ignore = pProperties;
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
@@ -89,23 +90,20 @@ urContextCreate(uint32_t deviceCount, const ur_device_handle_t *phDevices,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextRetain(ur_context_handle_t hContext) {
+ur_result_t urContextRetain(ur_context_handle_t hContext) {
   return hContext->retain();
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextRelease(ur_context_handle_t hContext) {
+ur_result_t urContextRelease(ur_context_handle_t hContext) {
   return hContext->release();
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urContextGetInfo(ur_context_handle_t hContext,
-                 ur_context_info_t contextInfoType, size_t propSize,
+ur_result_t urContextGetInfo(ur_context_handle_t hContext,
+                             ur_context_info_t contextInfoType, size_t propSize,
 
-                 void *pContextInfo,
+                             void *pContextInfo,
 
-                 size_t *pPropSizeRet) {
+                             size_t *pPropSizeRet) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
   switch (
@@ -121,3 +119,4 @@ urContextGetInfo(ur_context_handle_t hContext,
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 }
+} // namespace ur::level_zero

@@ -40,7 +40,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
     endif()
     if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
-        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.6)
+        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.39)
     endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
@@ -73,27 +73,33 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         ${level-zero-loader_SOURCE_DIR}/include CACHE PATH "Path to Level Zero Headers")
 endif()
 
-add_library (LevelZeroLoader INTERFACE)
+add_library(LevelZeroLoader INTERFACE)
 # The MSVC linker does not like / at the start of a path, so to work around this
 # we split it into a link library and a library path, where the path is allowed
 # to have leading /.
 get_filename_component(LEVEL_ZERO_LIBRARY_SRC "${LEVEL_ZERO_LIBRARY}" DIRECTORY)
 get_filename_component(LEVEL_ZERO_LIB_NAME "${LEVEL_ZERO_LIBRARY}" NAME)
 target_link_directories(LevelZeroLoader
-    INTERFACE "${LEVEL_ZERO_LIBRARY_SRC}"
+    INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_LIBRARY_SRC}>"
+              "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 target_link_libraries(LevelZeroLoader
     INTERFACE "${LEVEL_ZERO_LIB_NAME}"
 )
 
-add_library (LevelZeroLoader-Headers INTERFACE)
+add_library(LevelZeroLoader-Headers INTERFACE)
 target_include_directories(LevelZeroLoader-Headers
-    INTERFACE "${LEVEL_ZERO_INCLUDE_DIR}"
+    INTERFACE "$<BUILD_INTERFACE:${LEVEL_ZERO_INCLUDE_DIR}>"
+              "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
 
 if(UR_BUILD_ADAPTER_L0)
-    add_ur_adapter(ur_adapter_level_zero
-        SHARED
+    set(ADAPTER_LIB_TYPE SHARED)
+    if(UR_STATIC_ADAPTER_L0)
+        set(ADAPTER_LIB_TYPE STATIC)
+    endif()
+
+    add_ur_adapter(ur_adapter_level_zero ${ADAPTER_LIB_TYPE}
         ${CMAKE_CURRENT_SOURCE_DIR}/ur_interface_loader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/adapter.cpp
@@ -109,7 +115,6 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.hpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.hpp
@@ -127,13 +132,26 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/physical_mem.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/platform.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/queue_api.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/kernel_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     )
+
+    if(UR_STATIC_ADAPTER_L0)
+        target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
+
+        # 'utils' target from 'level-zero-loader' includes path which is prefixed
+        # in the source directory, this breaks the installation of 'utils' target.
+        set_target_properties(utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
+        install(TARGETS ur_adapter_level_zero ur_umf LevelZeroLoader LevelZeroLoader-Headers ze_loader utils
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        )
+    endif()
 
     if(NOT WIN32)
         target_sources(ur_adapter_level_zero
@@ -154,7 +172,7 @@ if(UR_BUILD_ADAPTER_L0)
 
     if (WIN32)
     # 0x800: Search for the DLL only in the System32 folder
-    target_link_options(ur_adapter_level_zero PUBLIC /DEPENDENTLOADFLAG:0x800)
+    target_link_options(ur_adapter_level_zero PRIVATE /DEPENDENTLOADFLAG:0x800)
     endif()
 
     target_link_libraries(ur_adapter_level_zero PRIVATE
