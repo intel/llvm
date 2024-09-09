@@ -393,8 +393,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     FinalPhase = phases::Compile;
 
   // -S only runs up to the backend.
-  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_fsycl_device_only))) {
+  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S))) {
     FinalPhase = phases::Backend;
 
   // -c compilation only runs up to the assembler.
@@ -855,6 +854,19 @@ static bool addSYCLDefaultTriple(Compilation &C,
   return true;
 }
 
+// Special function that checks if -fsycl-device-only was passed on the
+// command line.  -fsycl-device-only is an alias of --offload-device-only.
+static bool hasSYCLDeviceOnly(const ArgList &Args) {
+  if (const Arg *SYCLDeviceOnlyArg =
+          Args.getLastArg(options::OPT_offload_device_only)) {
+    while (SYCLDeviceOnlyArg->getAlias())
+      SYCLDeviceOnlyArg = SYCLDeviceOnlyArg->getAlias();
+    if (SYCLDeviceOnlyArg->getSpelling().contains("sycl-device-only"))
+      return true;
+  }
+  return false;
+}
+
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -1077,7 +1089,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
                                false) ||
-      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
+      hasSYCLDeviceOnly(C.getInputArgs());
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -1121,8 +1133,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!HasValidSYCLRuntime)
       return;
     if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
-      Diag(clang::diag::err_drv_unsupported_opt_sycl)
-          << IncompatArg->getSpelling();
+      Diag(clang::diag::err_drv_argument_not_allowed_with)
+          << IncompatArg->getSpelling() << "-fsycl";
   };
   // -static-libstdc++ is not compatible with -fsycl.
   argSYCLIncompatible(options::OPT_static_libstdcxx);
@@ -1746,13 +1758,12 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
     DumpDeviceCode = true;
 
-  if (const Arg *A = Args.getLastArg(
-          options::OPT_offload_host_only, options::OPT_offload_device_only,
-          options::OPT_offload_host_device, options::OPT_fsycl_device_only)) {
+  if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
+                                     options::OPT_offload_device_only,
+                                     options::OPT_offload_host_device)) {
     if (A->getOption().matches(options::OPT_offload_host_only))
       Offload = OffloadHost;
-    else if (A->getOption().matches(options::OPT_offload_device_only) ||
-             A->getOption().matches(options::OPT_fsycl_device_only))
+    else if (A->getOption().matches(options::OPT_offload_device_only))
       Offload = OffloadDevice;
     else
       Offload = OffloadHostDevice;
@@ -3128,7 +3139,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      Args.hasArg(options::OPT_fsycl_device_only);
+      hasSYCLDeviceOnly(Args);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,

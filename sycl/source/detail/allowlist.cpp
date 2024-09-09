@@ -377,8 +377,8 @@ void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     ur_device_type_t UrDevType = UR_DEVICE_TYPE_ALL;
-    Plugin->call(urDeviceGetInfo, Device, UR_DEVICE_INFO_TYPE,
-                 sizeof(UrDevType), &UrDevType, nullptr);
+    Plugin->call<UrApiKind::urDeviceGetInfo>(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(UrDevType), &UrDevType, nullptr);
     // TODO need mechanism to do these casts, there's a bunch of this sort of
     // thing
     sycl::info::device_type DeviceType = info::device_type::all;

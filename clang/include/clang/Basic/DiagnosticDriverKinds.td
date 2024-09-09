@@ -221,8 +221,6 @@ def warn_drv_mismatch_fpga_archive : Warning<
 def warn_drv_sycl_native_cpu_and_targets: Warning<
   "-fsycl-targets=native_cpu overrides SYCL targets option">,
   InGroup<SyclNativeCPUTargets>;
-def err_drv_unsupported_opt_sycl : Error<
-  "option '%0' not supported with SYCL compilation">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_opt_unsupported_input_type : Error<
