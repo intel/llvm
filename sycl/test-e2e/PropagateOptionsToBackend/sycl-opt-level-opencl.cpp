@@ -9,7 +9,7 @@
 // RUN: %{build} -O3 -o %t3.out
 // RUN: %if !acc %{ env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECKOCL3 %}
 
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %if cl_options %{/Od%} %else %{-O0%} -o %t.out
 // RUN: %{run} %t.out
 
 // This test verifies the propagation of front-end compiler optimization
