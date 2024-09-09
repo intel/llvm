@@ -513,11 +513,12 @@ struct urMultiQueueTest : urContextTest {
     ur_queue_handle_t queue2 = nullptr;
 };
 
-struct urMultiDeviceContextTest : urPlatformTest {
+template <size_t MinDevices = 2>
+struct urMultiDeviceContextTestTemplate : urPlatformTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         auto &devices = DevicesEnvironment::instance->devices;
-        if (devices.size() <= 1) {
+        if (devices.size() < MinDevices) {
             GTEST_SKIP();
         }
         ASSERT_SUCCESS(urContextCreate(static_cast<uint32_t>(devices.size()),
@@ -532,6 +533,10 @@ struct urMultiDeviceContextTest : urPlatformTest {
     }
 
     ur_context_handle_t context = nullptr;
+};
+
+struct urMultiDeviceContextTest : urMultiDeviceContextTestTemplate<> {
+    using urMultiDeviceContextTestTemplate::context;
 };
 
 struct urMultiDeviceMemBufferTest : urMultiDeviceContextTest {
