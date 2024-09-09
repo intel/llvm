@@ -36,6 +36,13 @@ FetchContent_Declare(unified-memory-framework
     GIT_TAG           ${UMF_TAG}
 )
 
+if (UR_STATIC_ADAPTER_L0)
+    if (UMF_BUILD_SHARED_LIBRARY)
+        message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
+        set(UMF_BUILD_SHARED_LIBRARY OFF)
+    endif()
+endif()
+
 set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
 set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
 # TODO: L0 provider not ready yet
@@ -85,9 +92,9 @@ install(TARGETS ur_common
 
 add_library(ur_umf INTERFACE)
 target_sources(ur_umf INTERFACE
-    umf_helpers.hpp
-    umf_pools/disjoint_pool_config_parser.cpp
-    ur_pool_manager.hpp
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_helpers.hpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_pools/disjoint_pool_config_parser.cpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ur_pool_manager.hpp>
 )
 
 add_library(${PROJECT_NAME}::umf ALIAS ur_umf)

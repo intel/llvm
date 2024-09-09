@@ -61,7 +61,7 @@ class VelocityBase(Benchmark):
 
         result = self.run_bench(command, env_vars)
 
-        return Result(label=self.bench_name, value=self.parse_output(result), command=command, env=env_vars, stdout=result)
+        return Result(label=self.bench_name, value=self.parse_output(result), command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better())
 
     def teardown(self):
         return

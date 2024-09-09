@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.10-r0
+ * @version v0.11-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -1133,7 +1133,8 @@ typedef enum ur_api_version_t {
     UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),      ///< version 0.8
     UR_API_VERSION_0_9 = UR_MAKE_VERSION(0, 9),      ///< version 0.9
     UR_API_VERSION_0_10 = UR_MAKE_VERSION(0, 10),    ///< version 0.10
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 10), ///< latest known version
+    UR_API_VERSION_0_11 = UR_MAKE_VERSION(0, 11),    ///< version 0.11
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 11), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1568,8 +1569,7 @@ typedef enum ur_device_info_t {
                                                                      ///< ::urDevicePartition
     UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                          ///< [uint32_t] max number of sub groups
     UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81,      ///< [::ur_bool_t] support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                       ///< [uint32_t[]] return an array of sub group sizes supported on Intel
-                                                                     ///< device
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                       ///< [uint32_t[]] return an array of supported sub group sizes
     UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                            ///< [::ur_device_usm_access_capability_flags_t] support USM host memory
                                                                      ///< access
     UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                          ///< [::ur_device_usm_access_capability_flags_t] support USM device memory
