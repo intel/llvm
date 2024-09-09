@@ -122,7 +122,7 @@ if config.extra_environment:
     for env_pair in config.extra_environment.split(","):
         [var, val] = env_pair.split("=", 1)
         if val:
-            llvm_config.with_environment(var, val, append_path=os.path.isabs(val))
+            llvm_config.with_environment(var, val)
             lit_config.note("\t" + var + "=" + val)
         else:
             lit_config.note("\tUnset " + var)
