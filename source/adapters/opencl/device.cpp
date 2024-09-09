@@ -825,12 +825,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE:
   case UR_DEVICE_INFO_LOCAL_MEM_TYPE:
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES:
-  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN:
-  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
-  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
-  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
-  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     /* CL type: cl_bitfield / enum
      * UR type: ur_flags_t (uint32_t) */
 
@@ -843,6 +838,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
      * map 1 to 1 for these properties. cl_bitfield is uint64_t and ur_flags_t
      * types are uint32_t */
     return ReturnValue(static_cast<uint32_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_USM_HOST_SUPPORT:
+  case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
+  case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+  case UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+  case UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
+    /* CL type: cl_bitfield / enum
+     * UR type: ur_flags_t (uint32_t) */
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_unified_shared_memory"}, Supported));
+    if (Supported) {
+      cl_bitfield CLValue = 0;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                          sizeof(cl_bitfield), &CLValue, nullptr));
+      return ReturnValue(static_cast<uint32_t>(CLValue));
+    } else {
+      return ReturnValue(0);
+    }
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED:
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT:
@@ -918,8 +934,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION:
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
-  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
-  case UR_DEVICE_INFO_IP_VERSION: {
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     /* We can just use the OpenCL outputs because the sizes of OpenCL types
      * are the same as UR.
      * | CL                 | UR                     | Size |
@@ -937,7 +952,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     return UR_RESULT_SUCCESS;
   }
+  case UR_DEVICE_INFO_IP_VERSION: {
+    bool Supported;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice),
+        {"cl_intel_device_attribute_query"}, Supported));
+    if (!Supported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+    }
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                        propSize, pPropValue, pPropSizeRet));
+
+    return UR_RESULT_SUCCESS;
+  }
+
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
+    bool isExtensionSupported;
+    if (cl_adapter::checkDeviceExtensions(
+            cl_adapter::cast<cl_device_id>(hDevice),
+            {"cl_intel_required_subgroup_size"},
+            isExtensionSupported) != UR_RESULT_SUCCESS ||
+        !isExtensionSupported) {
+      std::vector<uint32_t> aThreadIsItsOwnSubGroup({1});
+      return ReturnValue(aThreadIsItsOwnSubGroup.data(),
+                         aThreadIsItsOwnSubGroup.size());
+    }
+
     // Have to convert size_t to uint32_t
     size_t SubGroupSizesSize = 0;
     CL_RETURN_ON_FAILURE(

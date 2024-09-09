@@ -18,6 +18,7 @@
 #include "common.hpp"
 #include "event.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
 void printZeEventList(const _ur_ze_event_list_t &UrZeEventList) {
@@ -46,21 +47,23 @@ static const bool UseMultipleCmdlistBarriers = [] {
 }();
 
 bool WaitListEmptyOrAllEventsFromSameQueue(
-    ur_queue_handle_legacy_t Queue, uint32_t NumEventsInWaitList,
+    ur_queue_handle_t Queue, uint32_t NumEventsInWaitList,
     const ur_event_handle_t *EventWaitList) {
   if (!NumEventsInWaitList)
     return true;
 
   for (uint32_t i = 0; i < NumEventsInWaitList; ++i) {
-    if (Queue != Legacy(EventWaitList[i]->UrQueue))
+    if (Queue != EventWaitList[i]->UrQueue)
       return false;
   }
 
   return true;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueEventsWait( ///< [in] handle of
-                                                          ///< the queue object
+namespace ur::level_zero {
+
+ur_result_t urEnqueueEventsWait(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -72,7 +75,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueEventsWait( ///< [in] handle of
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   if (EventWaitList) {
     bool UseCopyEngine = false;
 
@@ -152,9 +154,8 @@ static const bool InOrderBarrierBySignal = [] {
   return (UrRet ? std::atoi(UrRet) : true);
 }();
 
-ur_result_t
-ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
-                                                         ///< queue object
+ur_result_t urEnqueueEventsWaitWithBarrier(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -166,8 +167,6 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
-
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -234,7 +233,7 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
       WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
                                             EventWaitList) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
-    UR_CALL(urEventRetain(Queue->LastCommandEvent));
+    UR_CALL(ur::level_zero::urEventRetain(Queue->LastCommandEvent));
     *Event = Queue->LastCommandEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -304,8 +303,8 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
   for (auto &QueueMap :
        {Queue->ComputeQueueGroupsByTID, Queue->CopyQueueGroupsByTID})
     for (auto &QueueGroup : QueueMap) {
-      bool UseCopyEngine = QueueGroup.second.Type !=
-                           ur_queue_handle_legacy_t_::queue_type::Compute;
+      bool UseCopyEngine =
+          QueueGroup.second.Type != ur_queue_handle_t_::queue_type::Compute;
       if (Queue->UsingImmCmdLists) {
         // If immediate command lists are being used, each will act as their own
         // queue, so we must insert a barrier into each.
@@ -374,8 +373,8 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
 
   // Execute each command list so the barriers can be encountered.
   for (ur_command_list_ptr_t &CmdList : CmdLists) {
-    bool IsCopy = CmdList->second.isCopy(
-        reinterpret_cast<ur_queue_handle_legacy_t>(Queue));
+    bool IsCopy =
+        CmdList->second.isCopy(reinterpret_cast<ur_queue_handle_t>(Queue));
     const auto &CommandBatch =
         (IsCopy) ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
     // Only batch if the matching CmdList is already open.
@@ -390,7 +389,7 @@ ur_queue_handle_legacy_t_::enqueueEventsWaitWithBarrier( ///< [in] handle of the
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
+ur_result_t urEventGetInfo(
     ur_event_handle_t Event,  ///< [in] handle of the event object
     ur_event_info_t PropName, ///< [in] the name of the event property to query
     size_t PropValueSize, ///< [in] size in bytes of the event property value
@@ -419,7 +418,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     // possible that this is trying to query some event's status that
     // is part of the batch.  This isn't strictly required, but it seems
     // like a reasonable thing to do.
-    auto UrQueue = Legacy(Event->UrQueue);
+    auto UrQueue = Event->UrQueue;
     if (UrQueue) {
       // Lock automatically releases when this goes out of scope.
       std::unique_lock<ur_shared_mutex> Lock(UrQueue->Mutex, std::try_to_lock);
@@ -473,7 +472,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
+ur_result_t urEventGetProfilingInfo(
     ur_event_handle_t Event, ///< [in] handle of the event object
     ur_profiling_info_t
         PropName, ///< [in] the name of the profiling property to query
@@ -491,9 +490,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
-  ur_device_handle_t Device = Legacy(Event->UrQueue)
-                                  ? Legacy(Event->UrQueue)->Device
-                                  : Event->Context->Devices[0];
+  ur_device_handle_t Device =
+      Event->UrQueue ? Event->UrQueue->Device : Event->Context->Devices[0];
 
   uint64_t ZeTimerResolution = Device->ZeDeviceProperties->timerResolution;
   const uint64_t TimestampMaxValue = Device->getTimestampMask();
@@ -517,10 +515,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
         return ReturnValue(Event->RecordEventEndTimestamp);
 
       // Otherwise we need to collect it from the queue.
-      auto Entry = Legacy(Event->UrQueue)->EndTimeRecordings.find(Event);
+      auto Entry = Event->UrQueue->EndTimeRecordings.find(Event);
 
       // Unexpected state if there is no end-time record.
-      if (Entry == Legacy(Event->UrQueue)->EndTimeRecordings.end())
+      if (Entry == Event->UrQueue->EndTimeRecordings.end())
         return UR_RESULT_ERROR_UNKNOWN;
       auto &EndTimeRecording = Entry->second;
 
@@ -545,7 +543,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
       // anymore, so we cache it on the event and evict the record from the
       // queue.
       Event->RecordEventEndTimestamp = ContextEndTime;
-      Legacy(Event->UrQueue)->EndTimeRecordings.erase(Entry);
+      Event->UrQueue->EndTimeRecordings.erase(Entry);
 
       return ReturnValue(ContextEndTime);
     }
@@ -663,7 +661,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueTimestampRecordingExp(
+ur_result_t urEnqueueTimestampRecordingExp(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     bool Blocking,                ///< [in] blocking or non-blocking enqueue
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
@@ -677,7 +676,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueTimestampRecordingExp(
         *OutEvent ///< [in,out] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -701,12 +699,13 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueTimestampRecordingExp(
   (*OutEvent)->WaitList = TmpWaitList;
 
   uint64_t DeviceStartTimestamp = 0;
-  UR_CALL(urDeviceGetGlobalTimestamps(Device, &DeviceStartTimestamp, nullptr));
+  UR_CALL(ur::level_zero::urDeviceGetGlobalTimestamps(
+      Device, &DeviceStartTimestamp, nullptr));
   (*OutEvent)->RecordEventStartTimestamp = DeviceStartTimestamp;
 
   // Create a new entry in the queue's recordings.
   Queue->EndTimeRecordings[*OutEvent] =
-      ur_queue_handle_legacy_t_::end_time_recording{};
+      ur_queue_handle_t_::end_time_recording{};
 
   ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
              (CommandList->first,
@@ -720,64 +719,15 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueTimestampRecordingExp(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
-    ze_event_handle_t &ZeHostVisibleEvent) {
-  auto UrQueue = Legacy(this->UrQueue);
-
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(UrQueue->Mutex,
-                                                          this->Mutex);
-
-  if (!HostVisibleEvent) {
-    this->IsCreatingHostProxyEvent = true;
-    if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
-      die("getOrCreateHostVisibleEvent: missing host-visible event");
-
-    // Submit the command(s) signalling the proxy event to the queue.
-    // We have to first submit a wait for the device-only event for which this
-    // proxy is created.
-    //
-    // Get a new command list to be used on this call
-
-    // We want to batch these commands to avoid extra submissions (costly)
-    bool OkToBatch = true;
-
-    ur_command_list_ptr_t CommandList{};
-    UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
-
-    // Create a "proxy" host-visible event.
-    UR_CALL(createEventAndAssociateQueue(
-        UrQueue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* IsMultiDevice */ false,
-        /* HostVisible */ true));
-
-    if (this->IsInnerBatchedEvent) {
-      ZE2UR_CALL(zeCommandListAppendBarrier,
-                 (CommandList->first, ZeEvent, 0, nullptr));
-    } else {
-      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                 (CommandList->first, 1, &ZeEvent));
-    }
-    ZE2UR_CALL(zeCommandListAppendSignalEvent,
-               (CommandList->first, HostVisibleEvent->ZeEvent));
-
-    UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
-    this->IsCreatingHostProxyEvent = false;
-  }
-
-  ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
-    uint32_t NumEvents, ///< [in] number of events in the event list
-    const ur_event_handle_t
-        *EventWaitList ///< [in][range(0, numEvents)] pointer to a list of
-                       ///< events to wait for completion
+ur_result_t
+urEventWait(uint32_t NumEvents, ///< [in] number of events in the event list
+            const ur_event_handle_t
+                *EventWaitList ///< [in][range(0, numEvents)] pointer to a list
+                               ///< of events to wait for completion
 ) {
   for (uint32_t I = 0; I < NumEvents; I++) {
     auto e = EventWaitList[I];
-    auto UrQueue = Legacy(e->UrQueue);
+    auto UrQueue = e->UrQueue;
     if (UrQueue && UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
@@ -795,7 +745,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
   // Submit dependent open command lists for execution, if any
   for (uint32_t I = 0; I < NumEvents; I++) {
     ur_event_handle_t_ *Event = ur_cast<ur_event_handle_t_ *>(EventWaitList[I]);
-    auto UrQueue = Legacy(Event->UrQueue);
+    auto UrQueue = Event->UrQueue;
     if (UrQueue) {
       // Lock automatically releases when this goes out of scope.
       std::scoped_lock<ur_shared_mutex> lock(UrQueue->Mutex);
@@ -803,7 +753,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
       UR_CALL(UrQueue->executeAllOpenCommandLists());
     }
   }
-  std::unordered_set<ur_queue_handle_legacy_t> Queues;
+  std::unordered_set<ur_queue_handle_t> Queues;
   for (uint32_t I = 0; I < NumEvents; I++) {
     {
       ur_event_handle_t_ *Event =
@@ -830,13 +780,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
           Event->Completed = true;
         }
       }
-      if (auto Q = Legacy(Event->UrQueue)) {
+      if (auto Q = Event->UrQueue) {
         if (Q->UsingImmCmdLists && Q->isInOrderQueue())
           // Use information about waited event to cleanup completed events in
           // the in-order queue.
           CleanupEventsInImmCmdLists(
-              Legacy(Event->UrQueue), false /* QueueLocked */,
-              false /* QueueSynced */,
+              Event->UrQueue, false /* QueueLocked */, false /* QueueSynced */,
               reinterpret_cast<ur_event_handle_t>(Event));
         else {
           // NOTE: we are cleaning up after the event here to free resources
@@ -861,8 +810,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(
-    ur_event_handle_t Event ///< [in] handle of the event object
+ur_result_t
+urEventRetain(ur_event_handle_t Event ///< [in] handle of the event object
 ) {
   Event->RefCountExternal++;
   Event->RefCount.increment();
@@ -870,8 +819,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(
-    ur_event_handle_t Event ///< [in] handle of the event object
+ur_result_t
+urEventRelease(ur_event_handle_t Event ///< [in] handle of the event object
 ) {
   Event->RefCountExternal--;
   UR_CALL(urEventReleaseInternal(Event));
@@ -879,7 +828,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
+ur_result_t urEventGetNativeHandle(
     ur_event_handle_t Event, ///< [in] handle of the event.
     ur_native_handle_t
         *NativeEvent ///< [out] a pointer to the native handle of the event.
@@ -892,7 +841,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
   // Event can potentially be in an open command-list, make sure that
   // it is submitted for execution to avoid potential deadlock if
   // interop app is going to wait for it.
-  auto Queue = Legacy(Event->UrQueue);
+  auto Queue = Event->UrQueue;
   if (Queue) {
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
     const auto &OpenCommandList = Queue->eventOpenCommandList(Event);
@@ -904,7 +853,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
+ur_result_t urExtEventCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_event_handle_t
         *Event ///< [out] pointer to the handle of the event object created.
@@ -917,7 +866,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
+ur_result_t urEventCreateWithNativeHandle(
     ur_native_handle_t NativeEvent, ///< [in] the native handle of the event.
     ur_context_handle_t Context,    ///< [in] handle of the context object
     const ur_event_native_properties_t *Properties,
@@ -967,7 +916,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
+ur_result_t urEventSetCallback(
     ur_event_handle_t Event,        ///< [in] handle of the event object
     ur_execution_info_t ExecStatus, ///< [in] execution status of the event
     ur_event_callback_t Notify,     ///< [in] execution status of the event
@@ -981,6 +930,57 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(
   logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::level_zero
+
+ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
+    ze_event_handle_t &ZeHostVisibleEvent) {
+  auto UrQueue = this->UrQueue;
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(UrQueue->Mutex,
+                                                          this->Mutex);
+
+  if (!HostVisibleEvent) {
+    this->IsCreatingHostProxyEvent = true;
+    if (UrQueue->ZeEventsScope != OnDemandHostVisibleProxy)
+      die("getOrCreateHostVisibleEvent: missing host-visible event");
+
+    // Submit the command(s) signalling the proxy event to the queue.
+    // We have to first submit a wait for the device-only event for which this
+    // proxy is created.
+    //
+    // Get a new command list to be used on this call
+
+    // We want to batch these commands to avoid extra submissions (costly)
+    bool OkToBatch = true;
+
+    ur_command_list_ptr_t CommandList{};
+    UR_CALL(UrQueue->Context->getAvailableCommandList(
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
+
+    // Create a "proxy" host-visible event.
+    UR_CALL(createEventAndAssociateQueue(
+        UrQueue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, CommandList,
+        /* IsInternal */ false, /* IsMultiDevice */ false,
+        /* HostVisible */ true));
+
+    if (this->IsInnerBatchedEvent) {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CommandList->first, ZeEvent, 0, nullptr));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CommandList->first, 1, &ZeEvent));
+    }
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (CommandList->first, HostVisibleEvent->ZeEvent));
+
+    UR_CALL(UrQueue->executeCommandList(CommandList, false, OkToBatch))
+    this->IsCreatingHostProxyEvent = false;
+  }
+
+  ZeHostVisibleEvent = HostVisibleEvent->ZeEvent;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
@@ -1022,7 +1022,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // Save pointer to the queue before deleting/resetting event.
-  auto Queue = Legacy(Event->UrQueue);
+  auto Queue = Event->UrQueue;
 
   // If the event was a timestamp recording, we try to evict its entry in the
   // queue.
@@ -1099,7 +1099,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   ur_kernel_handle_t AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<ur_event_handle_t> EventsToBeReleased;
-  ur_queue_handle_legacy_t AssociatedQueue = nullptr;
+  ur_queue_handle_t AssociatedQueue = nullptr;
   {
     // If the Event is already locked, then continue with the cleanup, otherwise
     // block on locking the event.
@@ -1113,7 +1113,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     if (Event->CleanedUp)
       return UR_RESULT_SUCCESS;
 
-    AssociatedQueue = Legacy(Event->UrQueue);
+    AssociatedQueue = Event->UrQueue;
 
     // Remember the kernel associated with this event if there is one. We are
     // going to release it later.
@@ -1158,7 +1158,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   // We've reset event data members above, now cleanup resources.
   if (AssociatedKernel) {
     ReleaseIndirectMem(AssociatedKernel);
-    UR_CALL(urKernelRelease(AssociatedKernel));
+    UR_CALL(ur::level_zero::urKernelRelease(AssociatedKernel));
   }
 
   if (AssociatedQueue) {
@@ -1217,7 +1217,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      UR_CALL(urKernelRelease(DepEventKernel));
+      UR_CALL(ur::level_zero::urKernelRelease(DepEventKernel));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }
@@ -1230,9 +1230,9 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 // The "HostVisible" argument specifies if event needs to be allocated from
 // a host-visible pool.
 //
-ur_result_t EventCreate(ur_context_handle_t Context,
-                        ur_queue_handle_legacy_t Queue, bool IsMultiDevice,
-                        bool HostVisible, ur_event_handle_t *RetEvent,
+ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
+                        bool IsMultiDevice, bool HostVisible,
+                        ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
                         bool ForceDisableProfiling) {
   bool ProfilingEnabled =
@@ -1319,7 +1319,7 @@ ur_result_t ur_event_handle_t_::reset() {
 
 ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
     uint32_t EventListLength, const ur_event_handle_t *EventList,
-    ur_queue_handle_legacy_t CurQueue, bool UseCopyEngine) {
+    ur_queue_handle_t CurQueue, bool UseCopyEngine) {
   this->Length = 0;
   this->ZeEventList = nullptr;
   this->UrEventList = nullptr;
@@ -1435,7 +1435,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           }
         }
 
-        auto Queue = Legacy(EventList[I]->UrQueue);
+        auto Queue = EventList[I]->UrQueue;
 
         auto CurQueueDevice = CurQueue->Device;
         std::optional<std::unique_lock<ur_shared_mutex>> QueueLock =
@@ -1636,7 +1636,7 @@ ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
 // Tells if this event is with profiling capabilities.
 bool ur_event_handle_t_::isProfilingEnabled() const {
   return !UrQueue || // tentatively assume user events are profiling enabled
-         (Legacy(UrQueue)->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+         (UrQueue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
 }
 
 // Tells if this event was created as a timestamp event, allowing profiling

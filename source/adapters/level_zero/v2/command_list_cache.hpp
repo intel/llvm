@@ -14,7 +14,7 @@
 
 #include "latency_tracker.hpp"
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 
 #include "../common.hpp"

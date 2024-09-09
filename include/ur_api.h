@@ -1569,8 +1569,7 @@ typedef enum ur_device_info_t {
                                                                      ///< ::urDevicePartition
     UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                          ///< [uint32_t] max number of sub groups
     UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81,      ///< [::ur_bool_t] support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                       ///< [uint32_t[]] return an array of sub group sizes supported on Intel
-                                                                     ///< device
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                       ///< [uint32_t[]] return an array of supported sub group sizes
     UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                            ///< [::ur_device_usm_access_capability_flags_t] support USM host memory
                                                                      ///< access
     UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                          ///< [::ur_device_usm_access_capability_flags_t] support USM device memory
