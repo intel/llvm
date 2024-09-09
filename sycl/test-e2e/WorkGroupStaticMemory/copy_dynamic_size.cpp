@@ -5,6 +5,9 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/group_barrier.hpp>
+#include <sycl/usm.hpp>
+
 
 constexpr size_t Size = 1024;
 using DataType = int;
