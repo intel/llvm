@@ -898,8 +898,9 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-  void verifyUsedKernelBundle(const std::string &KernelName) {
-    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  template <typename KernelNameT>
+  void verifyUsedKernelBundle() {
+    verifyUsedKernelBundleInternal(detail::string_view{detail::getKernelName<KernelNameT>()});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
 
@@ -1351,7 +1352,7 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
 
     // Range rounding can be disabled by the user.
     // Range rounding is not done on the host device.
@@ -1433,7 +1434,7 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     static_assert(
@@ -1523,7 +1524,7 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1564,7 +1565,7 @@ private:
     //       conflicts they should be included in the name.
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)NumWorkGroups;
@@ -1846,7 +1847,7 @@ private:
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
 
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -2142,7 +2143,7 @@ public:
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
@@ -2283,7 +2284,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     (void)Kernel;
     kernel_single_task<NameT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -2318,7 +2319,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -2357,7 +2358,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     (void)Kernel;
     (void)NumWorkItems;
@@ -2396,7 +2397,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
     (void)Kernel;
@@ -2439,7 +2440,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
@@ -2479,7 +2480,7 @@ public:
     setHandlerKernelBundle(Kernel);
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
-    verifyUsedKernelBundle(detail::getKernelName<NameT>());
+    verifyUsedKernelBundle<NameT>();
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, group<Dims>>;
     (void)Kernel;
