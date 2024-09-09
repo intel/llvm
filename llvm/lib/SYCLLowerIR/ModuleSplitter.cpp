@@ -672,8 +672,8 @@ static bool mustPreserveGV(const GlobalValue &GV) {
     // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies)
-      return canBeImportedFunction(*F) ||
-             F->getCallingConv() == CallingConv::SPIR_KERNEL;
+      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+             canBeImportedFunction(*F);
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
     // to be self-contained, meaning that they have no external dependencies.
