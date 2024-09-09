@@ -10089,23 +10089,15 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     bool FPGAEarly = false;
 
     // Validate and propogate CLI options related to device image compression.
-    {
-      // -offload-compress
-      bool isImgCompress = false;
-      if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
-        isImgCompress = true;
-        WrapperArgs.push_back(
+    // -offload-compress
+    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+      WrapperArgs.push_back(
             C.getArgs().MakeArgString(Twine("-offload-compress")));
-      }
-
       // -offload-compression-level=<>
       if (Arg *A = C.getInputArgs().getLastArg(
-              options::OPT_offload_compression_level_EQ)) {
-
-        if (isImgCompress)
-          WrapperArgs.push_back(C.getArgs().MakeArgString(
-              Twine("-offload-compression-level=") + A->getValue()));
-      }
+              options::OPT_offload_compression_level_EQ))
+        WrapperArgs.push_back(C.getArgs().MakeArgString(
+            Twine("-offload-compression-level=") + A->getValue()));
     }
 
     if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
