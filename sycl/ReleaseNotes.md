@@ -5321,7 +5321,7 @@ Release notes for commit range 5976ff0..1fc0e4f
 
 # August'20 release notes
 
-Release notes for the commit https://github.com/intel/llvm/commit/range 75b3dc2..5976ff0
+Release notes for the commit range 75b3dc2..5976ff0
 
 ## New features
   - Implemented basic support for the [Explicit SIMD extension](doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md)
@@ -5502,7 +5502,7 @@ Release notes for the commit https://github.com/intel/llvm/commit/range 75b3dc2.
 
 # June'20 release notes
 
-Release notes for the commit https://github.com/intel/llvm/commit/range ba404be..24726df
+Release notes for the commit range ba404be..24726df
 
 ## New features
   - Added switch to assume that each amount of work-items in each ND-range
@@ -5656,7 +5656,7 @@ Release notes for the commit https://github.com/intel/llvm/commit/range ba404be.
 
 # May'20 release notes
 
-Release notes for the commit https://github.com/intel/llvm/commit/range ba404be..67d3d9e
+Release notes for the commit range ba404be..67d3d9e
 
 ## New features
   - Implemented [reduction extension](doc/extensions/deprecated/sycl_ext_oneapi_nd_range_reductions.md)
@@ -5807,7 +5807,7 @@ Release notes for the commit https://github.com/intel/llvm/commit/range ba404be.
 
 # March'20 release notes
 
-Release notes for the commit https://github.com/intel/llvm/commit/range e8f1f29..ba404be
+Release notes for the commit range e8f1f29..ba404be
 
 ## New features
   - Initial CUDA backend support [7a9a425]
@@ -5979,7 +5979,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # February'20 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/e8f1f29
+Release notes for commit e8f1f29
 
 ## New features
   - Added `__builtin_intel_fpga_mem` for the FPGA SYCL device. The built-in is
@@ -6116,7 +6116,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # December'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/78d80a1cc628af76f09c53673ada906a3d2f0131
+Release notes for commit 78d80a1cc628af76f09c53673ada906a3d2f0131
 
 ## New features
   - New attributes for Intel FPGA devices : `num_simd_work_items`, `bank_bits`,
@@ -6217,7 +6217,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # November'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/e0a62df4e20eaf4bdff5c7dd46cbde566fbaee90
+Release notes for commit e0a62df4e20eaf4bdff5c7dd46cbde566fbaee90
 
 ## New features
 
@@ -6369,7 +6369,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # October'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/918b285d8dede6ab0561fccc622f71cb858849a6
+Release notes for commit 918b285d8dede6ab0561fccc622f71cb858849a6
 
 ## New features
   - `cl::sycl::queue::mem_advise` method was implemented [4828db5]
@@ -6560,7 +6560,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # September'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/d4efd2ae3a708fc995e61b7da9c7419dac900372
+Release notes for commit d4efd2ae3a708fc995e61b7da9c7419dac900372
 
 ## New features
 - Added support for `reqd_work_group_size` attribute. [68578d7]
@@ -6665,7 +6665,7 @@ Please, see the runtime installation guide [here](https://github.com/intel/llvm/
 
 # August'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/c557eb740d55e828fcf74b28d2b686c928e45318.
+Release notes for commit c557eb740d55e828fcf74b28d2b686c928e45318.
 
 ## New features
 - Support for `image accessor` has been landed.
@@ -6750,7 +6750,7 @@ Release notes for commit https://github.com/intel/llvm/commit/c557eb740d55e828fc
 
 # July'19 release notes
 
-Release notes for commit https://github.com/intel/llvm/commit/64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
+Release notes for commit 64c0262c0f0b9e1b7b2e2dcef57542a3fe3bdb97.
 
 ## New features
  - `cl::sycl::stream` class support has been added.
