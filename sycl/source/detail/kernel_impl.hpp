@@ -248,7 +248,7 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_num_work_groups>(
-        const queue &Queue, const range<3> &WorkGroupSize,
+        queue Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
   if (WorkGroupSize.size() == 0)
     throw exception(sycl::make_error_code(errc::invalid),
@@ -259,9 +259,9 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
   auto Device = Queue.get_device();
 
   uint32_t GroupCount{0};
-  if (auto Result = Plugin->call_nocheck(
-          urKernelSuggestMaxCooperativeGroupCountExp, Handle,
-          WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
+  if (auto Result = Plugin->call_nocheck<
+                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
+          Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
       Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
     // The feature is supported. Check for other errors and throw if any.
     Plugin->checkUrResult(Result);
@@ -281,7 +281,7 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        const queue &Queue, const range<3> &WorkGroupSize,
+        queue Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
   return ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(
@@ -293,7 +293,7 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        const queue &Queue) const {
+        queue Queue) const {
   auto Device = Queue.get_device();
   const auto MaxWorkGroupSize =
       get_info<info::kernel_device_specific::work_group_size>(Device);

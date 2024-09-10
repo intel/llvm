@@ -128,7 +128,7 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
   template __SYCL_EXPORT ReturnT                                               \
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
-      const queue &, const range<3> &, size_t) const;
+      queue, const range<3> &, size_t) const;
 // Not including "ext_oneapi_kernel_queue_specific_traits.def" because not all
 // kernel_queue_specific queries require the above-defined get_info interface.
 // clang-format off
