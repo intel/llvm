@@ -122,7 +122,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Wed Jul 24 08:57:49 2024 +0100
   #     [Bindless][Exp] Image Array Sub-Region Copies
   #     * Add support for sub-region copies.
-  set(UNIFIED_RUNTIME_TAG 005fe3921349d6d56621a74b47004ac98679a0e1 )
+  set(UNIFIED_RUNTIME_TAG 6b353545ab9ee05f4b3049e68054f40b438489e6 )
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
