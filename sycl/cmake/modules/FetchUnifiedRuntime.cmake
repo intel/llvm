@@ -117,13 +117,12 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  # commit 24a8299efc59c715a1c2dd180692a5e12a12283a
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Sep 11 10:40:59 2024 +0100
+  #     Merge pull request #2078 from callumfare/callum/fix_device_extensions_fpga
+  #     Add workaround for silently supported OpenCL extensions on Intel FPGA
+  set(UNIFIED_RUNTIME_TAG 24a8299efc59c715a1c2dd180692a5e12a12283a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
