@@ -952,51 +952,17 @@ _Float16 SG_PS_D(f16)(_Float16 value, uint8_t *scratch) {
 }
 
 //========= default work grop joint sort for (uint32_t, uint32_t) ==============
-DEVICE_EXTERN_C_INLINE
-void WG_JS_A(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
-                                   uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
-}
 
-DEVICE_EXTERN_C_INLINE
-void WG_JS_D(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
-                                   uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
-}
-
-DEVICE_EXTERN_C_INLINE
-void WG_JS_A(p1u8_p1u32_u32_p1i8)(uint8_t *keys, uint32_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
-}
-
-DEVICE_EXTERN_C_INLINE
-void WG_JS_D(p1u8_p1u32_u32_p1i8)(uint8_t *keys, uint32_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
-}
-
-DEVICE_EXTERN_C_INLINE
-void WG_JS_A(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
-}
-
-DEVICE_EXTERN_C_INLINE
-void WG_JS_D(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
-}
-
+// uint8_t as key type
 DEVICE_EXTERN_C_INLINE
 void WG_JS_A(p1u8_p1u8_u32_p1i8)(uint8_t *keys, uint8_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
+                                 uint8_t *scratch) {
   merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
 void WG_JS_D(p1u8_p1u8_u32_p1i8)(uint8_t *keys, uint8_t *vals, uint32_t n,
-                                  uint8_t *scratch) {
+                                 uint8_t *scratch) {
   merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
 }
 
@@ -1008,6 +974,18 @@ void WG_JS_A(p1u8_p1u16_u32_p1i8)(uint8_t *keys, uint16_t *vals, uint32_t n,
 
 DEVICE_EXTERN_C_INLINE
 void WG_JS_D(p1u8_p1u16_u32_p1i8)(uint8_t *keys, uint16_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u8_p1u32_u32_p1i8)(uint8_t *keys, uint32_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u8_p1u32_u32_p1i8)(uint8_t *keys, uint32_t *vals, uint32_t n,
                                   uint8_t *scratch) {
   merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
 }
@@ -1025,6 +1003,19 @@ void WG_JS_D(p1u8_p1u64_u32_p1i8)(uint8_t *keys, uint64_t *vals, uint32_t n,
 }
 
 DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u8_p1f32_u32_p1i8)(uint8_t *keys, float *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u8_p1f32_u32_p1i8)(uint8_t *keys, float *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
+}
+
+// uint16_t as key type
+DEVICE_EXTERN_C_INLINE
 void WG_JS_A(p1u16_p1u8_u32_p1i8)(uint16_t *keys, uint8_t *vals, uint32_t n,
                                   uint8_t *scratch) {
   merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint16_t>{});
@@ -1034,6 +1025,176 @@ DEVICE_EXTERN_C_INLINE
 void WG_JS_D(p1u16_p1u8_u32_p1i8)(uint16_t *keys, uint8_t *vals, uint32_t n,
                                   uint8_t *scratch) {
   merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u16_p1u16_u32_p1i8)(uint16_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u16_p1u16_u32_p1i8)(uint16_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u16_p1u32_u32_p1i8)(uint16_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u16_p1u32_u32_p1i8)(uint16_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u16_p1u64_u32_p1i8)(uint16_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u16_p1u64_u32_p1i8)(uint16_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u16_p1f32_u32_p1i8)(uint16_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u16_p1f32_u32_p1i8)(uint16_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint16_t>{});
+}
+
+// uint32_t as key type
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u32_p1u16_u32_p1i8)(uint32_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u32_p1u16_u32_p1i8)(uint32_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u32_p1u64_u32_p1i8)(uint32_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u32_p1u64_u32_p1i8)(uint32_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u32_p1f32_u32_p1i8)(uint32_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u32_p1f32_u32_p1i8)(uint32_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint32_t>{});
+}
+
+// uint64_t as key type
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u64_p1u8_u32_p1i8)(uint64_t *keys, uint8_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u64_p1u8_u32_p1i8)(uint64_t *keys, uint8_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u64_p1u16_u32_p1i8)(uint64_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u64_p1u16_u32_p1i8)(uint64_t *keys, uint16_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u64_p1u32_u32_p1i8)(uint64_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u64_p1u32_u32_p1i8)(uint64_t *keys, uint32_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u64_p1u64_u32_p1i8)(uint64_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u64_p1u64_u32_p1i8)(uint64_t *keys, uint64_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_A(p1u64_p1f32_u32_p1i8)(uint64_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_JS_D(p1u64_p1f32_u32_p1i8)(uint64_t *keys, float *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint64_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE

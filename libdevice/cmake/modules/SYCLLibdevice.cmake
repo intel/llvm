@@ -294,6 +294,10 @@ add_devicelibs(libsycl-fallback-bfloat16
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   DEPENDENCIES ${bfloat16_obj_deps})
+add_devicelibs(libsycl-fallback-gsort
+  SRC fallback-gsort.cpp
+  DEPENDENCIES ${gsort_obj_deps}
+  EXTRA_OPTS -fno-sycl-instrument-device-code)
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
