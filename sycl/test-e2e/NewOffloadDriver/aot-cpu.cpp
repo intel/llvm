@@ -6,5 +6,5 @@
 // RUN: %{run} %t.out
 
 // Test -O0 with `--offload-new-driver`
-// RUN: %clangxx -O0 -fsycl -fsycl-targets=spir64-x86_64 %S/Inputs/aot.cpp
+// RUN: %clangxx %if cl_options %{/Od%} %else %{-O0%} -fsycl -fsycl-targets=spir64-x86_64 %S/Inputs/aot.cpp
 // RUN: %{run} %t.out
