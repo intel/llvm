@@ -298,8 +298,8 @@ bool test_4(queue Queue) {
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
-      void (*)(KArg))ff_4>();
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(KArg))ff_4>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
@@ -354,8 +354,8 @@ bool test_5(queue Queue) {
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
-  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
-      void (*)(KArg))ff_5<KArg>>();
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(KArg))ff_5<KArg>>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {

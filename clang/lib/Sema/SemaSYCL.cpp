@@ -1264,7 +1264,7 @@ class KernelObjVisitor {
     return result;
   }
   template <typename... Tn>
-  bool handleField(ParmVarDecl *PD, QualType PDTy, Tn &&... tn) {
+  bool handleField(ParmVarDecl *PD, QualType PDTy, Tn &&...tn) {
     bool result = true;
     std::initializer_list<int>{(result = result && tn(PD, PDTy), 0)...};
     return result;
