@@ -2209,7 +2209,9 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    CollectionStack.push_back(false);
+    // TODO handle decomposition once special type arguments are supported
+    // for free function kernels.
+    // CollectionStack.push_back(false);
     PointerStack.push_back(false);
     return true;
   }
@@ -2240,13 +2242,15 @@ public:
                    QualType ParamTy) final {
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     assert(RD && "should not be null.");
-    if (CollectionStack.pop_back_val()) {
-      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
-        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-            SemaSYCLRef.getASTContext()));
-      CollectionStack.back() = true;
-      PointerStack.pop_back();
-    } else if (PointerStack.pop_back_val()) {
+    // TODO handle decomposition once special type arguments are supported
+    // for free function kernels.
+    // if (CollectionStack.pop_back_val()) {
+    //   if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+    //     RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+    //         SemaSYCLRef.getASTContext()));
+    //   CollectionStack.back() = true;
+    //   PointerStack.pop_back();
+    if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
@@ -4228,7 +4232,7 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Creates a DeclRefExpr to the ParmVar that represents the current pointer
   // parameter.
-  Expr *createPointerParamReferenceExpr(QualType PointerTy, bool Wrapped) {
+  Expr *createPointerParamReferenceExpr(QualType PointerTy) {
     ParmVarDecl *FreeFunctionParameter =
         DeclCreator.getParamVarDeclsForCurrentField()[0];
 
@@ -4269,18 +4273,9 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
         SourceLocation(), SourceLocation(), SourceRange());
   }
 
-  // TODO think about the name here
-  Expr *createReferenceToLocalStructCopy(ParmVarDecl *OrigFunctionParameter) {
-    ParmVarDecl *FreeFunctionParameter =
-        DeclCreator.getParamVarDeclsForCurrentField()[0];
+  Expr *createStructTemporary(ParmVarDecl *OrigFunctionParameter) {
+    Expr *DRE = createParamReferenceExpr();
 
-    QualType FreeFunctionParamType = FreeFunctionParameter->getOriginalType();
-    Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
-        FreeFunctionSrcLoc);
-    DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
-
-    // VarDecl *VD = createObjClone(S.getASTContext(), DC.getKernelDecl(), Obj);
     assert(OrigFunctionParameter && "no parameter?");
 
     CXXRecordDecl *RD = OrigFunctionParameter->getType()->getAsCXXRecordDecl();
@@ -4368,7 +4363,7 @@ public:
   }
 
   bool handlePointerType(ParmVarDecl *PD, QualType ParamTy) final {
-    Expr *PointerRef = createPointerParamReferenceExpr(ParamTy, false);
+    Expr *PointerRef = createPointerParamReferenceExpr(ParamTy);
     ArgExprs.push_back(PointerRef);
     return true;
   }
@@ -4388,7 +4383,7 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType) final {
-    Expr *TempCopy = createReferenceToLocalStructCopy(PD);
+    Expr *TempCopy = createStructTemporary(PD);
     ArgExprs.push_back(TempCopy);
     return true;
   }
@@ -4675,7 +4670,6 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType ParamTy) final {
-    // TODO
     addParam(PD, ParamTy, SYCLIntegrationHeader::kind_std_layout);
     return true;
   }
