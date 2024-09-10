@@ -1109,7 +1109,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   };
 
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
-  Arg *SYCLOffloadArch = getArgRequiringSYCLRuntime(options::OPT_offload_arch_EQ);
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
@@ -1183,8 +1182,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
-//llvm::StringSet<> SYCLTriples;
-  std::multiset<StringRef> SYCLTriples;  
+  llvm::StringSet<> SYCLTriples;
   if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
@@ -1278,12 +1276,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           SYCLTriples.insert(DeviceTriple.normalize());
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
-        } // end of SYCLTargetsValues for loop
+        }
 
         if (!SYCLTriples.empty()) {
           for (const auto &SYCLTriple : SYCLTriples) {
-            //llvm::Triple TT(MakeSYCLDeviceTriple(Val));
-            llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple));
+            llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple.getKey()));
             UniqueSYCLTriplesVec.push_back(Triple);
           }
         }
@@ -1292,92 +1289,93 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLTargetsValues->getAsString(C.getInputArgs());
     }
-  } else if(SYCLOffloadArch) {
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
-      auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
-                                                      HostTC->getTriple());
+  }
+  // If the user specified --offload-arch, deduce the offloading
+  // target triple(s) from the set of architecture(s).
+  // Create a toolchain for each valid triple.
+  else if (C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
+           !IsCuda) {
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
+    auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
+                                                    HostTC->getTriple());
 
-      // Attempt to deduce the offloading triple from the set of architectures.
-      // We can only correctly deduce NVPTX / AMDGPU triples currently. We need
-      // to temporarily create these toolchains so that we can access tools for
-      // inferring architectures.
-      llvm::DenseSet<StringRef> Archs;
-      if (NVPTXTriple) {
-        auto TempTC = std::make_unique<toolchains::CudaToolChain>(
-            *this, *NVPTXTriple, *HostTC, C.getInputArgs(), Action::OFK_None);
-        for (StringRef Arch : getOffloadArchs(
-                 C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
-          Archs.insert(Arch);
-      }
-      if (AMDTriple) {
-        auto TempTC = std::make_unique<toolchains::AMDGPUOpenMPToolChain>(
-            *this, *AMDTriple, *HostTC, C.getInputArgs());
-        for (StringRef Arch : getOffloadArchs(
-                 C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
-          Archs.insert(Arch);
-      }
-      if (!AMDTriple && !NVPTXTriple) {
-        for (StringRef Arch :
-             getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, nullptr, true))
-          Archs.insert(Arch);
-      }    
-      for (StringRef Arch : Archs) {
-        if (NVPTXTriple && IsNVIDIAOffloadArch(StringToOffloadArch(
-                               getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
-          DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
-        } else if (AMDTriple &&
-                   IsAMDOffloadArch(StringToOffloadArch(
-                       getProcessorFromTargetID(*AMDTriple, Arch)))) {
-          DerivedArchs[AMDTriple->getTriple()].insert(Arch);
-        }
-        else if (IsIntelCPUOffloadArch(StringToOffloadArchIntel(Arch))) {
-                    DerivedArchs["spir64_x86_64"].insert(Arch);
-        } else if(IsIntelGPUOffloadArch(StringToOffloadArchIntel(Arch))) {
-                    DerivedArchs["spir64_gen"].insert(Arch);
-        }
-        else {
-          Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << Arch;
-          return;
-        }
-      }
-      // If the set is empty then we failed to find a native architecture.
-      if (Archs.empty()) {
-        Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch)
-            << "native";
+    // Attempt to deduce the offloading triple from the set of architectures.
+    // We need to temporarily create these toolchains so that we can access
+    // tools for inferring architectures.
+    llvm::DenseSet<StringRef> Archs;
+    if (NVPTXTriple) {
+      auto TempTC = std::make_unique<toolchains::CudaToolChain>(
+          *this, *NVPTXTriple, *HostTC, C.getInputArgs(), Action::OFK_None);
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
+        Archs.insert(Arch);
+    }
+    if (AMDTriple) {
+      auto TempTC = std::make_unique<toolchains::AMDGPUOpenMPToolChain>(
+          *this, *AMDTriple, *HostTC, C.getInputArgs());
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
+        Archs.insert(Arch);
+    }
+    if (!AMDTriple && !NVPTXTriple) {
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, nullptr, true))
+        Archs.insert(Arch);
+    }
+    for (StringRef Arch : Archs) {
+      if (NVPTXTriple && IsNVIDIAOffloadArch(StringToOffloadArch(
+                             getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
+        DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
+      } else if (AMDTriple &&
+                 IsAMDOffloadArch(StringToOffloadArch(
+                     getProcessorFromTargetID(*AMDTriple, Arch)))) {
+        DerivedArchs[AMDTriple->getTriple()].insert(Arch);
+      } else if (IsIntelCPUOffloadArch(StringToOffloadArchIntel(Arch))) {
+        DerivedArchs["spir64_x86_64"].insert(Arch);
+      } else if (IsIntelGPUOffloadArch(StringToOffloadArchIntel(Arch))) {
+        DerivedArchs["spir64_gen"].insert(Arch);
+      } else {
+        Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << Arch;
         return;
       }
+    }
+    // If the set is empty then we failed to find a native architecture.
+    if (Archs.empty()) {
+      Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << "native";
+      return;
+    }
 
-      for (const auto &TripleAndArchs : DerivedArchs)
-        SYCLTriples.insert(TripleAndArchs.first()); // ["triple -> arch"]
+    for (const auto &TripleAndArchs : DerivedArchs)
+      SYCLTriples.insert(TripleAndArchs.first());
 
-
-for (StringRef Val : SYCLTriples) {
-      llvm::Triple TT(MakeSYCLDeviceTriple(Val));
+    for (const auto &Val : SYCLTriples) {
+      llvm::Triple TT(MakeSYCLDeviceTriple(Val.getKey()));
       std::string NormalizedName = TT.normalize();
 
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
       if (Duplicate != FoundNormalizedTriples.end()) {
         Diag(clang::diag::warn_drv_omp_offload_target_duplicate)
-            << Val << Duplicate->second;
+            << Val.getKey() << Duplicate->second;
         continue;
       }
 
       // Store the current triple so that we can check for duplicates in the
       // following iterations.
-      FoundNormalizedTriples[NormalizedName] = Val;
-}
+      FoundNormalizedTriples[NormalizedName] = Val.getKey();
+    }
 
-        if (!SYCLTriples.empty()) {
-          for (const auto &SYCLTriple : SYCLTriples) {
-            llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple));
-            UniqueSYCLTriplesVec.push_back(Triple);
-          }
-        }
-        addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
-       
-} // end of --offload-arch
+    if (!SYCLTriples.empty()) {
+      for (const auto &SYCLTriple : SYCLTriples) {
+        llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple.getKey()));
+        UniqueSYCLTriplesVec.push_back(Triple);
+      }
+    }
+
+    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
+
+  } // end of --offload-arch
   else {
     // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.
@@ -7334,6 +7332,21 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   handleArguments(C, Args, Inputs, Actions);
+
+  bool HasValidSYCLRuntime =
+      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
+                               false) ||
+      hasSYCLDeviceOnly(C.getInputArgs());
+  bool IsSYCLOffloadArchEnabled =
+      HasValidSYCLRuntime &&
+      C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
+
+  if (IsSYCLOffloadArchEnabled &&
+      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                options::OPT_no_offload_new_driver, false)) {
+    Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+    return;
+  }
 
   // If '-fintelfpga' is passed, add '-fsycl' to the list of arguments
   const llvm::opt::OptTable &Opts = getOpts();
