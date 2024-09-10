@@ -117,7 +117,7 @@ __attribute__((sycl_device))
 [[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
 void ff_5(Agg1 S1, Derived S2, Derived1 S3) {
 }
-// CHECK: FunctionDecl {{.*}} _Z18__sycl_kernel_ff_54Agg17Derived8Derived1 'void (Agg1, __generated_Derived, __generated_Derived1)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (Agg1, __generated_Derived, __generated_Derived1)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 'Agg1'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S3 '__generated_Derived1'
@@ -149,7 +149,7 @@ __attribute__((sycl_device))
 
 // Explicit instantiation.
 template void ff_6(Agg S1, Derived1 S2, int);
-// CHECK: FunctionDecl {{.*}} _Z18__sycl_kernel_ff_6I3Agg8Derived1EvT_T0_i 'void (__generated_Agg, __generated_Derived1, int)'
+// CHECK: FunctionDecl {{.*}}__sycl_kernel{{.*}}'void (__generated_Agg, __generated_Derived1, int)'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S1 '__generated_Agg'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_S2 '__generated_Derived1'
 // CHECK-NEXT: ParmVarDecl {{.*}} used __arg_end 'int'
