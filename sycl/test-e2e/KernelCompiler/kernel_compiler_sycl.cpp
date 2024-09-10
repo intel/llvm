@@ -7,9 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: (opencl || level_zero)
-
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc && igc-dev
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
