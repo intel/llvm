@@ -3253,7 +3253,6 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *,
                              QualType ParamTy) final {
-    // TODO
     addParam(ParamTy);
     return true;
   }
