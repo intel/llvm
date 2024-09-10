@@ -74,9 +74,10 @@ public:
   ///
   /// \return a valid cl_kernel instance
   cl_kernel get() const {
-    getPlugin()->call(urKernelRetain, MKernel);
+    getPlugin()->call<UrApiKind::urKernelRetain>(MKernel);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urKernelGetNativeHandle, MKernel, &nativeHandle);
+    getPlugin()->call<UrApiKind::urKernelGetNativeHandle>(MKernel,
+                                                          &nativeHandle);
     return ur::cast<cl_kernel>(nativeHandle);
   }
 
@@ -152,10 +153,10 @@ public:
     const PluginPtr &Plugin = MContext->getPlugin();
 
     if (MContext->getBackend() == backend::opencl)
-      Plugin->call(urKernelRetain, MKernel);
+      Plugin->call<UrApiKind::urKernelRetain>(MKernel);
 
     ur_native_handle_t NativeKernel = 0;
-    Plugin->call(urKernelGetNativeHandle, MKernel, &NativeKernel);
+    Plugin->call<UrApiKind::urKernelGetNativeHandle>(MKernel, &NativeKernel);
 
     return NativeKernel;
   }
