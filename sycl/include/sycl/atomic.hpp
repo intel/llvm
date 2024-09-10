@@ -166,7 +166,7 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail{
+namespace detail {
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
@@ -403,7 +403,9 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 } // namespace detail
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
-    using atomic __SYCL2020_DEPRECATED("sycl::atomic is deprecated since SYCL 2020") = detail::atomic<T, addressSpace>;
+using atomic
+    __SYCL2020_DEPRECATED("sycl::atomic is deprecated since SYCL 2020") =
+        detail::atomic<T, addressSpace>;
 
 } // namespace _V1
 } // namespace sycl

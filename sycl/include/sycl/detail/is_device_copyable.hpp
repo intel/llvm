@@ -100,7 +100,7 @@ struct __SYCL2020_DEPRECATED("This type isn't device copyable in SYCL 2020")
     IsDeprecatedDeviceCopyable<T[N]> : IsDeprecatedDeviceCopyable<T> {};
 
 #ifdef __SYCL_DEVICE_ONLY__
-// Helper trait to avoid instantiated the deprecated specializations of 
+// Helper trait to avoid instantiated the deprecated specializations of
 // IsDeprecatedDeviceCopyable when is_device_copyable_v<T> is true.
 template <typename T, typename = void>
 struct IsDeprecatedDeviceCopyableIfNot2020 : std::false_type {};
@@ -116,9 +116,9 @@ template <typename T, unsigned NumFieldsToCheck>
 struct CheckFieldsAreDeviceCopyable
     : CheckFieldsAreDeviceCopyable<T, NumFieldsToCheck - 1> {
   using FieldT = decltype(__builtin_field_type(T, NumFieldsToCheck - 1));
-   static_assert(is_device_copyable_v<FieldT> ||
-                detail::IsDeprecatedDeviceCopyableIfNot2020<FieldT>::value,
-                 "The specified type is not device copyable");
+  static_assert(is_device_copyable_v<FieldT> ||
+                    detail::IsDeprecatedDeviceCopyableIfNot2020<FieldT>::value,
+                "The specified type is not device copyable");
 };
 
 template <typename T> struct CheckFieldsAreDeviceCopyable<T, 0> {};
@@ -129,9 +129,9 @@ template <typename T, unsigned NumBasesToCheck>
 struct CheckBasesAreDeviceCopyable
     : CheckBasesAreDeviceCopyable<T, NumBasesToCheck - 1> {
   using BaseT = decltype(__builtin_base_type(T, NumBasesToCheck - 1));
-       static_assert(is_device_copyable_v<BaseT> ||
+  static_assert(is_device_copyable_v<BaseT> ||
                     detail::IsDeprecatedDeviceCopyableIfNot2020<BaseT>::value,
-                 "The specified type is not device copyable");
+                "The specified type is not device copyable");
 };
 
 template <typename T> struct CheckBasesAreDeviceCopyable<T, 0> {};
