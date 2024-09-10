@@ -2268,14 +2268,14 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
       assert(Length && "Couldn't translate array size!");
 
-      if (isSpecConstantOpCode(Length->getOpCode())) {
-        // SPIR-V arrays length can be expressed using a specialization
-        // constant.
+      if (isConstantOpCode(Length->getOpCode())) {
+        // Length can be any constant instruction, either a specialization
+        // constant or a non-specialization constant.
         //
-        // Spec Constant Length Arrays need special treatment, as the allocation
-        // type will be 'OpTypePointer(Function, OpTypeArray(ElementType,
-        // Length))', we need to bitcast the obtained pointer to the expected
-        // type: 'OpTypePointer(Function, ElementType).
+        // Array allocations need special treatment: as the allocation type will
+        // be 'OpTypePointer(Function, OpTypeArray(ElementType, Length))', we
+        // need to bitcast the obtained pointer to the expected type:
+        // 'OpTypePointer(Function, ElementType).
         SPIRVType *AllocationType = BM->addPointerType(
             StorageClassFunction,
             BM->addArrayType(transType(Alc->getAllocatedType()), Length));
