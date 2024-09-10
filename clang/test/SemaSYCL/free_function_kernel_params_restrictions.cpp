@@ -1,0 +1,31 @@
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -verify %s
+// This test checks that compiler correctly diagnoses violations of restrictions
+// applied to free function kernel parameters defined by the spec.
+
+#include "sycl.hpp"
+
+class Outer {
+public:
+  class DefinedWithinAClass {
+    int f;
+  };
+};
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_4(Outer::DefinedWithinAClass S1) { // expected-error {{'Outer::DefinedWithinAClass' cannot be used as the type of a kernel parameter}}
+}
+
+template <typename T1>
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+  void ff_6(T1 S1) { // expected-error 2{{cannot be used as the type of a kernel parameter}}
+}
+
+void bar() {
+  ff_6([=](){});
+}
+
+auto Glob = [](int P){ return P + 1;};
+
+template void ff_6(typeof(Glob) S1);

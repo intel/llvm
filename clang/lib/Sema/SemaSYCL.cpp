@@ -1967,12 +1967,24 @@ public:
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+    // For free functions all struct/class kernel arguments are forward declared
+    // in integration header, that adds additional restrictions for kernel
+    // arguments.
+    // Lambdas are not forward declarable. So, diagnose them properly.
     if (RD->isLambda()) {
       Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
           << ParamTy;
       IsInvalid = true;
+      return isValid();
     }
-    // TODO check that the type is defined at namespace scope.
+
+    // Check that the type is defined at namespace scope.
+    const DeclContext *DeclCtx = RD->getDeclContext();
+    if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
     return isValid();
   }
 
