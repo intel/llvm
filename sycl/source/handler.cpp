@@ -248,16 +248,16 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !MQueue->is_in_fusion_mode() &&
-        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
+        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
         (!impl->CGData.MEvents.size() ||
          (MQueue->isInOrder() &&
           detail::Scheduler::areEventsSafeForSchedulerBypass(
               impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
-      // the graph is not changed, and the queue is not in fusion mode, then
-      // this faster path is used to submit kernel bypassing scheduler and
-      // avoiding CommandGroup, Command objects creation.
+      // the graph is not changed, then this faster path is used to submit
+      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
+      // creation.
 
       std::vector<ur_event_handle_t> RawEvents;
       detail::EventImplPtr NewEvent;
@@ -573,7 +573,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
     NodeImpl->MNDRangeUsed = impl->MNDRangeUsed;
 
@@ -1563,12 +1563,6 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
           "associated with a different device.");
     }
 
-    if (MQueue->is_in_fusion_mode()) {
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "Queue in fusion mode cannot have a dependency from a graph");
-    }
-
     if (QueueGraph && QueueGraph != EventGraph) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Cannot submit to a recording queue with a "
@@ -1610,8 +1604,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   ur_bool_t SupportsOp = false;
-  Plugin->call(urContextGetInfo, ContextImpl->getHandleRef(), InfoQuery,
-               sizeof(ur_bool_t), &SupportsOp, nullptr);
+  Plugin->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1845,8 +1840,8 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck(
-      urDeviceGetInfo, Dev->getHandleRef(),
+  auto Ret = Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);
