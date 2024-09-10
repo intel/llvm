@@ -12,6 +12,14 @@
 #include "ur_level_zero.hpp"
 #include <iomanip>
 
+// As windows order of unloading dlls is reversed from linux, windows will call
+// umfTearDown before it could release umf objects in level_zero, so we call
+// umfInit on urAdapterGet and umfAdapterTearDown to enforce the teardown of umf
+// after umf objects are destructed.
+#if defined(_WIN32)
+#include <umf.h>
+#endif
+
 // Due to multiple DLLMain definitions with SYCL, Global Adapter is init at
 // variable creation.
 #if defined(_WIN32)
@@ -19,7 +27,12 @@ ur_adapter_handle_t_ *GlobalAdapter = new ur_adapter_handle_t_();
 #else
 ur_adapter_handle_t_ *GlobalAdapter;
 #endif
-
+// This is a temporary workaround on windows, where UR adapter is teardowned
+// before the UR loader, which will result in access violation when we use print
+// function as the overrided print function was already released with the UR
+// adapter.
+// TODO: Change adapters to use a common sink class in the loader instead of
+// using thier own sink class that inherit from logger::Sink.
 class ur_legacy_sink : public logger::Sink {
 public:
   ur_legacy_sink(std::string logger_name = "", bool skip_prefix = true)
@@ -32,7 +45,11 @@ public:
     fprintf(stderr, "%s", msg.c_str());
   }
 
-  ~ur_legacy_sink() = default;
+  ~ur_legacy_sink() {
+#if defined(_WIN32)
+    logger::isTearDowned = true;
+#endif
+  };
 };
 
 ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
@@ -74,7 +91,14 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t adapterStateInit() { return UR_RESULT_SUCCESS; }
+ur_result_t adapterStateInit() {
+
+#if defined(_WIN32)
+  umfInit();
+#endif
+
+  return UR_RESULT_SUCCESS;
+}
 
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("level_zero")) {
@@ -258,13 +282,15 @@ ur_result_t adapterStateTeardown() {
     // Due to multiple DLLMain definitions with SYCL, register to cleanup the
     // Global Adapter after refcnt is 0
 #if defined(_WIN32)
+  umfTearDown();
   std::atexit(globalAdapterOnDemandCleanup);
 #endif
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
+namespace ur::level_zero {
+ur_result_t urAdapterGet(
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phAdapters. If phAdapters is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -305,7 +331,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
+ur_result_t urAdapterRelease(ur_adapter_handle_t) {
   // Check first if the Adapter pointer is valid
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
@@ -317,7 +343,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
+ur_result_t urAdapterRetain(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     GlobalAdapter->RefCount++;
@@ -326,7 +352,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
+ur_result_t urAdapterGetLastError(
     ur_adapter_handle_t,  ///< [in] handle of the platform instance
     const char **Message, ///< [out] pointer to a C string where the adapter
                           ///< specific error message will be stored.
@@ -339,11 +365,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
   return ErrorMessageCode;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
-                                                     ur_adapter_info_t PropName,
-                                                     size_t PropSize,
-                                                     void *PropValue,
-                                                     size_t *PropSizeRet) {
+ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
+                             size_t PropSize, void *PropValue,
+                             size_t *PropSizeRet) {
   UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
 
   switch (PropName) {
@@ -357,3 +381,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace ur::level_zero

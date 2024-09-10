@@ -45,10 +45,10 @@ ur_result_t ur_event_handle_t_::release() {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  return hEvent->retain();
-}
+namespace ur::level_zero {
+ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
+ur_result_t urEventRelease(ur_event_handle_t hEvent) {
   return hEvent->release();
 }
+} // namespace ur::level_zero

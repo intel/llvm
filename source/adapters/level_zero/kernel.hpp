@@ -108,41 +108,5 @@ struct ur_kernel_handle_t_ : _ur_object {
   ZeCache<std::string> ZeKernelName;
 };
 
-ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_legacy_t hQueue,
-                                      ze_kernel_handle_t hZeKernel,
-                                      size_t GlobalWorkSize3D[3],
-                                      uint32_t SuggestedLocalWorkSize3D[3]);
 ur_result_t getZeKernel(ze_device_handle_t hDevice, ur_kernel_handle_t hKernel,
                         ze_kernel_handle_t *phZeKernel);
-
-/**
- * Calculates a work group size for the kernel based on the GlobalWorkSize or
- * the LocalWorkSize if provided.
- * @param[in][optional] Kernel The Kernel. Used when LocalWorkSize is not
- * provided.
- * @param[in][optional] Device The device associated with the kernel. Used when
- * LocalWorkSize is not provided.
- * @param[out] ZeThreadGroupDimensions Number of work groups in each dimension.
- * @param[out] WG The work group size for each dimension.
- * @param[in] WorkDim The number of dimensions in the kernel.
- * @param[in] GlobalWorkSize The global work size.
- * @param[in][optional] LocalWorkSize The local work size.
- * @return UR_RESULT_SUCCESS or an error code on failure.
- */
-ur_result_t calculateKernelWorkDimensions(
-    ur_kernel_handle_t Kernel, ur_device_handle_t Device,
-    ze_group_count_t &ZeThreadGroupDimensions, uint32_t (&WG)[3],
-    uint32_t WorkDim, const size_t *GlobalWorkSize,
-    const size_t *LocalWorkSize);
-
-/**
- * Sets the global offset for a kernel command that will be appended to the
- * command buffer.
- * @param[in] Context Context associated with the queue.
- * @param[in] Kernel The handle to the kernel that will be appended.
- * @param[in] GlobalWorkOffset The global offset value.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
-                                  ur_kernel_handle_t Kernel,
-                                  const size_t *GlobalWorkOffset);

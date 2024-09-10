@@ -26,21 +26,8 @@ struct ur_single_device_kernel_t {
 
 struct ur_kernel_handle_t_ : _ur_object {
 private:
-  static inline ur_result_t
-  internalProgramRelease(ur_program_handle_t hProgram) {
-    // do a release on the program this kernel was part of without delete of the
-    // program handle.
-    hProgram->ur_release_program_resources(false);
-    return UR_RESULT_SUCCESS;
-  }
-
 public:
-  using ur_program_shared_handle_t =
-      v2::raii::ur_shared_handle<ur_program_handle_t, urProgramRetain,
-                                 internalProgramRelease>;
-
-  ur_kernel_handle_t_(ur_program_shared_handle_t hProgram,
-                      const char *kernelName);
+  ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *kernelName);
 
   // From native handle
   ur_kernel_handle_t_(ur_native_handle_t hNativeKernel,
@@ -75,7 +62,7 @@ public:
 
 private:
   // Keep the program of the kernel.
-  ur_program_shared_handle_t hProgram;
+  ur_program_handle_t hProgram;
 
   // Vector of ur_single_device_kernel_t indexed by device->Id
   std::vector<std::optional<ur_single_device_kernel_t>> deviceKernels;
