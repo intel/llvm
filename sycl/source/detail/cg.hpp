@@ -624,6 +624,8 @@ public:
         MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
   ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    assert(MExternalSemaphore != nullptr &&
+           "MExternalSemaphore has not been defined yet.");
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
@@ -643,6 +645,10 @@ public:
         MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
   ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    if (MExternalSemaphore == nullptr)
+      throw exception(make_error_code(errc::runtime),
+                      "getExternalSemaphore(): MExternalSemaphore has not been "
+                      "defined yet.");
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }

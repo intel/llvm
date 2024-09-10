@@ -90,13 +90,13 @@ public:
 
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
-  ur_usm_advice_flags_t MAdvice;
+  ur_usm_advice_flags_t MAdvice = 0;
 
   // 2D memory operation information.
-  size_t MSrcPitch;
-  size_t MDstPitch;
-  size_t MWidth;
-  size_t MHeight;
+  size_t MSrcPitch = 0;
+  size_t MDstPitch = 0;
+  size_t MWidth = 0;
+  size_t MHeight = 0;
 
   /// Offset into a device_global for copy operations.
   size_t MOffset = 0;
@@ -134,7 +134,7 @@ public:
   ur_rect_region_t MCopyExtent = {};
 
   // Extra information for semaphore interoperability
-  ur_exp_external_semaphore_handle_t MExternalSemaphore;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore = nullptr;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 
