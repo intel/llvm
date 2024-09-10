@@ -1966,7 +1966,13 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
-    // TODO check requirements defined by the spec here.
+    CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+    if (RD->isLambda()) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
+    // TODO check that the type is defined at namespace scope.
     return isValid();
   }
 
@@ -2045,12 +2051,16 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    ++StructFieldDepth;
+    // TODO manipulate struct depth once special types are supported for free
+    // function kernels.
+    // ++StructFieldDepth;
     return true;
   }
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    --StructFieldDepth;
+    // TODO manipulate struct depth once special types are supported for free
+    // function kernels.
+    // --StructFieldDepth;
     return true;
   }
 
@@ -6416,7 +6426,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     // Generate forward declaration for free function.
     O << "\n// Definition of " << K.Name << " as a free function kernel\n";
 
-    O << "// Forward declarations of kernel argument types:\n";
+    O << "\n";
+    O << "// Forward declarations of kernel and its argument types:\n";
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
