@@ -24,8 +24,8 @@ typename Param::return_type get_context_info(ur_context_handle_t Ctx,
                 "Invalid context information descriptor");
   typename Param::return_type Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urContextGetInfo, Ctx, UrInfoCode<Param>::value, sizeof(Result),
-               &Result, nullptr);
+  Plugin->call<UrApiKind::urContextGetInfo>(Ctx, UrInfoCode<Param>::value,
+                                            sizeof(Result), &Result, nullptr);
   return Result;
 }
 

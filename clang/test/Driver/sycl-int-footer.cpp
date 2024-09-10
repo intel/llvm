@@ -3,8 +3,7 @@
 // RUN:   | FileCheck -check-prefix FOOTER %s -DSRCDIR=%/S -DCMDDIR=cmdline/dir
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"
-// FOOTER-SAME: "-include-footer" "[[INTFOOTER]]"
-// FOOTER-SAME: "-fsycl-is-host"{{.*}} "-main-file-name" "[[SRCFILE:.+\cpp]]" "-fsycl-use-main-file-name"{{.*}} "-include" "dummy.h"{{.*}} "-I" "cmdline/dir"
+// FOOTER-SAME: "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}} "-I" "cmdline/dir"
 // FOOTER-NOT: "-include" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
@@ -23,15 +22,9 @@
 
 /// Check that integration footer can be disabled
 // RUN:  %clangxx -fsycl --offload-new-driver -fno-sycl-use-footer %s -### 2>&1 \
-// RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" --implicit-check-not "-fsycl-use-main-file-name" %s
+// RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
-// NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "sycl-int-footer.cpp"{{.*}} "-o"
-
-// Test that -fsycl-use-main-file-name is not passed if -fsycl --offload-new-driver is not passed.
-// This test is located here, because -fsycl-use-main-file-name is tightly
-// connected to the integration footer.
-// RUN: %clangxx %s -### 2>&1 | FileCheck %s --check-prefix NO-FSYCL --implicit-check-not "-fsycl-use-main-file-name"
-// NO-FSYCL: clang{{.*}} "-main-file-name" "sycl-int-footer.cpp"
+// NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o"
 
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \

@@ -153,6 +153,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
        sycl-jit)
+    target_compile_definitions(${LIB_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
   endif(SYCL_ENABLE_EXTENSION_JIT)
 
   find_package(Threads REQUIRED)
@@ -166,7 +168,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Link and include UR
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )
@@ -181,10 +182,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )
+
+  if (NOT WIN32)
+    target_link_libraries(${LIB_NAME}
+      PRIVATE
+      UnifiedRuntimeLoader
+    )
+  else()
+    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
+  endif()
 
   target_include_directories(${LIB_NAME}
     PRIVATE
@@ -237,7 +246,6 @@ set(SYCL_COMMON_SOURCES
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
-    "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
     "detail/graph_impl.cpp"
     "detail/helpers.cpp"

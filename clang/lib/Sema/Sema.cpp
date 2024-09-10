@@ -496,7 +496,9 @@ void Sema::Initialize() {
 #include "clang/Basic/OpenCLExtensionTypes.def"
   }
 
-  if (Context.getTargetInfo().hasAArch64SVETypes()) {
+  if (Context.getTargetInfo().hasAArch64SVETypes() ||
+      (Context.getAuxTargetInfo() &&
+       Context.getAuxTargetInfo()->hasAArch64SVETypes())) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -1806,6 +1808,33 @@ public:
     --InOMPDeviceContext;
   }
 
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr) {
+      if (DS->isSingleDecl()) {
+        Decl *D = DS->getSingleDecl();
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          if (VD->isUsableInConstantExpressions(S.Context))
+            return;
+      } else {
+        for (auto *D : DS->getDeclGroup()) {
+          if (auto *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isUsableInConstantExpressions(S.Context))
+              return;
+          } else {
+            this->visitUsedDecl(DS->getBeginLoc(), D);
+          }
+        }
+      }
+    }
+    this->VisitStmt(DS);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+      return;
+    this->VisitStmt(E);
+  }
+
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
@@ -2003,7 +2032,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
-    auto &Diags = S.DeviceDeferredDiags[Fn];
+    auto &Diags = getDeviceDeferredDiags()[Fn];
     PartialDiagId.emplace(Diags.size());
     Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
@@ -2210,13 +2239,17 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   CheckType(Ty);
-  if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-    for (const auto &ParamTy : FPTy->param_types())
-      CheckType(ParamTy);
-    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+  if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
+    if (LangOpts.SYCLAllowAllFeaturesInConstexpr && FD->isConsteval())
+      return;
+    if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      for (const auto &ParamTy : FPTy->param_types())
+        CheckType(ParamTy);
+      CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+    }
+    if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
+      CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
   }
-  if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
 bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {

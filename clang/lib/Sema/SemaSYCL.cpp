@@ -703,7 +703,8 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(SemaSYCL &S) : SemaSYCLRef(S) {
-    CG.setSkipConstantExpressions(S.getASTContext());
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+      CG.setSkipConstantExpressions(S.getASTContext());
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
@@ -5469,6 +5470,15 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
+    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
+        (SemaRef.isConstantEvaluatedContext() ||
+         SemaRef.currentEvaluationContext().isDiscardedStatementContext()))
+      return SemaDiagnosticBuilder::K_Nop;
+    // Defer until we know that the variable's intializer is actually a
+    // manifestly constant-evaluated expression.
+    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
+        SemaRef.InConstexprVarInit)
+      return SemaDiagnosticBuilder::K_Deferred;
     if (SemaRef.getEmissionStatus(FD) ==
         Sema::FunctionEmissionStatus::Emitted) {
       // Skip the diagnostic if we know it won't be emitted.
@@ -6029,6 +6039,23 @@ static void OutputStableNameInChars(raw_ostream &O, StringRef Name) {
   }
 }
 
+static void EmitPragmaDiagnosticPush(raw_ostream &O, StringRef DiagName) {
+  O << "\n";
+  O << "#ifdef __clang__\n";
+  O << "#pragma clang diagnostic push\n";
+  O << "#pragma clang diagnostic ignored \"" << DiagName.str() << "\"\n";
+  O << "#endif // defined(__clang__)\n";
+  O << "\n";
+}
+
+static void EmitPragmaDiagnosticPop(raw_ostream &O) {
+  O << "\n";
+  O << "#ifdef __clang__\n";
+  O << "#pragma clang diagnostic pop\n";
+  O << "#endif // defined(__clang__)\n";
+  O << "\n";
+}
+
 void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "// This is auto-generated SYCL integration header.\n";
   O << "\n";
@@ -6127,6 +6154,9 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // main() function.
 
   if (NeedToEmitDeviceGlobalRegistration) {
+    // Supress the reserved identifier diagnostic that clang generates
+    // for the construct below.
+    EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
     O << "namespace {\n";
 
     O << "class __sycl_device_global_registration {\n";
@@ -6138,12 +6168,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
 
     O << "\n";
+    EmitPragmaDiagnosticPop(O);
   }
 
   // Generate declaration of variable of type __sycl_host_pipe_registration
   // whose sole purpose is to run its constructor before the application's
   // main() function.
   if (NeedToEmitHostPipeRegistration) {
+    // Supress the reserved identifier diagnostic that clang generates
+    // for the construct below.
+    EmitPragmaDiagnosticPush(O, "-Wreserved-identifier");
     O << "namespace {\n";
 
     O << "class __sycl_host_pipe_registration {\n";
@@ -6155,6 +6189,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "} // namespace\n";
 
     O << "\n";
+    EmitPragmaDiagnosticPop(O);
   }
 
 
@@ -6163,12 +6198,11 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "const char* const kernel_names[] = {\n";
 
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
-    O << "  \"" << KernelDescs[I].Name << "\"";
-
-    if (I < KernelDescs.size() - 1)
-      O << ",";
-    O << "\n";
+    O << "  \"" << KernelDescs[I].Name << "\",\n";
   }
+  // Add a sentinel to avoid warning if the collection is empty
+  // (similar to what we do for kernel_signatures below).
+  O << "  \"\",\n";
   O << "};\n\n";
 
   O << "// array representing signatures of all kernels defined in the\n";
@@ -6720,12 +6754,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/device_global_map.hpp>\n";
     DeviceGlobOS.flush();
     OS << "namespace sycl::detail {\n";
+    // Supress the old-style case diagnostic that clang generates
+    // for the construct below in DeviceGlobalsBuf.
+    EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_device_global_registration::__sycl_device_global_"
           "registration() noexcept {\n";
     OS << DeviceGlobalsBuf;
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
+    EmitPragmaDiagnosticPop(OS);
     OS << "} // namespace sycl::detail\n";
 
     S.getSyclIntegrationHeader().addDeviceGlobalRegistration();
@@ -6735,12 +6773,16 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
     OS << "#include <sycl/detail/host_pipe_map.hpp>\n";
     HostPipesOS.flush();
     OS << "namespace sycl::detail {\n";
+    // Supress the old-style case diagnostic that clang generates
+    // for the construct below in HostPipesBuf.
+    EmitPragmaDiagnosticPush(OS, "-Wold-style-cast");
     OS << "namespace {\n";
     OS << "__sycl_host_pipe_registration::__sycl_host_pipe_"
           "registration() noexcept {\n";
     OS << HostPipesBuf;
     OS << "}\n";
     OS << "} // namespace (unnamed)\n";
+    EmitPragmaDiagnosticPop(OS);
     OS << "} // namespace sycl::detail\n";
 
     S.getSyclIntegrationHeader().addHostPipeRegistration();

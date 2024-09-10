@@ -1133,6 +1133,11 @@ public:
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   SemaDiagnosticBuilder::DeferredDiagnosticsType DeviceDeferredDiags;
+  /// Used to track deferred diagnostic that happened in an initializer of a
+  /// constexpr variable. When it is known that a variable doesn't have
+  /// constexpr initializer content of this container is pushed to
+  /// DeviceDeferredDiags.
+  SemaDiagnosticBuilder::DeferredDiagnosticsType MaybeDeviceDeferredDiags;
 
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
@@ -2168,6 +2173,8 @@ public:
   /// ExpressionEvaluationContextRecord object.
   bool isConstantEvaluatedOverride = false;
 
+  bool InConstexprVarInit = false;
+
   bool isConstantEvaluatedContext() const {
     return currentEvaluationContext().isConstantEvaluated() ||
            isConstantEvaluatedOverride;
@@ -2215,6 +2222,7 @@ public:
     FST_FreeBSDKPrintf,
     FST_OSTrace,
     FST_OSLog,
+    FST_Syslog,
     FST_Unknown
   };
   static FormatStringType GetFormatStringType(const FormatAttr *Format);
@@ -3463,6 +3471,8 @@ public:
                                     DeclarationName Name, SourceLocation Loc,
                                     TemplateIdAnnotation *TemplateId,
                                     bool IsMemberSpecialization);
+
+  bool checkPointerAuthEnabled(SourceLocation Loc, SourceRange Range);
 
   bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
 
@@ -15088,6 +15098,44 @@ public:
   ///
   /// Triggered by declaration-attribute processing.
   void ProcessAPINotes(Decl *D);
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name Bounds Safety
+  /// Implementations are in SemaBoundsSafety.cpp
+  ///@{
+public:
+  /// Check if applying the specified attribute variant from the "counted by"
+  /// family of attributes to FieldDecl \p FD is semantically valid. If
+  /// semantically invalid diagnostics will be emitted explaining the problems.
+  ///
+  /// \param FD The FieldDecl to apply the attribute to
+  /// \param E The count expression on the attribute
+  /// \param[out] Decls If the attribute is semantically valid \p Decls
+  ///             is populated with TypeCoupledDeclRefInfo objects, each
+  ///             describing Decls referred to in \p E.
+  /// \param CountInBytes If true the attribute is from the "sized_by" family of
+  ///                     attributes. If the false the attribute is from
+  ///                     "counted_by" family of attributes.
+  /// \param OrNull If true the attribute is from the "_or_null" suffixed family
+  ///               of attributes. If false the attribute does not have the
+  ///               suffix.
+  ///
+  /// Together \p CountInBytes and \p OrNull decide the attribute variant. E.g.
+  /// \p CountInBytes and \p OrNull both being true indicates the
+  /// `counted_by_or_null` attribute.
+  ///
+  /// \returns false iff semantically valid.
+  bool CheckCountedByAttrOnField(
+      FieldDecl *FD, Expr *E,
+      llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls, bool CountInBytes,
+      bool OrNull);
 
   ///@}
 };
