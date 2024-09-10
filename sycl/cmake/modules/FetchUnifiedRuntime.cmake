@@ -116,6 +116,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
+  # This is a non functional change to trigger a build
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
   # Merge: a99dbcee 3abe18cf
