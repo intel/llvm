@@ -343,8 +343,8 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
             constexpr size_t n_dimensions = 1;
 
             auto queue = queuePerThread ? queues[i] : queues.back();
-            auto kernel = queuePerThread ? kernels[i] : kernels.back();
-            auto sharedPtr = queuePerThread ? SharedMem[i] : SharedMem.back();
+            auto kernel = kernels[i];
+            auto sharedPtr = SharedMem[i];
 
             std::vector<uur::raii::Event> Events(numOpsPerThread + 1);
             for (size_t j = 0; j < numOpsPerThread; j++) {
@@ -381,29 +381,12 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
             size_t ExpectedValue = InitialValue;
             ExpectedValue += numOpsPerThread;
             for (uint32_t j = 0; j < ArraySize; ++j) {
-                if (queuePerThread) {
-                    ASSERT_EQ(data[j], ExpectedValue);
-                } else {
-                    // All threads write to the same memory, so the value might be greater
-                    ASSERT_GE(data[j], ExpectedValue);
-                }
+                ASSERT_EQ(data[j], ExpectedValue);
             }
         });
     }
 
     for (auto &thread : threads) {
         thread.join();
-    }
-
-    if (!queuePerThread) {
-        size_t ExpectedValue = InitialValue;
-        ExpectedValue += numOpsPerThread * numThreads;
-
-        for (size_t i = 0; i < devices.size(); i++) {
-            for (uint32_t j = 0; j < ArraySize; ++j) {
-                ASSERT_EQ(reinterpret_cast<uint32_t *>(SharedMem.back())[j],
-                          ExpectedValue);
-            }
-        }
     }
 }
