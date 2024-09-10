@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
   # Merge: a99dbcee 3abe18cf
   # Author: Piotr Balcer <piotr.balcer@intel.com>
   # Date:   Fri Sep 6 17:21:17 2024 +0200
   #   Merge pull request #1820 from pbalcer/static-linking
   #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  set(UNIFIED_RUNTIME_TAG 5575dde43128732777f08952be5ae476cea846ed)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
