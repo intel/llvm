@@ -16,6 +16,9 @@ using namespace sycl;
 
 int main() {
   sycl::queue Queue;
+  if (!Queue.get_device().get_info<info::device::usm_shared_allocations>())
+    return 0;
+
   const size_t N = 1024;
   int *Data = sycl::malloc_shared<int>(N, Queue);
   auto FillEvent = Queue.fill(Data, 0, N);
