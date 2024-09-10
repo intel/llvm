@@ -10092,7 +10092,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // -offload-compress
     if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
       WrapperArgs.push_back(
-            C.getArgs().MakeArgString(Twine("-offload-compress")));
+          C.getArgs().MakeArgString(Twine("-offload-compress")));
       // -offload-compression-level=<>
       if (Arg *A = C.getInputArgs().getLastArg(
               options::OPT_offload_compression_level_EQ))
