@@ -113,12 +113,25 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  typename Param::return_type ext_oneapi_get_info(queue Queue) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
   template <typename Param>
   typename Param::return_type
-  ext_oneapi_get_info(const queue &Queue, const range<3> &MaxWorkGroupSize,
+  ext_oneapi_get_info(queue Queue, const range<3> &MaxWorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
   /// Get a constant reference to a raw kernel object.
@@ -267,7 +280,7 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
     return_type
     kernel_impl::ext_oneapi_get_info<
         syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        [[maybe_unused]] const queue &Queue, const range<3> &WorkGroupSize,
+        const queue &Queue, const range<3> &WorkGroupSize,
         size_t DynamicLocalMemorySize) const {
   return ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(

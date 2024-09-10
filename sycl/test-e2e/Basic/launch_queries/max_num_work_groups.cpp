@@ -86,7 +86,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // ==================== //
   // Test 1 - return type //
   // ==================== //
-  std::cout << "\nTest 1" << std::endl;
   sycl::range<3> workGroupRange{workGroupSize, 1, 1};
   auto maxWGs = kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(
@@ -99,7 +98,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // ===================== //
   // Test 2 - return value //
   // ===================== //
-  std::cout << "\nTest 2" << std::endl;
   // We must have at least one active group if we are below resource limits.
   assert(maxWGs > 0 && "max_num_work_groups query failed");
   if (maxWGs == 0)
@@ -123,22 +121,17 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // ========================== //
   // Test 3 - use max resources //
   // ========================== //
-  std::cout << "\nTest 3" << std::endl;
   // A little over the maximum work-group size for the purpose of exceeding.
   workGroupSize = maxWorkGroupSize;
   workGroupRange[0] = workGroupSize;
   size_t localSize =
       (dev.get_info<sycl::info::device::local_mem_size>() / sizeof(value_type));
-  std::cout << "work-group size = " << workGroupSize << std::endl;
   if constexpr (KernelName::HasLocalMemory) {
     localMemorySizeInBytes = localSize * sizeof(value_type);
-    std::cout << "local size (bytes?) = " << localMemorySizeInBytes
-              << std::endl;
   }
   maxWGs = kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(
       q, workGroupRange, localMemorySizeInBytes);
-  std::cout << "maxWGs = " << maxWGs << std::endl;
 
   assert(maxWGs > 0 && "max_num_work_groups query failed");
   if (maxWGs == 0)
@@ -162,7 +155,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // =============================== //
   // Test 4 - exceed resource limits //
   // =============================== //
-  std::cout << "\nTest 4" << std::endl;
   workGroupSize = maxWorkGroupSize + 32;
   workGroupRange[0] = workGroupSize;
   maxWGs = kernel.template ext_oneapi_get_info<

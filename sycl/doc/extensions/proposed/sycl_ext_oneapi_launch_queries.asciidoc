@@ -208,6 +208,8 @@ properties or features. If the kernel can be submitted to the specified queue
 without an error, the minimum value returned by this query is 1, otherwise it
 is 0.
 
+[Note: The specified work-group size cannot be 0 value. -- end note]
+
 |===
 
 A separate set of launch queries can be used to reason about how an

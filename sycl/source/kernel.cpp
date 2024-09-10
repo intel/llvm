@@ -107,13 +107,13 @@ kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
-kernel::ext_oneapi_get_info(const queue &Queue) const {
+kernel::ext_oneapi_get_info(queue Queue) const {
   return impl->ext_oneapi_get_info<Param>(Queue);
 }
 
 template <typename Param>
 typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
-kernel::ext_oneapi_get_info(const queue &Queue, const range<3> &WorkGroupSize,
+kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                             size_t DynamicLocalMemorySize) const {
   return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
                                           DynamicLocalMemorySize);
@@ -123,7 +123,7 @@ template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_num_work_group_sync::return_type
     kernel::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &Queue) const;
+            max_num_work_group_sync>(queue Queue) const;
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
   template __SYCL_EXPORT ReturnT                                               \

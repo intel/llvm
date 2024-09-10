@@ -168,7 +168,7 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
-  ext_oneapi_get_info(const queue &Queue) const;
+  ext_oneapi_get_info(queue Queue) const;
 
   /// Query queue/launch-specific information from a kernel using the
   /// info::kernel_queue_specific descriptor for a specific Queue and values.
@@ -180,7 +180,7 @@ public:
   /// \return depends on information being queried.
   template <typename Param>
   typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
-  ext_oneapi_get_info(const queue &Queue, const range<3> &WorkGroupSize,
+  ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                       size_t DynamicLocalMemorySize) const;
 
 private:
