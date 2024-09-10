@@ -1,7 +1,7 @@
 // REQUIRES: opencl
 // Env vars are used to pass OpenCL-specific flags to PI compiling/linking.
 //
-// RUN: %{build} %if cl_options %{/Od%} %else %{-O0%} -o %t.out
+// RUN: %{build} %no_opt -o %t.out
 //
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" %{run} %t.out
 // RUN: env SYCL_PROGRAM_APPEND_COMPILE_OPTIONS="-g" %{run} %t.out
