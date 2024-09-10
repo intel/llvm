@@ -166,11 +166,11 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail{
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
-class __SYCL2020_DEPRECATED(
-    "sycl::atomic is deprecated since SYCL 2020") atomic {
+class atomic {
   friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
                 "Invalid SYCL atomic type. Valid types are: int, "
@@ -400,6 +400,10 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
                    memory_order MemoryOrder = memory_order::relaxed) {
   return Object.fetch_max(Operand, MemoryOrder);
 }
+} // namespace detail
+template <typename T, access::address_space addressSpace =
+                          access::address_space::global_space>
+    using atomic __SYCL2020_DEPRECATED("sycl::atomic is deprecated since SYCL 2020") = detail::atomic<T, addressSpace>;
 
 } // namespace _V1
 } // namespace sycl

@@ -1861,28 +1861,28 @@ public:
 
   iterator begin() const noexcept {
     return iterator::getBegin(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   iterator end() const noexcept {
     return iterator::getEnd(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cbegin() const noexcept {
     return const_iterator::getBegin(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
 
   const_iterator cend() const noexcept {
     return const_iterator::getEnd(
-        get_pointer(),
+        getPointerAdjusted(),
         detail::convertToArrayOfN<AdjustedDim, 1>(getMemoryRange()),
         getRange<AdjustedDim>(), getOffset<AdjustedDim>());
   }
