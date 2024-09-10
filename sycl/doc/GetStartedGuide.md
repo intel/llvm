@@ -306,6 +306,8 @@ CUDA 11, and using a GeForce 1060 device.
 
 ### Build DPC++ toolchain with support for ARM processors
 
+There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
+
 To enable support for ARM processors, follow the instructions for the linux
 toolchain, but add the `--host-target "AArch64;ARM;X86"` flag to `configure.py`.
 
