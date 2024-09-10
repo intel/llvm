@@ -150,7 +150,7 @@ int main() {
   sycl::multi_ptr<int, sycl::access::address_space::global_space,
                   sycl::access::decorated::yes>
       a(nullptr);
-  // expected-warning@+1 {{'atomic' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
+  // expected-warning@+1 {{'atomic' is deprecated: use sycl::atomic_ref instead}}
   sycl::atomic<int> b(a);
 
   sycl::group<1> group = sycl::detail::Builder::createGroup<1>({8}, {4}, {1});

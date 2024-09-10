@@ -404,7 +404,7 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
 using atomic
-    __SYCL2020_DEPRECATED("sycl::atomic is deprecated since SYCL 2020") =
+    __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") =
         detail::atomic<T, addressSpace>;
 
 } // namespace _V1
