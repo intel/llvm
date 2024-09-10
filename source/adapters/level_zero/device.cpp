@@ -10,13 +10,59 @@
 #include "device.hpp"
 #include "adapter.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 #include "ur_util.hpp"
 #include <algorithm>
 #include <climits>
 #include <optional>
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
+// UR_L0_USE_COPY_ENGINE can be set to an integer value, or
+// a pair of integer values of the form "lower_index:upper_index".
+// Here, the indices point to copy engines in a list of all available copy
+// engines.
+// This functions returns this pair of indices.
+// If the user specifies only a single integer, a value of 0 indicates that
+// the copy engines will not be used at all. A value of 1 indicates that all
+// available copy engines can be used.
+const std::pair<int, int>
+getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
+  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE");
+  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
+  static const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
+  // If the environment variable is not set, no copy engines are used when
+  // immediate commandlists are being used. For standard commandlists all are
+  // used.
+  if (!EnvVar) {
+    if (Device->ImmCommandListUsed)
+      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
+    return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
+  }
+  std::string CopyEngineRange = EnvVar;
+  // Environment variable can be a single integer or a pair of integers
+  // separated by ":"
+  auto pos = CopyEngineRange.find(":");
+  if (pos == std::string::npos) {
+    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
+    if (UseCopyEngine)
+      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
+    return std::pair<int, int>(-1, -1);       // No copy engines will be used.
+  }
+  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
+  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
+  if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
+      (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
+    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
+                  "default set.");
+    LowerCopyEngineIndex = 0;
+    UpperCopyEngineIndex = INT_MAX;
+  }
+  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
+}
+
+namespace ur::level_zero {
+
+ur_result_t urDeviceGet(
     ur_platform_handle_t Platform, ///< [in] handle of the platform instance
     ur_device_type_t DeviceType,   ///< [in] the type of the devices.
     uint32_t NumEntries, ///< [in] the number of devices to be added to
@@ -143,7 +189,7 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
   return Device->ZeGlobalMemSize.operator->()->value;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
+ur_result_t urDeviceGetInfo(
     ur_device_handle_t Device,  ///< [in] handle of the device instance
     ur_device_info_t ParamName, ///< [in] type of the info to retrieve
     size_t propSize,  ///< [in] the number of bytes pointed to by ParamValue.
@@ -1068,54 +1114,249 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-// UR_L0_USE_COPY_ENGINE can be set to an integer value, or
-// a pair of integer values of the form "lower_index:upper_index".
-// Here, the indices point to copy engines in a list of all available copy
-// engines.
-// This functions returns this pair of indices.
-// If the user specifies only a single integer, a value of 0 indicates that
-// the copy engines will not be used at all. A value of 1 indicates that all
-// available copy engines can be used.
-const std::pair<int, int>
-getRangeOfAllowedCopyEngines(const ur_device_handle_t &Device) {
-  const char *UrRet = std::getenv("UR_L0_USE_COPY_ENGINE");
-  const char *PiRet = std::getenv("SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE");
-  static const char *EnvVar = UrRet ? UrRet : (PiRet ? PiRet : nullptr);
-  // If the environment variable is not set, no copy engines are used when
-  // immediate commandlists are being used. For standard commandlists all are
-  // used.
-  if (!EnvVar) {
-    if (Device->ImmCommandListUsed)
-      return std::pair<int, int>(0, 0); // Only main copy engine will be used.
-    return std::pair<int, int>(0, INT_MAX); // All copy engines will be used.
-  }
-  std::string CopyEngineRange = EnvVar;
-  // Environment variable can be a single integer or a pair of integers
-  // separated by ":"
-  auto pos = CopyEngineRange.find(":");
-  if (pos == std::string::npos) {
-    bool UseCopyEngine = (std::stoi(CopyEngineRange) != 0);
-    if (UseCopyEngine)
-      return std::pair<int, int>(0, INT_MAX); // All copy engines can be used.
-    return std::pair<int, int>(-1, -1);       // No copy engines will be used.
-  }
-  int LowerCopyEngineIndex = std::stoi(CopyEngineRange.substr(0, pos));
-  int UpperCopyEngineIndex = std::stoi(CopyEngineRange.substr(pos + 1));
-  if ((LowerCopyEngineIndex > UpperCopyEngineIndex) ||
-      (LowerCopyEngineIndex < -1) || (UpperCopyEngineIndex < -1)) {
-    logger::error("UR_L0_LEVEL_ZERO_USE_COPY_ENGINE: invalid value provided, "
-                  "default set.");
-    LowerCopyEngineIndex = 0;
-    UpperCopyEngineIndex = INT_MAX;
-  }
-  return std::pair<int, int>(LowerCopyEngineIndex, UpperCopyEngineIndex);
-}
-
 bool CopyEngineRequested(const ur_device_handle_t &Device) {
   int LowerCopyQueueIndex = getRangeOfAllowedCopyEngines(Device).first;
   int UpperCopyQueueIndex = getRangeOfAllowedCopyEngines(Device).second;
   return ((LowerCopyQueueIndex != -1) || (UpperCopyQueueIndex != -1));
 }
+
+ur_result_t urDevicePartition(
+    ur_device_handle_t Device, ///< [in] handle of the device to partition.
+    const ur_device_partition_properties_t
+        *Properties,     ///< [in] Device partition properties.
+    uint32_t NumDevices, ///< [in] the number of sub-devices.
+    ur_device_handle_t
+        *OutDevices, ///< [out][optional][range(0, NumDevices)] array of handle
+                     ///< of devices. If NumDevices is less than the number of
+                     ///< sub-devices available, then the function shall only
+                     ///< retrieve that number of sub-devices.
+    uint32_t *NumDevicesRet ///< [out][optional] pointer to the number of
+                            ///< sub-devices the device can be partitioned into
+                            ///< according to the partitioning property.
+) {
+  // Other partitioning ways are not supported by Level Zero
+  UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
+  if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+    if ((Properties->pProperties->value.affinity_domain !=
+             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
+         Properties->pProperties->value.affinity_domain !=
+             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  } else if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
+    if (Properties->pProperties->value.affinity_domain != 0) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  } else {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  // Devices cache is normally created in piDevicesGet but still make
+  // sure that cache is populated.
+  //
+  auto Res = Device->Platform->populateDeviceCacheIfNeeded();
+  if (Res != UR_RESULT_SUCCESS) {
+    return Res;
+  }
+
+  auto EffectiveNumDevices = [&]() -> decltype(Device->SubDevices.size()) {
+    if (Device->SubDevices.size() == 0)
+      return 0;
+
+    // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
+    // However, if
+    // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
+    // still expose CSlices in partitioning by affinity domain for compatibility
+    // reasons.
+    if (Properties->pProperties->type ==
+            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
+        !ExposeCSliceInAffinityPartitioning) {
+      if (Device->isSubDevice()) {
+        return 0;
+      }
+    }
+    if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
+      // Not a CSlice-based partitioning.
+      if (!Device->SubDevices[0]->isCCS()) {
+        return 0;
+      }
+    }
+
+    return Device->SubDevices.size();
+  }();
+
+  // TODO: Consider support for partitioning to <= total sub-devices.
+  // Currently supported partitioning (by affinity domain/numa) would always
+  // partition to all sub-devices.
+  //
+  if (NumDevices != 0)
+    UR_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
+
+  for (uint32_t I = 0; I < NumDevices; I++) {
+    auto prop = Properties->pProperties[0];
+    if (prop.type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+      // In case the value is NEXT_PARTITIONABLE, we need to change it to the
+      // chosen domain. This will always be NUMA since that's the only domain
+      // supported by level zero.
+      prop.value.affinity_domain = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+    }
+    Device->SubDevices[I]->SubDeviceCreationProperty = prop;
+
+    OutDevices[I] = Device->SubDevices[I];
+    // reusing the same pi_device needs to increment the reference count
+    ur::level_zero::urDeviceRetain(OutDevices[I]);
+  }
+
+  if (NumDevicesRet) {
+    *NumDevicesRet = EffectiveNumDevices;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceSelectBinary(
+    ur_device_handle_t
+        Device, ///< [in] handle of the device to select binary for.
+    const ur_device_binary_t
+        *Binaries,        ///< [in] the array of binaries to select from.
+    uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
+                          ///< Must greater than or equal to zero otherwise
+                          ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
+    uint32_t
+        *SelectedBinary ///< [out] the index of the selected binary in the input
+                        ///< array of binaries. If a suitable binary was not
+                        ///< found the function returns ${X}_INVALID_BINARY.
+) {
+  std::ignore = Device;
+  // TODO: this is a bare-bones implementation for choosing a device image
+  // that would be compatible with the targeted device. An AOT-compiled
+  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
+  // The implementation makes no effort to differentiate between multiple images
+  // for the given device, and simply picks the first one compatible.
+  //
+  // Real implementation will use the same mechanism OpenCL ICD dispatcher
+  // uses. Something like:
+  //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_ERROR_INVALID_CONTEXT);
+  //     return context->dispatch->piextDeviceSelectIR(
+  //       ctx, images, num_images, selected_image);
+  // where context->dispatch is set to the dispatch table provided by PI
+  // plugin for platform/device the ctx was created for.
+
+  // Look for GEN binary, which we known can only be handled by Level-Zero now.
+  const char *BinaryTarget =
+      UR_DEVICE_BINARY_TARGET_SPIRV64_GEN; // UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
+
+  uint32_t *SelectedBinaryInd = SelectedBinary;
+
+  // Find the appropriate device image, fallback to spirv if not found
+  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
+  uint32_t Spirv = InvalidInd;
+
+  for (uint32_t i = 0; i < NumBinaries; ++i) {
+    if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
+      *SelectedBinaryInd = i;
+      return UR_RESULT_SUCCESS;
+    }
+    if (strcmp(Binaries[i].pDeviceTargetSpec,
+               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
+      Spirv = i;
+  }
+  // Points to a spirv image, if such indeed was found
+  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
+    return UR_RESULT_SUCCESS;
+
+  // No image can be loaded for the given device
+  return UR_RESULT_ERROR_INVALID_BINARY;
+}
+
+ur_result_t urDeviceGetNativeHandle(
+    ur_device_handle_t Device, ///< [in] handle of the device.
+    ur_native_handle_t
+        *NativeDevice ///< [out] a pointer to the native handle of the device.
+) {
+  *NativeDevice = reinterpret_cast<ur_native_handle_t>(Device->ZeDevice);
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceCreateWithNativeHandle(
+    ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
+    [[maybe_unused]] ur_adapter_handle_t
+        Adapter, ///< [in] handle of the platform instance
+    [[maybe_unused]] const ur_device_native_properties_t
+        *Properties, ///< [in][optional] pointer to native device properties
+                     ///< struct.
+    ur_device_handle_t
+        *Device ///< [out] pointer to the handle of the device object created.
+) {
+  auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
+
+  // The SYCL spec requires that the set of devices must remain fixed for the
+  // duration of the application's execution. We assume that we found all of the
+  // Level Zero devices when we initialized the platforms/devices cache, so the
+  // "NativeHandle" must already be in the cache. If it is not, this must not be
+  // a valid Level Zero device.
+
+  ur_device_handle_t Dev = nullptr;
+  if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
+    for (const auto &p : *platforms) {
+      Dev = p->getDeviceFromNativeHandle(ZeDevice);
+    }
+  } else {
+    return GlobalAdapter->PlatformCache->get_error();
+  }
+
+  if (Dev == nullptr)
+    return UR_RESULT_ERROR_INVALID_VALUE;
+
+  *Device = Dev;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceGetGlobalTimestamps(
+    ur_device_handle_t Device, ///< [in] handle of the device instance
+    uint64_t *DeviceTimestamp, ///< [out][optional] pointer to the Device's
+                               ///< global timestamp that correlates with the
+                               ///< Host's global timestamp value
+    uint64_t *HostTimestamp    ///< [out][optional] pointer to the Host's global
+                               ///< timestamp that correlates with the Device's
+                               ///< global timestamp value
+) {
+  const uint64_t &ZeTimerResolution =
+      Device->ZeDeviceProperties->timerResolution;
+  const uint64_t TimestampMaxCount = Device->getTimestampMask();
+  uint64_t DeviceClockCount, Dummy;
+
+  ZE2UR_CALL(zeDeviceGetGlobalTimestamps,
+             (Device->ZeDevice,
+              HostTimestamp == nullptr ? &Dummy : HostTimestamp,
+              &DeviceClockCount));
+
+  if (DeviceTimestamp != nullptr) {
+    *DeviceTimestamp =
+        (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceRetain(ur_device_handle_t Device) {
+  // The root-device ref-count remains unchanged (always 1).
+  if (Device->isSubDevice()) {
+    Device->RefCount.increment();
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urDeviceRelease(ur_device_handle_t Device) {
+  // Root devices are destroyed during the piTearDown process.
+  if (Device->isSubDevice()) {
+    if (Device->RefCount.decrementAndTest()) {
+      delete Device;
+    }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::level_zero
 
 // Whether immediate commandlists will be used for kernel launches and copies.
 // The default is standard commandlists. Setting 1 or 2 specifies use of
@@ -1140,13 +1381,15 @@ ur_device_handle_t_::useImmediateCommandLists() {
     return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
-  if (ImmediateCommandlistsSetting == -1)
-  // Change this to PerQueue as default after more testing.
-#ifdef _WIN32
-    return NotUsed;
-#else
-    return isPVC() ? PerQueue : NotUsed;
-#endif
+  if (ImmediateCommandlistsSetting == -1) {
+    bool isDG2SupportedDriver =
+        this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
+    if ((isDG2SupportedDriver && isDG2()) || isPVC()) {
+      return PerQueue;
+    } else {
+      return NotUsed;
+    }
+  }
   switch (ImmediateCommandlistsSetting) {
   case 0:
     return NotUsed;
@@ -1312,7 +1555,7 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
       return UR_RESULT_ERROR_UNKNOWN;
     }
 
-    if (CopyEngineRequested((ur_device_handle_t)this)) {
+    if (ur::level_zero::CopyEngineRequested((ur_device_handle_t)this)) {
       for (uint32_t i = 0; i < numQueueGroups; i++) {
         if (((QueueGroupProperties[i].flags &
               ZE_COMMAND_QUEUE_GROUP_PROPERTY_FLAG_COMPUTE) == 0) &&
@@ -1347,26 +1590,6 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         logger::info(logger::LegacyMessage(
                          "NOTE: link blitter/copy engines are available"),
                      "link blitter/copy engines are available");
-    }
-  }
-
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urDeviceRetain(ur_device_handle_t Device) {
-
-  // The root-device ref-count remains unchanged (always 1).
-  if (Device->isSubDevice()) {
-    Device->RefCount.increment();
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urDeviceRelease(ur_device_handle_t Device) {
-  // Root devices are destroyed during the piTearDown process.
-  if (Device->isSubDevice()) {
-    if (Device->RefCount.decrementAndTest()) {
-      delete Device;
     }
   }
 
@@ -1439,222 +1662,4 @@ void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
   ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
-    ur_device_handle_t Device, ///< [in] handle of the device to partition.
-    const ur_device_partition_properties_t
-        *Properties,     ///< [in] Device partition properties.
-    uint32_t NumDevices, ///< [in] the number of sub-devices.
-    ur_device_handle_t
-        *OutDevices, ///< [out][optional][range(0, NumDevices)] array of handle
-                     ///< of devices. If NumDevices is less than the number of
-                     ///< sub-devices available, then the function shall only
-                     ///< retrieve that number of sub-devices.
-    uint32_t *NumDevicesRet ///< [out][optional] pointer to the number of
-                            ///< sub-devices the device can be partitioned into
-                            ///< according to the partitioning property.
-) {
-  // Other partitioning ways are not supported by Level Zero
-  UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
-  if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
-    if ((Properties->pProperties->value.affinity_domain !=
-             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
-         Properties->pProperties->value.affinity_domain !=
-             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  } else if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
-    if (Properties->pProperties->value.affinity_domain != 0) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-  } else {
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  // Devices cache is normally created in piDevicesGet but still make
-  // sure that cache is populated.
-  //
-  auto Res = Device->Platform->populateDeviceCacheIfNeeded();
-  if (Res != UR_RESULT_SUCCESS) {
-    return Res;
-  }
-
-  auto EffectiveNumDevices = [&]() -> decltype(Device->SubDevices.size()) {
-    if (Device->SubDevices.size() == 0)
-      return 0;
-
-    // Sub-Sub-Devices are partitioned by CSlices, not by affinity domain.
-    // However, if
-    // UR_L0_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING overrides that
-    // still expose CSlices in partitioning by affinity domain for compatibility
-    // reasons.
-    if (Properties->pProperties->type ==
-            UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN &&
-        !ExposeCSliceInAffinityPartitioning) {
-      if (Device->isSubDevice()) {
-        return 0;
-      }
-    }
-    if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_CSLICE) {
-      // Not a CSlice-based partitioning.
-      if (!Device->SubDevices[0]->isCCS()) {
-        return 0;
-      }
-    }
-
-    return Device->SubDevices.size();
-  }();
-
-  // TODO: Consider support for partitioning to <= total sub-devices.
-  // Currently supported partitioning (by affinity domain/numa) would always
-  // partition to all sub-devices.
-  //
-  if (NumDevices != 0)
-    UR_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
-
-  for (uint32_t I = 0; I < NumDevices; I++) {
-    auto prop = Properties->pProperties[0];
-    if (prop.type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
-      // In case the value is NEXT_PARTITIONABLE, we need to change it to the
-      // chosen domain. This will always be NUMA since that's the only domain
-      // supported by level zero.
-      prop.value.affinity_domain = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
-    }
-    Device->SubDevices[I]->SubDeviceCreationProperty = prop;
-
-    OutDevices[I] = Device->SubDevices[I];
-    // reusing the same pi_device needs to increment the reference count
-    urDeviceRetain(OutDevices[I]);
-  }
-
-  if (NumDevicesRet) {
-    *NumDevicesRet = EffectiveNumDevices;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
-    ur_device_handle_t
-        Device, ///< [in] handle of the device to select binary for.
-    const ur_device_binary_t
-        *Binaries,        ///< [in] the array of binaries to select from.
-    uint32_t NumBinaries, ///< [in] the number of binaries passed in ppBinaries.
-                          ///< Must greater than or equal to zero otherwise
-                          ///< ::UR_RESULT_ERROR_INVALID_VALUE is returned.
-    uint32_t
-        *SelectedBinary ///< [out] the index of the selected binary in the input
-                        ///< array of binaries. If a suitable binary was not
-                        ///< found the function returns ${X}_INVALID_BINARY.
-) {
-  std::ignore = Device;
-  // TODO: this is a bare-bones implementation for choosing a device image
-  // that would be compatible with the targeted device. An AOT-compiled
-  // image is preferred over SPIR-V for known devices (i.e. Intel devices)
-  // The implementation makes no effort to differentiate between multiple images
-  // for the given device, and simply picks the first one compatible.
-  //
-  // Real implementation will use the same mechanism OpenCL ICD dispatcher
-  // uses. Something like:
-  //   PI_VALIDATE_HANDLE_RETURN_HANDLE(ctx, PI_ERROR_INVALID_CONTEXT);
-  //     return context->dispatch->piextDeviceSelectIR(
-  //       ctx, images, num_images, selected_image);
-  // where context->dispatch is set to the dispatch table provided by PI
-  // plugin for platform/device the ctx was created for.
-
-  // Look for GEN binary, which we known can only be handled by Level-Zero now.
-  const char *BinaryTarget =
-      UR_DEVICE_BINARY_TARGET_SPIRV64_GEN; // UR_DEVICE_BINARY_TARGET_SPIRV64_GEN;
-
-  uint32_t *SelectedBinaryInd = SelectedBinary;
-
-  // Find the appropriate device image, fallback to spirv if not found
-  constexpr uint32_t InvalidInd = (std::numeric_limits<uint32_t>::max)();
-  uint32_t Spirv = InvalidInd;
-
-  for (uint32_t i = 0; i < NumBinaries; ++i) {
-    if (strcmp(Binaries[i].pDeviceTargetSpec, BinaryTarget) == 0) {
-      *SelectedBinaryInd = i;
-      return UR_RESULT_SUCCESS;
-    }
-    if (strcmp(Binaries[i].pDeviceTargetSpec,
-               UR_DEVICE_BINARY_TARGET_SPIRV64) == 0)
-      Spirv = i;
-  }
-  // Points to a spirv image, if such indeed was found
-  if ((*SelectedBinaryInd = Spirv) != InvalidInd)
-    return UR_RESULT_SUCCESS;
-
-  // No image can be loaded for the given device
-  return UR_RESULT_ERROR_INVALID_BINARY;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
-    ur_device_handle_t Device, ///< [in] handle of the device.
-    ur_native_handle_t
-        *NativeDevice ///< [out] a pointer to the native handle of the device.
-) {
-  *NativeDevice = reinterpret_cast<ur_native_handle_t>(Device->ZeDevice);
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t NativeDevice, ///< [in] the native handle of the device.
-    [[maybe_unused]] ur_adapter_handle_t
-        Adapter, ///< [in] handle of the platform instance
-    [[maybe_unused]] const ur_device_native_properties_t
-        *Properties, ///< [in][optional] pointer to native device properties
-                     ///< struct.
-    ur_device_handle_t
-        *Device ///< [out] pointer to the handle of the device object created.
-) {
-  auto ZeDevice = ur_cast<ze_device_handle_t>(NativeDevice);
-
-  // The SYCL spec requires that the set of devices must remain fixed for the
-  // duration of the application's execution. We assume that we found all of the
-  // Level Zero devices when we initialized the platforms/devices cache, so the
-  // "NativeHandle" must already be in the cache. If it is not, this must not be
-  // a valid Level Zero device.
-
-  ur_device_handle_t Dev = nullptr;
-  if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
-    for (const auto &p : *platforms) {
-      Dev = p->getDeviceFromNativeHandle(ZeDevice);
-    }
-  } else {
-    return GlobalAdapter->PlatformCache->get_error();
-  }
-
-  if (Dev == nullptr)
-    return UR_RESULT_ERROR_INVALID_VALUE;
-
-  *Device = Dev;
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
-    ur_device_handle_t Device, ///< [in] handle of the device instance
-    uint64_t *DeviceTimestamp, ///< [out][optional] pointer to the Device's
-                               ///< global timestamp that correlates with the
-                               ///< Host's global timestamp value
-    uint64_t *HostTimestamp    ///< [out][optional] pointer to the Host's global
-                               ///< timestamp that correlates with the Device's
-                               ///< global timestamp value
-) {
-  const uint64_t &ZeTimerResolution =
-      Device->ZeDeviceProperties->timerResolution;
-  const uint64_t TimestampMaxCount = Device->getTimestampMask();
-  uint64_t DeviceClockCount, Dummy;
-
-  ZE2UR_CALL(zeDeviceGetGlobalTimestamps,
-             (Device->ZeDevice,
-              HostTimestamp == nullptr ? &Dummy : HostTimestamp,
-              &DeviceClockCount));
-
-  if (DeviceTimestamp != nullptr) {
-    *DeviceTimestamp =
-        (DeviceClockCount & TimestampMaxCount) * ZeTimerResolution;
-  }
-
-  return UR_RESULT_SUCCESS;
 }

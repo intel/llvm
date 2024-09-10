@@ -17,6 +17,10 @@
 
 namespace logger {
 
+#if defined(_WIN32)
+inline bool isTearDowned = false;
+#endif
+
 class Sink {
   public:
     template <typename... Args>
@@ -28,7 +32,21 @@ class Sink {
         }
 
         format(buffer, fmt, std::forward<Args &&>(args)...);
+// This is a temporary workaround on windows, where UR adapter is teardowned
+// before the UR loader, which will result in access violation when we use print
+// function as the overrided print function was already released with the UR
+// adapter.
+// TODO: Change adapters to use a common sink class in the loader instead of
+// using thier own sink class that inherit from logger::Sink.
+#if defined(_WIN32)
+        if (isTearDowned) {
+            std::cerr << buffer.str() << "\n";
+        } else {
+            print(level, buffer.str());
+        }
+#else
         print(level, buffer.str());
+#endif
     }
 
     void setFlushLevel(logger::Level level) { this->flush_level = level; }

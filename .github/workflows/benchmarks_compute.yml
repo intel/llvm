@@ -151,9 +151,17 @@ jobs:
     - name: Build SYCL
       run: cmake --build ${{github.workspace}}/sycl_build -j
 
-    - name: Set oneAPI Device Selector
-      run: |
-        echo "ONEAPI_DEVICE_SELECTOR=${{ matrix.adapter.str_name }}:${{ matrix.adapter.unit }}" >> $GITHUB_ENV
+    - name: Configure UR
+      working-directory: ${{github.workspace}}/ur-repo
+      run: >
+        cmake -DCMAKE_BUILD_TYPE=Release
+        -B${{github.workspace}}/ur-repo/build
+        -DUR_BUILD_TESTS=OFF
+        -DUR_BUILD_ADAPTER_L0=ON
+        -DUR_BUILD_ADAPTER_L0_V2=ON
+
+    - name: Build UR
+      run: cmake --build ${{github.workspace}}/ur-repo/build -j $(nproc)
 
     - name: Run benchmarks
       id: benchmarks

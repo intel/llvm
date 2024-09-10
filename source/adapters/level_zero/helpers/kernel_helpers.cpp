@@ -15,9 +15,9 @@
 #include "../device.hpp"
 
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
-#include "../context.hpp"
-#else
 #include "../v2/context.hpp"
+#else
+#include "../context.hpp"
 #endif
 
 ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,

@@ -24,8 +24,8 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # v0.9.x 19.08.2024: Merge pull request #688 ...
-    set(UMF_TAG 59c4150b7120a7af5b3c8eb2d9b8bbb5d2e96aa3)
+    # v0.9.x 23.08.2024: Merge pull request #696 ...
+    set(UMF_TAG 3c340e61c197f4f9e29abd947f90ce27c571433e)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -35,6 +35,13 @@ FetchContent_Declare(unified-memory-framework
     GIT_REPOSITORY    ${UMF_REPO}
     GIT_TAG           ${UMF_TAG}
 )
+
+if (UR_STATIC_ADAPTER_L0)
+    if (UMF_BUILD_SHARED_LIBRARY)
+        message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
+        set(UMF_BUILD_SHARED_LIBRARY OFF)
+    endif()
+endif()
 
 set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
 set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
@@ -85,9 +92,9 @@ install(TARGETS ur_common
 
 add_library(ur_umf INTERFACE)
 target_sources(ur_umf INTERFACE
-    umf_helpers.hpp
-    umf_pools/disjoint_pool_config_parser.cpp
-    ur_pool_manager.hpp
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_helpers.hpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_pools/disjoint_pool_config_parser.cpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ur_pool_manager.hpp>
 )
 
 add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
