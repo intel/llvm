@@ -703,7 +703,8 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(SemaSYCL &S) : SemaSYCLRef(S) {
-    CG.setSkipConstantExpressions(S.getASTContext());
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+      CG.setSkipConstantExpressions(S.getASTContext());
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
@@ -5469,6 +5470,15 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
+    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
+        (SemaRef.isConstantEvaluatedContext() ||
+         SemaRef.currentEvaluationContext().isDiscardedStatementContext()))
+      return SemaDiagnosticBuilder::K_Nop;
+    // Defer until we know that the variable's intializer is actually a
+    // manifestly constant-evaluated expression.
+    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
+        SemaRef.InConstexprVarInit)
+      return SemaDiagnosticBuilder::K_Deferred;
     if (SemaRef.getEmissionStatus(FD) ==
         Sema::FunctionEmissionStatus::Emitted) {
       // Skip the diagnostic if we know it won't be emitted.
@@ -6188,11 +6198,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "const char* const kernel_names[] = {\n";
 
   for (unsigned I = 0; I < KernelDescs.size(); I++) {
-    O << "  \"" << KernelDescs[I].Name << "\"";
-
-    if (I < KernelDescs.size() - 1)
-      O << ",";
-    O << "\n";
+    O << "  \"" << KernelDescs[I].Name << "\",\n";
   }
   // Add a sentinel to avoid warning if the collection is empty
   // (similar to what we do for kernel_signatures below).

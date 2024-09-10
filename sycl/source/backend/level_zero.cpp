@@ -23,8 +23,8 @@ __SYCL_EXPORT device make_device(const platform &Platform,
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create UR device first.
   ur_device_handle_t UrDevice;
-  Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle,
-               Plugin->getUrAdapter(), nullptr, &UrDevice);
+  Plugin->call<UrApiKind::urDeviceCreateWithNativeHandle>(
+      NativeHandle, Plugin->getUrAdapter(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));

@@ -122,7 +122,7 @@ if config.extra_environment:
     for env_pair in config.extra_environment.split(","):
         [var, val] = env_pair.split("=", 1)
         if val:
-            llvm_config.with_environment(var, val, append_path=True)
+            llvm_config.with_environment(var, val)
             lit_config.note("\t" + var + "=" + val)
         else:
             lit_config.note("\tUnset " + var)
@@ -566,6 +566,9 @@ if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     arch_flag = (
         "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
     )
+    config.substitutions.append(
+        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+    )
 elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
     config.available_features.add("hip_nvidia")
     arch_flag = ""
@@ -677,24 +680,6 @@ for aot_tool in aot_tools:
         lit_config.warning(
             "Couldn't find pre-installed AOT device compiler " + aot_tool
         )
-
-# Check if kernel fusion is available by compiling a small program that will
-# be ill-formed (compilation stops with non-zero exit code) if the feature
-# test macro for kernel fusion is not defined.
-check_fusion_file = "check_fusion.cpp"
-with open_check_file(check_fusion_file) as ff:
-    ff.write("#include <sycl/sycl.hpp>\n")
-    ff.write("#ifndef SYCL_EXT_CODEPLAY_KERNEL_FUSION\n")
-    ff.write('#error "Feature test for fusion failed"\n')
-    ff.write("#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION\n")
-    ff.write("int main() { return 0; }\n")
-
-status = subprocess.getstatusoutput(
-    config.dpcpp_compiler + " -fsycl  " + check_fusion_file
-)
-if status[0] == 0:
-    lit_config.note("Kernel fusion extension enabled")
-    config.available_features.add("fusion")
 
 for sycl_device in config.sycl_devices:
     be, dev = sycl_device.split(":")
