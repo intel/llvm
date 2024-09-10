@@ -9,7 +9,7 @@
 #include <sycl/usm.hpp>
 
 // Test checks the case when an interoperability event is passed as a dependency
-// to the barrier. In such case waiting for the even produced by barrier must
+// to the barrier. In such case, waiting for the event produced by barrier must
 // guarantee completion of the interoperability event.
 
 using namespace sycl;
