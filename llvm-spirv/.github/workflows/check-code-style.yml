@@ -70,7 +70,7 @@ jobs:
             clang-format-${{ env.LLVM_VERSION }} clang-tidy-${{ env.LLVM_VERSION }} \
             clang-tools-${{ env.LLVM_VERSION }} llvm-${{ env.LLVM_VERSION }}-dev \
             libomp-${{ env.LLVM_VERSION }}-dev libllvmlibc-${{ env.LLVM_VERSION }}-dev \
-            mlir-${{ env.LLVM_VERSION }}-tools \
+            mlir-${{ env.LLVM_VERSION }}-tools libpolly-${{ env.LLVM_VERSION }}-dev \
 
     - name: Generate compile command database
       if: ${{ steps.gather-list-of-changes.outputs.HAS_CHANGES }}
