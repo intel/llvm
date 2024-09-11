@@ -64,7 +64,7 @@ enum class OffloadArchIntel {
   ACM_G10,
   DG2_G10,
   ACM_G11,
-  DG2_GLL,
+  DG2_G11,
   ACM_G12,
   DG2_G12,
   PVC,

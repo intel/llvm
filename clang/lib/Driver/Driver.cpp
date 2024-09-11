@@ -1022,7 +1022,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
       for (const auto &TripleAndArchs : DerivedArchs)
         OpenMPTriples.insert(TripleAndArchs.first());
-    } // end of offload-arch
+    }
 
     for (StringRef Val : OpenMPTriples) {
       llvm::Triple TT(ToolChain::getOpenMPTriple(Val));
@@ -1337,13 +1337,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       } else if (IsIntelGPUOffloadArch(StringToOffloadArchIntel(Arch))) {
         DerivedArchs["spir64_gen"].insert(Arch);
       } else {
-        Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << Arch;
+        Diag(clang::diag::err_drv_invalid_sycl_target) << Arch;
         return;
       }
     }
     // If the set is empty then we failed to find a native architecture.
     if (Archs.empty()) {
-      Diag(clang::diag::err_drv_failed_to_deduce_target_from_arch) << "native";
+      Diag(clang::diag::err_drv_invalid_sycl_target) << "native";
       return;
     }
 
@@ -1351,13 +1351,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       SYCLTriples.insert(TripleAndArchs.first());
 
     for (const auto &Val : SYCLTriples) {
-      llvm::Triple TT(MakeSYCLDeviceTriple(Val.getKey()));
-      std::string NormalizedName = TT.normalize();
+      llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
+      std::string NormalizedName = SYCLTargetTriple.normalize();
 
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
       if (Duplicate != FoundNormalizedTriples.end()) {
-        Diag(clang::diag::warn_drv_omp_offload_target_duplicate)
+        Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
             << Val.getKey() << Duplicate->second;
         continue;
       }
@@ -1365,19 +1365,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       // Store the current triple so that we can check for duplicates in the
       // following iterations.
       FoundNormalizedTriples[NormalizedName] = Val.getKey();
-    }
-
-    if (!SYCLTriples.empty()) {
-      for (const auto &SYCLTriple : SYCLTriples) {
-        llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple.getKey()));
-        UniqueSYCLTriplesVec.push_back(Triple);
-      }
+      UniqueSYCLTriplesVec.push_back(SYCLTargetTriple);
     }
 
     addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
 
-  } // end of --offload-arch
-  else {
+  } else {
     // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.
     if (HasValidSYCLRuntime) {
