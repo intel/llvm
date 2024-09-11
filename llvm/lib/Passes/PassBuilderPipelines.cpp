@@ -25,6 +25,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/Pass.h"
 #include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/CommandLine.h"
@@ -999,7 +1000,8 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level,
 
   if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
     MainCGPipeline.addPass(CoroSplitPass(Level != OptimizationLevel::O0));
-    MainCGPipeline.addPass(CoroAnnotationElidePass());
+    MainCGPipeline.addPass(
+        createCGSCCToFunctionPassAdaptor(CoroAnnotationElidePass()));
   }
 
   // Make sure we don't affect potential future NoRerun CGSCC adaptors.
@@ -1037,6 +1039,11 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
   IP.EnableDeferral = false;
 
   MPM.addPass(ModuleInlinerPass(IP, UseInlineAdvisor, Phase));
+  if (!UseCtxProfile.empty() && Phase == ThinOrFullLTOPhase::ThinLTOPostLink) {
+    MPM.addPass(GlobalOptPass());
+    MPM.addPass(GlobalDCEPass());
+    MPM.addPass(PGOCtxProfFlatteningPass());
+  }
 
   MPM.addPass(createModuleToFunctionPassAdaptor(
       buildFunctionSimplificationPipeline(Level, Phase),
@@ -1045,8 +1052,7 @@ PassBuilder::buildModuleInlinerPipeline(OptimizationLevel Level,
   if (Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
     MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(
         CoroSplitPass(Level != OptimizationLevel::O0)));
-    MPM.addPass(
-        createModuleToPostOrderCGSCCPassAdaptor(CoroAnnotationElidePass()));
+    MPM.addPass(createModuleToFunctionPassAdaptor(CoroAnnotationElidePass()));
   }
 
   return MPM;
@@ -1766,11 +1772,14 @@ ModulePassManager PassBuilder::buildThinLTODefaultPipeline(
     MPM.addPass(GlobalDCEPass());
     return MPM;
   }
-
-  // Add the core simplification pipeline.
-  MPM.addPass(buildModuleSimplificationPipeline(
-      Level, ThinOrFullLTOPhase::ThinLTOPostLink));
-
+  if (!UseCtxProfile.empty()) {
+    MPM.addPass(
+        buildModuleInlinerPipeline(Level, ThinOrFullLTOPhase::ThinLTOPostLink));
+  } else {
+    // Add the core simplification pipeline.
+    MPM.addPass(buildModuleSimplificationPipeline(
+        Level, ThinOrFullLTOPhase::ThinLTOPostLink));
+  }
   // Now add the optimization pipeline.
   MPM.addPass(buildModuleOptimizationPipeline(
       Level, ThinOrFullLTOPhase::ThinLTOPostLink));

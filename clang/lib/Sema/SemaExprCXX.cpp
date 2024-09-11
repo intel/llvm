@@ -1545,6 +1545,9 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
                                 bool ListInitialization) {
   QualType Ty = TInfo->getType();
   SourceLocation TyBeginLoc = TInfo->getTypeLoc().getBeginLoc();
+
+  assert((!ListInitialization || Exprs.size() == 1) &&
+         "List initialization must have exactly one expression.");
   SourceRange FullRange = SourceRange(TyBeginLoc, RParenOrBraceLoc);
 
   InitializedEntity Entity =
@@ -5177,7 +5180,8 @@ static bool HasNonDeletedDefaultedEqualityComparison(Sema &S,
 
     // const ClassT& obj;
     OpaqueValueExpr Operand(
-        {}, Decl->getTypeForDecl()->getCanonicalTypeUnqualified().withConst(),
+        KeyLoc,
+        Decl->getTypeForDecl()->getCanonicalTypeUnqualified().withConst(),
         ExprValueKind::VK_LValue);
     UnresolvedSet<16> Functions;
     // obj == obj;
