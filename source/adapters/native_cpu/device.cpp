@@ -180,6 +180,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
     // TODO: provide a mechanism to estimate/configure this.
     return ReturnValue(size_t{2048});
+  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+    // Set the max sub groups to be the same as the max work group size.
+    return ReturnValue(uint32_t{2048});
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // Imported from level_zero
     return ReturnValue(uint32_t{8});
@@ -357,7 +360,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_UUID:
   case UR_DEVICE_INFO_DEVICE_ID:
-  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D:
