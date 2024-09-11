@@ -187,6 +187,24 @@ jobs:
       adapter_name: NATIVE_CPU
       runner_name: NATIVE_CPU
 
+  # Native CPU jobs are here to force the loader to be used (UR will not use the loader if there is only one target)
+  combined-opencl-native-cpu:
+    name: OpenCL + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: OPENCL
+      other_adapter_name: NATIVE_CPU
+      runner_name: OPENCL
+      platform: "OPENCL:Intel(R) OpenCL"
+
+  combined-level-zero-native-cpu:
+    name: Level Zero + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      other_adapter_name: NATIVE_CPU
+      runner_name: L0
+
   e2e-level-zero:
     name: E2E L0
     permissions:
