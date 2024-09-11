@@ -1086,7 +1086,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool HasSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                           options::OPT_fno_sycl, false);
   bool HasValidSYCLRuntime =
-      HasSYCL || C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
+      HasSYCL || hasSYCLDeviceOnly(C.getInputArgs());
+  bool UseSYCLIntegrationHeaders =
+      C.getInputArgs().hasFlag(options::OPT_fsycl_use_integration_headers,
+                               options::OPT_fno_sycl_use_integration_headers,
+                               !getSYCLDefaultUseBuiltins());
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -1135,13 +1139,14 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!HasSYCL && !SYCLfpga)
       Diag(clang::diag::err_drv_sycl_opt_requires_opt)
           << "-f[no-]sycl-use-integration-headers";
-    // -fno-sycl-use-integration-headers cannot be used with
-    // -fsycl-host-compiler.
-    if (SYCLHostCompiler && SYCLUIHArg->getOption().matches(
-                                options::OPT_fno_sycl_use_integration_headers))
-      Diag(clang::diag::err_drv_option_conflict)
-          << SYCLHostCompiler->getSpelling().split('=').first
-          << "-fno-sycl-use-integration-headers";
+  }
+
+  // -fno-sycl-use-integration-headers cannot be used with
+  // -fsycl-host-compiler.
+  if (SYCLHostCompiler && !UseSYCLIntegrationHeaders) {
+    Diag(clang::diag::err_drv_option_conflict)
+        << SYCLHostCompiler->getSpelling().split('=').first
+        << "-fno-sycl-use-integration-headers";
   }
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {

@@ -7002,8 +7002,8 @@ defm sycl_use_integration_headers : BoolFOption<"sycl-use-integration-headers",
       PosFlag<SetTrue, [], [ClangOption, CLOption], "Specify">,
       NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not specify">,
       BothFlags<[HelpHidden], [ClangOption, CLOption, CC1Option],
-      " that integration headers be used for "
-      "communication between the host and the device compilations. SYCL Only">>;
+      " that integration headers be used for communication"
+      " between the host and the device compilations. SYCL Only">>;
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.

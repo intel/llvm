@@ -14,7 +14,7 @@
 // RUN:  | FileCheck -check-prefix PREPROC_ONLY2 %s
 // RUN: %clang_cl -fsycl --offload-new-driver -fno-sycl-use-integration-headers -P -Fi%t_output.ii %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix PREPROC_ONLY2 %s
-// PREPROC_ONLY2-NOT: "-fsycl-int-header=" 
+// PREPROC_ONLY2-NOT: "-fsycl-int-header="
 // PREPROC_ONLY2-NOT: "-fsycl-int-footer="
 // PREPROC_ONLY2-NOT: "-include-footer"
 

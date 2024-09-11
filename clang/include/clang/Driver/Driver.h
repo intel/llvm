@@ -979,6 +979,14 @@ public:
   llvm::opt::ArgStringList getDeviceTraitsMacrosArgs() const {
     return SYCLDeviceTraitsMacrosArgs;
   }
+  /// getSYCLDefaultUseBuiltins - Return false, when the default mechanism
+  /// for communication between the device and host compilations
+  /// is integration headers.  Return true, when it is via builtins.
+  bool getSYCLDefaultUseBuiltins() const {
+    // Currently, unless -fsycl-use-builtins is explicitly specified,
+    // integration headers are used for device-host communucations.
+    return false;
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.
