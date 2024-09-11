@@ -1085,8 +1085,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
                                           options::OPT_fno_sycl, false);
-  bool HasValidSYCLRuntime =
-      HasSYCL || hasSYCLDeviceOnly(C.getInputArgs());
+  bool HasValidSYCLRuntime = HasSYCL || hasSYCLDeviceOnly(C.getInputArgs());
   bool UseSYCLIntegrationHeaders =
       C.getInputArgs().hasFlag(options::OPT_fsycl_use_integration_headers,
                                options::OPT_fno_sycl_use_integration_headers,
