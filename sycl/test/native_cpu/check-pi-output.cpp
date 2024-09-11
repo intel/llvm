@@ -1,6 +1,6 @@
 // REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu  %s -o %t
-// RUN: env SYCL_PI_TRACE=1 ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t | FileCheck %s
+// RUN: env SYCL_UR_TRACE=1 ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
@@ -46,5 +46,5 @@ int main() {
   return 0;
 }
 
-//CHECK: SYCL_PI_TRACE[all]:   platform: SYCL_NATIVE_CPU
-//CHECK: SYCL_PI_TRACE[all]:   device: SYCL Native CPU
+//CHECK: SYCL_UR_TRACE:   platform: SYCL_NATIVE_CPU
+//CHECK: SYCL_UR_TRACE:   device: SYCL Native CPU

@@ -18,6 +18,7 @@ Using oneAPI DPC++ for Application Development
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
    MultiTileCardWithLevelZero
+   syclgraph/SYCLGraphUsageGuide
 
 Design Documents for the oneAPI DPC++ Compiler
 ----------------------------------------------

@@ -87,6 +87,7 @@ LANGOPT(C99               , 1, 0, "C99")
 LANGOPT(C11               , 1, 0, "C11")
 LANGOPT(C17               , 1, 0, "C17")
 LANGOPT(C23               , 1, 0, "C23")
+LANGOPT(C2y               , 1, 0, "C2y")
 LANGOPT(MSVCCompat        , 1, 0, "Microsoft Visual C++ full compatibility mode")
 LANGOPT(Kernel            , 1, 0, "Kernel mode")
 LANGOPT(MicrosoftExt      , 1, 0, "Microsoft C++ extensions")
@@ -164,10 +165,14 @@ LANGOPT(ExperimentalLibrary, 1, 0, "enable unstable and experimental library fea
 LANGOPT(PointerAuthIntrinsics, 1, 0, "pointer authentication intrinsics")
 LANGOPT(PointerAuthCalls  , 1, 0, "function pointer authentication")
 LANGOPT(PointerAuthReturns, 1, 0, "return pointer authentication")
+LANGOPT(PointerAuthIndirectGotos, 1, 0, "indirect gotos pointer authentication")
 LANGOPT(PointerAuthAuthTraps, 1, 0, "pointer authentication failure traps")
 LANGOPT(PointerAuthVTPtrAddressDiscrimination, 1, 0, "incorporate address discrimination in authenticated vtable pointers")
 LANGOPT(PointerAuthVTPtrTypeDiscrimination, 1, 0, "incorporate type discrimination in authenticated vtable pointers")
+LANGOPT(PointerAuthTypeInfoVTPtrDiscrimination, 1, 0, "incorporate type and address discrimination in authenticated vtable pointers for std::type_info")
 LANGOPT(PointerAuthInitFini, 1, 0, "sign function pointers in init/fini arrays")
+BENIGN_LANGOPT(PointerAuthFunctionTypeDiscrimination, 1, 0,
+               "Use type discrimination when signing function pointers")
 
 LANGOPT(DoubleSquareBracketAttributes, 1, 0, "'[[]]' attributes extension for all language standard modes")
 LANGOPT(ExperimentalLateParseAttributes, 1, 0, "experimental late parsing of attributes")
@@ -219,7 +224,6 @@ COMPATIBLE_LANGOPT(GNUInline         , 1, 0, "GNU inline semantics")
 COMPATIBLE_LANGOPT(NoInlineDefine    , 1, 0, "__NO_INLINE__ predefined macro")
 COMPATIBLE_LANGOPT(Deprecated        , 1, 0, "__DEPRECATED predefined macro")
 COMPATIBLE_LANGOPT(FastMath          , 1, 0, "fast FP math optimizations, and __FAST_MATH__ predefined macro")
-COMPATIBLE_LANGOPT(FiniteMathOnly    , 1, 0, "__FINITE_MATH_ONLY__ predefined macro")
 COMPATIBLE_LANGOPT(UnsafeFPMath      , 1, 0, "Unsafe Floating Point Math")
 COMPATIBLE_LANGOPT(ProtectParens     , 1, 0, "optimizer honors parentheses "
                    "when floating-point expressions are evaluated")
@@ -276,6 +280,8 @@ LANGOPT(RenderScript      , 1, 0, "RenderScript")
 
 LANGOPT(HLSL, 1, 0, "HLSL")
 ENUM_LANGOPT(HLSLVersion, HLSLLangStd, 16, HLSL_Unset, "HLSL Version")
+LANGOPT(HLSLStrictAvailability, 1, 0,
+        "Strict availability diagnostic mode for HLSL built-in functions.")
 
 LANGOPT(CUDAIsDevice      , 1, 0, "compiling for CUDA device")
 LANGOPT(CUDAAllowVariadicFunctions, 1, 0, "allowing variadic functions in CUDA device code")
@@ -296,12 +302,14 @@ LANGOPT(SYCLAllowFuncPtr  , 1, 0, "Allow function pointers in SYCL device code")
 LANGOPT(SYCLStdLayoutKernelParams, 1, 0, "Enable standard layout requirement for SYCL kernel parameters")
 LANGOPT(SYCLUnnamedLambda , 1, 0, "Allow unnamed lambda SYCL kernels")
 LANGOPT(SYCLForceInlineKernelLambda , 1, 0, "Force inline SYCL kernel lambdas in entry point")
+LANGOPT(SYCLAllowAllFeaturesInConstexpr, 1, 0, "Allow all C++ features in SYCL device code in manifestly constant-evaluated expressions")
 LANGOPT(SYCLESIMDForceStatelessMem, 1, 0, "Make accessors use USM memory in ESIMD kernels")
 LANGOPT(SYCLESIMDBuildHostCode, 1, 1, "Build the host implementation of ESIMD functions")
 ENUM_LANGOPT(SYCLVersion  , SYCLMajorVersion, 2, SYCL_None, "Version of the SYCL standard used")
 LANGOPT(DeclareSPIRVBuiltins, 1, 0, "Declare SPIR-V builtin functions")
 LANGOPT(SYCLExplicitSIMD  , 1, 0, "SYCL compilation with explicit SIMD extension")
 LANGOPT(EnableDAEInSpirKernels , 1, 0, "Enable Dead Argument Elimination in SPIR kernels")
+LANGOPT(SYCLDecomposeStruct, 1, 1, "Force top level decomposition of SYCL functor")
 LANGOPT(
     SYCLValueFitInMaxInt, 1, 1,
     "SYCL compiler assumes value fits within MAX_INT for member function of "
@@ -313,8 +321,6 @@ ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2,
 LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
-LANGOPT(SYCLAllowVirtualFunctions, 1, 0,
-        "Allow virtual functions calls in code for SYCL device")
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
@@ -357,7 +363,6 @@ LANGOPT(SinglePrecisionConstants , 1, 0, "treating double-precision floating poi
 LANGOPT(FastRelaxedMath , 1, 0, "OpenCL fast relaxed math")
 BENIGN_LANGOPT(CLNoSignedZero , 1, 0, "Permit Floating Point optimization without regard to signed zeros")
 COMPATIBLE_LANGOPT(CLUnsafeMath , 1, 0, "Unsafe Floating Point Math")
-COMPATIBLE_LANGOPT(CLFiniteMathOnly , 1, 0, "__FINITE_MATH_ONLY__ predefined macro")
 /// FP_CONTRACT mode (on/off/fast).
 BENIGN_ENUM_LANGOPT(DefaultFPContractMode, FPModeKind, 2, FPM_Off, "FP contraction type")
 COMPATIBLE_LANGOPT(ExpStrictFP, 1, false, "Enable experimental strict floating point")
@@ -488,6 +493,8 @@ LANGOPT(MatrixTypes, 1, 0, "Enable or disable the builtin matrix type")
 
 LANGOPT(CXXAssumptions, 1, 1, "Enable or disable codegen and compile-time checks for C++23's [[assume]] attribute")
 
+LANGOPT(RawStringLiterals, 1, 1, "Enable or disable raw string literals")
+
 ENUM_LANGOPT(StrictFlexArraysLevel, StrictFlexArraysLevelKind, 2,
              StrictFlexArraysLevelKind::Default,
              "Rely on strict definition of flexible arrays")
@@ -538,6 +545,17 @@ COMPATIBLE_LANGOPT(IncrementalExtensions, 1, 0, " True if we want to process sta
         "-fincremental-extensions.")
 
 BENIGN_LANGOPT(CheckNew, 1, 0, "Do not assume C++ operator new may not return NULL")
+
+// FIXME: It would be better for us to find a way to encode the state of this
+// diagnostic in tablegen so that we can specify a particular diagnostic option
+// is disabled or enabled based on other language options or made it easier to
+// do this from the compiler invocation without hitting option round-tripping
+// issues.
+BENIGN_LANGOPT(CheckConstexprFunctionBodies, 1, 1,
+               "Emit diagnostics for a constexpr function body that can never "
+               "be used in a constant expression.")
+
+LANGOPT(BoundsSafety, 1, 0, "Bounds safety extension for C")
 
 #undef LANGOPT
 #undef COMPATIBLE_LANGOPT

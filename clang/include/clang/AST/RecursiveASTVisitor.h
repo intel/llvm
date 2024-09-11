@@ -855,10 +855,14 @@ bool RecursiveASTVisitor<Derived>::TraverseDeclarationNameInfo(
 
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::TraverseTemplateName(TemplateName Template) {
-  if (DependentTemplateName *DTN = Template.getAsDependentTemplateName())
+  if (DependentTemplateName *DTN = Template.getAsDependentTemplateName()) {
     TRY_TO(TraverseNestedNameSpecifier(DTN->getQualifier()));
-  else if (QualifiedTemplateName *QTN = Template.getAsQualifiedTemplateName())
-    TRY_TO(TraverseNestedNameSpecifier(QTN->getQualifier()));
+  } else if (QualifiedTemplateName *QTN =
+                 Template.getAsQualifiedTemplateName()) {
+    if (QTN->getQualifier()) {
+      TRY_TO(TraverseNestedNameSpecifier(QTN->getQualifier()));
+    }
+  }
 
   return true;
 }
@@ -1768,10 +1772,10 @@ DEF_TRAVERSE_DECL(UsingShadowDecl, {})
 DEF_TRAVERSE_DECL(ConstructorUsingShadowDecl, {})
 
 DEF_TRAVERSE_DECL(OMPThreadPrivateDecl, {
-  for (auto *I : D->varlists()) {
+  for (auto *I : D->varlist()) {
     TRY_TO(TraverseStmt(I));
   }
- })
+})
 
 DEF_TRAVERSE_DECL(OMPRequiresDecl, {
   for (auto *C : D->clauselists()) {
@@ -1797,7 +1801,7 @@ DEF_TRAVERSE_DECL(OMPDeclareMapperDecl, {
 DEF_TRAVERSE_DECL(OMPCapturedExprDecl, { TRY_TO(TraverseVarHelper(D)); })
 
 DEF_TRAVERSE_DECL(OMPAllocateDecl, {
-  for (auto *I : D->varlists())
+  for (auto *I : D->varlist())
     TRY_TO(TraverseStmt(I));
   for (auto *C : D->clauselists())
     TRY_TO(TraverseOMPClause(C));
@@ -2875,6 +2879,11 @@ DEF_TRAVERSE_STMT(ShuffleVectorExpr, {})
 DEF_TRAVERSE_STMT(ConvertVectorExpr, {})
 DEF_TRAVERSE_STMT(StmtExpr, {})
 DEF_TRAVERSE_STMT(SourceLocExpr, {})
+DEF_TRAVERSE_STMT(EmbedExpr, {
+  for (IntegerLiteral *IL : S->underlying_data_elements()) {
+    TRY_TO_TRAVERSE_OR_ENQUEUE_STMT(IL);
+  }
+})
 
 DEF_TRAVERSE_STMT(UnresolvedLookupExpr, {
   TRY_TO(TraverseNestedNameSpecifierLoc(S->getQualifierLoc()));
@@ -3036,6 +3045,12 @@ DEF_TRAVERSE_STMT(OMPTileDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPUnrollDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPReverseDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
+DEF_TRAVERSE_STMT(OMPInterchangeDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
 DEF_TRAVERSE_STMT(OMPForDirective,
@@ -3552,7 +3567,7 @@ bool RecursiveASTVisitor<Derived>::VisitOMPNocontextClause(
 template <typename Derived>
 template <typename T>
 bool RecursiveASTVisitor<Derived>::VisitOMPClauseList(T *Node) {
-  for (auto *E : Node->varlists()) {
+  for (auto *E : Node->varlist()) {
     TRY_TO(TraverseStmt(E));
   }
   return true;
@@ -3926,7 +3941,7 @@ template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPAffinityClause(
     OMPAffinityClause *C) {
   TRY_TO(TraverseStmt(C->getModifier()));
-  for (Expr *E : C->varlists())
+  for (Expr *E : C->varlist())
     TRY_TO(TraverseStmt(E));
   return true;
 }
@@ -4010,6 +4025,8 @@ bool RecursiveASTVisitor<Derived>::VisitOpenACCClauseList(
 }
 
 DEF_TRAVERSE_STMT(OpenACCComputeConstruct,
+                  { TRY_TO(TraverseOpenACCAssociatedStmtConstruct(S)); })
+DEF_TRAVERSE_STMT(OpenACCLoopConstruct,
                   { TRY_TO(TraverseOpenACCAssociatedStmtConstruct(S)); })
 
 // FIXME: look at the following tricky-seeming exprs to see if we

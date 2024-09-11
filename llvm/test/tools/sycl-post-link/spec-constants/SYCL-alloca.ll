@@ -29,8 +29,8 @@
 @size_i32_stable_name = private unnamed_addr constant [36 x i8] c"_ZTS14name_generatorIL_Z8size_i32EE\00", align 1
 @size_i16_stable_name = private unnamed_addr constant [36 x i8] c"_ZTS14name_generatorIL_Z8size_i16EE\00", align 1
 
-; CHECK-LABEL: define dso_local void @private_alloca
-define dso_local void @private_alloca() {
+; CHECK-LABEL: define spir_kernel void @private_alloca
+define spir_kernel void @private_alloca() {
 ; CHECK-RT: [[LENGTH:%.*]] = call i32 @_Z20__spirv_SpecConstantii(i32 1, i32 120)
 ; CHECK-RT: {{.*}} = alloca double, i32 [[LENGTH]], align 8
 

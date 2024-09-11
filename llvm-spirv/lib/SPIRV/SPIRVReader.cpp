@@ -71,6 +71,9 @@
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/IR/PassManagerImpl.h"
+#include "llvm/IR/PassInstrumentation.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/Support/Casting.h"
@@ -200,19 +203,19 @@ static void addRuntimeAlignedMetadata(
     LLVMContext *Context, SPIRVFunction *BF, llvm::Function *Fn,
     std::function<Metadata *(SPIRVFunctionParameter *)> ForeachFnArg) {
   std::vector<Metadata *> ValueVec;
-  bool DecorationFound = false;
+  bool RuntimeAlignedFound = false;
+  [[maybe_unused]] llvm::Metadata *DefaultNode =
+      ConstantAsMetadata::get(ConstantInt::get(Type::getInt1Ty(*Context), 0));
   BF->foreachArgument([&](SPIRVFunctionParameter *Arg) {
-    if (Arg->getType()->isTypePointer() &&
+    if (Arg->hasAttr(FunctionParameterAttributeRuntimeAlignedINTEL) ||
         Arg->hasDecorate(internal::DecorationRuntimeAlignedINTEL)) {
-      DecorationFound = true;
+      RuntimeAlignedFound = true;
       ValueVec.push_back(ForeachFnArg(Arg));
     } else {
-      llvm::Metadata *DefaultNode = ConstantAsMetadata::get(
-          ConstantInt::get(Type::getInt1Ty(*Context), 0));
       ValueVec.push_back(DefaultNode);
     }
   });
-  if (DecorationFound)
+  if (RuntimeAlignedFound)
     Fn->setMetadata("kernel_arg_runtime_aligned",
                     MDNode::get(*Context, ValueVec));
 }
@@ -1567,7 +1570,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     else if (LinkageTy == GlobalValue::CommonLinkage)
       // In LLVM, variables with common linkage type must be initialized to 0.
       Initializer = Constant::getNullValue(Ty);
-    else if (BS == SPIRVStorageClassKind::StorageClassWorkgroup)
+    else if (BS == SPIRVStorageClassKind::StorageClassWorkgroup &&
+             LinkageTy != GlobalValue::ExternalLinkage)
       Initializer = dyn_cast<Constant>(UndefValue::get(Ty));
     else if ((LinkageTy != GlobalValue::ExternalLinkage) &&
              (BS == SPIRVStorageClassKind::StorageClassCrossWorkgroup))
@@ -2557,6 +2561,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *BC = static_cast<SPIRVBinary *>(BV);
     return mapValue(BV, transBuiltinFromInst("__spirv_ISubBorrow", BC, BB));
   }
+  case OpSMulExtended: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    return mapValue(BV, transBuiltinFromInst("__spirv_SMulExtended", BC, BB));
+  }
+  case OpUMulExtended: {
+    auto *BC = static_cast<SPIRVBinary *>(BV);
+    return mapValue(BV, transBuiltinFromInst("__spirv_UMulExtended", BC, BB));
+  }
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:
     return mapValue(
@@ -3031,6 +3043,10 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     mapValue(BA, &(*I));
     setName(&(*I), BA);
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
+      // Skip this function parameter attribute as it will translated among
+      // OpenCL metadata
+      if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
+        return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
@@ -3459,7 +3475,8 @@ bool SPIRVToLLVM::translate() {
   if (BM->getDesiredBIsRepresentation() == BIsRepresentation::SPIRVFriendlyIR) {
     SPIRVWord SrcLangVer = 0;
     BM->getSourceLanguage(&SrcLangVer);
-    bool IsCpp = SrcLangVer == kOCLVer::CL21;
+    bool IsCpp =
+        SrcLangVer == kOCLVer::CLCXX10 || SrcLangVer == kOCLVer::CLCXX2021;
     if (!postProcessBuiltinsReturningStruct(M, IsCpp))
       return false;
   }
@@ -3798,8 +3815,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
       GS->setSection("llvm.metadata");
 
-      Type *ResType = PointerType::get(GV->getContext(),
-                                       GV->getType()->getPointerAddressSpace());
+      Type *ResType = PointerType::get(
+          GV->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
       Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
       Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
@@ -3858,8 +3875,8 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::get(V->getContext(),
-                                     V->getType()->getPointerAddressSpace());
+    Type *ResType = PointerType::get(
+        V->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
 
@@ -4440,13 +4457,8 @@ bool SPIRVToLLVM::transOCLMetadata(SPIRVFunction *BF) {
   });
   // Generate metadata for kernel_arg_runtime_aligned
   addRuntimeAlignedMetadata(Context, BF, F, [=](SPIRVFunctionParameter *Arg) {
-    auto Literals =
-        Arg->getDecorationLiterals(internal::DecorationRuntimeAlignedINTEL);
-    assert(Literals.size() == 1 &&
-           "RuntimeAlignedINTEL decoration shall have 1 ID literal");
-
     return ConstantAsMetadata::get(
-        ConstantInt::get(Type::getInt1Ty(*Context), Literals[0]));
+        ConstantInt::get(Type::getInt1Ty(*Context), 1));
   });
   // Generate metadata for spirv.ParameterDecorations
   addKernelArgumentMetadata(Context, SPIRV_MD_PARAMETER_DECORATIONS, BF, F,
@@ -4810,7 +4822,8 @@ void SPIRVToLLVM::transSourceLanguage() {
   SPIRVWord Ver = 0;
   SourceLanguage Lang = BM->getSourceLanguage(&Ver);
   if (Lang != SourceLanguageUnknown && // Allow unknown for debug info test
-      Lang != SourceLanguageOpenCL_C && Lang != SourceLanguageOpenCL_CPP)
+      Lang != SourceLanguageOpenCL_C && Lang != SourceLanguageCPP_for_OpenCL &&
+      Lang != SourceLanguageOpenCL_CPP)
     return;
   unsigned short Major = 0;
   unsigned char Minor = 0;
@@ -4824,7 +4837,15 @@ void SPIRVToLLVM::transSourceLanguage() {
   else
     addOCLVersionMetadata(Context, M, kSPIR2MD::SPIRVer, 2, 0);
 
-  addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer, Major, Minor);
+  if (Lang == SourceLanguageOpenCL_C) {
+    addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer, Major, Minor);
+    return;
+  }
+  if (Lang == SourceLanguageCPP_for_OpenCL) {
+    addOCLVersionMetadata(Context, M, kSPIR2MD::OCLCXXVer, Major, Minor);
+    addOCLVersionMetadata(Context, M, kSPIR2MD::OCLVer,
+                          Ver == kOCLVer::CLCXX10 ? 2 : 3, 0);
+  }
 }
 
 bool SPIRVToLLVM::transSourceExtension() {

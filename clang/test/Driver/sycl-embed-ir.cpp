@@ -5,7 +5,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=nvidia_gpu_sm_80 -fsycl-embed-ir -ccc-print-phases %s 2>&1 | \
 // RUN: FileCheck -check-prefix=CHECK-NV %s
 
-// CHECK-NV: [[IR:[0-9]+]]: compiler, {4}, ir, (device-sycl, sm_80)
+// CHECK-NV: [[IR:[0-9]+]]: compiler, {3}, ir, (device-sycl, sm_80)
 // CHECK-NV: [[IR_OFFLOAD:[0-9]+]]:  offload, "host-sycl (x86_64-unknown-linux-gnu)" {{{.*}}}, "device-sycl (nvptx64-nvidia-cuda:sm_80)" {[[IR]]}, c++-cpp-output
 // CHECK-NV: [[COMPILER:[0-9]+]]: compiler, {[[IR_OFFLOAD]]}, ir, (host-sycl)
 // CHECK-NV: [[BACKEND:[0-9]+]]: backend, {[[COMPILER]]}, assembler, (host-sycl)
@@ -19,7 +19,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx1010 -fsycl-embed-ir -ccc-print-phases %s 2>&1 | \
 // RUN: FileCheck -check-prefix=CHECK-AMD %s
 
-// CHECK-AMD: [[IR:[0-9]+]]: compiler, {4}, ir, (device-sycl, gfx1010)
+// CHECK-AMD: [[IR:[0-9]+]]: compiler, {3}, ir, (device-sycl, gfx1010)
 // CHECK-AMD: [[IR_OFFLOAD:[0-9]+]]:  offload, "host-sycl (x86_64-unknown-linux-gnu)" {{{.*}}}, "device-sycl (amdgcn-amd-amdhsa:gfx1010)" {[[IR]]}, c++-cpp-output
 // CHECK-AMD: [[COMPILER:[0-9]+]]: compiler, {[[IR_OFFLOAD]]}, ir, (host-sycl)
 // CHECK-AMD: [[BACKEND:[0-9]+]]: backend, {[[COMPILER]]}, assembler, (host-sycl)

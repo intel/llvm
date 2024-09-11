@@ -1,5 +1,4 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// RUN: %clangxx -fsycl -sycl-std=1.2.1 -fsyntax-only %s
 
 #include "sycl.hpp"
 

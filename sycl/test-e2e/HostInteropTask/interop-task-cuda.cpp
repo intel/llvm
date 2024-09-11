@@ -1,11 +1,11 @@
-// RUN: %{build} -o %t.out -lcuda
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: cuda
+// REQUIRES: cuda, cuda_dev_kit
 
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/interop_handle.hpp>
 
 #include <cuda.h>
 

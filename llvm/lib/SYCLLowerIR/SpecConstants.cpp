@@ -20,6 +20,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/TargetParser/Triple.h"
 
 #include <vector>
@@ -46,9 +47,6 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
     "__spirv_SpecConstantComposite";
 
-// Name of the metadata which holds a list of all specialization constants (with
-// associated information) encountered in the module
-constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 // Name of the metadata which holds a default value list of all specialization
 // constants encountered in the module
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
@@ -101,12 +99,16 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // so that %1 is trivially known to be the address of the @.str literal.
 
     Value *TmpPtr = L->getPointerOperand();
-    AssertRelease((isa<AddrSpaceCastInst>(TmpPtr) &&
-                   isa<AllocaInst>(cast<AddrSpaceCastInst>(TmpPtr)
-                                       ->getPointerOperand()
-                                       ->stripPointerCasts())) ||
-                      isa<AllocaInst>(TmpPtr),
-                  "unexpected instruction type");
+    auto ValueIsAlloca = [](Value *V) {
+      if (auto *ASC = dyn_cast<AddrSpaceCastInst>(V))
+        V = ASC->getPointerOperand()->stripPointerCasts();
+      using namespace PatternMatch;
+      Value *X;
+      if (match(V, m_IntToPtr(m_Add(m_PtrToInt(m_Value(X)), m_ConstantInt()))))
+        V = X;
+      return isa<AllocaInst>(V);
+    };
+    AssertRelease(ValueIsAlloca(TmpPtr), "unexpected instruction type");
 
     // find the store of the literal address into TmpPtr
     StoreInst *Store = nullptr;
@@ -1023,6 +1025,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   for (const auto &P : DefaultsMetadata)
     MDDefaults->addOperand(P);
+
+  if (Mode == HandlingMode::default_values)
+    M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

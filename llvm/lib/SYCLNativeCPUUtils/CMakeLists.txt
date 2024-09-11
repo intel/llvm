@@ -26,20 +26,20 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
 # Don't fetch OCK if Native CPU is not enabled.
-if(NOT "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(NATIVECPU_USE_OCK Off CACHE BOOL "Use the oneAPI Construction Kit for Native CPU" FORCE)
 endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 05e6e1b211704224fbdc6394d85d637f57fafdaf
-    # Merge: 256027e8 fbc2e567
-    # Author: Pietro Ghiglio <pietro.ghiglio@codeplay.com>
-    # Date:   Fri May 17 13:08:15 2024 +0200
-    # Merge pull request #458 from PietroGhg/pietro/link_aggressiveinstcombine
-    # Link vecz to aggressiveinstcombine
-    set(OCK_GIT_INTERNAL_TAG 05e6e1b211704224fbdc6394d85d637f57fafdaf)
+    # commit 0e913951b61b709ce5c5c136f7557dd88d6e200c
+    # Merge: 0cf91055 85624e50
+    # Author: Colin Davidson <colin.davidson@codeplay.com>
+    # Date:   Mon Jul 1 15:39:36 2024 +0100
+    #     Merge pull request #485 from coldav/colin/fix_memmove_bug_finegrained
+    #     Fix risc-v memmove creating memcpy instrinsic
+    set(OCK_GIT_INTERNAL_TAG 0e913951b61b709ce5c5c136f7557dd88d6e200c)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

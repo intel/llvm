@@ -45,11 +45,12 @@ public:
 
   ABIArgInfo classifyReturnType(QualType RetTy) const;
   ABIArgInfo classifyKernelArgumentType(QualType Ty) const;
-  ABIArgInfo classifyArgumentType(QualType Ty, unsigned &NumRegsLeft) const;
+  ABIArgInfo classifyArgumentType(QualType Ty, bool Variadic,
+                                  unsigned &NumRegsLeft) const;
 
   void computeInfo(CGFunctionInfo &FI) const override;
-  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                    QualType Ty) const override;
+  RValue EmitVAArg(CodeGenFunction &CGF, Address VAListAddr, QualType Ty,
+                   AggValueSlot Slot) const override;
 };
 
 bool AMDGPUABIInfo::isHomogeneousAggregateBaseType(QualType Ty) const {
@@ -103,19 +104,27 @@ void AMDGPUABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
 
+  unsigned ArgumentIndex = 0;
+  const unsigned numFixedArguments = FI.getNumRequiredArgs();
+
   unsigned NumRegsLeft = MaxNumRegsForArgsRet;
   for (auto &Arg : FI.arguments()) {
     if (CC == llvm::CallingConv::AMDGPU_KERNEL) {
       Arg.info = classifyKernelArgumentType(Arg.type);
     } else {
-      Arg.info = classifyArgumentType(Arg.type, NumRegsLeft);
+      bool FixedArgument = ArgumentIndex++ < numFixedArguments;
+      Arg.info = classifyArgumentType(Arg.type, !FixedArgument, NumRegsLeft);
     }
   }
 }
 
-Address AMDGPUABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
-                                 QualType Ty) const {
-  llvm_unreachable("AMDGPU does not support varargs");
+RValue AMDGPUABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                                QualType Ty, AggValueSlot Slot) const {
+  const bool IsIndirect = false;
+  const bool AllowHigherAlign = false;
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, IsIndirect,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(4), AllowHigherAlign, Slot);
 }
 
 ABIArgInfo AMDGPUABIInfo::classifyReturnType(QualType RetTy) const {
@@ -197,11 +206,19 @@ ABIArgInfo AMDGPUABIInfo::classifyKernelArgumentType(QualType Ty) const {
   return ABIArgInfo::getDirect(LTy, 0, nullptr, false);
 }
 
-ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty,
+ABIArgInfo AMDGPUABIInfo::classifyArgumentType(QualType Ty, bool Variadic,
                                                unsigned &NumRegsLeft) const {
   assert(NumRegsLeft <= MaxNumRegsForArgsRet && "register estimate underflow");
 
   Ty = useFirstFieldIfTransparentUnion(Ty);
+
+  if (Variadic) {
+    return ABIArgInfo::getDirect(/*T=*/nullptr,
+                                 /*Offset=*/0,
+                                 /*Padding=*/nullptr,
+                                 /*CanBeFlattened=*/false,
+                                 /*Align=*/0);
+  }
 
   if (isAggregateTypeForABI(Ty)) {
     // Records with non-trivial destructors/copy-constructors should not be
@@ -294,18 +311,14 @@ public:
                                          SyncScope Scope,
                                          llvm::AtomicOrdering Ordering,
                                          llvm::LLVMContext &Ctx) const override;
+  void setTargetAtomicMetadata(CodeGenFunction &CGF,
+                               llvm::AtomicRMWInst &RMW) const override;
   llvm::Value *createEnqueuedBlockKernel(CodeGenFunction &CGF,
                                          llvm::Function *BlockInvokeFunc,
                                          llvm::Type *BlockTy) const override;
   bool shouldEmitStaticExternCAliases() const override;
   bool shouldEmitDWARFBitFieldSeparators() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
-
-private:
-  // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
-  // resulting MDNode to the amdgcn.annotations MDNode.
-  static void addAMDGCNMetadata(llvm::GlobalValue *GV, StringRef Name,
-                                int Operand);
 };
 }
 
@@ -387,33 +400,6 @@ void AMDGPUTargetCodeGenInfo::setFunctionDeclAttributes(
   }
 }
 
-/// Helper function for AMDGCN and NVVM targets, adds a NamedMDNode with GV,
-/// Name, and Operand as operands, and adds the resulting MDNode to the
-/// AnnotationName MDNode.
-static void addAMDGCOrNVVMMetadata(const char *AnnotationName,
-                                   llvm::GlobalValue *GV, StringRef Name,
-                                   int Operand) {
-  llvm::Module *M = GV->getParent();
-  llvm::LLVMContext &Ctx = M->getContext();
-
-  // Get annotations metadata node.
-  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata(AnnotationName);
-
-  llvm::Metadata *MDVals[] = {
-      llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
-      llvm::ConstantAsMetadata::get(
-          llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
-  // Append metadata to annotations node.
-  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
-}
-
-
-void AMDGPUTargetCodeGenInfo::addAMDGCNMetadata(llvm::GlobalValue *GV,
-                                                StringRef Name, int Operand) {
-  addAMDGCOrNVVMMetadata("amdgcn.annotations", GV, Name, Operand);
-}
-
-
 /// Emits control constants used to change per-architecture behaviour in the
 /// AMDGPU ROCm device libraries.
 void AMDGPUTargetCodeGenInfo::emitTargetGlobals(
@@ -465,12 +451,6 @@ void AMDGPUTargetCodeGenInfo::setTargetAttributes(
   const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
   if (FD)
     setFunctionDeclAttributes(FD, F, M);
-
-  // Create !{<func-ref>, metadata !"kernel", i32 1} node for SYCL kernels.
-  const bool IsSYCLKernel =
-      FD && M.getLangOpts().SYCLIsDevice && FD->hasAttr<SYCLKernelAttr>();
-  if (IsSYCLKernel)
-    addAMDGCNMetadata(F, "kernel", 1);
 
   if (M.getContext().getTargetInfo().allowAMDGPUUnsafeFPAtomics())
     F->addFnAttr("amdgpu-unsafe-fp-atomics", "true");
@@ -566,6 +546,23 @@ AMDGPUTargetCodeGenInfo::getLLVMSyncScopeID(const LangOptions &LangOpts,
   }
 
   return Ctx.getOrInsertSyncScopeID(Name);
+}
+
+void AMDGPUTargetCodeGenInfo::setTargetAtomicMetadata(
+    CodeGenFunction &CGF, llvm::AtomicRMWInst &RMW) const {
+  if (!CGF.getTarget().allowAMDGPUUnsafeFPAtomics())
+    return;
+
+  // TODO: Introduce new, more controlled options that also work for integers,
+  // and deprecate allowAMDGPUUnsafeFPAtomics.
+  llvm::AtomicRMWInst::BinOp RMWOp = RMW.getOperation();
+  if (llvm::AtomicRMWInst::isFPOperation(RMWOp)) {
+    llvm::MDNode *Empty = llvm::MDNode::get(CGF.getLLVMContext(), {});
+    RMW.setMetadata("amdgpu.no.fine.grained.memory", Empty);
+
+    if (RMWOp == llvm::AtomicRMWInst::FAdd && RMW.getType()->isFloatTy())
+      RMW.setMetadata("amdgpu.ignore.denormal.mode", Empty);
+  }
 }
 
 bool AMDGPUTargetCodeGenInfo::shouldEmitStaticExternCAliases() const {
