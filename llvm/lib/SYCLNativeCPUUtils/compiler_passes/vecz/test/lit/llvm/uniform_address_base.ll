@@ -49,8 +49,8 @@ declare i64 @__mux_get_global_id(i32) local_unnamed_addr #1
 ; CHECK: define spir_kernel void @__vecz_v4_uniform_address_index
 ; CHECK: entry:
 ; CHECK: call i64 @__mux_get_global_id(i32 0)
-; CHECK-DAG: %[[INA:.+]] = getelementptr inbounds i32, ptr addrspace(1) %in, i32 %[[X:.+]]
+; CHECK-DAG: %[[INA:.+]] = getelementptr i32, ptr addrspace(1) %in, i32 %[[X:.+]]
 ; CHECK-DAG: %[[LOAD:.+]] = load <4 x i32>, ptr addrspace(1) %[[INA]]
-; CHECK-DAG: %[[OUTA:.+]] = getelementptr inbounds i32, ptr addrspace(1) %out, i32 %[[X:.+]]
+; CHECK-DAG: %[[OUTA:.+]] = getelementptr i32, ptr addrspace(1) %out, i32 %[[X:.+]]
 ; CHECK-DAG: store <4 x i32> %[[LOAD]], ptr addrspace(1) %[[OUTA]]
 ; CHECK-NOT: call <4 x i32>

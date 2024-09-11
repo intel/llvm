@@ -54,7 +54,7 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 ; CHECK: [[STEPVEC:%.*]] = call <vscale x 4 x i32> @llvm.{{(experimental\.)?}}stepvector.nxv4i32()
 ; CHECK: [[LID:%.*]] = add <vscale x 4 x i32> [[SPLAT]], [[STEPVEC]]
 ; CHECK: [[EXT:%.*]] = sext i32 %call to i64
-; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: %arrayidx = getelementptr i32, ptr addrspace(1) %out, i64 [[EXT]]
 ; CHECK: store <vscale x 4 x i32> [[LID]], ptr addrspace(1) %arrayidx
 }
 

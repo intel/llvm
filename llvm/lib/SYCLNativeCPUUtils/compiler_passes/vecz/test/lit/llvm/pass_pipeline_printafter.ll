@@ -25,14 +25,14 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: IR Dump After Simplify masked memory operations{{( on __vecz_v2_foo)?}}
 ; CHECK-NEXT: define spir_kernel void @__vecz_v2_foo(ptr addrspace(1) %out) #0 {
 ; CHECK-NEXT:   %idx = call i64 @__mux_get_global_id(i32 0)
-; CHECK-NEXT:   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %idx
+; CHECK-NEXT:   %arrayidx = getelementptr i32, ptr addrspace(1) %out, i64 %idx
 ; CHECK-NEXT:   store i32 0, ptr addrspace(1) %arrayidx, align 4
 ; CHECK-NEXT:   ret void
 ; CHECK-NEXT: }
 
 ; CHECK: define spir_kernel void @__vecz_v2_foo(ptr addrspace(1) %out) {{.*}} {
 ; CHECK-NEXT:   %idx = call i64 @__mux_get_global_id(i32 0)
-; CHECK-NEXT:   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %idx
+; CHECK-NEXT:   %arrayidx = getelementptr i32, ptr addrspace(1) %out, i64 %idx
 ; CHECK-NEXT:   store <2 x i32> zeroinitializer, ptr addrspace(1) %arrayidx, align 4
 ; CHECK-NEXT:   ret void
 ; CHECK-NEXT: }

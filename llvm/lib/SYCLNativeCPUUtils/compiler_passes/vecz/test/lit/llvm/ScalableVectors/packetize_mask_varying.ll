@@ -45,7 +45,7 @@ if.end:
 ; make any difference whether it's a zext or sext, but LLVM 16 prefers zext.
 ; CHECK: [[idx2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[idx1]] to <vscale x 16 x i64>
 
-; CHECK: [[t1:%.*]] = getelementptr inbounds i8, ptr {{.*}}, <vscale x 16 x i64> [[idx2]]
+; CHECK: [[t1:%.*]] = getelementptr i8, ptr {{.*}}, <vscale x 16 x i64> [[idx2]]
 ; CHECK: [[t2:%.*]] = call <vscale x 16 x i8> @llvm.masked.gather.nxv16i8.nxv16p0(<vscale x 16 x ptr> [[t1]],
 ; CHECK: [[splat:%.*]] = trunc <vscale x 16 x i8> [[t2]] to <vscale x 16 x i1>
 ; CHECK: call void @__vecz_b_masked_store16_u6nxv16ju3ptru6nxv16b(<vscale x 16 x i32> {{.*}}, ptr %arrayidxz, <vscale x 16 x i1> [[splat]])

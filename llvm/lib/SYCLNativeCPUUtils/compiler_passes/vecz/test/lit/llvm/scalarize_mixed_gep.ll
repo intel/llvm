@@ -42,5 +42,5 @@ define void @bar(i64** %ptrptrs, i64 %val) {
 ; gets scalarized/re-packetized correctly
 
 ; CHECK: define void @__vecz_v4_bar
-; CHECK: %[[ADDR:.+]] = getelementptr inbounds {{i64|i8}}, <4 x ptr> %{{.+}}, {{i64 2|i64 16}}
+; CHECK: %[[ADDR:.+]] = getelementptr {{i64|i8}}, <4 x ptr> %{{.+}}, {{i64 2|i64 16}}
 ; CHECK: call void @__vecz_b_scatter_store8_Dv4_mDv4_u3ptr(<4 x i64> %.splat{{.*}}, <4 x ptr> %[[ADDR]])

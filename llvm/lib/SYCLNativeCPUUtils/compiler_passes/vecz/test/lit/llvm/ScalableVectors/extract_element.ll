@@ -95,8 +95,8 @@ entry:
 ; EE: [[ALLOC:%.*]] = alloca <vscale x 16 x float>, align 64
 ; EE: store <vscale x 16 x float> {{.*}}, ptr [[ALLOC]], align 64
 ; EE: [[IDX:%.*]] = sext i32 %idx to i64
-; EE: [[ADDR:%.*]] = getelementptr inbounds float, ptr [[ALLOC]], i64 [[IDX]]
-; EE: [[GATHER:%.*]] = call <vscale x 4 x float> @__vecz_b_interleaved_load4_4_u5nxv4fu3ptr(ptr nonnull [[ADDR]])
+; EE: [[ADDR:%.*]] = getelementptr float, ptr [[ALLOC]], i64 [[IDX]]
+; EE: [[GATHER:%.*]] = call <vscale x 4 x float> @__vecz_b_interleaved_load4_4_u5nxv4fu3ptr(ptr [[ADDR]])
 
 ; Both the vector and index are uniform, so check we're not unnecessarily packetizing 
 
@@ -120,13 +120,13 @@ entry:
 ; LLVM 16 deduces add/or equivalence and uses `or` instead.
 ; EE-UNI-VEC: [[T7:%.*]] = {{add|or}} {{(disjoint )?}}<vscale x 4 x i64> [[T6]], [[MOD]]
 
-; EE-UNI-VEC: [[T8:%.*]] = getelementptr inbounds float, ptr {{%.*}}, <vscale x 4 x i64> [[T7]]
+; EE-UNI-VEC: [[T8:%.*]] = getelementptr float, ptr {{%.*}}, <vscale x 4 x i64> [[T7]]
 ; EE-UNI-VEC: [[T9:%.*]] = call <vscale x 4 x float> @__vecz_b_gather_load4_u5nxv4fu9nxv4u3ptr(<vscale x 4 x ptr> [[T8]])
 ; EE-UNI-VEC: store <vscale x 4 x float> [[T9]], ptr addrspace(1) {{%.*}}, align 4
 
 ; EE-INDICES-LABEL: @__vecz_nxv4_extract_element_varying_indices(
 ; EE-INDICES: [[ALLOC:%.*]] = alloca <vscale x 16 x float>, align 64
-; EE-INDICES: [[T0:%.*]] = getelementptr inbounds i32, ptr addrspace(1) %idxs, i64 %call
+; EE-INDICES: [[T0:%.*]] = getelementptr i32, ptr addrspace(1) %idxs, i64 %call
 ; EE-INDICES: [[T2:%.*]] = load <vscale x 4 x i32>, ptr addrspace(1) [[T0]], align 4
 ; EE-INDICES: [[T3:%.*]] = and <vscale x 4 x i32> [[T2]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> {{(undef|poison)}}, i32 3, {{i32|i64}} 0), <vscale x 4 x i32> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
 ; EE-INDICES: store <vscale x 16 x float> {{.*}}, ptr [[ALLOC]], align 64
@@ -134,7 +134,7 @@ entry:
 ; EE-INDICES: [[T4:%.*]] = shl <vscale x 4 x i32> [[STEP]], shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> {{(undef|poison)}}, i32 2, {{i32|i64}} 0), <vscale x 4 x i32> {{(undef|poison)}}, <vscale x 4 x i32> zeroinitializer)
 ; EE-INDICES: [[T5:%.*]] = {{add|or}} {{(disjoint )?}}<vscale x 4 x i32> [[T4]], [[T3]]
 ; EE-INDICES: [[IDX:%.*]] = sext <vscale x 4 x i32> [[T5]] to <vscale x 4 x i64>
-; EE-INDICES: [[ADDR:%.*]] = getelementptr inbounds float, ptr [[ALLOC]], <vscale x 4 x i64> [[IDX]]
+; EE-INDICES: [[ADDR:%.*]] = getelementptr float, ptr [[ALLOC]], <vscale x 4 x i64> [[IDX]]
 ; EE-INDICES: [[GATHER:%.*]] = call <vscale x 4 x float> @__vecz_b_gather_load4_u5nxv4fu9nxv4u3ptr(<vscale x 4 x ptr> [[ADDR]])
 
 ; Check we promote from i1 to i8 before doing our memops
