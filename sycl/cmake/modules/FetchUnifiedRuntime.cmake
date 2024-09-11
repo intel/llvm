@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
+  # Merge: e26bba51 45a781f4
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Tue Sep 10 12:08:57 2024 +0100
+  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
+  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
+  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -145,10 +145,9 @@ if(SYCL_UR_USE_FETCH_CONTENT)
     ${UNIFIED_RUNTIME_TAG}
   )
 
-  # TODO: Revert that to default and update the UR merge-commit details above.
   fetch_adapter_source(cuda
     ${UNIFIED_RUNTIME_REPO}
-    eb63d1a21729f6928bb6cccc5f92856b0690aca6
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(hip
