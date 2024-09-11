@@ -106,16 +106,36 @@ kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
 
 template <typename Param>
-typename Param::return_type
-kernel::ext_oneapi_get_info(const queue &Queue) const {
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue) const {
   return impl->ext_oneapi_get_info<Param>(Queue);
+}
+
+template <typename Param>
+typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
+                            size_t DynamicLocalMemorySize) const {
+  return impl->ext_oneapi_get_info<Param>(Queue, WorkGroupSize,
+                                          DynamicLocalMemorySize);
 }
 
 template __SYCL_EXPORT typename ext::oneapi::experimental::info::
     kernel_queue_specific::max_num_work_group_sync::return_type
     kernel::ext_oneapi_get_info<
         ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &Queue) const;
+            max_num_work_group_sync>(queue Queue) const;
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \
+      queue, const range<3> &, size_t) const;
+// Not including "ext_oneapi_kernel_queue_specific_traits.def" because not all
+// kernel_queue_specific queries require the above-defined get_info interface.
+// clang-format off
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_group_sync, size_t)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, kernel_queue_specific, max_num_work_groups, size_t)
+// clang-format on
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
