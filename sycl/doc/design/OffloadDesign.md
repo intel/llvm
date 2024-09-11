@@ -296,6 +296,47 @@ resemble `--gpu-tool-arg=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
+Specific targeting for GPU offload compilations needs to also leverage the more
+general architecture enabling `--offload-arch` option.  For GPU targets that
+are unique to Intel, we will adopt the associated arch value that corresponds
+to the `-device` option used by OCLOC.  The following table represents the
+values that will be used for `--offload-arch` to enable GPU offloading as well
+as the expected `-device` value to be passed to OCLOC.
+
+| Supported Device | --offload-arch argument | OCLOC -device argument |
+|------------------|-------------------------|------------------------|
+| Intel(R) microarchitecture code name Broadwell Intel graphics architecture | bdw | bdw |
+| Intel(R) microarchitecture code name Skylake Intel graphics architecture | skl | skl |
+| Kaby Lake Intel graphics architecture | kbl | kbl                   |
+| Coffee Lake Intel graphics architecture | cfl | cfl                 |
+| Apollo Lake Intel graphics architecture | apl | apl                 |
+| Broxton Intel graphics architecture | bxt  | apl                    |
+| Gemini Lake Intel graphics architecture | glk | glk                 |
+| Whiskey Lake Intel graphics architecture | whl | whl                |
+| Amber Lake Intel graphics architecture | aml | aml                  |
+| Comet Lake Intel graphics architecture | cml | cml                  |
+| Ice Lake Intel graphics architecture | icl, icllp | icllp           |
+| Elkhart Lake Intel graphics architecture | ehl | ehl                |
+| Jasper Lake Intel graphics architecture | jsl | jsl                 |
+| Tiger Lake Intel graphics architecture | tgl, tgllp | tgllp         |
+| Rocket Lake Intel graphics architecture | rkl | rkl                 |
+| Alder Lake S Intel graphics architecture | adl_s | adl_s            |
+| Raptor Lake Intel graphics architecture | rpl_s | adl_s             |
+| Alder Lake P Intel graphics architecture | adl_p | adl_p            |
+| Alder Lake N Intel graphics architecture | adl_n | adl_n            |
+| DG1 Intel graphics architecture | dg1      | dg1                    |
+| Alchemist G10 Intel graphics architecture | acm_g10, dg2_g10 | acm_g10 |
+| Alchemist G11 Intel graphics architecture | acm_g11, dg2_g11 | acm_g11 |
+| Alchemist G12 Intel graphics architecture | acm_g12, dg2_g12 | acm_g12 |
+| Ponte Vecchio Intel graphics architecture | pvc | pvc               |
+| Ponte Vecchio VG Intel graphics architecture | pvc_vg | pvc_vg      |
+| Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture | mtl_u, mtl_s, arl_u | mtl_s |
+| Meteor Lake H Intel graphics architecture | mtl_h | mtl_h           |
+| Arrow Lake H Intel graphics architecture | arl_h | arl_h            |
+| Battlemage G21 Intel graphics architecture | bmg_g21 | bmg_g21      |
+| Lunar Lake Intel graphics architecture | lnl_m | lnl_m              |
+| Falcon Shores Intel graphics architecture | fs1 | fs1               |
+
 #### spir64_fpga support
 
 Compilation behaviors involving AOT for FPGA involve an additional call to
@@ -354,6 +395,32 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
 option to the wrapper, `--cpu-tool-arg=<arg>`
+
+Similar to GPU offload, CPU offload will leverage the more general architecture
+enabling `--offload-arch` option.  For CPU targets that are unique to Intel, we
+will adopt the associated arch value that corresponds to the `-march` option
+used by opencl-aot.  The following table represents the values that will be
+used for `--offload-arch` to enable CPU offloading as well as the expected
+`-march` value to be passed to opencl-aot.
+
+| Supported Arch | --offload-arch argument | opencl-aot -march argument |
+|----------------|-------------------------|----------------------------|
+| Intel(R) Advanced Vector Extensions 512 | skylake-avx512 | avx512     |
+| Intel(R) Advanced Vector Extensions 2 | core-avx2 | avx2              |
+| Intel(R) Advanced Vector Extensions | corei7-avx | avx                |
+| Intel(R) Streaming SIMD Extensions 4.2 | corei7 | sse4.2              |
+| Intel(R) microarchitecture code name Westmere | westmere | wsm        |
+| Intel(R) microarchitecture code name Sandy Bridge | sandybridge | snb |
+| Intel(R) microarchitecture code name Ivy Bridge | ivybridge | ivyb    |
+| Intel(R) microarchitecture code name Broadwell | broadwell | bdw      |
+| Intel(R) microarchitecture code name Coffee Lake | coffeelake | cfl   |
+| Intel(R) microarchitecture code name Alder Lake | alderlake | adl     |
+| Intel(R) microarchitecture code name Skylake (server) | skx | skx     |
+| Intel(R) microarchitecture code name Cascade Lake | cascadelake | clk |
+| Intel(R) microarchitecture code name Ice Lake (client) | icelake-client | icl |
+| Intel(R) microarchitecture code name Ice Lake (server) | icelake-server | icx |
+| Intel(R) microarchitecture code name Sapphire Rapids | sapphirerapids | spr |
+| Intel(R) microarchitecture code name Granite Rapids | graniterapids | gnr |
 
 ### Wrapping of device image
 
