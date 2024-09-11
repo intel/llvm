@@ -35,6 +35,11 @@ double __devicelib_scalbln(double x, long int y) {
 }
 
 DEVICE_EXTERN_C_INLINE
+long int __devicelib_lrint(double x) {
+  return (long int)__spirv_ocl_round(x);
+}
+
+DEVICE_EXTERN_C_INLINE
 double __devicelib_fmax(double x, double y) { return __spirv_ocl_fmax(x, y); }
 
 DEVICE_EXTERN_C_INLINE
