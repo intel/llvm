@@ -50,6 +50,8 @@ enum IRSplitMode {
 // returned.
 std::optional<IRSplitMode> convertStringToSplitMode(StringRef S);
 
+StringRef convertSplitModeToString(IRSplitMode SM);
+
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
 
@@ -289,35 +291,41 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *Msg = "", int Tab = 0);
 #endif // NDEBUG
 
-struct SplitModule {
+struct ProcessedModule {
   std::string ModuleFilePath;
   util::PropertySetRegistry Properties;
   std::string Symbols;
 
-  SplitModule() = default;
-  SplitModule(const SplitModule &) = default;
-  SplitModule &operator=(const SplitModule &) = default;
-  SplitModule(SplitModule &&) = default;
-  SplitModule &operator=(SplitModule &&) = default;
+  ProcessedModule() = default;
+  ProcessedModule(const ProcessedModule &) = default;
+  ProcessedModule &operator=(const ProcessedModule &) = default;
+  ProcessedModule(ProcessedModule &&) = default;
+  ProcessedModule &operator=(ProcessedModule &&) = default;
 
-  SplitModule(std::string_view File, util::PropertySetRegistry Properties,
-              std::string Symbols)
+  ProcessedModule(std::string_view File, util::PropertySetRegistry Properties,
+                  std::string Symbols)
       : ModuleFilePath(File), Properties(std::move(Properties)),
         Symbols(std::move(Symbols)) {}
 };
 
-struct ModuleSplitterSettings {
+struct ModuleProcessingSettings {
   IRSplitMode Mode;
   bool OutputAssembly = false; // Bitcode or LLVM IR.
   StringRef OutputPrefix;
 };
 
-/// Parses the output table file from sycl-post-link tool.
-Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
+SmallString<64>
+convertProcessingSettingsToString(const ModuleProcessingSettings &S);
 
-/// Splits the given module \p M according to the given \p Settings.
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
+/// Parses the output table file from sycl-post-link tool.
+Expected<std::vector<ProcessedModule>>
+parseProcessedModulesFromFile(StringRef File);
+
+/// Performs post-link processing of the given module \p M according to the
+/// given \p Settings.
+Expected<std::vector<ProcessedModule>>
+SYCLPostLinkProcess(std::unique_ptr<Module> M,
+                    ModuleProcessingSettings Settings);
 
 bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F);

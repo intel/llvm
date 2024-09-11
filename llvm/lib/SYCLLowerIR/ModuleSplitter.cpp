@@ -29,6 +29,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
@@ -454,6 +455,20 @@ std::optional<IRSplitMode> convertStringToSplitMode(StringRef S) {
   auto It = Values.find(S);
   if (It == Values.end())
     return std::nullopt;
+
+  return It->second;
+}
+
+StringRef convertSplitModeToString(IRSplitMode SM) {
+  static const DenseMap<IRSplitMode, StringRef> Values = {
+      {SPLIT_PER_KERNEL, "kernel"},
+      {SPLIT_PER_TU, "source"},
+      {SPLIT_AUTO, "auto"},
+      {SPLIT_NONE, "none"}};
+
+  auto It = Values.find(SM);
+  if (It == Values.end())
+    llvm_unreachable("SplitMode value is unhandled!");
 
   return It->second;
 }
@@ -1285,20 +1300,22 @@ static Error saveModuleIRInFile(Module &M, StringRef FilePath,
   return Error::success();
 }
 
-static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
-                                            bool OutputAssembly) {
-  SplitModule SM;
+static Expected<ProcessedModule>
+saveModuleDesc(ModuleDesc &MD, std::string Prefix, bool OutputAssembly) {
+  ProcessedModule PM;
   Prefix += OutputAssembly ? ".ll" : ".bc";
   Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
   if (E)
     return E;
 
-  SM.ModuleFilePath = Prefix;
-  SM.Symbols = MD.makeSymbolTable();
-  return SM;
+  PM.ModuleFilePath = Prefix;
+  PM.Symbols = MD.makeSymbolTable();
+  // TODO: add properties generation.
+  return PM;
 }
 
-Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
+Expected<std::vector<ProcessedModule>>
+parseProcessedModulesFromFile(StringRef File) {
   auto EntriesMBOrErr = llvm::MemoryBuffer::getFile(File);
 
   if (!EntriesMBOrErr)
@@ -1310,7 +1327,7 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
                              "invalid SYCL Table file.");
 
   ++LI;
-  std::vector<module_split::SplitModule> Modules;
+  std::vector<module_split::ProcessedModule> Modules;
   while (!LI.is_at_eof()) {
     StringRef Line = *LI;
     if (Line.empty())
@@ -1353,27 +1370,36 @@ Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File) {
   return Modules;
 }
 
-Expected<std::vector<SplitModule>>
-splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
-  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+SmallString<64>
+convertProcessingSettingsToString(const ModuleProcessingSettings &S) {
+  return formatv("split_mode: {0}, output_assembly: {1}, output_prefix: {2}",
+                 convertSplitModeToString(S.Mode), S.OutputAssembly,
+                 S.OutputPrefix)
+      .sstr<64>();
+}
+
+Expected<std::vector<ProcessedModule>>
+SYCLPostLinkProcess(std::unique_ptr<Module> M,
+                    ModuleProcessingSettings Settings) {
+  ModuleDesc MD = std::move(M);
   // FIXME: false arguments are temporary for now.
   auto Splitter = getDeviceCodeSplitter(std::move(MD), Settings.Mode,
                                         /*IROutputOnly=*/false,
                                         /*EmitOnlyKernelsAsEntryPoints=*/false);
 
   size_t ID = 0;
-  std::vector<SplitModule> OutputImages;
+  std::vector<ProcessedModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
     ModuleDesc MD2 = Splitter->nextSplit();
     MD2.fixupLinkageOfDirectInvokeSimdTargets();
 
     std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
-    auto SplittedImageOrErr =
+    auto ImageOrErr =
         saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
-    if (!SplittedImageOrErr)
-      return SplittedImageOrErr.takeError();
+    if (!ImageOrErr)
+      return ImageOrErr.takeError();
 
-    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    OutputImages.emplace_back(std::move(*ImageOrErr));
     ++ID;
   }
 

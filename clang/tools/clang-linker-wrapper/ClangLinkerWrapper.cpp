@@ -707,7 +707,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
 /// sycl-post-link tool.
-static Expected<std::vector<module_split::SplitModule>>
+static Expected<std::vector<module_split::ProcessedModule>>
 runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   Expected<std::string> SYCLPostLinkPath =
       findProgram("sycl-post-link", {getMainExecutable("sycl-post-link")});
@@ -743,76 +743,76 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
     if (!ImageFileOrErr)
       return ImageFileOrErr.takeError();
 
-    std::vector Modules = {module_split::SplitModule(
+    std::vector Modules = {module_split::ProcessedModule(
         *ImageFileOrErr, util::PropertySetRegistry(), "")};
     return Modules;
   }
 
-  return llvm::module_split::parseSplitModulesFromFile(*TempFileOrErr);
+  return llvm::module_split::parseProcessedModulesFromFile(*TempFileOrErr);
 }
 
-/// Invokes SYCL Split library for SYCL offloading.
+/// Invokes SYCL Post Link library for SYCL offloading.
 ///
 /// \param InputFiles the list of input LLVM IR files.
 /// \param Args Encompasses all arguments for linking and wrapping device code.
-///  It will be parsed to generate options required to be passed to SYCL split
-///  library.
+///  It will be parsed to generate options required to be passed to SYCL Post
+///  Link library.
 /// \param Mode The splitting mode.
 /// \returns The vector of split modules.
-static Expected<std::vector<module_split::SplitModule>>
-runSYCLSplitLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
-                    module_split::IRSplitMode Mode) {
-  std::vector<module_split::SplitModule> SplitModules;
-  if (DryRun) {
-    auto OutputFileOrErr = createOutputFile(
-        sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
-    if (!OutputFileOrErr)
-      return OutputFileOrErr.takeError();
-
-    StringRef OutputFilePath = *OutputFileOrErr;
-    auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, OutputFilePath);
-    SplitModules.emplace_back(OutputFilePath, util::PropertySetRegistry(), "");
-    return SplitModules;
-  }
-
-  llvm::module_split::ModuleSplitterSettings Settings;
+static Expected<std::vector<module_split::ProcessedModule>>
+runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+                       module_split::IRSplitMode Mode) {
+  std::vector<module_split::ProcessedModule> OutputModules;
+  llvm::module_split::ModuleProcessingSettings Settings;
   Settings.Mode = Mode;
   Settings.OutputPrefix = "";
 
   for (StringRef InputFile : InputFiles) {
+    if (DryRun)
+      break;
+
     SMDiagnostic Err;
     LLVMContext C;
     std::unique_ptr<Module> M = parseIRFile(InputFile, Err, C);
     if (!M)
       return createStringError(inconvertibleErrorCode(), Err.getMessage());
 
-    auto SplitModulesOrErr =
-        module_split::splitSYCLModule(std::move(M), Settings);
-    if (!SplitModulesOrErr)
-      return SplitModulesOrErr.takeError();
+    auto ModulesOrErr =
+        module_split::SYCLPostLinkProcess(std::move(M), Settings);
+    if (!ModulesOrErr)
+      return ModulesOrErr.takeError();
 
-    auto &NewSplitModules = *SplitModulesOrErr;
-    SplitModules.insert(SplitModules.end(), NewSplitModules.begin(),
-                        NewSplitModules.end());
+    auto &NewModules = *ModulesOrErr;
+    OutputModules.insert(OutputModules.end(), NewModules.begin(),
+                         NewModules.end());
   }
 
-  if (Verbose) {
+  if (Verbose || DryRun) {
+    if (DryRun) {
+      auto OutputFileOrErr = createOutputFile(
+          sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
+      if (!OutputFileOrErr)
+        return OutputFileOrErr.takeError();
+
+      OutputModules.emplace_back(*OutputFileOrErr, util::PropertySetRegistry(),
+                                 "");
+    }
+
     auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
     std::string SplitOutputFilesStr;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
+    for (size_t I = 0, E = OutputModules.size(); I != E; ++I) {
       if (I > 0)
         SplitOutputFilesStr += ',';
 
-      SplitOutputFilesStr += SplitModules[I].ModuleFilePath;
+      SplitOutputFilesStr += OutputModules[I].ModuleFilePath;
     }
 
-    errs() << formatv("sycl-module-split: input: {0}, output: {1}\n",
-                      InputFilesStr, SplitOutputFilesStr);
+    errs() << formatv("sycl-post-link-library: input: {0}, output: {1}, {2}\n",
+                      InputFilesStr, SplitOutputFilesStr,
+                      convertProcessingSettingsToString(Settings));
   }
 
-  return SplitModules;
+  return OutputModules;
 }
 
 /// Add any llvm-spirv option that relies on a specific Triple in addition
@@ -1063,7 +1063,7 @@ static Expected<StringRef> runAOTCompile(StringRef InputFile,
 ///
 /// \returns A path to the LLVM Module that contains wrapped images.
 Expected<StringRef>
-wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
+wrapSYCLBinariesFromFile(std::vector<module_split::ProcessedModule> &Modules,
                          const ArgList &Args, bool IsEmbeddedIR) {
   auto OutputFileOrErr = createOutputFile(
       sys::path::filename(ExecutableName) + ".sycl.image.wrapper", "bc");
@@ -1073,8 +1073,8 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   StringRef OutputFilePath = *OutputFileOrErr;
   if (Verbose || DryRun) {
     std::string InputFiles;
-    for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-      InputFiles += SplitModules[I].ModuleFilePath;
+    for (size_t I = 0, E = Modules.size(); I != E; ++I) {
+      InputFiles += Modules[I].ModuleFilePath;
       if (I + 1 < E)
         InputFiles += ',';
     }
@@ -1102,13 +1102,14 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (RegularTarget == "spirv64")
     RegularTarget = "spir64";
 
-  for (auto &SI : SplitModules) {
-    auto MBOrDesc = MemoryBuffer::getFile(SI.ModuleFilePath);
+  for (auto &M : Modules) {
+    auto MBOrDesc = MemoryBuffer::getFile(M.ModuleFilePath);
     if (!MBOrDesc)
-      return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
+      return createFileError(M.ModuleFilePath, MBOrDesc.getError());
 
     StringRef ImageTarget = IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
-    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, ImageTarget);
+    Images.emplace_back(std::move(*MBOrDesc), M.Properties, M.Symbols,
+                        ImageTarget);
   }
 
   LLVMContext C;
@@ -1183,9 +1184,9 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 
 // Run wrapping library and llc
 static Expected<StringRef>
-runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
+runWrapperAndCompile(std::vector<module_split::ProcessedModule> &Modules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
-  auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
+  auto OutputFile = sycl::wrapSYCLBinariesFromFile(Modules, Args, IsEmbeddedIR);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to llc
@@ -2252,15 +2253,15 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         return TmpOutputOrErr.takeError();
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
-      auto SplitModulesOrErr =
+      auto ProcessedModulesOrErr =
           SYCLModuleSplitMode
-              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode)
+              ? sycl::runSYCLPostLinkLibrary(InputFilesSYCL, LinkerArgs,
+                                             *SYCLModuleSplitMode)
               : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
-      if (!SplitModulesOrErr)
-        return SplitModulesOrErr.takeError();
+      if (!ProcessedModulesOrErr)
+        return ProcessedModulesOrErr.takeError();
 
-      auto &SplitModules = *SplitModulesOrErr;
+      auto &ProcessedModules = *ProcessedModulesOrErr;
       const llvm::Triple Triple(LinkerArgs.getLastArgValue(OPT_triple_EQ));
       if ((Triple.isNVPTX() || Triple.isAMDGCN()) &&
           LinkerArgs.hasArg(OPT_sycl_embed_ir)) {
@@ -2269,14 +2270,14 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
         // through the offload wrapper and link the resulting object to the
         // application.
-        auto OutputFile =
-            sycl::runWrapperAndCompile(SplitModules, LinkerArgs, /* IsEmbeddedIR */ true);
+        auto OutputFile = sycl::runWrapperAndCompile(
+            ProcessedModules, LinkerArgs, /* IsEmbeddedIR */ true);
         if (!OutputFile)
           return OutputFile.takeError();
         WrappedOutput.push_back(*OutputFile);
       }
-      for (size_t I = 0, E = SplitModules.size(); I != E; ++I) {
-        SmallVector<StringRef> Files = {SplitModules[I].ModuleFilePath};
+      for (size_t I = 0, E = ProcessedModules.size(); I != E; ++I) {
+        SmallVector<StringRef> Files = {ProcessedModules[I].ModuleFilePath};
         StringRef Arch = LinkerArgs.getLastArgValue(OPT_arch_EQ);
         if (Arch.empty())
           Arch = "native";
@@ -2298,21 +2299,22 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
               nvptx::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+          ProcessedModules[I].ModuleFilePath = *BundledFileOrErr;
         } else if (Triple.isAMDGCN()) {
           BundlerInputFiles.emplace_back(*ClangOutputOrErr, Arch);
           auto BundledFileOrErr =
               amdgcn::fatbinary(BundlerInputFiles, LinkerArgs);
           if (!BundledFileOrErr)
             return BundledFileOrErr.takeError();
-          SplitModules[I].ModuleFilePath = *BundledFileOrErr;
+          ProcessedModules[I].ModuleFilePath = *BundledFileOrErr;
         } else {
-          SplitModules[I].ModuleFilePath = *ClangOutputOrErr;
+          ProcessedModules[I].ModuleFilePath = *ClangOutputOrErr;
         }
       }
 
       // TODO(NOM7): Remove this call and use community flow for bundle/wrap
-      auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs);
+      auto OutputFile =
+          sycl::runWrapperAndCompile(ProcessedModules, LinkerArgs);
       if (!OutputFile)
         return OutputFile.takeError();
 
