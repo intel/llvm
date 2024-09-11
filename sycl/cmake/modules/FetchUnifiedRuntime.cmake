@@ -116,15 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00f958f375205fd86309f95b925141cf664ff955
-  # Merge: cc2d5909 98a67a2e
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 2 09:51:21 2024 +0100
-  #     Merge pull request #2139 from nrspruit/zeHandle_copy_dependencies
-  #     [L0] Pass and track event dependencies required before executing Memory
-  #     Copy buffer inits
-  set(UNIFIED_RUNTIME_TAG 00f958f375205fd86309f95b925141cf664ff955)
+
+  set(UNIFIED_RUNTIME_REPO "https://github.com/coldav/unified-runtime.git")
+  # commit b3ebaafa15f894d30c3750f7dfc8d786269d9631
+  # Author: Colin Davidson <colin.davidson@codeplay.com>
+  # Date:   Wed Sep 11 16:47:02 2024 +0100
+  #
+  #     [NATIVECPU] Add UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE for device info
+  set(UNIFIED_RUNTIME_TAG colin/device_info_max_sub_groups)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
