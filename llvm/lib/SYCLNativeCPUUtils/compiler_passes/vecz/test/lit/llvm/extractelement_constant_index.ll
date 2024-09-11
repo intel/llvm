@@ -35,6 +35,6 @@ declare i64 @__mux_get_global_id(i32) #1
 
 ; CHECK: define spir_kernel void @__vecz_v4_extract_constant_index
 ; CHECK: call <4 x float> @__vecz_b_interleaved_load4_4_Dv4
-; CHECK: getelementptr inbounds float
+; CHECK: getelementptr float
 ; CHECK: store <4 x float>
 ; CHECK: ret void

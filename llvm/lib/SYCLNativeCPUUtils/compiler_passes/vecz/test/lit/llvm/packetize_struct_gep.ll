@@ -42,5 +42,5 @@ declare i64 @__mux_get_global_id(i32)
 ; Check if we can packetize GEPs on structs
 ; Note that we only need to packetize the non-uniform operands..
 ; CHECK: define spir_kernel void @__vecz_v4_test
-; CHECK: getelementptr inbounds %struct.T, ptr addrspace(1) %{{.+}}, <4 x i64> %{{.+}}, i32 2
-; CHECK: getelementptr inbounds %struct.T, ptr addrspace(1) %{{.+}}, <4 x i64> %{{.+}}, i32 2
+; CHECK: getelementptr %struct.T, ptr addrspace(1) %{{.+}}, <4 x i64> %{{.+}}, i32 2
+; CHECK: getelementptr %struct.T, ptr addrspace(1) %{{.+}}, <4 x i64> %{{.+}}, i32 2

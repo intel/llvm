@@ -34,9 +34,9 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_load_add_store(ptr %aptr, ptr %bptr, ptr %zptr)
 ; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
-; CHECK: %arrayidxa = getelementptr inbounds i32, ptr %aptr, i64 %idx
-; CHECK: %arrayidxb = getelementptr inbounds i32, ptr %bptr, i64 %idx
-; CHECK: %arrayidxz = getelementptr inbounds i32, ptr %zptr, i64 %idx
+; CHECK: %arrayidxa = getelementptr i32, ptr %aptr, i64 %idx
+; CHECK: %arrayidxb = getelementptr i32, ptr %bptr, i64 %idx
+; CHECK: %arrayidxz = getelementptr i32, ptr %zptr, i64 %idx
 ; CHECK: %[[TMP0:.*]] = load <4 x i32>, ptr %arrayidxa, align 4
 ; CHECK: %[[TMP1:.*]] = load <4 x i32>, ptr %arrayidxb, align 4
 ; CHECK: %sum1 = add <4 x i32> %[[TMP0]], %[[TMP1]]

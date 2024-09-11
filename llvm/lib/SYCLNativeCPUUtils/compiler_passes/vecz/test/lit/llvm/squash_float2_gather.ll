@@ -44,12 +44,12 @@ attributes #2 = { nobuiltin nounwind }
 ;
 ; CHECK: void @__vecz_v4_squash
 ; CHECK:  %[[GID:.+]] = call i64 @__mux_get_global_id(i64 0) #[[ATTRS:[0-9]+]]
-; CHECK:  %[[IDX_PTR:.+]] = getelementptr inbounds i64, ptr addrspace(1) %idx, i64 %[[GID]]
+; CHECK:  %[[IDX_PTR:.+]] = getelementptr i64, ptr addrspace(1) %idx, i64 %[[GID]]
 ; CHECK:  %[[WIDE_LOAD:.+]] = load <4 x i64>, ptr addrspace(1) %[[IDX_PTR]], align 8
-; CHECK:  %[[DATA_PTR:.+]] = getelementptr inbounds <2 x float>, ptr addrspace(1) %data, <4 x i64> %[[WIDE_LOAD]]
+; CHECK:  %[[DATA_PTR:.+]] = getelementptr <2 x float>, ptr addrspace(1) %data, <4 x i64> %[[WIDE_LOAD]]
 ; CHECK:  %[[GATHER:.+]] = call <4 x i64> @__vecz_b_gather_load8_Dv4_mDv4_u3ptrU3AS1(<4 x ptr addrspace(1)> %[[DATA_PTR]])
 ; CHECK:  %[[UNSQUASH:.+]] = bitcast <4 x i64> %[[GATHER]] to <8 x float>
-; CHECK:  %[[OUTPUT_PTR:.+]] = getelementptr inbounds <2 x float>, ptr addrspace(1) %output, i64 %[[GID]]
+; CHECK:  %[[OUTPUT_PTR:.+]] = getelementptr <2 x float>, ptr addrspace(1) %output, i64 %[[GID]]
 ; CHECK:  store <8 x float> %[[UNSQUASH]], ptr addrspace(1) %[[OUTPUT_PTR]], align 8
 ; CHECK:  ret void
 
