@@ -150,14 +150,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                 computeDeviceRequirements(M, EntryPoints).asMap());
   }
-  auto *SpecConstsMD =
-      M.getNamedMetadata(SpecConstantsPass::SPEC_CONST_MD_STRING);
-  bool SpecConstsMet =
-      SpecConstsMD != nullptr && SpecConstsMD->getNumOperands() != 0;
-  if (SpecConstsMet) {
-    // extract spec constant maps per each module
-    SpecIDMapTy TmpSpecIDMap;
-    SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
+
+  // extract spec constant maps per each module
+  SpecIDMapTy TmpSpecIDMap;
+  SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
+  if (!TmpSpecIDMap.empty()) {
     PropSet.add(PropSetRegTy::SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
 
     // Add property with the default values of spec constants
