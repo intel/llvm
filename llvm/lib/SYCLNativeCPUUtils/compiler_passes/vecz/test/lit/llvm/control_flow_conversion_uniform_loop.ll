@@ -167,7 +167,7 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: for.body:
 ; CHECK: %add = add nsw i32 %storemerge, %a
 ; CHECK: %idxprom = sext i32 %add2 to i64
-; CHECK: %arrayidx = getelementptr inbounds i32, ptr %b, i64 %idxprom
+; CHECK: %arrayidx = getelementptr i32, ptr %b, i64 %idxprom
 ; CHECK: store i32 %add, ptr %arrayidx, align 4
 ; CHECK: %inc = add nsw i32 %storemerge, 1
 ; CHECK: br label %for.cond

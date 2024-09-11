@@ -99,7 +99,7 @@ entry:
 ; CHECK-LABEL: @__vecz_nxv4_vector_broadcast_const(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
-; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x float> shufflevector (<vscale x 16 x float> insertelement (<vscale x 16 x float> {{(undef|poison)}}, float 0x7FF8000020000000, {{(i32|i64)}} 0), <vscale x 16 x float> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer), ptr addrspace(1) [[ARRAYIDX3]], align 16
 ; CHECK-NEXT:    ret void
 
@@ -113,17 +113,17 @@ entry:
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{(i32|i64)}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> undef)
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <vscale x 16 x float>, ptr addrspace(1) [[ARRAYIDX]], align 16
 ; CHECK-NEXT:    [[TMP4:%.*]] = fadd <vscale x 16 x float> [[TMP3]], [[TMP1]]
-; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x float> [[TMP4]], ptr addrspace(1) [[ARRAYIDX3]], align 16
 ; CHECK-NEXT:    ret void
 
 ; CHECK-LABEL: @__vecz_nxv4_vector_broadcast_regression(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <vscale x 16 x i32>, ptr addrspace(1) [[ARRAYIDX]], align 16
 ; CHECK-NEXT:    [[AND1_I_I_I1_I1:%.*]] = and <vscale x 16 x i32> [[TMP1]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 2139095040, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
 ; CHECK-NEXT:    [[CMP_I_I_I2_I2:%.*]] = icmp ne <vscale x 16 x i32> [[AND1_I_I_I1_I1]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 2139095040, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
@@ -132,7 +132,7 @@ entry:
 ; CHECK-NEXT:    [[TMP2:%.*]] = or <vscale x 16 x i1> [[CMP_I_I_I2_I2]], [[CMP3_I_I_I4_I4]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = bitcast <vscale x 16 x i32> [[TMP1]] to <vscale x 16 x float>
 ; CHECK-NEXT:    [[TMP4:%.*]] = select <vscale x 16 x i1> [[TMP2]], <vscale x 16 x float> [[TMP3]], <vscale x 16 x float> shufflevector (<vscale x 16 x float> insertelement (<vscale x 16 x float> {{(undef|poison)}}, float 0x7FF0000020000000, {{i32|i64}} 0), <vscale x 16 x float> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
-; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x float> [[TMP4]], ptr addrspace(1) [[ARRAYIDX3]], align 16
 ; CHECK-NEXT:    ret void
 ;
@@ -156,12 +156,12 @@ entry:
 ; CHECK-NEXT:    [[TMP2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds i32, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP2]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = call <vscale x 16 x i32> @llvm.masked.gather.nxv16i32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x i32> {{(undef|poison)}})
-; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds <4 x i32>, ptr addrspace(1) [[OUT2:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr <4 x i32>, ptr addrspace(1) [[OUT2:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x i32> [[TMP3]], ptr addrspace(1) [[ARRAYIDX4]], align 16
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP6:%.*]] = load <vscale x 16 x float>, ptr addrspace(1) [[ARRAYIDX]], align 16
 ; CHECK-NEXT:    [[V46:%.*]] = fadd <vscale x 16 x float> [[TMP6]], [[TMP1]]
-; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
+; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x float> [[V46]], ptr addrspace(1) [[ARRAYIDX3]], align 16
 ; CHECK-NEXT:    ret void
 ;

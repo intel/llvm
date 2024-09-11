@@ -39,7 +39,7 @@ define spir_kernel void @do_shuffle_splat(i32* %aptr, <4 x i32>* %bptr, <4 x i32
 ; make any difference whether it's a zext or sext, but LLVM 16 prefers zext.
 ; CHECK: [[idx2:%.*]] = {{s|z}}ext{{( nneg)?}} <vscale x 16 x i32> [[idx1]] to <vscale x 16 x i64>
 
-; CHECK: [[alloc:%.*]] = getelementptr inbounds i32, ptr %{{.*}}, <vscale x 16 x i64> [[idx2]]
+; CHECK: [[alloc:%.*]] = getelementptr i32, ptr %{{.*}}, <vscale x 16 x i64> [[idx2]]
 ; CHECK: [[splat:%.*]] = call <vscale x 16 x i32> @llvm.masked.gather.nxv16i32.nxv16p0(<vscale x 16 x ptr> [[alloc]],
 ; CHECK: store <vscale x 16 x i32> [[splat]], ptr
 }

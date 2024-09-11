@@ -78,20 +78,20 @@ entry:
 ; CHECK: store i32 %[[ADD2]], ptr %[[C_1]]
 ; CHECK: store i32 %[[ADD3]], ptr %[[C_2]]
 ; CHECK: store i32 %[[ADD4]], ptr %[[C_3]]
-; CHECK: %arrayidx3 = getelementptr inbounds <4 x i32>, ptr %a, i64 1
-; CHECK: %[[A1_0:.+]] = getelementptr inbounds i32, ptr %arrayidx3, i32 0
-; CHECK: %[[A1_1:.+]] = getelementptr inbounds i32, ptr %arrayidx3, i32 1
-; CHECK: %[[A1_2:.+]] = getelementptr inbounds i32, ptr %arrayidx3, i32 2
-; CHECK: %[[A1_3:.+]] = getelementptr inbounds i32, ptr %arrayidx3, i32 3
+; CHECK: %arrayidx3 = getelementptr <4 x i32>, ptr %a, i64 1
+; CHECK: %[[A1_0:.+]] = getelementptr i32, ptr %arrayidx3, i32 0
+; CHECK: %[[A1_1:.+]] = getelementptr i32, ptr %arrayidx3, i32 1
+; CHECK: %[[A1_2:.+]] = getelementptr i32, ptr %arrayidx3, i32 2
+; CHECK: %[[A1_3:.+]] = getelementptr i32, ptr %arrayidx3, i32 3
 ; CHECK: %[[LA1_0:.+]] = load i32, ptr %[[A1_0]]
 ; CHECK: %[[LA1_1:.+]] = load i32, ptr %[[A1_1]]
 ; CHECK: %[[LA1_2:.+]] = load i32, ptr %[[A1_2]]
 ; CHECK: %[[LA1_3:.+]] = load i32, ptr %[[A1_3]]
-; CHECK: %arrayidx4 = getelementptr inbounds <4 x i32>, ptr %b, i64 1
-; CHECK: %[[B1_0:.+]] = getelementptr inbounds i32, ptr %arrayidx4, i32 0
-; CHECK: %[[B1_1:.+]] = getelementptr inbounds i32, ptr %arrayidx4, i32 1
-; CHECK: %[[B1_2:.+]] = getelementptr inbounds i32, ptr %arrayidx4, i32 2
-; CHECK: %[[B1_3:.+]] = getelementptr inbounds i32, ptr %arrayidx4, i32 3
+; CHECK: %arrayidx4 = getelementptr <4 x i32>, ptr %b, i64 1
+; CHECK: %[[B1_0:.+]] = getelementptr i32, ptr %arrayidx4, i32 0
+; CHECK: %[[B1_1:.+]] = getelementptr i32, ptr %arrayidx4, i32 1
+; CHECK: %[[B1_2:.+]] = getelementptr i32, ptr %arrayidx4, i32 2
+; CHECK: %[[B1_3:.+]] = getelementptr i32, ptr %arrayidx4, i32 3
 ; CHECK: %[[LB1_0:.+]] = load i32, ptr %[[B1_0]]
 ; CHECK: %[[LB1_1:.+]] = load i32, ptr %[[B1_1]]
 ; CHECK: %[[LB1_2:.+]] = load i32, ptr %[[B1_2]]
@@ -104,20 +104,20 @@ entry:
 ; CHECK: %[[SEXT11:.+]] = sext i1 %[[CMP6]] to i32
 ; CHECK: %[[SEXT12:.+]] = sext i1 %[[CMP8]] to i32
 ; CHECK: %[[SEXT13:.+]] = sext i1 %[[CMP9]] to i32
-; CHECK: %arrayidx5 = getelementptr inbounds <4 x i32>, ptr %c, i64 1
-; CHECK: %[[C1_0:.+]] = getelementptr inbounds i32, ptr %arrayidx5, i32 0
-; CHECK: %[[C1_1:.+]] = getelementptr inbounds i32, ptr %arrayidx5, i32 1
-; CHECK: %[[C1_2:.+]] = getelementptr inbounds i32, ptr %arrayidx5, i32 2
-; CHECK: %[[C1_3:.+]] = getelementptr inbounds i32, ptr %arrayidx5, i32 3
+; CHECK: %arrayidx5 = getelementptr <4 x i32>, ptr %c, i64 1
+; CHECK: %[[C1_0:.+]] = getelementptr i32, ptr %arrayidx5, i32 0
+; CHECK: %[[C1_1:.+]] = getelementptr i32, ptr %arrayidx5, i32 1
+; CHECK: %[[C1_2:.+]] = getelementptr i32, ptr %arrayidx5, i32 2
+; CHECK: %[[C1_3:.+]] = getelementptr i32, ptr %arrayidx5, i32 3
 ; CHECK: store i32 %[[SEXT10]], ptr %[[C1_0]]
 ; CHECK: store i32 %[[SEXT11]], ptr %[[C1_1]]
 ; CHECK: store i32 %[[SEXT12]], ptr %[[C1_2]]
 ; CHECK: store i32 %[[SEXT13]], ptr %[[C1_3]]
-; CHECK: %arrayidx6 = getelementptr inbounds <4 x i32>, ptr %a, i64 2
-; CHECK: %[[A2_0:.+]] = getelementptr inbounds i32, ptr %arrayidx6, i32 0
-; CHECK: %[[A2_1:.+]] = getelementptr inbounds i32, ptr %arrayidx6, i32 1
-; CHECK: %[[A2_2:.+]] = getelementptr inbounds i32, ptr %arrayidx6, i32 2
-; CHECK: %[[A2_3:.+]] = getelementptr inbounds i32, ptr %arrayidx6, i32 3
+; CHECK: %arrayidx6 = getelementptr <4 x i32>, ptr %a, i64 2
+; CHECK: %[[A2_0:.+]] = getelementptr i32, ptr %arrayidx6, i32 0
+; CHECK: %[[A2_1:.+]] = getelementptr i32, ptr %arrayidx6, i32 1
+; CHECK: %[[A2_2:.+]] = getelementptr i32, ptr %arrayidx6, i32 2
+; CHECK: %[[A2_3:.+]] = getelementptr i32, ptr %arrayidx6, i32 3
 ; CHECK: %[[LA2_0:.+]] = load i32, ptr %[[A2_0]]
 ; CHECK: %[[LA2_1:.+]] = load i32, ptr %[[A2_1]]
 ; CHECK: %[[LA2_2:.+]] = load i32, ptr %[[A2_2]]
@@ -130,11 +130,11 @@ entry:
 ; CHECK: %[[SEXT819:.+]] = sext i1 %[[CMP715]] to i32
 ; CHECK: %[[SEXT820:.+]] = sext i1 %[[CMP716]] to i32
 ; CHECK: %[[SEXT821:.+]] = sext i1 %[[CMP717]] to i32
-; CHECK: %arrayidx9 = getelementptr inbounds <4 x i32>, ptr %c, i64 2
-; CHECK: %[[C2_0:.+]] = getelementptr inbounds i32, ptr %arrayidx9, i32 0
-; CHECK: %[[C2_1:.+]] = getelementptr inbounds i32, ptr %arrayidx9, i32 1
-; CHECK: %[[C2_2:.+]] = getelementptr inbounds i32, ptr %arrayidx9, i32 2
-; CHECK: %[[C2_3:.+]] = getelementptr inbounds i32, ptr %arrayidx9, i32 3
+; CHECK: %arrayidx9 = getelementptr <4 x i32>, ptr %c, i64 2
+; CHECK: %[[C2_0:.+]] = getelementptr i32, ptr %arrayidx9, i32 0
+; CHECK: %[[C2_1:.+]] = getelementptr i32, ptr %arrayidx9, i32 1
+; CHECK: %[[C2_2:.+]] = getelementptr i32, ptr %arrayidx9, i32 2
+; CHECK: %[[C2_3:.+]] = getelementptr i32, ptr %arrayidx9, i32 3
 ; CHECK: store i32 %[[SEXT818]], ptr %[[C2_0]]
 ; CHECK: store i32 %[[SEXT819]], ptr %[[C2_1]]
 ; CHECK: store i32 %[[SEXT820]], ptr %[[C2_2]]
