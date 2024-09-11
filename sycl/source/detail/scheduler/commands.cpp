@@ -269,9 +269,12 @@ std::vector<ur_event_handle_t> Command::getUrEventsBlocking(
     if (EventImpl->isDefaultConstructed() || EventImpl->isHost() ||
         EventImpl->isNOP())
       continue;
-    // In this path nullptr native event means that the command has not been
-    // enqueued. It may happen if async enqueue in a host task is involved.
-    if (!EventImpl->isEnqueued()) {
+
+    // If command has not been enqueued then we have to enqueue it.
+    // It may happen if async enqueue in a host task is involved.
+    // Interoperability events are special cases and they are not enqueued, as
+    // they don't have an associated queue and command.
+    if (!EventImpl->isInterop() && !EventImpl->isEnqueued()) {
       if (!EventImpl->getCommand() ||
           !static_cast<Command *>(EventImpl->getCommand())->producesPiEvent())
         continue;
