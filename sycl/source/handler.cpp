@@ -842,16 +842,16 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
+    char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
+    bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);
+  impl->MArgs.reserve(MaxNumAdditionalArgs * ParamDescs.size());
 
-  for (size_t I = 0; I < KernelArgsNum; ++I) {
-    void *Ptr = LambdaPtr + KernelArgs[I].offset;
-    const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
-    const int &Size = KernelArgs[I].info;
+  for (size_t I = 0; I < ParamDescs.size(); ++I) {
+    void *Ptr = LambdaPtr + ParamDescs[I].offset;
+    const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
+    const int &Size = ParamDescs[I].info;
     if (Kind == detail::kernel_param_kind_t::kind_accessor) {
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
@@ -873,6 +873,15 @@ void handler::extractArgsAndReqsFromLambda(
     processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
                IsESIMD);
   }
+}
+
+// TODO Unused, remove during ABI breaking window
+void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, size_t KernelArgsNum,
+    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
+  std::vector<detail::kernel_param_desc_t> ParamDescs(
+      KernelArgs, KernelArgs + KernelArgsNum);
+  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
 
 // Calling methods of kernel_impl requires knowledge of class layout.
@@ -1604,8 +1613,9 @@ checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
   auto &Plugin = ContextImpl->getPlugin();
   ur_bool_t SupportsOp = false;
-  Plugin->call(urContextGetInfo, ContextImpl->getHandleRef(), InfoQuery,
-               sizeof(ur_bool_t), &SupportsOp, nullptr);
+  Plugin->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
+                                            InfoQuery, sizeof(ur_bool_t),
+                                            &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1839,8 +1849,8 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck(
-      urDeviceGetInfo, Dev->getHandleRef(),
+  auto Ret = Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

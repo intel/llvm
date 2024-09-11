@@ -86,13 +86,14 @@ void *alignedAllocHost(size_t Alignment, size_t Size, const sycl::context &Ctxt,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Plugin->call_nocheck(urUSMHostAlloc, C, &UsmDesc,
-                                 /* pool= */ nullptr, Size, &RetVal);
+    Error = Plugin->call_nocheck<sycl::detail::UrApiKind::urUSMHostAlloc>(
+        C, &UsmDesc,
+        /* pool= */ nullptr, Size, &RetVal);
 
-  // Error is for debugging purposes.
-  // The spec wants a nullptr returned, not an exception.
-  if (Error != UR_RESULT_SUCCESS)
-    return nullptr;
+    // Error is for debugging purposes.
+    // The spec wants a nullptr returned, not an exception.
+    if (Error != UR_RESULT_SUCCESS)
+      return nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   xpti::addMetadata(PrepareNotify.traceEvent(), "memory_ptr",
                     reinterpret_cast<size_t>(RetVal));
@@ -157,8 +158,9 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Plugin->call_nocheck(urUSMDeviceAlloc, C, Dev, &UsmDesc,
-                                 /*pool=*/nullptr, Size, &RetVal);
+    Error = Plugin->call_nocheck<detail::UrApiKind::urUSMDeviceAlloc>(
+        C, Dev, &UsmDesc,
+        /*pool=*/nullptr, Size, &RetVal);
 
     break;
   }
@@ -193,8 +195,9 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
       UsmDeviceDesc.pNext = &UsmLocationDesc;
     }
 
-    Error = Plugin->call_nocheck(urUSMSharedAlloc, C, Dev, &UsmDesc,
-                                 /*pool=*/nullptr, Size, &RetVal);
+    Error = Plugin->call_nocheck<detail::UrApiKind::urUSMSharedAlloc>(
+        C, Dev, &UsmDesc,
+        /*pool=*/nullptr, Size, &RetVal);
 
     break;
   }
@@ -250,7 +253,7 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
     return;
   ur_context_handle_t C = CtxImpl->getHandleRef();
   const PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call(urUSMFree, C, Ptr);
+  Plugin->call<detail::UrApiKind::urUSMFree>(C, Ptr);
 }
 
 void free(void *Ptr, const context &Ctxt,
@@ -529,9 +532,10 @@ alloc get_pointer_type(const void *Ptr, const context &Ctxt) {
 
   // query type using UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  ur_result_t Err = Plugin->call_nocheck(
-      urUSMGetMemAllocInfo, URCtx, Ptr, UR_USM_ALLOC_INFO_TYPE,
-      sizeof(ur_usm_type_t), &AllocTy, nullptr);
+  ur_result_t Err =
+      Plugin->call_nocheck<detail::UrApiKind::urUSMGetMemAllocInfo>(
+          URCtx, Ptr, UR_USM_ALLOC_INFO_TYPE, sizeof(ur_usm_type_t), &AllocTy,
+          nullptr);
 
   // UR_RESULT_ERROR_INVALID_VALUE means USM doesn't know about this ptr
   if (Err == UR_RESULT_ERROR_INVALID_VALUE)
@@ -590,8 +594,9 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
 
   // query device using UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call(urUSMGetMemAllocInfo, URCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE,
-               sizeof(ur_device_handle_t), &DeviceId, nullptr);
+  Plugin->call<detail::UrApiKind::urUSMGetMemAllocInfo>(
+      URCtx, Ptr, UR_USM_ALLOC_INFO_DEVICE, sizeof(ur_device_handle_t),
+      &DeviceId, nullptr);
 
   // The device is not necessarily a member of the context, it could be a
   // member's descendant instead. Fetch the corresponding device from the cache.
@@ -612,7 +617,8 @@ static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   // Call the UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call(urUSMImportExp, URCtx, const_cast<void *>(Ptr), Size);
+  Plugin->call<detail::UrApiKind::urUSMImportExp>(
+      URCtx, const_cast<void *>(Ptr), Size);
 }
 
 static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
@@ -620,7 +626,8 @@ static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
   ur_context_handle_t URCtx = CtxImpl->getHandleRef();
   // Call the UR function
   const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-  Plugin->call(urUSMReleaseExp, URCtx, const_cast<void *>(Ptr));
+  Plugin->call<detail::UrApiKind::urUSMReleaseExp>(URCtx,
+                                                   const_cast<void *>(Ptr));
 }
 
 namespace ext::oneapi::experimental {
