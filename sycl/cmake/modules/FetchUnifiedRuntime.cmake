@@ -118,6 +118,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   # commit 24a8299efc59c715a1c2dd180692a5e12a12283a
+  # Merge: eb63d1a2 2fea679d
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Wed Sep 11 10:40:59 2024 +0100
   #     Merge pull request #2078 from callumfare/callum/fix_device_extensions_fpga
