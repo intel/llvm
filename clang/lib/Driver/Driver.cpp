@@ -1293,7 +1293,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // If the user specified --offload-arch, deduce the offloading
   // target triple(s) from the set of architecture(s).
   // Create a toolchain for each valid triple.
-  else if (C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
+  else if (HasValidSYCLRuntime &&
+           C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
            !IsCuda) {
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
@@ -7340,13 +7341,14 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   bool IsSYCLOffloadArchEnabled =
       HasValidSYCLRuntime &&
       C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
-
-  if (IsSYCLOffloadArchEnabled &&
-      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                options::OPT_no_offload_new_driver, false)) {
-    Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-    return;
-  }
+  /*
+    if (IsSYCLOffloadArchEnabled &&
+        !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false)) {
+      Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+      return;
+    }
+  */
 
   // If '-fintelfpga' is passed, add '-fsycl' to the list of arguments
   const llvm::opt::OptTable &Opts = getOpts();
