@@ -29,3 +29,14 @@ void bar() {
 auto Glob = [](int P){ return P + 1;};
 
 template void ff_6(typeof(Glob) S1);
+
+extern "C" {
+  struct A {
+    int a;
+  };
+}
+
+__attribute__((sycl_device))
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_5(A S1) {
+}

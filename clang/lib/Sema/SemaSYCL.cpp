@@ -1452,7 +1452,7 @@ class KernelObjVisitor {
     else if (ParamTy->isStructureOrClassType()) {
       if (KF_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
-        visitRecord(RD, Param, RD, ParamTy, Handlers...);
+        visitRecord(nullptr, Param, RD, ParamTy, Handlers...);
       }
     } else if (ParamTy->isUnionType())
       KP_FOR_EACH(handleOtherType, Param, ParamTy);
@@ -1980,7 +1980,11 @@ public:
 
     // Check that the type is defined at namespace scope.
     const DeclContext *DeclCtx = RD->getDeclContext();
-    if (!DeclCtx->isTranslationUnit() && !isa<NamespaceDecl>(DeclCtx)) {
+    while (!DeclCtx->isTranslationUnit() &&
+           (isa<NamespaceDecl>(DeclCtx) || isa<LinkageSpecDecl>(DeclCtx)))
+      DeclCtx = DeclCtx->getParent();
+
+    if (!DeclCtx->isTranslationUnit()) {
       Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
           << ParamTy;
       IsInvalid = true;
@@ -3017,13 +3021,13 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *RD, ParmVarDecl *PD,
                              QualType ParamTy) final {
-    // This is a field which should not be decomposed.
-    CXXRecordDecl *FieldRecordDecl = ParamTy->getAsCXXRecordDecl();
-    assert(FieldRecordDecl && "Type must be a C++ record type");
+    // This is a struct parameter which should not be decomposed.
+    CXXRecordDecl *ParamRecordDecl = ParamTy->getAsCXXRecordDecl();
+    assert(ParamRecordDecl && "Type must be a C++ record type");
     // Check if we need to generate a new type for this record,
     // i.e. this record contains pointers.
-    if (FieldRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
-      addParam(PD, GenerateNewRecordType(FieldRecordDecl));
+    if (ParamRecordDecl->hasAttr<SYCLGenerateNewTypeAttr>())
+      addParam(PD, GenerateNewRecordType(ParamRecordDecl));
     else
       addParam(PD, ParamTy);
     return true;
