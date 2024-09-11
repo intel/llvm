@@ -5037,9 +5037,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   Arg *HostCompilerDefArg =
       TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
   assert(HostCompilerDefArg && "Expected host compiler designation.");
-  bool UIH = TCArgs.hasFlag(options::OPT_fsycl_use_integration_headers,
-                            options::OPT_fno_sycl_use_integration_headers,
-                            !TC.getDriver().getSYCLDefaultUseBuiltins());
+  bool UIH = TC.getDriver().getSYCLUseIntegrationHeaders(TCArgs);
   bool OutputAdded = false;
   StringRef CompilerName =
       llvm::sys::path::stem(HostCompilerDefArg->getValue());
@@ -5485,9 +5483,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     PF->claim();
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
-  bool UIH = Args.hasFlag(options::OPT_fsycl_use_integration_headers,
-                          options::OPT_fno_sycl_use_integration_headers,
-                          !D.getSYCLDefaultUseBuiltins());
+  bool UIH = D.getSYCLUseIntegrationHeaders(Args);
 
   if (IsSYCLDevice) {
     if (Triple.isNVPTX()) {
@@ -5784,9 +5780,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
 
-    if (Args.hasFlag(options::OPT_fsycl_use_integration_headers,
-                     options::OPT_fno_sycl_use_integration_headers,
-                     !D.getSYCLDefaultUseBuiltins())) {
+    if (D.getSYCLUseIntegrationHeaders(Args)) {
       CmdArgs.push_back("-fsycl-use-integration-headers");
       CmdArgs.push_back("-D__INTEL_SYCL_USE_INTEGRATION_HEADERS");
     }

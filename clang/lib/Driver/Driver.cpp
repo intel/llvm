@@ -1087,9 +1087,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                           options::OPT_fno_sycl, false);
   bool HasValidSYCLRuntime = HasSYCL || hasSYCLDeviceOnly(C.getInputArgs());
   bool UseSYCLIntegrationHeaders =
-      C.getInputArgs().hasFlag(options::OPT_fsycl_use_integration_headers,
-                               options::OPT_fno_sycl_use_integration_headers,
-                               !getSYCLDefaultUseBuiltins());
+      getSYCLUseIntegrationHeaders(C.getInputArgs());
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
