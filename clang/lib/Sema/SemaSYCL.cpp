@@ -882,7 +882,7 @@ class SingleDeviceFunctionTracker {
         KernelBody = CurrentDecl;
       }
       if (KernelBody)
-        Parent.SemaSYCLRef.addUserProvidedSYCLKernelFunction(KernelBody);
+        Parent.SemaSYCLRef.addSYCLKernelFunction(KernelBody);
     }
 
     // Recurse.
@@ -6855,17 +6855,17 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
 }
 
 void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
-  if (UserProvidedSYCLKernelFunctions.contains(FD))
+  if (SYCLKernelFunctions.contains(FD))
     return;
 
-  for (const auto *Attr : std::vector<AttributeCommonInfo *>{
+  for (const auto *KernelAttr : std::vector<AttributeCommonInfo *>{
            FD->getAttr<SYCLReqdWorkGroupSizeAttr>(),
            FD->getAttr<IntelReqdSubGroupSizeAttr>(),
            FD->getAttr<SYCLWorkGroupSizeHintAttr>(),
            FD->getAttr<VecTypeHintAttr>()}) {
-    if (Attr)
-      Diag(Attr->getLoc(),
+    if (KernelAttr)
+      Diag(KernelAttr->getLoc(),
            diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
-          << Attr;
+          << KernelAttr;
   }
 }

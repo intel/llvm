@@ -259,7 +259,7 @@ private:
   // useful notes that shows where the kernel was called.
   bool DiagnosingSYCLKernel = false;
 
-  llvm::DenseSet<const FunctionDecl *> UserProvidedSYCLKernelFunctions;
+  llvm::DenseSet<const FunctionDecl *> SYCLKernelFunctions;
 
 public:
   SemaSYCL(Sema &S);
@@ -302,8 +302,8 @@ public:
   void addSyclDeviceDecl(Decl *d) { SyclDeviceDecls.insert(d); }
   llvm::SetVector<Decl *> &syclDeviceDecls() { return SyclDeviceDecls; }
 
-  void addUserProvidedSYCLKernelFunction(const FunctionDecl *FD) {
-    UserProvidedSYCLKernelFunctions.insert(FD);
+  void addSYCLKernelFunction(const FunctionDecl *FD) {
+    SYCLKernelFunctions.insert(FD);
   }
 
   /// Lazily creates and returns SYCL integration header instance.
