@@ -1529,6 +1529,13 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
+// Check if device image is compressed.
+static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
+
+  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
+  return currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE;
+}
+
 ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
@@ -1660,7 +1667,14 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     std::unique_ptr<RTDeviceBinaryImage> Img;
     if (isDeviceImageCompressed(RawImg))
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
       Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
+#else
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Recieved a compressed device image, but "
+                            "SYCL RT was built without ZSTD support."
+                            "Aborting. ");
+#endif
     else
       Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
 
@@ -2806,14 +2820,6 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   }
 
   return UrKernel;
-}
-
-// Check if device image is compressed.
-inline bool
-ProgramManager::isDeviceImageCompressed(sycl_device_binary Bin) const {
-
-  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
-  return currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE;
 }
 
 bool doesDevSupportDeviceRequirements(const device &Dev,

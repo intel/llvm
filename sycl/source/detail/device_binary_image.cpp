@@ -172,28 +172,27 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
 
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
-    Format = ur::getBinaryImageFormat(this->Bin->BinaryStart, getSize());
+    Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
 
-  SpecConstIDMap.init(this->Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
+  SpecConstIDMap.init(Bin, __SYCL_PROPERTY_SET_SPEC_CONST_MAP);
   SpecConstDefaultValuesMap.init(
-      this->Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
-  DeviceLibReqMask.init(this->Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
-  KernelParamOptInfo.init(this->Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
-  AssertUsed.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
-  ProgramMetadata.init(this->Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
+      Bin, __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP);
+  DeviceLibReqMask.init(Bin, __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK);
+  KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
+  AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
+  ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
   // Convert ProgramMetadata into the UR format
   for (const auto &Prop : ProgramMetadata) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
 
-  ExportedSymbols.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
-  ImportedSymbols.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
-  DeviceGlobals.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
-  DeviceRequirements.init(this->Bin,
-                          __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
-  HostPipes.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
-  VirtualFunctions.init(this->Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
+  ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
+  ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
+  DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
+  DeviceRequirements.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
+  HostPipes.init(Bin, __SYCL_PROPERTY_SET_SYCL_HOST_PIPES);
+  VirtualFunctions.init(Bin, __SYCL_PROPERTY_SET_SYCL_VIRTUAL_FUNCTIONS);
 
   ImageId = ImageCounter++;
 }
@@ -231,6 +230,7 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   Bin = nullptr;
 }
 
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
 CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
     : RTDeviceBinaryImage() {
@@ -243,18 +243,13 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
       reinterpret_cast<const char *>(CompressedBin->BinaryStart),
       compressedDataSize, DecompressedSize);
 
-  if (!m_DecompressedData) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::runtime),
-        "Failed to decompress device binary image. " +
-            ZSTDCompressor::GetErrorString(ZSTDCompressor::GetLastError()));
-  }
-
   Bin = new sycl_device_binary_struct(*CompressedBin);
-  Bin->BinaryStart = m_DecompressedData.get();
+  Bin->BinaryStart = (const unsigned char *)(m_DecompressedData.get());
   Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
   // Set the new format to none and let RT determine the format.
+  // TODO: Add support for automatically detecting compressed
+  // binary format.
   Bin->Format = SYCL_DEVICE_BINARY_TYPE_NONE;
 
   init(Bin);
@@ -265,6 +260,7 @@ CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
 
 } // namespace detail
 } // namespace _V1

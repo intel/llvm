@@ -276,6 +276,7 @@ protected:
   std::unique_ptr<char[]> Data;
 };
 
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
 // Compressed device binary image. It decompresses the binary image on
 // construction and stores the decompressed data as RTDeviceBinaryImage.
 // Also, frees the decompressed data in destructor.
@@ -290,8 +291,9 @@ public:
   }
 
 private:
-  std::unique_ptr<unsigned char> m_DecompressedData;
+  std::unique_ptr<char> m_DecompressedData;
 };
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
 
 } // namespace detail
 } // namespace _V1

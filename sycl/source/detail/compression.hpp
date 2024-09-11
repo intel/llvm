@@ -7,6 +7,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+
+#include <sycl/exception.hpp>
+
 #include <iostream>
 #include <memory>
 #include <zstd.h>
@@ -21,23 +25,7 @@ namespace detail {
 // Singleton class to handle ZSTD compression and decompression.
 class ZSTDCompressor {
 private:
-  // Initialize ZSTD context and error code.
-  ZSTDCompressor() {
-    m_ZSTD_compression_ctx = static_cast<void *>(ZSTD_createCCtx());
-    m_ZSTD_decompression_ctx = static_cast<void *>(ZSTD_createDCtx());
-
-    if (!m_ZSTD_compression_ctx || !m_ZSTD_decompression_ctx) {
-      std::cerr << "Error creating ZSTD contexts. \n";
-    }
-
-    m_lastError = 0;
-  }
-
-  // Free ZSTD contexts.
-  ~ZSTDCompressor() {
-    ZSTD_freeCCtx(static_cast<ZSTD_CCtx *>(m_ZSTD_compression_ctx));
-    ZSTD_freeDCtx(static_cast<ZSTD_DCtx *>(m_ZSTD_decompression_ctx));
-  }
+  ZSTDCompressor() {}
 
   ZSTDCompressor(const ZSTDCompressor &) = delete;
   ZSTDCompressor &operator=(const ZSTDCompressor &) = delete;
@@ -50,73 +38,93 @@ private:
 
   // Public APIs
 public:
-  // Return 0 is last (de)compression was successful, otherwise return error
-  // code.
-  static int GetLastError() { return GetSingletonInstance().m_lastError; }
-
-  // Returns a string representation of the error code.
-  // If the error code is 0, it returns "No error detected".
-  static std::string GetErrorString(int code) {
-    return ZSTD_getErrorName(code);
-  }
-
   // Blob (de)compression do not assume format/structure of the input buffer.
   static std::unique_ptr<char> CompressBlob(const char *src, size_t srcSize,
                                             size_t &dstSize, int level) {
     auto &instance = GetSingletonInstance();
 
+    // Lazy initialize compression context.
+    if (!instance.m_ZSTD_compression_ctx) {
+
+      // Call ZSTD_createCCtx() and ZSTD_freeCCtx() to create and free the
+      // context.
+      instance.m_ZSTD_compression_ctx =
+          std::unique_ptr<ZSTD_CCtx, size_t (*)(ZSTD_CCtx *)>(ZSTD_createCCtx(),
+                                                              ZSTD_freeCCtx);
+      if (!instance.m_ZSTD_compression_ctx) {
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Failed to create ZSTD compression context");
+      }
+    }
+
     // Get maximum size of the compressed buffer and allocate it.
     auto dstBufferSize = ZSTD_compressBound(srcSize);
     auto dstBuffer = std::unique_ptr<char>(new char[dstBufferSize]);
 
+    if (!dstBuffer)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Failed to allocate memory for compressed data");
+
     // Compress the input buffer.
-    dstSize = ZSTD_compressCCtx(
-        static_cast<ZSTD_CCtx *>(instance.m_ZSTD_compression_ctx),
-        static_cast<void *>(dstBuffer.get()), dstBufferSize,
-        static_cast<const void *>(src), srcSize, level);
+    dstSize =
+        ZSTD_compressCCtx(instance.m_ZSTD_compression_ctx.get(),
+                          static_cast<void *>(dstBuffer.get()), dstBufferSize,
+                          static_cast<const void *>(src), srcSize, level);
 
     // Store the error code if compression failed.
     if (ZSTD_isError(dstSize))
-      instance.m_lastError = dstSize;
-    else
-      instance.m_lastError = 0;
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            ZSTD_getErrorName(dstSize));
 
     // Pass ownership of the buffer to the caller.
     return dstBuffer;
   }
 
-  static std::unique_ptr<unsigned char>
-  DecompressBlob(const char *src, size_t srcSize, size_t &dstSize) {
+  static std::unique_ptr<char> DecompressBlob(const char *src, size_t srcSize,
+                                              size_t &dstSize) {
     auto &instance = GetSingletonInstance();
+
+    // Lazy initialize decompression context.
+    if (!instance.m_ZSTD_decompression_ctx) {
+
+      // Call ZSTD_createDCtx() and ZSTD_freeDCtx() to create and free the
+      // context.
+      instance.m_ZSTD_decompression_ctx =
+          std::unique_ptr<ZSTD_DCtx, size_t (*)(ZSTD_DCtx *)>(ZSTD_createDCtx(),
+                                                              ZSTD_freeDCtx);
+      if (!instance.m_ZSTD_decompression_ctx) {
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Failed to create ZSTD decompression context");
+      }
+    }
 
     // Size of decompressed image can be larger than what we can allocate
     // on heap. In that case, we need to use streaming decompression.
-    // TODO: Throw if the decompression size is too large.
     auto dstBufferSize = ZSTD_getFrameContentSize(src, srcSize);
 
     if (dstBufferSize == ZSTD_CONTENTSIZE_UNKNOWN ||
         dstBufferSize == ZSTD_CONTENTSIZE_ERROR) {
-
-      std::cerr << "Error determining size of uncompressed data\n";
-      dstSize = 0;
-      instance.m_lastError = dstBufferSize;
-      return nullptr;
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Error determining size of uncompressed data.");
     }
 
     // Allocate buffer for decompressed data.
-    auto dstBuffer =
-        std::unique_ptr<unsigned char>(new unsigned char[dstBufferSize]);
+    auto dstBuffer = std::unique_ptr<char>(new char[dstBufferSize]);
 
-    dstSize = ZSTD_decompressDCtx(
-        static_cast<ZSTD_DCtx *>(instance.m_ZSTD_decompression_ctx),
-        static_cast<void *>(dstBuffer.get()), dstBufferSize,
-        static_cast<const void *>(src), srcSize);
+    if (!dstBuffer)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Failed to allocate memory for decompressed data");
+
+    dstSize =
+        ZSTD_decompressDCtx(instance.m_ZSTD_decompression_ctx.get(),
+                            static_cast<void *>(dstBuffer.get()), dstBufferSize,
+                            static_cast<const void *>(src), srcSize);
 
     // In case of decompression error, return the error message and set dstSize
     // to 0.
     if (ZSTD_isError(dstSize)) {
-      instance.m_lastError = dstSize;
-      dstSize = 0;
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            ZSTD_getErrorName(dstSize));
     }
 
     // Pass ownership of the buffer to the caller.
@@ -125,12 +133,14 @@ public:
 
   // Data fields
 private:
-  int m_lastError;
-  // ZSTD context. Reusing ZSTD context speeds up subsequent (de)compression.
-  // Storing as void* to avoid including ZSTD headers in this file.
-  void *m_ZSTD_compression_ctx;
-  void *m_ZSTD_decompression_ctx;
+  // ZSTD contexts. Reusing ZSTD context speeds up subsequent (de)compression.
+  std::unique_ptr<ZSTD_CCtx, size_t (*)(ZSTD_CCtx *)> m_ZSTD_compression_ctx{
+      nullptr, nullptr};
+  std::unique_ptr<ZSTD_DCtx, size_t (*)(ZSTD_DCtx *)> m_ZSTD_decompression_ctx{
+      nullptr, nullptr};
 };
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
+
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE

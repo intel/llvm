@@ -1153,7 +1153,7 @@ private:
               Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
               Img.Tgt);
 
-          // Change image format to compressed_non.
+          // Change image format to compressed_none.
           Ffmt = ConstantInt::get(Type::getInt8Ty(C),
                                   BinaryImageFormat::compressed_none);
         }

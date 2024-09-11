@@ -320,9 +320,6 @@ private:
   collectDependentDeviceImagesForVirtualFunctions(
       const RTDeviceBinaryImage &Img, device Dev);
 
-  // Returns whether the device image is compressed or not.
-  inline bool isDeviceImageCompressed(sycl_device_binary Bin) const;
-
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
