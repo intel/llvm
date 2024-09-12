@@ -1,0 +1,977 @@
+= sycl_ext_global_defaults
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../supported/sycl_ext_oneapi_defaultcontext.asciidoc[
+  sycl_ext_oneapi_defaultcontext]
+* link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions]
+* link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
+  sycl_ext_oneapi_enqueue_barrier]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+This extension introduces additional state into SYCL in order to simplify 
+programming for developers. The extension provides a mechanism to both set and
+query the 'current' global `sycl::device`. By adding the notion of a 'current'
+device, this can simplify interfaces and reduce the amount of boilerplate code
+required to write a SYCL application.
+
+This extension also introduces the notion of a default queue for a device. When
+combined with the notion of the current device and the extension for new 
+free enqueue functions, this allows for a simplified way to write SYCL code.
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_GLOBAL_DEFAULTS` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New free functions
+
+This extension adds the following new free functions to the `sycl` namespace:
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+sycl::device get_current_device();
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Returns:_ The current default device. The initial device returned is the device
+returned by the default device selector.
+'''
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void set_current_device(sycl::device dev);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Returns:_ Nothing
+
+_Remarks:_ Sets the current default device to `dev`.
+
+'''
+
+The following free functions provide new overloads of existing functions:
+
+==== Device allocation functions
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::malloc_device(size_t numBytes, const property_list& propList = {});
+
+template <typename T>
+(2) T* sycl::malloc_device(size_t count, const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::malloc_device` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_device(numBytes, 
+                    get_current_device(), 
+                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                    propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_device<T>(count, 
+                       get_current_device(), 
+                       get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                       propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::aligned_alloc_device(size_t alignment, size_t numBytes, 
+                                     const property_list& propList = {});
+    
+template <typename T>
+(2) T* sycl::aligned_alloc_device(size_t alignment, size_t count,
+                                  const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::aligned_alloc_device` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_device(alignment, numBytes, 
+                           get_current_device(), 
+                           get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                           propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_device<T>(alignment, count, 
+                              get_current_device(), 
+                              get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                              propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+==== Host allocation functions
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::malloc_host(size_t numBytes, 
+                            const property_list& propList = {});
+
+template <typename T>
+(2) T* sycl::malloc_host(size_t count, 
+                         const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::malloc_host` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_host(numBytes, 
+                  get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                  propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_host<T>(count, 
+                     get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                     propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::aligned_alloc_host(size_t alignment, size_t numBytes, 
+                                   const property_list& propList = {});
+
+template <typename T>
+(2) T* sycl::aligned_alloc_host(size_t alignment, size_t count, 
+                                const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::aligned_alloc_host` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_host(alignment, numBytes, 
+                  get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                  propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_host<T>(alignment, count, 
+                     get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                     propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+==== Shared allocation functions
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::malloc_shared(size_t numBytes, 
+                              const property_list& propList = {});
+
+template <typename T>
+(2) T* sycl::malloc_shared(size_t count, 
+                           const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::malloc_shared` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_shared(numBytes, 
+                    get_current_device(),
+                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                    propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::malloc_shared<T>(count,
+                       get_current_device(),
+                       get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                       propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+(1) void* sycl::aligned_alloc_shared(size_t numBytes, 
+                              const property_list& propList = {});
+
+template <typename T>
+(2) T* sycl::aligned_alloc_shared(size_t count, 
+                           const property_list& propList = {});
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::aligned_alloc_shared` apply.
+
+_Returns (1):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_shared(numBytes, 
+                    get_current_device(),
+                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                    propList)
+----
+
+_Returns (2):_ The same result as computed by:
+
+[source, c++]
+----
+sycl::aligned_alloc_shared<T>(count,
+                       get_current_device(),
+                       get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                       propList)
+----
+
+_Remarks:_ The device parameter is queried from the current device. The context is provided
+by the default context of the platform of the current device.
+
+'''
+==== Deallocation function
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void* sycl::free(void* ptr);
+                              
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints:_ The same restrictions as other overloads of `sycl::free` apply.
+
+_Returns:_ The same result as computed by:
+
+[source, c++]
+----
+sycl::free(ptr, 
+           get_current_device().get_platform().ext_oneapi_get_default_context())
+----
+
+_Remarks:_ The context is provided by the default context of the platform of the 
+current device.
+
+'''
+
+=== Additions to the `usm_allocator` class
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl {
+class usm_allocator {
+    usm_allocator(property_list propList = {});
+}                             
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Returns:_ The same result as computed by:
+
+[source, c++]
+----
+usm_allocator(get_current_device().get_platform().ext_oneapi_get_default_context(),
+              get_current_device(),
+              propList)
+----
+
+'''
+=== Additions to the `queue` class
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl {
+class queue {
+    ext_oneapi_get_default_queue();
+}                             
+} // namespace sycl
+----
+!====
+
+_Returns:_ The default queue for the device.
+
+'''
+=== Command-group submission
+
+When specifying event dependencies or requesting the creation of events,
+commands must be wrapped in a _command-group_.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename CommandGroupFunc>
+void submit(CommandGroupFunc&& cgf);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+submit_with_event(get_current_device().ext_oneapi_get_default_queue(), cgf)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename CommandGroupFunc>
+sycl::event submit_with_event(CommandGroupFunc&& cgf);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+submit_with_event(get_current_device().ext_oneapi_get_default_queue(), cgf)
+----
+
+_Returns_: A `sycl::event` associated with the submitted command.
+
+|====
+
+
+=== Commands
+
+==== Single tasks
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, typename KernelType>
+void single_task(const KernelType& k);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+single_task(get_current_device().ext_oneapi_get_default_queue(), k)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Args...>
+void single_task(const sycl::kernel& k, Args&&... args);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+single_task(get_current_device().ext_oneapi_get_default_queue(), k, args)
+----
+
+|====
+
+
+==== Basic kernels
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename KernelType, typename... Reductions>
+void parallel_for(sycl::range<Dimensions> r,
+                  const KernelType& k, Reductions&&... reductions);
+
+}
+----
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
+
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+parallel_for(get_current_device().ext_oneapi_get_default_queue(), r, k, reductions)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename Properties,
+          typename KernelType, typename... Reductions>
+void parallel_for(launch_config<sycl::range<Dimensions>, Properties> c,
+                  const KernelType& k, Reductions&&... reductions);
+
+}
+----
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
+
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+parallel_for(get_current_device().ext_oneapi_get_default_queue(), c, k, reductions)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename... Args>
+void parallel_for(sycl::range<Dimensions> r,
+                  const sycl::kernel& k, Args&&... args);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+parallel_for(get_current_device().ext_oneapi_get_default_queue(), r, k, args)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename Properties, typename... Args>
+void parallel_for(launch_config<sycl::range<Dimensions>, Properties> c,
+                  const sycl::kernel& k, Args&& args...);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+parallel_for(get_current_device().ext_oneapi_get_default_queue(), c, k, args)
+----
+
+|====
+
+
+==== ND-range kernels
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename KernelType, typename... Reductions>
+void nd_launch(sycl::nd_range<Dimensions> r,
+               const KernelType& k, Reductions&&... reductions);
+
+}
+----
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
+
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+nd_launch(get_current_device().ext_oneapi_get_default_queue(), r, k, reductions)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename Properties,
+          typename KernelType, typename... Reductions>
+void nd_launch(launch_config<sycl::nd_range<Dimensions>, Properties> c,
+               const KernelType& k, Reductions&&... reductions);
+
+}
+----
+!====
+_Constraints_: The parameter pack consists of 0 or more objects created by the
+`sycl::reduction` function.
+
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+nd_launch(get_current_device().ext_oneapi_get_default_queue(), c, k, reductions)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions, typename... Args>
+void nd_launch(sycl::nd_range<Dimensions> r,
+               const sycl::kernel& k, Args&&... args);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+nd_launch(get_current_device().ext_oneapi_get_default_queue(), r, k, args)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename KernelName, int Dimensions,
+          typename Properties, typename... Args>
+void nd_launch(launch_config<sycl::nd_range<Dimensions>, Properties> c,
+               const sycl::kernel& k, Args&& args...);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+nd_launch(get_current_device().ext_oneapi_get_default_queue(), c, k, args)
+----
+
+|====
+
+
+==== Memory operations
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void memcpy(void* dest, const void* src, size_t numBytes);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+memcpy(get_current_device().ext_oneapi_get_default_queue(), dest, src, numBytes)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void copy(const T* src, T* dest, size_t count);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+copy(get_current_device().ext_oneapi_get_default_queue(), src, dest, count)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void memset(void* ptr, int value, size_t numBytes);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+memset(get_current_device().ext_oneapi_get_default_queue(), ptr, value, numBytes)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename T>
+void fill(T* ptr, const T& pattern, size_t count);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+fill(get_current_device().ext_oneapi_get_default_queue(), ptr, pattern, count)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void prefetch(void* ptr, size_t numBytes);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+prefetch(get_current_device().ext_oneapi_get_default_queue(), ptr, numBytes)
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void mem_advise(void* ptr, size_t numBytes, int advice);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+mem_advise(get_current_device().ext_oneapi_get_default_queue(), ptr, numBytes, advice)
+----
+
+|====
+
+
+==== Command barriers
+
+The functions in this section are only available if the
+link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[
+  sycl_ext_oneapi_enqueue_barrier] extension is supported.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void barrier();
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+barrier(get_current_device().ext_oneapi_get_default_queue())
+----
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void partial_barrier(const std::vector<sycl::event>& events);
+
+}
+----
+!====
+_Effects_: The same result as computed by:
+
+[source, c++]
+----
+partial_barrier(get_current_device().ext_oneapi_get_default_queue(), events)
+----
+
+[_Note:_ If `events` is empty and a partial barrier has no other dependencies
+(e.g., specified by `handler::depends_on`), it is not required to wait for any
+commands unless the `queue` is in-order. Implementations may be able to
+optimize such partial barriers.
+_{endnote}_]
+|====
+
+== Issues
+. [UNRESOLVED] Should the currrent device be global or should we also support a per-thread
+   device?
