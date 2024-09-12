@@ -239,6 +239,7 @@ jobs:
         whereis sycl-ls
         clang++ --version
         ls
+        export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
@@ -312,6 +313,7 @@ jobs:
         whereis sycl-ls
         clang++ --version
         ls
+        export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
