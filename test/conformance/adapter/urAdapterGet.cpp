@@ -18,5 +18,6 @@ TEST_F(urAdapterGetTest, InvalidNumEntries) {
     uint32_t adapter_count;
     ASSERT_SUCCESS(urAdapterGet(0, nullptr, &adapter_count));
     std::vector<ur_adapter_handle_t> adapters(adapter_count);
-    ASSERT_SUCCESS(urAdapterGet(0, adapters.data(), nullptr));
+    ASSERT_EQ(urAdapterGet(0, adapters.data(), nullptr),
+              UR_RESULT_ERROR_INVALID_SIZE);
 }
