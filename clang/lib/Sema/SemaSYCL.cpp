@@ -1263,12 +1263,6 @@ class KernelObjVisitor {
     std::initializer_list<int>{(result = result && tn(BD, BDTy), 0)...};
     return result;
   }
-  template <typename... Tn>
-  bool handleField(ParmVarDecl *PD, QualType PDTy, Tn &&...tn) {
-    bool result = true;
-    std::initializer_list<int>{(result = result && tn(PD, PDTy), 0)...};
-    return result;
-  }
 
 // This definition using std::bind is necessary because of a gcc 7.x bug.
 #define KF_FOR_EACH(FUNC, Item, Qt)                                            \
@@ -1450,7 +1444,7 @@ class KernelObjVisitor {
     if (isSyclSpecialType(ParamTy, SemaSYCLRef))
       KP_FOR_EACH(handleOtherType, Param, ParamTy);
     else if (ParamTy->isStructureOrClassType()) {
-      if (KF_FOR_EACH(handleStructType, Param, ParamTy)) {
+      if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
         visitRecord(nullptr, Param, RD, ParamTy, Handlers...);
       }
