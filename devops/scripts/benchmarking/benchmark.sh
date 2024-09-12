@@ -4,10 +4,15 @@
 # benchmark.sh: Benchmark dpcpp using compute-benchmarks
 #
 
-# TODO fix
 usage () {
     >&2 echo "Usage: $0 <compute-benchmarks git repo> [-B <compute-benchmarks build path>]
   -B  Path to clone and build compute-benchmarks on
+  -p  Path to compute-benchmarks (or directory to build compute-benchmarks in)
+  -r  Git repo url to use for compute-benchmarks origin
+  -b  Git branch to use within compute-benchmarks
+  -f  Compile flags passed into building compute-benchmarks
+  -c  _cleanup=1 ;;
+  -C  _cleanup=1 && _exit_after_cleanup=1 ;;
 
 This script builds and runs benchmarks from compute-benchmarks."
     exit 1
@@ -32,38 +37,38 @@ clone_compute_bench() {
 build_compute_bench() {
     echo "### Building compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
     mkdir $COMPUTE_BENCH_PATH/build && cd $COMPUTE_BENCH_PATH/build &&
-    cmake .. -DBUILD_SYCL=ON && cmake --build .
-    compute_bench_build_stat=$?
+    cmake .. -DBUILD_SYCL=ON && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    #compute_bench_build_stat=$?
     cd -
-    [ "$compute_bench_build_stat" -ne 0 ] && exit $compute_bench_build_stat 
+    #[ "$compute_bench_build_stat" -ne 0 ] && exit $compute_bench_build_stat 
 }
 
-print_bench_res() {
-    # Usage: print_bench_res <benchmark output .csv file> <benchmark status code> <summary file>
-    if [ ! -s $1 ]; then
-        printf "NO OUTPUT! (Status $2)\n" | tee -a $3
-        return  # Do not proceed if file is empty
-    fi
-    
-    get_csv_col_index $1 run-time-mean
-    tmp_run_time_mean_i=$tmp_csv_col_i
-    get_csv_col_index $1 run-time-median
-    tmp_run_time_median_i=$tmp_csv_col_i
-    get_csv_col_index $1 run-time-throughput
-    tmp_run_time_throughput_i=$tmp_csv_col_i
-
-    # `sycl-bench` output seems to like inserting the header multiple times.
-    # Here we cache the header to make sure it prints only once:
-    tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
-    tmp_result="$(cat $1 | grep '^[^\#]')"
-
-    printf "%s\n%s" "$tmp_header_title" "$tmp_result"                  \
-        | awk -F',' -v me="$tmp_run_time_mean_i"                       \
-                    -v md="$tmp_run_time_median_i"                     \
-                    -v th="$tmp_run_time_throughput_i"                 \
-            '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
-        | tee -a $3   # Print to summary file
-}
+# print_bench_res() {
+#     # Usage: print_bench_res <benchmark output .csv file> <benchmark status code> <summary file>
+#     if [ ! -s $1 ]; then
+#         printf "NO OUTPUT! (Status $2)\n" | tee -a $3
+#         return  # Do not proceed if file is empty
+#     fi
+#     
+#     get_csv_col_index $1 run-time-mean
+#     tmp_run_time_mean_i=$tmp_csv_col_i
+#     get_csv_col_index $1 run-time-median
+#     tmp_run_time_median_i=$tmp_csv_col_i
+#     get_csv_col_index $1 run-time-throughput
+#     tmp_run_time_throughput_i=$tmp_csv_col_i
+# 
+#     # `sycl-bench` output seems to like inserting the header multiple times.
+#     # Here we cache the header to make sure it prints only once:
+#     tmp_header_title="$(cat $1 | head -n 1 | sed 's/^\# Benchmark name/benchmark/')"
+#     tmp_result="$(cat $1 | grep '^[^\#]')"
+# 
+#     printf "%s\n%s" "$tmp_header_title" "$tmp_result"                  \
+#         | awk -F',' -v me="$tmp_run_time_mean_i"                       \
+#                     -v md="$tmp_run_time_median_i"                     \
+#                     -v th="$tmp_run_time_throughput_i"                 \
+#             '{printf "%-57s %-13s %-15s %-20s\n", $1, $me, $md, $th }' \
+#         | tee -a $3   # Print to summary file
+# }
 
 ###
 STATUS_SUCCESS=0
@@ -102,7 +107,6 @@ check_and_cache() {
 }
 
 process_benchmarks() {
-    TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
     mkdir -p "$PERF_RES_PATH"
     
     echo "### Running and processing selected benchmarks ###"
@@ -126,7 +130,10 @@ process_benchmarks() {
 }
 
 cleanup() {
-    rm -r $COMPUTE_BENCH_PATH
+    echo "### Cleaning up compute-benchmark builds from prior runs ###"
+    rm -rf $COMPUTE_BENCH_PATH
+    #rm -rf $PERF_RES_PATH
+    [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
 load_configs() {
@@ -152,17 +159,31 @@ load_configs() {
     . $BENCHMARK_CI_CONFIG
 }
 
+COMPUTE_BENCH_COMPILE_FLAGS=""
+TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
+
 load_configs
 
 # CLI overrides to configuration options
-while getopts "p:b:r:" opt; do
+while getopts "p:b:r:f:cC" opt; do
     case $opt in
         p) COMPUTE_BENCH_PATH=$OPTARG ;;
         r) COMPUTE_BENCH_GIT_REPO=$OPTARG ;;
         b) COMPUTE_BENCH_BRANCH=$OPTARG ;;
+        f) COMPUTE_BENCH_COMPILE_FLAGS=$OPTARG ;;
+        # Cleanup status is saved in a var to ensure all arguments are processed before
+        # performing cleanup
+        c) _cleanup=1 ;;
+        C) _cleanup=1 && _exit_after_cleanup=1 ;;
         \?) usage ;;
     esac
 done
+
+if [ -z "$CMPLR_ROOT" ]; then
+    echo "Please set \$CMPLR_ROOT first; it is needed by compute-benchmarks to build."
+    exit 1
+fi
+[ ! -z "$_cleanup" ] && cleanup
 
 [ ! -d "$PERF_RES_PATH"            ] && clone_perf_res
 [ ! -d "$COMPUTE_BENCH_PATH"       ] && clone_compute_bench

@@ -364,14 +364,14 @@ jobs:
 
         exit $ret
 
-    - name: Run sycl-bench microbenchmarks
+    - name: Run compute-benchmarks
       id: run_benchmarks
       if: inputs.tests_selector == 'benchmark'
       run: ./devops/scripts/benchmarking/benchmark.sh
-    - name: Upload sycl-bench microbenchmark results
-      if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
-      uses: actions/upload-artifact@v4
-      with:
-        name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
-        path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
-        retention-days: 7
+    # - name: Upload sycl-bench microbenchmark results
+    #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
+    #     path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
+    #     retention-days: 7

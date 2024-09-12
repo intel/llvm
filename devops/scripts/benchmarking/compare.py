@@ -1,3 +1,4 @@
+import os
 import csv
 import sys
 from pathlib import Path
@@ -6,8 +7,18 @@ import common
 
 # TODO compare_to(metric) instead?
 def compare_to_median(test_name: str, test_csv_path: str):
+	median_path = f"{common.PERF_RES_PATH}/{test_name}/{test_name}-median.csv"
+
+	if not os.path.isfile(test_csv_path):
+		print("Invalid test file provided: " + test_csv_path)
+		exit(-1)
+	if not os.path.isfile(median_path):
+		print(f"Median file for test {test_name} not found at {median_path}.\n" +
+		      "Please build the median using the aggregate workflow.")
+		exit(-1)
+
 	median = dict()
-	with open(f"{common.PERF_RES_PATH}/{test_name}/{test_name}-median.csv", mode='r') as median_csv:
+	with open(median_path, mode='r') as median_csv:
 		for stat in csv.DictReader(median_csv):
 			median[stat["TestCase"]] = \
 					{ metric: float(stat[metric]) for metric in common.metrics_variance }
