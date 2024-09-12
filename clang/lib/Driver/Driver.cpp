@@ -1169,6 +1169,21 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
 
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit
+  // a warning and inform the user of the default behavior used.
+  // TODO: General usage of this option is to check fo 'spirv' and fallthrough
+  // to using llvmir.  This can be improved to be more obvious in usage.
+  if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
+          options::OPT_fsycl_device_obj_EQ)) {
+    StringRef ArgValue(DeviceObj->getValue());
+    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    auto FoundArg =
+        std::find(DeviceObjValues.begin(), DeviceObjValues.end(), ArgValue);
+    if (FoundArg == DeviceObjValues.end())
+      Diag(clang::diag::warn_ignoring_value_using_default)
+          << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+  }
+
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
