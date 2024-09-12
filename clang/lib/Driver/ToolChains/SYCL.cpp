@@ -592,7 +592,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      // Native-CPU links against libclc (libspirv)
+      // NativeCPU links against libclc (libspirv)
       if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
         return true;
       // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
