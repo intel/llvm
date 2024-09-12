@@ -94,14 +94,10 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
         [QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
     MPM.addPass(vecz::RunVeczPass());
     FunctionPassManager FPM;
-    FPM.addPass(LowerExpectIntrinsicPass());
     FPM.addPass(SimplifyCFGPass());
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-    FPM.addPass(EarlyCSEPass());
     FPM.addPass(AggressiveInstCombinePass());
     FPM.addPass(GVNPass(GVNOptions().setMemDep(true)));
-    FPM.addPass(AggressiveInstCombinePass());
-    FPM.addPass(ADCEPass());
     FPM.addPass(DCEPass());
     FPM.addPass(SimplifyCFGPass());
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
