@@ -114,21 +114,6 @@ on:
           - cts
           - benchmark
 
-      sycl_toolchain_artifact:
-        description: |
-          If benchmarking, this artifact is what would be used in benchmarking.
-        type: string
-        default: ''
-        required: False
-      sycl_toolchain_archive:
-        type: string
-        default: ''
-        required: False
-      sycl_toolchain_decompress_command:
-        type: string
-        default: ''
-        required: False
-
       env:
         description: |
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
@@ -228,6 +213,23 @@ jobs:
         env | sort > env_after
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
+
+    - name: Build SYCL from head for benchmarking, if no artifact provided
+      id: build_for_benchmarking
+      if: inputs.tests_selector == 'benchmark' && inputs.sycl_toolchain_artifact == ''
+      uses: ./.github/workflows/sycl-linux-build.yml
+      with:
+        build_ref: ${{ github.sha }}
+        merge_ref: ''
+        build_cache_root: "/__w/"
+        build_artifact_suffix: "default"
+        build_cache_suffix: "default"
+
+    - name: Testing
+      shell: bash
+      run: |
+        ls
+
     - name: Download SYCL toolchain
       if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v4
@@ -381,7 +383,7 @@ jobs:
 
     - name: Run compute-benchmarks
       id: run_benchmarks
-      if: inputs.tests_selector == 'benchmark'
+      if: inputs.tests_selector == 'benchmark' && success()
       run: |
         whereis clang++
         whereis sycl-ls
