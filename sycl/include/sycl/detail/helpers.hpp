@@ -127,7 +127,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   template <int N>
-  inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
+  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
     static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
