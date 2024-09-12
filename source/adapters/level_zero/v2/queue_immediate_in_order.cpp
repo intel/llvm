@@ -147,6 +147,7 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     // We can exit early if we have in-order queue.
     if (!lastHandler)
       return ReturnValue(true);
+    [[fallthrough]];
   }
   default:
     logger::error(

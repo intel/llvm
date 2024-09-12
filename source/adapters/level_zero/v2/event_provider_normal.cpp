@@ -32,7 +32,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   desc.flags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
 
   ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
-      ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr};
+      ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
   if (events == event_type::EVENT_COUNTER) {
     counterBasedExt.flags =

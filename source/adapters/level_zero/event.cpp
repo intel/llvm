@@ -1517,8 +1517,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        ur_device_handle_t QueueRootDevice;
-        ur_device_handle_t CurrentQueueRootDevice;
+        ur_device_handle_t QueueRootDevice = nullptr;
+        ur_device_handle_t CurrentQueueRootDevice = nullptr;
         if (Queue) {
           QueueRootDevice = Queue->Device;
           CurrentQueueRootDevice = CurQueueDevice;
