@@ -114,6 +114,21 @@ on:
           - cts
           - benchmark
 
+      sycl_toolchain_artifact:
+        description: |
+          If benchmarking, this artifact is what would be used in benchmarking.
+        type: string
+        default: ''
+        required: False
+      sycl_toolchain_archive:
+        type: string
+        default: ''
+        required: False
+      sycl_toolchain_decompress_command:
+        type: string
+        default: ''
+        required: False
+
       env:
         description: |
           Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
@@ -255,7 +270,7 @@ jobs:
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
-    - run: SYCL_UR_TRACE=-1 sycl-ls
+    - run: SYCL_UR_TRACE=1 sycl-ls
     - run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
@@ -367,7 +382,12 @@ jobs:
     - name: Run compute-benchmarks
       id: run_benchmarks
       if: inputs.tests_selector == 'benchmark'
-      run: ./devops/scripts/benchmarking/benchmark.sh
+      run: |
+        whereis clang++
+        whereis sycl-ls
+        clang++ --version
+        ls
+        ./devops/scripts/benchmarking/benchmark.sh
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
     #   uses: actions/upload-artifact@v4
