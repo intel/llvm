@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 24a8299efc59c715a1c2dd180692a5e12a12283a
-  # Merge: eb63d1a2 2fea679d
+  # commit 2bbe952669861579ea84fa30f14e1ed27ead0692
+  # Merge: d357964a 6b353545
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Sep 11 10:40:59 2024 +0100
-  #     Merge pull request #2078 from callumfare/callum/fix_device_extensions_fpga
-  #     Add workaround for silently supported OpenCL extensions on Intel FPGA
-  set(UNIFIED_RUNTIME_TAG 24a8299efc59c715a1c2dd180692a5e12a12283a)
+  # Date:   Thu Sep 12 11:36:11 2024 +0100
+  #     Merge pull request #1928 from isaacault/iault/image_array_copy
+  #     [Bindless][Exp] Image Array Sub-Region Copies
+  set(UNIFIED_RUNTIME_TAG 2bbe952669861579ea84fa30f14e1ed27ead0692)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
