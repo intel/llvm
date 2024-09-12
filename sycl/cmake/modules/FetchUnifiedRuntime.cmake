@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  # commit 2bbe952669861579ea84fa30f14e1ed27ead0692
+  # Merge: d357964a 6b353545
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Thu Sep 12 11:36:11 2024 +0100
+  #     Merge pull request #1928 from isaacault/iault/image_array_copy
+  #     [Bindless][Exp] Image Array Sub-Region Copies
+  set(UNIFIED_RUNTIME_TAG 2bbe952669861579ea84fa30f14e1ed27ead0692)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

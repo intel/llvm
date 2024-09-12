@@ -5,7 +5,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -O0 -o %t_O0.out
+// RUN: %{build} %no_opt -o %t_O0.out
 // RUN: %{run} %t_O0.out
 
 /*
