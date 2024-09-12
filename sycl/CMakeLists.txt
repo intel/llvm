@@ -329,6 +329,14 @@ if (LLVM_ENABLE_ASSERTIONS AND NOT SYCL_DISABLE_STL_ASSERTIONS AND NOT WIN32)
   endif()
 endif()
 
+# Need zstd for device image compression.
+find_package(zstd)
+if (zstd_FOUND)
+set(SYCL_ZSTD_AVAILABLE ON)
+else()
+set(SYCL_ZSTD_AVAILABLE OFF)
+endif()
+
 set(SYCL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 # SYCL runtime library

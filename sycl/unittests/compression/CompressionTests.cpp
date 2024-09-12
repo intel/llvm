@@ -25,7 +25,7 @@ TEST(CompressionTest, SimpleCompression) {
 
   // Check if compression was successful.
   EXPECT_NE(compressedData, nullptr);
-  EXPECT_GT(compressedDataSize, 0);
+  EXPECT_GT(compressedDataSize, (size_t)0);
 
   // Decompress the data.
   size_t decompressedSize = 0;
@@ -33,7 +33,7 @@ TEST(CompressionTest, SimpleCompression) {
       compressedData.get(), compressedDataSize, decompressedSize);
 
   ASSERT_NE(decompressedData, nullptr);
-  ASSERT_GT(decompressedSize, 0);
+  ASSERT_GT(decompressedSize, (size_t)0);
 
   // Check if decompressed data is same as original data.
   std::string decompressedStr((char *)decompressedData.get(), decompressedSize);
@@ -66,14 +66,14 @@ TEST(CompressionTest, EmptyInputTest) {
       input.c_str(), input.size(), compressedSize, 1);
 
   ASSERT_NE(compressedData, nullptr);
-  ASSERT_GT(compressedSize, 0);
+  ASSERT_GT(compressedSize, (size_t)0);
 
   size_t decompressedSize = 0;
   auto decompressedData = ZSTDCompressor::DecompressBlob(
       compressedData.get(), compressedSize, decompressedSize);
 
   ASSERT_NE(decompressedData, nullptr);
-  ASSERT_EQ(decompressedSize, 0);
+  ASSERT_EQ(decompressedSize, (size_t)0);
 
   std::string decompressedStr((char *)decompressedData.get(), decompressedSize);
   ASSERT_EQ(input, decompressedStr);
