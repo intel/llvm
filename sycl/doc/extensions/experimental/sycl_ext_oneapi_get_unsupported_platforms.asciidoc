@@ -1,0 +1,123 @@
+= sycl_ext_oneapi_get_unsupported_platforms
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes. This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation. All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+The implementation of `sycl::platform` already allows querying for supported
+platforms - `static std::vector<platform> get_platforms()` - which returns all
+available SYCL platforms in the system (the resulting vector always contains a
+single SYCL host platform instance). This extension adds an API entry to list
+all unsupported platforms; the platform is considered unsupported if it is
+non-SYCL, or does not have any devices associated.
+
+This extension exists to solve a specific problem: listing of all platforms
+(supported and not) in verbose mode of `sycl-ls` binary.
+  
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GET_UNSUPPORTED_PLATFORMS` to one of the values defined in
+the table below. Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The API of this experimental extension is not versioned, so the feature-test
+macro always has this value.
+|===
+
+=== New SYCL platform API
+
+This extension adds the following new API to the existing `sycl::platform` class:
+
+[source, c++]
+----
+namespace sycl {
+
+class platform {
+  ...
+
+  static std::vector<platform> ext_oneapi_get_unsupported_platforms();
+
+  ...
+}
+
+} // namespace sycl
+----
+
+The new API has the following behaviour:
+
+--
+[options="header"]
+|====
+| Function Definition | Description
+a| 
+[source, c++]
+----
+static std::vector<platform> ext_oneapi_get_unsupported_platforms();
+----
+| Returns a vector containing all unsupported (non-SYCL, or device-less)
+platforms in the system.
+
+|====
+--

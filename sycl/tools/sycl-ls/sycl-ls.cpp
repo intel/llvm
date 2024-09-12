@@ -430,7 +430,8 @@ int main(int argc, char **argv) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       printVerbosePlatformInfo(Platforms, DeviceNums, SuppressNumberPrinting);
 
-      const auto &UnsupportedPlatforms = platform::get_unsupported_platforms();
+      const auto &UnsupportedPlatforms =
+          platform::ext_oneapi_get_unsupported_platforms();
       std::cout << "\nUnsupported Platforms: " << UnsupportedPlatforms.size()
                 << std::endl;
       printVerbosePlatformInfo(UnsupportedPlatforms, DeviceNums,

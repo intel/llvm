@@ -96,8 +96,10 @@ static bool IsBannedPlatform(platform Platform) {
          IsMatchingOpenCL(Platform, "AMD Accelerated Parallel Processing");
 }
 
-// Get the vector of platforms supported by a given UR plugin
-// replace uses of this with a helper in plugin object, the plugin
+// When `Supported` is `true` gets the vector of platforms supported by a given
+// UR `Plugin`. Otherwise a vector of all unsupported (non-SYCL, or
+// device-less) platforms.
+// Replace uses of this with a helper in plugin object, the plugin
 // objects will own the ur adapter handles and they'll need to pass them to
 // urPlatformsGet - so urPlatformsGet will need to be wrapped with a helper
 std::vector<platform> platform_impl::getPluginPlatforms(PluginPtr &Plugin,

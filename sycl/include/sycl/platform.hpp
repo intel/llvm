@@ -197,7 +197,7 @@ public:
   /// Returns all unsupported (non-SYCL) platforms in the system.
   ///
   /// \return a vector of all unsupported non-SYCL platforms.
-  static std::vector<platform> get_unsupported_platforms();
+  static std::vector<platform> ext_oneapi_get_unsupported_platforms();
 
   /// Returns the backend associated with this platform.
   ///
