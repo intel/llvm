@@ -37,7 +37,8 @@ clone_compute_bench() {
 build_compute_bench() {
     echo "### Building compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
     mkdir $COMPUTE_BENCH_PATH/build && cd $COMPUTE_BENCH_PATH/build &&
-    cmake .. -DBUILD_SYCL=ON && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    cmake .. -DBUILD_SYCL=ON  -DCCACHE_ALLOWED=FALSE && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
     cd -
     #[ "$compute_bench_build_stat" -ne 0 ] && exit $compute_bench_build_stat 
