@@ -83,6 +83,7 @@ void test_work_group_KV_private_sort(sycl::queue &q, KeyT input_keys[NUM],
      }).wait();
   }
 
+  sycl::free(scratch_ptr, q);
   bool fails = false;
   for (size_t idx = 0; idx < NUM; ++idx) {
     if ((output_keys[idx] != std::get<0>(sorted_vec[idx])) ||

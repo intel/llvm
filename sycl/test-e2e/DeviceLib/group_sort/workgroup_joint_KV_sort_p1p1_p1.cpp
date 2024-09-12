@@ -20,8 +20,13 @@ using namespace sycl;
 
 template <typename KeyT, typename ValT, size_t WG_SZ, size_t NUM,
           typename SortHelper>
-void test_work_group_KV_joint_sort(sycl::queue &q, KeyT input_keys[NUM],
-                                   ValT input_vals[NUM], SortHelper gsh) {
+void test_work_group_KV_joint_sort(sycl::queue &q, KeyT keys[NUM],
+                                   ValT vals[NUM], SortHelper gsh) {
+
+  KeyT input_keys[NUM];
+  ValT input_vals[NUM];
+  memcpy((void *)input_keys, (void *)keys, NUM * sizeof(KeyT));
+  memcpy((void *)input_vals, (void *)vals, NUM * sizeof(ValT));
   size_t scratch_size = NUM * (sizeof(KeyT) + sizeof(ValT)) +
                         std::max(alignof(KeyT), alignof(ValT));
   uint8_t *scratch_ptr =
@@ -47,6 +52,7 @@ void test_work_group_KV_joint_sort(sycl::queue &q, KeyT input_keys[NUM],
     std::cout << "key: " << std::get<0>(sorted_vec[idx]) << " val: " <<
   std::get<1>(sorted_vec[idx]) << std::endl;
   }*/
+
   nd_range<1> num_items((range<1>(wg_size)), (range<1>(wg_size)));
   {
     buffer<KeyT, 1> ikeys_buf(input_keys, NUM);
@@ -61,11 +67,19 @@ void test_work_group_KV_joint_sort(sycl::queue &q, KeyT input_keys[NUM],
        });
      }).wait();
   }
+
+  /*for (size_t idx = 0; idx < NUM; ++idx) {
+    std::cout << "key: " << (input_keys[idx]) << " val: " <<
+  (input_vals[idx]) << std::endl;
+  }*/
+
+  sycl::free(scratch_ptr, q);
   bool fails = false;
   for (size_t idx = 0; idx < NUM; ++idx) {
     if ((input_keys[idx] != std::get<0>(sorted_vec[idx])) ||
         (input_vals[idx] != std::get<1>(sorted_vec[idx]))) {
       fails = true;
+      std::cout << idx << std::endl;
       break;
     }
   }
@@ -76,6 +90,32 @@ int main() {
   queue q;
 
   {
+    constexpr static int NUM = 23;
+    uint8_t ikeys[NUM] = {1,  11, 1,   9,  3,  100, 34, 8,  121, 77,  125, 23,
+                          36, 2,  111, 91, 88, 2,   51, 91, 81,  122, 22};
+    uint8_t ivals[NUM] = {99,  32,  1,   2,   67,  123, 253, 35,
+                          111, 77,  165, 145, 254, 11,  161, 96,
+                          165, 100, 64,  90,  255, 147, 135};
+    auto work_group_sorter = [](uint8_t *keys, uint8_t *vals, uint32_t n,
+                                uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1u8_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1u8_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+    test_work_group_KV_joint_sort<uint8_t, uint8_t, 16, NUM,
+                                  decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV joint sort p1u8_p1u8_u32_p1i8 <NUM = 23, WG = 16> pass."
+              << std::endl;
+  }
+
+  {
     constexpr static int NUM = 21;
     uint32_t ikeys[NUM] = {1,  11, 1, 9,   3,  100, 34, 8,  121,   77, 125,
                            23, 36, 2, 111, 91, 88,  2,  51, 95431, 881};
@@ -84,6 +124,7 @@ int main() {
                            761, 96,    765, 10000, 6364, 90,   525};
     auto work_group_sorter = [](uint32_t *keys, uint32_t *vals, uint32_t n,
                                 uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
@@ -91,11 +132,13 @@ int main() {
       __devicelib_default_work_group_joint_sort_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
 #endif
+#endif
     };
     test_work_group_KV_joint_sort<uint32_t, uint32_t, 16, NUM,
                                   decltype(work_group_sorter)>(
         q, ikeys, ivals, work_group_sorter);
-    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 pass." << std::endl;
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 21, WG = 16> pass."
+              << std::endl;
   }
 
   {
@@ -110,6 +153,8 @@ int main() {
                            9,     4324,  9123, 0,   1232, 777,   555, 314159};
     auto work_group_sorter = [](uint32_t *keys, uint32_t *vals, uint32_t n,
                                 uint8_t *scratch) {
+
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
@@ -117,11 +162,38 @@ int main() {
       __devicelib_default_work_group_joint_sort_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
 #endif
+#endif
     };
+
+    test_work_group_KV_joint_sort<uint32_t, uint32_t, 2, NUM,
+                                  decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 32, WG = 2> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<uint32_t, uint32_t, 4, NUM,
+                                  decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 32, WG = 4> pass."
+              << std::endl;
+
     test_work_group_KV_joint_sort<uint32_t, uint32_t, 8, NUM,
                                   decltype(work_group_sorter)>(
         q, ikeys, ivals, work_group_sorter);
-    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 pass." << std::endl;
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 32, WG = 8> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<uint32_t, uint32_t, 16, NUM,
+                                  decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 32, WG = 16> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<uint32_t, uint32_t, 8, NUM,
+                                  decltype(work_group_sorter)>(
+        q, ikeys, ivals, work_group_sorter);
+    std::cout << "KV joint sort p1u32_p1u32_u32_p1i8 <NUM = 32, WG = 32> pass."
+              << std::endl;
   }
 
   return 0;

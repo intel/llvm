@@ -158,22 +158,26 @@ Tp sub_group_merge_sort(Tp value, uint8_t *scratch, Compare comp) {
 }
 
 template <typename KeyT, typename ValT, typename Compare>
-void bubble_sort_key_value(KeyT *keys, ValT *vals, const size_t beg,
-                           const size_t end, Compare comp) {
+void bubble_sort_key_value_stable(KeyT *keys, ValT *vals, const size_t beg,
+                                  const size_t end, Compare comp) {
   if (beg < end) {
     KeyT temp_key;
     ValT temp_val;
-    for (size_t i = beg; i < end; ++i)
-      for (size_t j = i + 1; j < end; ++j) {
-        if (!comp(keys[i], keys[j])) {
+    size_t swaps;
+    do {
+      swaps = 0;
+      for (size_t i = beg; i < (end - 1); ++i) {
+        if (!comp(keys[i], keys[i + 1])) {
           temp_key = keys[i];
-          keys[i] = keys[j];
-          keys[j] = temp_key;
+          keys[i] = keys[i + 1];
+          keys[i + 1] = temp_key;
           temp_val = vals[i];
-          vals[i] = vals[j];
-          vals[j] = temp_val;
+          vals[i] = vals[i + 1];
+          vals[i + 1] = temp_val;
+          swaps += 1;
         }
       }
+    } while (swaps != 0);
   }
 }
 
@@ -240,7 +244,7 @@ void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
   size_t bubble_beg, bubble_end;
   bubble_beg = (idx * chunk_size) >= n ? n : idx * chunk_size;
   bubble_end = ((idx + 1) * chunk_size) > n ? n : (idx + 1) * chunk_size;
-  bubble_sort_key_value(keys, vals, bubble_beg, bubble_end, comp);
+  bubble_sort_key_value_stable(keys, vals, bubble_beg, bubble_end, comp);
   group_barrier();
   bool data_in_scratch = false;
   KeyT *scratch_keys = reinterpret_cast<KeyT *>(scratch);
