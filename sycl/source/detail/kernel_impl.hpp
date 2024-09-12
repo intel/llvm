@@ -114,8 +114,26 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  typename Param::return_type ext_oneapi_get_info(queue Queue) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &MaxWorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
 
   /// Get a constant reference to a raw kernel object.
   ///
@@ -171,6 +189,12 @@ private:
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;
+
+  /// Check if the occupancy limits are exceeded for the given kernel launch
+  /// configuration.
+  bool exceedsOccupancyResourceLimits(const device &Device,
+                                      const range<3> &WorkGroupSize,
+                                      size_t DynamicLocalMemorySize) const;
 };
 
 template <typename Param>
@@ -217,20 +241,66 @@ kernel_impl::get_info(const device &Device,
       getPlugin());
 }
 
+namespace syclex = ext::oneapi::experimental;
+
 template <>
-inline typename ext::oneapi::experimental::info::kernel_queue_specific::
-    max_num_work_group_sync::return_type
+inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
+    return_type
     kernel_impl::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &Queue) const {
+        syclex::info::kernel_queue_specific::max_num_work_groups>(
+        queue Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  if (WorkGroupSize.size() == 0)
+    throw exception(sycl::make_error_code(errc::invalid),
+                    "The launch work-group size cannot be zero.");
+
   const auto &Plugin = getPlugin();
   const auto &Handle = getHandleRef();
+  auto Device = Queue.get_device();
+
+  uint32_t GroupCount{0};
+  if (auto Result = Plugin->call_nocheck<
+                    UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
+          Handle, WorkGroupSize.size(), DynamicLocalMemorySize, &GroupCount);
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    // The feature is supported. Check for other errors and throw if any.
+    Plugin->checkUrResult(Result);
+    return GroupCount;
+  }
+
+  // Fallback. If the backend API is unsupported, this query will return either
+  // 0 or 1 based on the kernel resource usage and the user-requested resources.
+  return exceedsOccupancyResourceLimits(Device, WorkGroupSize,
+                                        DynamicLocalMemorySize)
+             ? 0
+             : 1;
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+        queue Queue, const range<3> &WorkGroupSize,
+        size_t DynamicLocalMemorySize) const {
+  return ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(
+      Queue, WorkGroupSize, DynamicLocalMemorySize);
+}
+
+template <>
+inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
+    return_type
+    kernel_impl::ext_oneapi_get_info<
+        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+        queue Queue) const {
+  auto Device = Queue.get_device();
   const auto MaxWorkGroupSize =
-      Queue.get_device().get_info<info::device::max_work_group_size>();
-  uint32_t GroupCount = 0;
-  Plugin->call<UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
-      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
-  return GroupCount;
+      get_info<info::kernel_device_specific::work_group_size>(Device);
+  const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
+  return ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_group_sync>(
+      Queue, WorkGroupSize, /* DynamicLocalMemorySize */ 0);
 }
 
 } // namespace detail

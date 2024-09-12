@@ -47,6 +47,9 @@ constexpr char SPIRV_GET_SPEC_CONST_VAL[] = "__spirv_SpecConstant";
 constexpr char SPIRV_GET_SPEC_CONST_COMPOSITE[] =
     "__spirv_SpecConstantComposite";
 
+// Name of the metadata which holds a list of all specialization constants (with
+// associated information) encountered in the module
+constexpr char SPEC_CONST_MD_STRING[] = "sycl.specialization-constants";
 // Name of the metadata which holds a default value list of all specialization
 // constants encountered in the module
 constexpr char SPEC_CONST_DEFAULT_VAL_MD_STRING[] =
@@ -1025,9 +1028,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   for (const auto &P : DefaultsMetadata)
     MDDefaults->addOperand(P);
-
-  if (Mode == HandlingMode::default_values)
-    M.getOrInsertNamedMetadata(SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
 
   return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
