@@ -751,6 +751,26 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   return llvm::module_split::parseProcessedModulesFromFile(*TempFileOrErr);
 }
 
+/// Prints the message for DryRun and Verbose modes. The message contains of
+/// input, output and settings.
+void logSYCLLibraryInvocation(
+    ArrayRef<StringRef> InputFiles,
+    const std::vector<module_split::ProcessedModule> &Modules,
+    const module_split::ModuleProcessingSettings &Settings) {
+  auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
+  SmallString<128> SplitOutputFilesStr;
+  for (size_t I = 0, E = Modules.size(); I != E; ++I) {
+    if (I > 0)
+      SplitOutputFilesStr += ',';
+
+    SplitOutputFilesStr += Modules[I].ModuleFilePath;
+  }
+
+  errs() << formatv("sycl-post-link-library: input: {0}, output: {1}, {2}\n",
+                    InputFilesStr, SplitOutputFilesStr,
+                    convertProcessingSettingsToString(Settings));
+}
+
 /// Invokes SYCL Post Link library for SYCL offloading.
 ///
 /// \param InputFiles the list of input LLVM IR files.
@@ -766,11 +786,19 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
   llvm::module_split::ModuleProcessingSettings Settings;
   Settings.Mode = Mode;
   Settings.OutputPrefix = "";
+  if (DryRun) {
+    auto OutputFileOrErr = createOutputFile(
+        sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
+    if (!OutputFileOrErr)
+      return OutputFileOrErr.takeError();
+
+    OutputModules.emplace_back(*OutputFileOrErr, util::PropertySetRegistry(),
+                               "");
+    logSYCLLibraryInvocation(InputFiles, OutputModules, Settings);
+    return OutputModules;
+  }
 
   for (StringRef InputFile : InputFiles) {
-    if (DryRun)
-      break;
-
     SMDiagnostic Err;
     LLVMContext C;
     std::unique_ptr<Module> M = parseIRFile(InputFile, Err, C);
@@ -787,30 +815,8 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                          NewModules.end());
   }
 
-  if (Verbose || DryRun) {
-    if (DryRun) {
-      auto OutputFileOrErr = createOutputFile(
-          sys::path::filename(ExecutableName) + ".sycl.split.image", "bc");
-      if (!OutputFileOrErr)
-        return OutputFileOrErr.takeError();
-
-      OutputModules.emplace_back(*OutputFileOrErr, util::PropertySetRegistry(),
-                                 "");
-    }
-
-    auto InputFilesStr = llvm::join(InputFiles.begin(), InputFiles.end(), ",");
-    std::string SplitOutputFilesStr;
-    for (size_t I = 0, E = OutputModules.size(); I != E; ++I) {
-      if (I > 0)
-        SplitOutputFilesStr += ',';
-
-      SplitOutputFilesStr += OutputModules[I].ModuleFilePath;
-    }
-
-    errs() << formatv("sycl-post-link-library: input: {0}, output: {1}, {2}\n",
-                      InputFilesStr, SplitOutputFilesStr,
-                      convertProcessingSettingsToString(Settings));
-  }
+  if (Verbose)
+    logSYCLLibraryInvocation(InputFiles, OutputModules, Settings);
 
   return OutputModules;
 }
