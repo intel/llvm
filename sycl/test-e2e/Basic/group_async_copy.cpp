@@ -1,4 +1,4 @@
-// RUN: %{build} -std=c++17 -o %t.run
+// RUN: %{build} %cxx_std_optionc++17 -o %t.run
 // RUN: %{run} %t.run
 
 // Windows doesn't yet have full shutdown(). Skipping TC MemLeak tests.
