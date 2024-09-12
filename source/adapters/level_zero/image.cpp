@@ -16,6 +16,7 @@
 #include "sampler.hpp"
 #include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+#include "ze_api.h"
 
 typedef ze_result_t(ZE_APICALL *zeImageGetDeviceOffsetExp_pfn)(
     ze_image_handle_t hImage, uint64_t *pDeviceOffset);
@@ -445,7 +446,8 @@ ur_result_t bindlessImagesCreateImpl(ur_context_handle_t hContext,
   ze_image_handle_t ZeImage;
 
   ze_memory_allocation_properties_t MemAllocProperties{
-      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES};
+      ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES, nullptr,
+      ZE_MEMORY_TYPE_UNKNOWN, 0, 0};
   ZE2UR_CALL(zeMemGetAllocProperties,
              (hContext->ZeContext, reinterpret_cast<const void *>(hImageMem),
               &MemAllocProperties, nullptr));
