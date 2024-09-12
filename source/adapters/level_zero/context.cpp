@@ -530,6 +530,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
         counterBasedExt.flags =
             ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
       }
+      logger::debug("ze_event_pool_desc_t counter based flags set to: {}",
+                    counterBasedExt.flags);
       ZeEventPoolDesc.pNext = &counterBasedExt;
     }
 
