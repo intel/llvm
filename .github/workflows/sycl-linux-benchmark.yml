@@ -304,15 +304,15 @@ jobs:
             cat /usr/local/lib/igc/IGCTAG.txt
           fi
 
-    # - name: Run compute-benchmarks
-    #   id: run_benchmarks
-    #   if: success()
-    #   run: |
-    #     whereis clang++
-    #     whereis sycl-ls
-    #     clang++ --version
-    #     ls
-    #     ./devops/scripts/benchmarking/benchmark.sh
+    - name: Run compute-benchmarks
+      id: run_benchmarks
+      if: success()
+      run: |
+        whereis clang++
+        whereis sycl-ls
+        clang++ --version
+        ls
+        ./devops/scripts/benchmarking/benchmark.sh
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
     #   uses: actions/upload-artifact@v4
