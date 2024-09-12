@@ -116,14 +116,12 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f31160dea6d142014f441bc4ca5e58e48827490e
-  # Merge: 2bbe9526 64068799
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Sep 12 14:19:48 2024 +0200
-  #     Merge pull request #2083 from kswiecicki/xpti-init-fix
-  #     Fix XPTI initialization bug
-  set(UNIFIED_RUNTIME_TAG f31160dea6d142014f441bc4ca5e58e48827490e)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit put-commit-here
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Thu Sep 12 13:56:19 2024 +0100
+  # Set default visibility to hidden in Rel. builds
+  set(UNIFIED_RUNTIME_TAG 29e5519535d5661d6b528b072ab8d2ba3c68323c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
