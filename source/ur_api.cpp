@@ -278,6 +278,7 @@ ur_result_t UR_APICALL urLoaderTearDown(void) {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NumEntries == 0 && phAdapters != NULL`
 ur_result_t UR_APICALL urAdapterGet(
     uint32_t
         NumEntries, ///< [in] the number of adapters to be added to phAdapters.
@@ -287,7 +288,7 @@ ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *
         phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
     ///< If NumEntries is less than the number of adapters available, then
-    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    ///< ::urAdapterGet shall only retrieve that number of adapters.
     uint32_t *
         pNumAdapters ///< [out][optional] returns the total number of adapters available.
 ) {

@@ -25,7 +25,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *
         phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
     ///< If NumEntries is less than the number of adapters available, then
-    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    ///< ::urAdapterGet shall only retrieve that number of adapters.
     uint32_t *
         pNumAdapters ///< [out][optional] returns the total number of adapters available.
 ) {
@@ -36,6 +36,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     }
 
     if (getContext()->enableParameterValidation) {
+        if (NumEntries == 0 && phAdapters != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
