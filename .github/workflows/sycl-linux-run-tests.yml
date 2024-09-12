@@ -380,17 +380,23 @@ jobs:
 
         exit $ret
 
+    - name: Install deps
+      if: inputs.tests_selector == 'benchmark' && success()
+      run: |
+        sudo apt install -y ssh
     - name: Run compute-benchmarks
       id: run_benchmarks
       if: inputs.tests_selector == 'benchmark' && success()
       run: |
         export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh
+        echo $?
     - name: Push compute-benchmarks
       if: inputs.tests_selector == 'benchmark' && success()
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
+        find -maxdepth 3
         mkdir -p ~/.ssh
         echo "$SSH_KEY" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa

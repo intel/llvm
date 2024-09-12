@@ -118,7 +118,7 @@ process_benchmarks() {
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
             echo "# Running $testcase..."
             test_csv_output="$OUTPUT_PATH/$testcase-$TIMESTAMP.csv"
-            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv | tail +8 > "$test_csv_output"
+            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv | tail +8 | tee "$test_csv_output"
             # The tail +8 filters out initial debug prints not in csv format
             if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
                 check_and_cache $testcase $test_csv_output
