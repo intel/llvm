@@ -11,8 +11,8 @@
 ; CHECK-SPIRV: PtrAccessChain [[#]] [[#GEP2]] [[#]] [[#Zero]]
 ; CHECK-SPIRV: FunctionCall [[#]] [[#]] [[#]] [[#GEP1]] [[#GEP2]]
 
-; CHECK-LLVM: %[[#GEP1:]] = getelementptr ptr addrspace(1), ptr addrspace(1) %{{.*}}, i32 0, !spirv.Decorations ![[#Cache1:]]
-; CHECK-LLVM: %[[#GEP2:]] = getelementptr ptr addrspace(1), ptr addrspace(1) %{{.*}}, i32 0, !spirv.Decorations ![[#Cache2:]]
+; CHECK-LLVM: %[[#GEP1:]] = getelementptr i8, ptr addrspace(1) %{{.*}}, i32 0, !spirv.Decorations ![[#Cache1:]]
+; CHECK-LLVM: %[[#GEP2:]] = getelementptr i8, ptr addrspace(1) %{{.*}}, i32 0, !spirv.Decorations ![[#Cache2:]]
 ; CHECK-LLVM: call spir_func void @foo(ptr addrspace(1) %[[#GEP1]], ptr addrspace(1) %[[#GEP2]])
 ; CHECK-LLVM: ![[#Cache1]] = !{![[#LoadCache:]]}
 ; CHECK-LLVM: ![[#LoadCache]] = !{i32 6442, i32 0, i32 1}

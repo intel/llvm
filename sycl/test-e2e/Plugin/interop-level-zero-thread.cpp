@@ -1,5 +1,5 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %{build} -o %t.out %level_zero_options %threads_lib
+// RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=#warnings -o %t.out %level_zero_options %threads_lib
 // RUN: %{run} %t.out
 //
 // CHECK: Running iteration 0
@@ -23,6 +23,7 @@
 // CHECK: Running iteration 18
 // CHECK: Running iteration 19
 
+#include "../helpers.hpp"
 #include <atomic>
 #include <condition_variable>
 #include <deque>
@@ -144,7 +145,7 @@ void worker() {
                          sycl::info::event::command_execution_status>() ==
                      sycl::info::event_command_status::complete;
 
-      if (getenv("QUERY_STATUS") != nullptr) {
+      if (env::isDefined("QUERY_STATUS")) {
         auto ev1 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
             op.sycl_event_sync);
         auto ev2 = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 // TODO: remove fno-fast-math option once the issue is investigated and the test
 // is fixed.
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}

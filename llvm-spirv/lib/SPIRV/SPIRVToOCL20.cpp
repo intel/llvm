@@ -35,11 +35,12 @@
 // This file implements transform SPIR-V builtins to OCL 2.0 builtins.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl20"
 
 #include "OCLUtil.h"
 #include "SPIRVToOCL.h"
 #include "llvm/IR/Verifier.h"
+
+#define DEBUG_TYPE "spvtocl20"
 
 namespace SPIRV {
 

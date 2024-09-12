@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "BufferReleaseBase.hpp"
+#include "gmock/gmock.h"
 
 class BufferDestructionCheck
     : public BufferDestructionCheckCommon<sycl::backend::opencl> {};
@@ -86,46 +87,6 @@ TEST_F(BufferDestructionCheck, BufferWithSizeOnlyDefaultAllocator) {
   ASSERT_EQ(MockSchedulerPtr->MDeferredMemObjRelease.size(), 1u);
   EXPECT_EQ(MockSchedulerPtr->MDeferredMemObjRelease[0].get(),
             RawBufferImplPtr);
-}
-
-pi_device GlobalDeviceHandle(createDummyHandle<pi_device>());
-
-inline pi_result customMockDevicesGet(pi_platform platform,
-                                      pi_device_type device_type,
-                                      pi_uint32 num_entries, pi_device *devices,
-                                      pi_uint32 *num_devices) {
-  if (num_devices)
-    *num_devices = 1;
-
-  if (devices && num_entries > 0)
-    devices[0] = GlobalDeviceHandle;
-
-  return PI_SUCCESS;
-}
-
-inline pi_result customMockContextGetInfo(pi_context context,
-                                          pi_context_info param_name,
-                                          size_t param_value_size,
-                                          void *param_value,
-                                          size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_CONTEXT_INFO_NUM_DEVICES: {
-    if (param_value)
-      *static_cast<pi_uint32 *>(param_value) = 1;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_uint32);
-    return PI_SUCCESS;
-  }
-  case PI_CONTEXT_INFO_DEVICES: {
-    if (param_value)
-      *static_cast<pi_device *>(param_value) = GlobalDeviceHandle;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(GlobalDeviceHandle);
-    break;
-  }
-  default:;
-  }
-  return PI_SUCCESS;
 }
 
 TEST_F(BufferDestructionCheck, BufferWithRawHostPtr) {
@@ -235,19 +196,19 @@ TEST_F(BufferDestructionCheck, BufferWithIterators) {
             RawBufferImplPtr);
 }
 
-std::map<pi_event, pi_int32> ExpectedEventStatus;
-pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
-                           void *PV, size_t *PVSizeRet) {
-  EXPECT_EQ(PName, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+std::map<ur_event_handle_t, ur_event_status_t> ExpectedEventStatus;
+ur_result_t replaceEventGetInfo(void *pParams) {
+  auto params = *reinterpret_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unknown param name";
   // could not use assert here
-  EXPECT_EQ(PVSize, 4u);
-  auto it = ExpectedEventStatus.find(Event);
+  EXPECT_EQ(*params.ppropSize, 4u);
+  auto it = ExpectedEventStatus.find(*params.phEvent);
   if (it != ExpectedEventStatus.end()) {
-    *(static_cast<pi_int32 *>(PV)) = it->second;
-    return PI_SUCCESS;
+    *(static_cast<int32_t *>(*params.ppPropValue)) = it->second;
+    return UR_RESULT_SUCCESS;
   } else
-    return PI_ERROR_INVALID_OPERATION;
+    return UR_RESULT_ERROR_INVALID_OPERATION;
 }
 
 TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
@@ -265,12 +226,13 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   MockCmdWithReleaseTracking *WriteCmd = nullptr;
   ReadCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
-  ReadCmd->getEvent()->getHandleRef() =
-      createDummyHandle<pi_event>(); // just assign to be able to use mock
+  // These dummy handles are automatically cleaned up by the runtime
+  ReadCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
+      mock::createDummyHandle<ur_event_handle_t>()));
   WriteCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
-  WriteCmd->getEvent()->getHandleRef() =
-      createDummyHandle<pi_event>(); // just assign to be able to use mock
+  WriteCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
+      mock::createDummyHandle<ur_event_handle_t>()));
   ReadCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
   WriteCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
 
@@ -281,23 +243,28 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   MockSchedulerPtr->addNodeToLeaves(Rec, WriteCmd, sycl::access::mode::write,
                                     ToEnqueue);
 
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &replaceEventGetInfo);
   testing::InSequence S;
 
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_SUBMITTED;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
-      PI_EVENT_SUBMITTED;
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_SUBMITTED;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_SUBMITTED;
 
   EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
 
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
-      PI_EVENT_SUBMITTED;
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_COMPLETE;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_SUBMITTED;
 
   EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
 
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] = PI_EVENT_COMPLETE;
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_COMPLETE;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_COMPLETE;
   EXPECT_TRUE(MockSchedulerPtr->checkLeavesCompletion(Rec));
   // previous expect_call is still valid and will generate failure if we recieve
   // call here, no need for extra limitation

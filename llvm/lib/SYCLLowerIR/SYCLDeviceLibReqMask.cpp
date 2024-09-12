@@ -436,6 +436,44 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_vsads4", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_vsadu2", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_vsadu4", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_s16x2_relu",
+     DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmax_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_s16x2_relu",
+     DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_viaddmin_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmax_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmax_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmax_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmax_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmin_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmin_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmin_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vibmin_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_s16x2_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_s16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_s16x2_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_s32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax3_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_u16x2", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin3_u32", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax_s16x2_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimax_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin_s16x2_relu", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_vimin_s32_relu", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_double2half", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2bfloat16",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
@@ -725,7 +763,7 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
 uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
-  if (!Triple(M.getTargetTriple()).isSPIR())
+  if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
     return 0;
   uint32_t ReqMask = 0;
   for (const Function &SF : M) {

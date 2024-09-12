@@ -4,7 +4,7 @@
 // UNSUPPORTED: cuda || hip
 // TODO: Similar issue to FPGAs
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 //==-- get_subgroup_sizes.cpp - Test for bug fix in subgroup sizes query --==//

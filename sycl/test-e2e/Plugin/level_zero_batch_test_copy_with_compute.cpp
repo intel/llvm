@@ -4,25 +4,25 @@
 // RUN: %{build} -o %t.out
 
 // Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
 
 // Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
 
 // Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
 
 // Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
 
 // Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
 
 // Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
 
 // Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
 
 // level_zero_batch_test_copy_with_compute.cpp
 //
@@ -31,55 +31,55 @@
 // variable SYCL_PI_LEVEL_ZERO_{COPY_}BATCH_SIZE=N.
 // This test enqueues 8 kernels and then does a wait. And it does this 3 times.
 // Expected output is that for batching =1 you will see zeCommandListClose,
-// and zeCommandQueueExecuteCommandLists after every piEnqueueKernelLaunch.
+// and zeCommandQueueExecuteCommandLists after every urEnqueueKernelLaunch.
 // For batching=3 you will see that after 3rd and 6th enqueues, and then after
-// piEventsWait. For 5, after 5th piEnqueue, and then after piEventsWait.  For
+// urEventWait. For 5, after 5th urEnqueue, and then after urEventWait.  For
 // 4 you will see these after 4th and 8th Enqueue, and for 8, only after the
 // 8th enqueue.  And lastly for 9, you will see the Close and Execute calls
-// only after the piEventsWait.
+// only after the urEventWait.
 // Since the test does this 3 times, this pattern will repeat 2 more times,
 // and then the test will print Test Passed 8 times, once for each kernel
 // validation check.
 // Pattern starts first set of kernel executions.
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -87,7 +87,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -97,45 +97,45 @@
 // CKB9:  ZE ---> zeCommandListClose(
 // CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 2nd set of kernel executions
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -143,7 +143,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
@@ -153,45 +153,45 @@
 // CKB9:  ZE ---> zeCommandListClose(
 // CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
 // Pattern starts 3rd set of kernel executions
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB4:  ZE ---> zeCommandListClose(
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(
 // CKB5:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB7:  ZE ---> zeCommandListClose(
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piEnqueueKernelLaunch(
+// CKALL: ---> urEnqueueKernelLaunch
 // CKALL: ZE ---> zeCommandListAppendLaunchKernel(
 // CKB1:  ZE ---> zeCommandListClose(
 // CKB1:  ZE ---> zeCommandQueueExecuteCommandLists(
@@ -199,7 +199,7 @@
 // CKB4:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB8:  ZE ---> zeCommandListClose(
 // CKB8:  ZE ---> zeCommandQueueExecuteCommandLists(
-// CKALL: ---> piQueueFinish(
+// CKALL: ---> urQueueFinish
 // CKB3:  ZE ---> zeCommandListClose(
 // CKB3:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB5:  ZE ---> zeCommandListClose(

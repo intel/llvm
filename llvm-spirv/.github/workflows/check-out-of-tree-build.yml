@@ -29,7 +29,7 @@ on:
     - cron: 0 0 * * *
 
 env:
-  LLVM_VERSION: 19
+  LLVM_VERSION: 20
 
 jobs:
   build_and_test:
@@ -80,7 +80,6 @@ jobs:
             -DCMAKE_CXX_FLAGS="-Werror" \
             -DLLVM_INCLUDE_TESTS=ON \
             -DLLVM_EXTERNAL_LIT="/usr/lib/llvm-${{ env.LLVM_VERSION }}/build/utils/lit/lit.py" \
-            -DLLVM_EXTERNAL_PROJECTS="SPIRV-Headers" \
             -DLLVM_EXTERNAL_SPIRV_HEADERS_SOURCE_DIR=${{ github.workspace }}/SPIRV-Headers \
             -G "Unix Makefiles"
       - name: Build

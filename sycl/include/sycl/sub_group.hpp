@@ -11,17 +11,12 @@
 #include <sycl/access/access.hpp>              // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
 #include <sycl/exception.hpp>                  // for exception, make_error...
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
-
-#ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/ext/oneapi/functional.hpp>
-#endif
 
 #include <stdint.h>    // for uint32_t
 #include <tuple>       // for _Swallow_assign, ignore
@@ -32,7 +27,7 @@ inline namespace _V1 {
 template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 class multi_ptr;
-template <typename Type, int NumElements> class vec;
+template <typename Type, int NumElements> class __SYCL_EBO vec;
 namespace detail {
 
 namespace sub_group {
@@ -239,7 +234,7 @@ struct sub_group {
     if (g)
       return load(g);
 
-    assert(!"Sub-group load() is supported for local or global pointers only.");
+    // Sub-group load() is supported for local or global pointers only.
     return {};
 #endif // __NVPTX__ || __AMDGCN__
   }
@@ -421,8 +416,7 @@ struct sub_group {
       return;
     }
 
-    assert(
-        !"Sub-group store() is supported for local or global pointers only.");
+    // Sub-group store() is supported for local or global pointers only.
     return;
 #endif // __NVPTX__ || __AMDGCN__
   }
