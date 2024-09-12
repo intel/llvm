@@ -594,7 +594,7 @@ config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 if lit_config.params.get("ze_debug"):
     config.available_features.add("ze_debug")
 
-if config.zstd_found and config.zstd_found == 'TRUE':
+if config.zstd_found and config.zstd_found == "TRUE":
     config.available_features.add("zstd")
 
 if config.run_launcher:

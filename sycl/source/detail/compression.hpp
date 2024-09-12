@@ -144,3 +144,4 @@ private:
 } // namespace sycl
 
 #endif // SYCL_RT_ZSTD_NOT_AVAIABLE
+
