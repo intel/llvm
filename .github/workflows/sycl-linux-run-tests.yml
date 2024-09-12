@@ -112,7 +112,7 @@ on:
         options:
           - e2e
           - cts
-          #- benchmark
+          - benchmark
 
       env:
         description: |
@@ -365,15 +365,15 @@ jobs:
 
         exit $ret
 
-    # - name: Run compute-benchmarks
-    #   id: run_benchmarks
-    #   if: inputs.tests_selector == 'benchmark' && success()
-    #   run: |
-    #     whereis clang++
-    #     whereis sycl-ls
-    #     clang++ --version
-    #     ls
-    #     ./devops/scripts/benchmarking/benchmark.sh
+    - name: Run compute-benchmarks
+      id: run_benchmarks
+      if: inputs.tests_selector == 'benchmark' && success()
+      run: |
+        whereis clang++
+        whereis sycl-ls
+        clang++ --version
+        ls
+        ./devops/scripts/benchmarking/benchmark.sh
     # - name: Upload sycl-bench microbenchmark results
     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
     #   uses: actions/upload-artifact@v4
