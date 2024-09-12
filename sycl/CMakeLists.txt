@@ -57,8 +57,8 @@ if(MSVC)
 
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-  include(LLVMCheckLinkerFlag)
-  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -80,7 +80,7 @@ if(MSVC)
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("/OPT:REF" "/OPT:ICF")
     endif()
@@ -251,6 +251,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMENT "Copying SYCL headers ...")
 
@@ -262,6 +263,8 @@ install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+  COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)
 install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
   COMPONENT sycl-headers)

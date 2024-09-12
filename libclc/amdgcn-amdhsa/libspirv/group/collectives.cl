@@ -212,7 +212,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
     if (sg_lid == sg_size - 1) {                                               \
       scratch[sg_id] = carry;                                                  \
     }                                                                          \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
+    __spirv_ControlBarrier(Workgroup, Workgroup, AcquireRelease);              \
     /* Perform InclusiveScan over sub-group results */                         \
     TYPE sg_prefix;                                                            \
     TYPE sg_aggregate = scratch[0];                                            \
@@ -235,7 +235,7 @@ __CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
         result = OP(sg_x, sg_prefix);                                          \
       }                                                                        \
     }                                                                          \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
+    __spirv_ControlBarrier(Workgroup, Workgroup, AcquireRelease);              \
     return result;                                                             \
   }
 
@@ -401,9 +401,9 @@ long __clc__3d_to_linear_local_id(ulong3 id) {
     if (source) {                                                              \
       *scratch = x;                                                            \
     }                                                                          \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
+    __spirv_ControlBarrier(Workgroup, Workgroup, AcquireRelease);              \
     TYPE result = *scratch;                                                    \
-    __spirv_ControlBarrier(Workgroup, 0, 0);                                   \
+    __spirv_ControlBarrier(Workgroup, Workgroup, AcquireRelease);              \
     return result;                                                             \
   }                                                                            \
   _CLC_DEF _CLC_OVERLOAD _CLC_CONVERGENT TYPE __spirv_GroupBroadcast(          \

@@ -12,11 +12,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// the new spec for the kernel_compiler opens the door to supporting several
-// different source languages. But, initially, OpenCL Kernels are the only ones
-// supported. This test is limited to that (thus the cm-compiler requirement)
-// but in the future it may need to broken out into other tests.
-
 #include <sycl/detail/core.hpp>
 
 auto constexpr CLSource = R"===(

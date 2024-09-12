@@ -1,6 +1,6 @@
 // REQUIRES: cpu
 
-// RUN: %{build} -std=c++17 -o %t.out
+// RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

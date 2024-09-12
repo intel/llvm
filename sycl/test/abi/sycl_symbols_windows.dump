@@ -13,7 +13,9 @@
 ??$create_sub_devices@$0BAIH@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@_KV?$allocator@_K@std@@@4@@Z
 ??$create_sub_devices@$0BAII@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@W4partition_affinity_domain@info@12@@Z
 ??$create_sub_devices@$0BAIJ@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
-??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KAEBVqueue@12@@Z
+??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@@Z
+??$ext_oneapi_get_info@Umax_num_work_group_sync@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
+??$ext_oneapi_get_info@Umax_num_work_groups@kernel_queue_specific@info@experimental@oneapi@ext@_V1@sycl@@@kernel@_V1@sycl@@QEBA_KVqueue@12@AEBV?$range@$02@12@_K@Z
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@event@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -3862,6 +3864,7 @@
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uexternal_semaphore@experimental@oneapi@ext@23@_KV423@AEBUcode_location@detail@23@@Z
 ?extractArgsAndReqs@handler@_V1@sycl@@AEAAXXZ
+?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEADAEBV?$vector@Ukernel_param_desc_t@detail@_V1@sycl@@V?$allocator@Ukernel_param_desc_t@detail@_V1@sycl@@@std@@@std@@_N@Z
 ?extractArgsAndReqsFromLambda@handler@_V1@sycl@@AEAAXPEAD_KPEBUkernel_param_desc_t@detail@23@_N@Z
 ?fill_impl@handler@_V1@sycl@@AEAAXPEAXPEBX_K2@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
@@ -4032,6 +4035,7 @@
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platform@device@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
+?get_unsupported_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
 ?get_pointer_device@_V1@sycl@@YA?AVdevice@12@PEBXAEBVcontext@12@@Z
 ?get_pointer_type@_V1@sycl@@YA?AW4alloc@usm@12@PEBXAEBVcontext@12@@Z
 ?get_precision@stream@_V1@sycl@@QEBA_KXZ
@@ -4265,9 +4269,9 @@
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBVnode@34567@@Z
 ?updateAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVAccessorBaseHost@267@@Z
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
+?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVraw_kernel_arg@34567@_K@Z
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
-?verifyUsedKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?verifyUsedKernelBundleInternal@handler@_V1@sycl@@AEAAXVstring_view@detail@23@@Z
 ?wait@event@_V1@sycl@@QEAAXXZ
 ?wait@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z

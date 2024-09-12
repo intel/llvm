@@ -25,9 +25,9 @@ platform::platform() : platform(default_selector_v) {}
 platform::platform(cl_platform_id PlatformId) {
   auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
-  Plugin->call(urPlatformCreateWithNativeHandle,
-               detail::ur::cast<ur_native_handle_t>(PlatformId),
-               Plugin->getUrAdapter(), /* pProperties = */ nullptr, &UrPlatform);
+  Plugin->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Plugin->getUrAdapter(),
+      /* pProperties = */ nullptr, &UrPlatform);
   impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
 }
 
@@ -50,6 +50,10 @@ std::vector<device> platform::get_devices(info::device_type DeviceType) const {
 
 std::vector<platform> platform::get_platforms() {
   return detail::platform_impl::get_platforms();
+}
+
+std::vector<platform> platform::get_unsupported_platforms() {
+  return detail::platform_impl::get_unsupported_platforms();
 }
 
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
