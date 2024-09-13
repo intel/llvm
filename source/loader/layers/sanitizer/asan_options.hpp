@@ -46,7 +46,10 @@ struct AsanOptions {
         try {
             OptionsEnvMap = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
         } catch (const std::invalid_argument &e) {
-            logger.error(e.what());
+            std::stringstream SS;
+            SS << "<SANITIZER>[ERROR]: ";
+            SS << e.what();
+            logger.always(SS.str().c_str());
             die("Sanitizer failed to parse options.\n");
         }
 
