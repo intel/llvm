@@ -1133,6 +1133,11 @@ public:
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   SemaDiagnosticBuilder::DeferredDiagnosticsType DeviceDeferredDiags;
+  /// Used to track deferred diagnostic that happened in an initializer of a
+  /// constexpr variable. When it is known that a variable doesn't have
+  /// constexpr initializer content of this container is pushed to
+  /// DeviceDeferredDiags.
+  SemaDiagnosticBuilder::DeferredDiagnosticsType MaybeDeviceDeferredDiags;
 
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
@@ -2168,6 +2173,8 @@ public:
   /// ExpressionEvaluationContextRecord object.
   bool isConstantEvaluatedOverride = false;
 
+  bool InConstexprVarInit = false;
+
   bool isConstantEvaluatedContext() const {
     return currentEvaluationContext().isConstantEvaluated() ||
            isConstantEvaluatedOverride;
@@ -2215,6 +2222,7 @@ public:
     FST_FreeBSDKPrintf,
     FST_OSTrace,
     FST_OSLog,
+    FST_Syslog,
     FST_Unknown
   };
   static FormatStringType GetFormatStringType(const FormatAttr *Format);
@@ -3464,6 +3472,8 @@ public:
                                     TemplateIdAnnotation *TemplateId,
                                     bool IsMemberSpecialization);
 
+  bool checkPointerAuthEnabled(SourceLocation Loc, SourceRange Range);
+
   bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
 
   /// Diagnose function specifiers on a declaration of an identifier that
@@ -4701,159 +4711,6 @@ public:
   /// been delayed in the current context instead of in the given pool.
   /// Essentially, this just moves them to the current pool.
   void redelayDiagnostics(sema::DelayedDiagnosticPool &pool);
-
-  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr **Exprs, unsigned Size);
-  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
-                               const Expr *LHSZDim, const Expr *RHSXDim,
-                               const Expr *RHSYDim, const Expr *RHSZDim);
-  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
-                             const Expr *LHSZDim, const Expr *RHSXDim,
-                             const Expr *RHSYDim, const Expr *RHSZDim);
-  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLWorkGroupSizeHintAttr *
-  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
-  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  IntelReqdSubGroupSizeAttr *
-  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
-  IntelNamedSubGroupSizeAttr *
-  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
-  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelNumSimdWorkItemsAttr *
-  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
-                                     const SYCLIntelNumSimdWorkItemsAttr &A);
-  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelESimdVectorizeAttr *
-  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
-                                   const SYCLIntelESimdVectorizeAttr &A);
-  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
-  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
-      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
-  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelLoopFuseAttr *
-  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
-  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  SYCLIntelMaxReplicatesAttr *
-  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
-  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelForcePow2DepthAttr *
-  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
-                                   const SYCLIntelForcePow2DepthAttr &A);
-  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
-      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
-
-  SYCLIntelMaxConcurrencyAttr *
-  MergeSYCLIntelMaxConcurrencyAttr(Decl *D,
-                                   const SYCLIntelMaxConcurrencyAttr &A);
-  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelMaxGlobalWorkDimAttr *
-  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
-  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
-  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
-  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
-  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
-  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLIntelBankWidthAttr *
-  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
-  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelNumBanksAttr *
-  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
-  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
-                                            const SYCLDeviceHasAttr &A);
-  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
-                            Expr **Exprs, unsigned Size);
-  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
-                                                const SYCLUsesAspectsAttr &A);
-  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
-                              Expr **Exprs, unsigned Size);
-  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
-                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
-                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
-  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLIntelMaxWorkGroupSizeAttr *
-  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
-                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
-  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
-  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
-      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
-  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesKernelParameterAttr *
-  MergeSYCLAddIRAttributesKernelParameterAttr(
-      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
-  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
-                                                 const AttributeCommonInfo &CI,
-                                                 MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesGlobalVariableAttr *
-  MergeSYCLAddIRAttributesGlobalVariableAttr(
-      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
-  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
-                                                const AttributeCommonInfo &CI,
-                                                MutableArrayRef<Expr *> Args);
-  SYCLAddIRAnnotationsMemberAttr *
-  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
-                                      const SYCLAddIRAnnotationsMemberAttr &A);
-  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         MutableArrayRef<Expr *> Args);
-  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLReqdWorkGroupSizeAttr *
-  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
-
-  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                  SYCLTypeAttr::SYCLType TypeName);
-
-  /// Emit a diagnostic about the given attribute having a deprecated name, and
-  /// also emit a fixit hint to generate the new attribute name.
-  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
-                                   StringRef NewName);
-
-  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
-  /// the attribute in the 'intel' namespace instead.
-  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
-                                            StringRef NewName = "");
-
-  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
-  /// declaration.
-  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
-  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
-                                                const SYCLIntelPipeIOAttr &A);
-
-  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
-  /// particular declaration.
-  void AddSYCLIntelMaxConcurrencyAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
 
   bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
   /// Check if IdxExpr is a valid parameter index for a function or
@@ -15241,6 +15098,44 @@ public:
   ///
   /// Triggered by declaration-attribute processing.
   void ProcessAPINotes(Decl *D);
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name Bounds Safety
+  /// Implementations are in SemaBoundsSafety.cpp
+  ///@{
+public:
+  /// Check if applying the specified attribute variant from the "counted by"
+  /// family of attributes to FieldDecl \p FD is semantically valid. If
+  /// semantically invalid diagnostics will be emitted explaining the problems.
+  ///
+  /// \param FD The FieldDecl to apply the attribute to
+  /// \param E The count expression on the attribute
+  /// \param[out] Decls If the attribute is semantically valid \p Decls
+  ///             is populated with TypeCoupledDeclRefInfo objects, each
+  ///             describing Decls referred to in \p E.
+  /// \param CountInBytes If true the attribute is from the "sized_by" family of
+  ///                     attributes. If the false the attribute is from
+  ///                     "counted_by" family of attributes.
+  /// \param OrNull If true the attribute is from the "_or_null" suffixed family
+  ///               of attributes. If false the attribute does not have the
+  ///               suffix.
+  ///
+  /// Together \p CountInBytes and \p OrNull decide the attribute variant. E.g.
+  /// \p CountInBytes and \p OrNull both being true indicates the
+  /// `counted_by_or_null` attribute.
+  ///
+  /// \returns false iff semantically valid.
+  bool CheckCountedByAttrOnField(
+      FieldDecl *FD, Expr *E,
+      llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls, bool CountInBytes,
+      bool OrNull);
 
   ///@}
 };

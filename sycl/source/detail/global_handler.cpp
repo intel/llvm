@@ -273,7 +273,11 @@ void GlobalHandler::unloadPlugins() {
     }
   }
 
-  urLoaderTearDown();
+  UrFuncInfo<UrApiKind::urLoaderTearDown> loaderTearDownInfo;
+  auto loaderTearDown =
+      loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  loaderTearDown();
+  // urLoaderTearDown();
 
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
@@ -355,14 +359,15 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  // TODO: Remove from public header files and implementation during the next
-  // ABI Breaking window.
-  if (std::getenv("SYCL_PI_TRACE")) {
-    std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
-    std::exit(1);
+  bool PrintUrTrace = false;
+  try {
+    PrintUrTrace =
+        sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
+    return FALSE;
   }
 
-  bool PrintUrTrace = sycl::detail::ur::trace();
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
@@ -372,7 +377,8 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents release.
+                   // TODO: figure out what XPTI is doing that prevents
+                   // release.
 #endif
 
     shutdown_win();

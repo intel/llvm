@@ -10413,7 +10413,7 @@ void Sema::checkIncorrectVTablePointerAuthenticationAttribute(
   while (1) {
     assert(PrimaryBase);
     const CXXRecordDecl *Base = nullptr;
-    for (auto BasePtr : PrimaryBase->bases()) {
+    for (const CXXBaseSpecifier &BasePtr : PrimaryBase->bases()) {
       if (!BasePtr.getType()->getAsCXXRecordDecl()->isDynamicClass())
         continue;
       Base = BasePtr.getType()->getAsCXXRecordDecl();
@@ -12276,16 +12276,15 @@ Decl *Sema::ActOnUsingEnumDeclaration(Scope *S, AccessSpecifier AS,
                                       SourceLocation EnumLoc, SourceRange TyLoc,
                                       const IdentifierInfo &II, ParsedType Ty,
                                       CXXScopeSpec *SS) {
-  assert(!SS->isInvalid() && "ScopeSpec is invalid");
+  assert(SS && !SS->isInvalid() && "ScopeSpec is invalid");
   TypeSourceInfo *TSI = nullptr;
   SourceLocation IdentLoc = TyLoc.getBegin();
   QualType EnumTy = GetTypeFromParser(Ty, &TSI);
   if (EnumTy.isNull()) {
-    Diag(IdentLoc, SS && isDependentScopeSpecifier(*SS)
+    Diag(IdentLoc, isDependentScopeSpecifier(*SS)
                        ? diag::err_using_enum_is_dependent
                        : diag::err_unknown_typename)
-        << II.getName()
-        << SourceRange(SS ? SS->getBeginLoc() : IdentLoc, TyLoc.getEnd());
+        << II.getName() << SourceRange(SS->getBeginLoc(), TyLoc.getEnd());
     return nullptr;
   }
 
@@ -18346,6 +18345,9 @@ void Sema::ActOnCXXEnterDeclInitializer(Scope *S, Decl *D) {
   if (S && D->isOutOfLine())
     EnterDeclaratorContext(S, D->getDeclContext());
 
+  if (auto *VD = dyn_cast<VarDecl>(D);
+      VD && (VD->mightBeUsableInConstantExpressions(Context)))
+    InConstexprVarInit = LangOpts.SYCLAllowAllFeaturesInConstexpr;
   PushExpressionEvaluationContext(
       ExpressionEvaluationContext::PotentiallyEvaluated, D);
 }
@@ -18356,23 +18358,32 @@ void Sema::ActOnCXXExitDeclInitializer(Scope *S, Decl *D) {
   if (S && D->isOutOfLine())
     ExitDeclaratorContext(S);
 
-  if (getLangOpts().CPlusPlus23) {
-    // An expression or conversion is 'manifestly constant-evaluated' if it is:
-    // [...]
-    // - the initializer of a variable that is usable in constant expressions or
-    //   has constant initialization.
-    if (auto *VD = dyn_cast<VarDecl>(D);
-        VD && (VD->isUsableInConstantExpressions(Context) ||
-               VD->hasConstantInitialization())) {
-      // An expression or conversion is in an 'immediate function context' if it
-      // is potentially evaluated and either:
-      // [...]
-      // - it is a subexpression of a manifestly constant-evaluated expression
-      //   or conversion.
-      ExprEvalContexts.back().InImmediateFunctionContext = true;
+  if (auto *VD = dyn_cast<VarDecl>(D)) {
+    if (VD->isUsableInConstantExpressions(Context) ||
+        VD->hasConstantInitialization()) {
+      if (getLangOpts().CPlusPlus23) {
+        // An expression or conversion is 'manifestly constant-evaluated' if it
+        // is:
+        // [...]
+        // - the initializer of a variable that is usable in constant
+        // expressions or
+        //   has constant initialization.
+        // An expression or conversion is in an 'immediate function context' if
+        // it is potentially evaluated and either:
+        // [...]
+        // - it is a subexpression of a manifestly constant-evaluated expression
+        //   or conversion.
+        ExprEvalContexts.back().InImmediateFunctionContext = true;
+      }
+    } else {
+      for (auto &DDEntry : MaybeDeviceDeferredDiags)
+        for (auto &DD : DDEntry.second)
+          DeviceDeferredDiags[DDEntry.first].push_back(DD);
     }
+    MaybeDeviceDeferredDiags.clear();
   }
 
+  InConstexprVarInit = false;
   // Unless the initializer is in an immediate function context (as determined
   // above), this will evaluate all contained immediate function calls as
   // constant expressions. If the initializer IS an immediate function context,

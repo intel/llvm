@@ -102,8 +102,9 @@ public:
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          ur_result_t Err = Plugin->call_nocheck(urProgramRelease, Val);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Plugin->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -140,8 +141,9 @@ public:
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          ur_result_t Err = Plugin->call_nocheck(urKernelRelease, Val.first);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Plugin->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -327,7 +329,8 @@ public:
         BuildResult->Error.Code = detail::get_ur_error(Ex);
         if (Ex.code() == errc::memory_allocation ||
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
           continue;
