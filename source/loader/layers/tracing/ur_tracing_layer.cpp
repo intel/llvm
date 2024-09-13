@@ -34,14 +34,15 @@ struct XptiContextManager {
     ~XptiContextManager() { xptiFrameworkFinalize(); }
 };
 
-static std::shared_ptr<XptiContextManager> xptiContextManagerGlobal = [] {
-    return std::make_shared<XptiContextManager>();
-}();
+static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {
+    static auto contextManager = std::make_shared<XptiContextManager>();
+    return contextManager;
+};
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
 context_t::context_t() : logger(logger::create_logger("tracing", true, true)) {
-    this->xptiContextManager = xptiContextManagerGlobal;
+    this->xptiContextManager = xptiContextManagerGet();
 
     call_stream_id = xptiRegisterStream(CALL_STREAM_NAME);
     std::ostringstream streamv;
