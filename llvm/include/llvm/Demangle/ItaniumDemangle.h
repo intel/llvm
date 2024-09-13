@@ -2697,7 +2697,7 @@ template <typename Derived, typename Alloc> struct AbstractManglingParser {
 
   bool TryToParseTemplateArgs = true;
   bool PermitForwardTemplateReferences = false;
-  bool InConstraintExpr = false;
+  bool HasIncompleteTemplateParameterTracking = false;
   size_t ParsingLambdaParamsAtLevel = (size_t)-1;
 
   unsigned NumSyntheticTemplateParameters[3] = {};
@@ -4838,7 +4838,8 @@ template <typename Derived, typename Alloc>
 Node *AbstractManglingParser<Derived, Alloc>::parseConstraintExpr() {
   // Within this expression, all enclosing template parameter lists are in
   // scope.
-  ScopedOverride<bool> SaveInConstraintExpr(InConstraintExpr, true);
+  ScopedOverride<bool> SaveIncompleteTemplateParameterTracking(
+      HasIncompleteTemplateParameterTracking, true);
   return getDerived().parseExpr();
 }
 
@@ -5696,7 +5697,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParam() {
   // substitute them all within a <constraint-expression>, so print the
   // parameter numbering instead for now.
   // TODO: Track all enclosing template parameters and substitute them here.
-  if (InConstraintExpr) {
+  if (HasIncompleteTemplateParameterTracking) {
     return make<NameType>(std::string_view(Begin, First - 1 - Begin));
   }
 
@@ -5757,6 +5758,12 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParamDecl(
   }
 
   if (consumeIf("Tk")) {
+    // We don't track enclosing template parameter levels well enough to
+    // reliably demangle template parameter substitutions, so print an arbitrary
+    // string in place of a parameter for now.
+    // TODO: Track all enclosing template parameters and demangle substitutions.
+    ScopedOverride<bool> SaveIncompleteTemplateParameterTrackingExpr(
+        HasIncompleteTemplateParameterTracking, true);
     Node *Constraint = getDerived().parseName();
     if (!Constraint)
       return nullptr;

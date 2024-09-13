@@ -2146,7 +2146,7 @@ static bool IsLiteralLValue(const LValue &Value) {
   if (Value.getLValueCallIndex())
     return false;
   const Expr *E = Value.Base.dyn_cast<const Expr*>();
-  return E && !isa<MaterializeTemporaryExpr>(E);
+  return E && !isa<MaterializeTemporaryExpr, StringLiteral>(E);
 }
 
 static bool IsWeakLValue(const LValue &Value) {
@@ -10953,6 +10953,15 @@ bool VectorExprEvaluator::VisitCastExpr(const CastExpr *E) {
 
     return true;
   }
+  case CK_HLSLVectorTruncation: {
+    APValue Val;
+    SmallVector<APValue, 4> Elements;
+    if (!EvaluateVector(SE, Val, Info))
+      return Error(E);
+    for (unsigned I = 0; I < NElts; I++)
+      Elements.push_back(Val.getVectorElt(I));
+    return Success(Elements, E);
+  }
   default:
     return ExprEvaluatorBaseTy::VisitCastExpr(E);
   }
@@ -14508,7 +14517,6 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
   case CK_FixedPointCast:
   case CK_IntegralToFixedPoint:
   case CK_MatrixCast:
-  case CK_HLSLVectorTruncation:
     llvm_unreachable("invalid cast kind for integral value");
 
   case CK_BitCast:
@@ -14680,6 +14688,12 @@ bool IntExprEvaluator::VisitCastExpr(const CastExpr *E) {
     if (!HandleFloatToIntCast(Info, E, SrcType, F, DestType, Value))
       return false;
     return Success(Value, E);
+  }
+  case CK_HLSLVectorTruncation: {
+    APValue Val;
+    if (!EvaluateVector(SubExpr, Val, Info))
+      return Error(E);
+    return Success(Val.getVectorElt(0), E);
   }
   }
 
@@ -15206,6 +15220,12 @@ bool FloatExprEvaluator::VisitCastExpr(const CastExpr *E) {
       return false;
     Result = V.getComplexFloatReal();
     return true;
+  }
+  case CK_HLSLVectorTruncation: {
+    APValue Val;
+    if (!EvaluateVector(SubExpr, Val, Info))
+      return Error(E);
+    return Success(Val.getVectorElt(0), E);
   }
   }
 }

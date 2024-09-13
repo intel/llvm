@@ -585,11 +585,6 @@ protected:
       const SCEV2ValueTy &ExpandedSCEVs,
       std::pair<BasicBlock *, Value *> AdditionalBypass = {nullptr, nullptr});
 
-  /// Complete the loop skeleton by adding debug MDs, creating appropriate
-  /// conditional branches in the middle block, preparing the builder and
-  /// running the verifier. Return the preheader of the completed vector loop.
-  BasicBlock *completeLoopSkeleton();
-
   /// Allow subclasses to override and print debug traces before/after vplan
   /// execution, when trace information is requested.
   virtual void printDebugTracesAtStart(){};
@@ -1182,13 +1177,23 @@ public:
                            InstructionCost Cost) {
     assert(VF.isVector() && "Expected VF >=2");
     /// Broadcast this decicion to all instructions inside the group.
-    /// But the cost will be assigned to one instruction only.
+    /// When interleaving, the cost will only be assigned one instruction, the
+    /// insert position. For other cases, add the appropriate fraction of the
+    /// total cost to each instruction. This ensures accurate costs are used,
+    /// even if the insert position instruction is not used.
+    InstructionCost InsertPosCost = Cost;
+    InstructionCost OtherMemberCost = 0;
+    if (W != CM_Interleave)
+      OtherMemberCost = InsertPosCost = Cost / Grp->getNumMembers();
+    ;
     for (unsigned Idx = 0; Idx < Grp->getFactor(); ++Idx) {
       if (auto *I = Grp->getMember(Idx)) {
         if (Grp->getInsertPos() == I)
-          WideningDecisions[std::make_pair(I, VF)] = std::make_pair(W, Cost);
+          WideningDecisions[std::make_pair(I, VF)] =
+              std::make_pair(W, InsertPosCost);
         else
-          WideningDecisions[std::make_pair(I, VF)] = std::make_pair(W, 0);
+          WideningDecisions[std::make_pair(I, VF)] =
+              std::make_pair(W, OtherMemberCost);
       }
     }
   }
@@ -8686,14 +8691,7 @@ addUsersInExitBlock(VPlan &Plan,
       cast<VPBasicBlock>(Plan.getVectorLoopRegion()->getSingleSuccessor());
   BasicBlock *ExitBB =
       cast<VPIRBasicBlock>(MiddleVPBB->getSuccessors()[0])->getIRBasicBlock();
-  // TODO: set B to MiddleVPBB->getFirstNonPhi(), taking care of affected tests.
-  VPBuilder B(MiddleVPBB);
-  if (auto *Terminator = MiddleVPBB->getTerminator()) {
-    auto *Condition = dyn_cast<VPInstruction>(Terminator->getOperand(0));
-    assert((!Condition || Condition->getParent() == MiddleVPBB) &&
-           "Condition expected in MiddleVPBB");
-    B.setInsertPoint(Condition ? Condition : Terminator);
-  }
+  VPBuilder B(MiddleVPBB, MiddleVPBB->getFirstNonPhi());
 
   // Introduce VPUsers modeling the exit values.
   for (const auto &[ExitPhi, V] : ExitingValuesToFix) {

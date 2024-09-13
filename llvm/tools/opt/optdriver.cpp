@@ -378,6 +378,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "expand-large-fp-convert",
       "fpbuiltin-fn-selection",
       "callbrprepare",
+      "scalarizer",
   };
   for (const auto &P : PassNamePrefix)
     if (Pass.starts_with(P))
