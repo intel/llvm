@@ -57,11 +57,13 @@ on:
           have dynamic `needs` dependencies between jobs.
         type: boolean
         default: false
+        required: false
       skip_reason:
         description: |
           Reason for skipping the build.
         type: string
         default: "inputs.skip-reason set to true."
+        required: false
 
     outputs:
       build_conclusion:
