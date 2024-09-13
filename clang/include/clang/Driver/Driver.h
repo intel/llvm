@@ -979,6 +979,13 @@ public:
   llvm::opt::ArgStringList getDeviceTraitsMacrosArgs() const {
     return SYCLDeviceTraitsMacrosArgs;
   }
+  /// getSYCLUseIntegrationHeaders - Return true if the option
+  /// -fsycl-use-integration-headers is specified or is the default.
+  /// Return false otherwise.
+  bool getSYCLUseIntegrationHeaders(const llvm::opt::ArgList &Args) const {
+    return Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                        options::OPT_fno_sycl_use_integration_headers, true);
+  }
 };
 
 /// \return True if the last defined optimization level is -Ofast.

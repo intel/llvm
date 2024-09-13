@@ -5037,7 +5037,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   Arg *HostCompilerDefArg =
       TCArgs.getLastArg(options::OPT_fsycl_host_compiler_EQ);
   assert(HostCompilerDefArg && "Expected host compiler designation.");
-
+  bool UIH = TC.getDriver().getSYCLUseIntegrationHeaders(TCArgs);
   bool OutputAdded = false;
   StringRef CompilerName =
       llvm::sys::path::stem(HostCompilerDefArg->getValue());
@@ -5117,7 +5117,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   StringRef Header =
       TC.getDriver().getIntegrationHeader(InputFile.getBaseInput());
   if (types::getPreprocessedType(InputFile.getType()) != types::TY_INVALID &&
-      !Header.empty()) {
+      !Header.empty() && UIH) {
     HostCompileArgs.push_back(IsMSVCHostCompiler ? "-FI" : "-include");
     HostCompileArgs.push_back(TCArgs.MakeArgString(Header));
   }
@@ -5483,6 +5483,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     PF->claim();
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
+  bool UIH = D.getSYCLUseIntegrationHeaders(Args);
 
   if (IsSYCLDevice) {
     if (Triple.isNVPTX()) {
@@ -5572,13 +5573,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add the integration header option to generate the header.
     StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
-    if (!Header.empty()) {
+    if (!Header.empty() && UIH) {
       SmallString<128> HeaderOpt("-fsycl-int-header=");
       HeaderOpt.append(Header);
       CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
     }
 
-    if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+    if (!Args.hasArg(options::OPT_fno_sycl_use_footer) && UIH) {
       // Add the integration footer option to generated the footer.
       StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
       if (!Footer.empty()) {
@@ -5699,7 +5700,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Add any options that are needed specific to SYCL offload while
     // performing the host side compilation.
-    if (!IsSYCLDevice) {
+    if (!IsSYCLDevice && UIH) {
       // Add the -include option to add the integration header
       StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
       // Do not add the integration header if we are compiling after the
@@ -5730,7 +5731,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-dependency-filter");
         CmdArgs.push_back(Args.MakeArgString(Footer));
       }
+    }
 
+    if (!IsSYCLDevice) {
       // Let the FE know we are doing a SYCL offload compilation, but we are
       // doing the host pass.
       CmdArgs.push_back("-fsycl-is-host");
@@ -5775,6 +5778,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back(Args.MakeArgString(Macro));
       if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
+    }
+
+    if (D.getSYCLUseIntegrationHeaders(Args)) {
+      CmdArgs.push_back("-fsycl-use-integration-headers");
+      CmdArgs.push_back("-D__INTEL_SYCL_USE_INTEGRATION_HEADERS");
     }
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();

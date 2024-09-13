@@ -24,7 +24,20 @@
 // RUN:  %clangxx -fsycl --offload-new-driver -fno-sycl-use-footer %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix NO-FOOTER --implicit-check-not "-fsycl-int-footer" %s
 // NO-FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-sycl-std={{.*}}"
-// NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-o"
+// NO-FOOTER: clang{{.*}} "-include" "[[INTHEADER]]"{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "sycl-int-footer.cpp"{{.*}} "-o"
+
+// Check that integration header or footer is not generated with
+// -fno-sycl-use-integration-headers
+// RUN:  %clangxx -fsycl --offload-new-driver -fno-sycl-use-integration-headers %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix NO-FOOTER2 --implicit-check-not "-fsycl-int-footer" --implicit-check-not "-fsycl-use-main-file-name" %s
+// NO-FOOTER2: clang{{.*}} "-fsycl-is-device"{{.*}} "-sycl-std={{.*}}"
+// NO-FOOTER2: clang{{.*}} "-fsycl-is-host"{{.*}} "-main-file-name" "sycl-int-footer.cpp"{{.*}} "-o"
+
+// Test that -fsycl-use-main-file-name is not passed if -fsycl --offload-new-driver is not passed.
+// This test is located here, because -fsycl-use-main-file-name is tightly
+// connected to the integration footer.
+// RUN: %clangxx %s -### 2>&1 | FileCheck %s --check-prefix NO-FSYCL --implicit-check-not "-fsycl-use-main-file-name"
+// NO-FSYCL: clang{{.*}} "-main-file-name" "sycl-int-footer.cpp"
 
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \

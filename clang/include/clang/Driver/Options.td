@@ -6997,6 +6997,13 @@ def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-depe
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
+defm sycl_use_integration_headers : BoolFOption<"sycl-use-integration-headers",
+      LangOpts<"SYCLUseIntegrationHeaders">, DefaultTrue,
+      PosFlag<SetTrue, [], [ClangOption, CLOption], "Specify">,
+      NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not specify">,
+      BothFlags<[HelpHidden], [ClangOption, CLOption, CC1Option],
+      " that integration headers be used for communication"
+      " between the host and the device compilations. SYCL Only">>;
 } // let Group = sycl_Group
 
 // FIXME: -fsycl-explicit-simd is deprecated. remove it when support is dropped.

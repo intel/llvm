@@ -1083,10 +1083,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // We need to generate a SYCL toolchain if the user specified -fsycl.
   // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
-  bool HasValidSYCLRuntime =
-      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
-                               false) ||
-      hasSYCLDeviceOnly(C.getInputArgs());
+  bool HasSYCL = C.getInputArgs().hasFlag(options::OPT_fsycl,
+                                          options::OPT_fno_sycl, false);
+  bool HasValidSYCLRuntime = HasSYCL || hasSYCLDeviceOnly(C.getInputArgs());
+  bool UseSYCLIntegrationHeaders =
+      getSYCLUseIntegrationHeaders(C.getInputArgs());
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -1125,6 +1126,25 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::warn_drv_opt_requires_opt)
         << SYCLHostCompilerOptions->getSpelling().split('=').first
         << "-fsycl-host-compiler";
+
+  Arg *SYCLUIHArg = C.getInputArgs().getLastArg(
+      options::OPT_fsycl_use_integration_headers,
+      options::OPT_fno_sycl_use_integration_headers);
+  if (SYCLUIHArg) {
+    // -f[no-]sycl-use-integration-headers cannot be used without
+    // -fsycl.  (-fintelfpga implies -fsycl).
+    if (!HasSYCL && !SYCLfpga)
+      Diag(clang::diag::err_drv_sycl_opt_requires_opt)
+          << "-f[no-]sycl-use-integration-headers";
+  }
+
+  // -fno-sycl-use-integration-headers cannot be used with
+  // -fsycl-host-compiler.
+  if (SYCLHostCompiler && !UseSYCLIntegrationHeaders) {
+    Diag(clang::diag::err_drv_option_conflict)
+        << SYCLHostCompiler->getSpelling().split('=').first
+        << "-fno-sycl-use-integration-headers";
+  }
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)
@@ -4957,6 +4977,12 @@ class OffloadingActionBuilder final {
             auto &TargetInfo = std::get<1>(TargetActionInfo);
             A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
                                                    AssociatedOffloadKind);
+            // No need to generate the integration header if
+            // -fsycl-no-use-integration-header is specified.
+            if (!Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                              options::OPT_fno_sycl_use_integration_headers,
+                              true))
+              continue;
             if (SYCLDeviceOnly)
               continue;
             // Add an additional compile action to generate the integration
@@ -7275,6 +7301,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         addSYCLUniqueID(Args.MakeArgString(ResultID.str()), SrcFileName);
       }
       if (!types::isSrcFile(I.first))
+        continue;
+      // If -fno-sycl-use-integration-headers is speficified, don't generate
+      // integration headers and footers.
+      if (!Args.hasFlag(options::OPT_fsycl_use_integration_headers,
+                        options::OPT_fno_sycl_use_integration_headers, true))
         continue;
 
       std::string TmpFileNameHeader;
