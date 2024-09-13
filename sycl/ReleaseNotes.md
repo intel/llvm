@@ -38,8 +38,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 
 ### SYCL Compiler
 
-- Added `-fsycl-range-rounding` command line option which allows to
-  control range rounding feature. In comparison with previously available
+- Added `-fsycl-range-rounding` command line option which allows control over
+  the range rounding feature. In comparison with the previously available
   `-fsycl-disable-range-rounding` command line option and
   `__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__` macro the new flag also allows
   to _force_ range rounding which will complete disable generation of
@@ -50,10 +50,10 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Added support for the so-called [new offloading model](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/OffloadDesign.md).
   It can be enabled by `--offload-new-driver` command line option and provides
   a better infrastructure for us. In the future we expect to leverage that
-  infrastructure to improve link times by reducing amount of I/O used by the
-  compiler and amount of external processes that it spawns.
-  Foundation for this work has been performed in previous release time frame and
-  the following list of PRs only includes those done within this release
+  infrastructure to improve link times by reducing the amount of I/O used by the
+  compiler and the amount of external processes that it spawns.
+  The foundation for this work has been performed in previous release time frame
+  and the following list of PRs only includes those done within this release
   time frame. intel/llvm#14252 intel/llvm#13394 intel/llvm#13648 intel/llvm#13687
   intel/llvm#14001 intel/llvm#14006 intel/llvm#14101 intel/llvm#14151
   intel/llvm#14253 intel/llvm#14177 intel/llvm#13672 intel/llvm#13688
@@ -62,7 +62,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   allow us to improve link time by reducing amount of external processes and
   temporary files used by the compiler. **Do we need to list PRs here?** There
   were many of them and some of them were merged in scope of a previous release.
-- Added `-fsycl-fp64-conv-emu` command line option which allows to enable
+- Added `-fsycl-fp64-conv-emu` command line option which allows the enabling of
   partial (only conversion operations are supported) emulation of `double` data
   type. This mode is only supported by Intel GPUs. intel/llvm#13912
 - Introduced `__PTX_VERSION__` macro that corresponds to the PTX version used
@@ -290,9 +290,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Updated [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
   extension implementation to throw synchronious exception with
   `feature_not_supported` error code. intel/llvm#14788
-- Reduced startup overhead on `libsycl.so` loading by outlining SYCL JIT
-  compiler (used for kernel fusion feature) into a standalone library which is
-  dynamically loaded on the first use. intel/llvm#13433
+- Reduced startup overhead of `libsycl.so` by outlining SYCL JIT compiler (used
+  for kernel fusion feature) into a standalone library which is dynamically
+  loaded on the first use. intel/llvm#13433
 - Deprecated `this_kernel::get_root_group` in favor of
   `this_work_item::get_root_group`. intel/llvm#13304
 - Relaxed diagnostic about using virtual functions in SYCL kernels: now it is
@@ -328,7 +328,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Improved implementation of `group_store` and `group_load` APIs with intent for
   it to have better performance in some cases. intel/llvm#13734 intel/llvm#13673
 - Added support for graph update functionality. intel/llvm#12840
-- Added support for external semaphores that can take value to bindless images
+- Added support for external semaphores that can take a value to bindless images
   extension. intel/llvm#13860
 - Added support for device-to-device copying of `image_device_handle`.
   intel/llvm#12449
@@ -421,7 +421,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Updated
   [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
   extension:
-  - added support external semaphores that can take value. intel/llvm#13860
+  - added support external semaphores that can take a value. intel/llvm#13860
   - added support for copying `image_mem_handle` between devices via
     `ext_oneapi_copy`. intel/llvm#12449
   - added `fetch_image` overload which accepts sampled image and coordinates.
@@ -444,8 +444,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 
 ### SYCL Compiler
 
-- Fixed that using `-fsycl-link-targets` flag would inadvertently trigger some
-  additional device code linking steps. intel/llvm#13004
+- Fixed a bug where using `-fsycl-link-targets` flag would inadvertently trigger
+  some additional device code linking steps. intel/llvm#13004
 - Fixed a bug that when AOT-compiling for Intel GPUs the compiler would pass
   some PVC-specific flags even if target device is not a PVC. intel/llvm#13794
 - Fixed a bug with incorrect file extensions being emitted in AOT compilation
@@ -455,9 +455,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   `-fsycl-link` would result in "number of output files and targets should match
   in unbundling mode" error emitted by the compiler during link step. intel/llvm#13002
 - Fixed a bug in address sanitizer which may lead to crashes when an application
-  is launched on OpenCL CPU device. intel/llvm#13262
-- Fixed a bug where calling certain built-in math functions that accepts
-  pointers (like `fract`, `frexp`, `modf`, etc.) and passing pointer in the
+  is launched on the OpenCL CPU device. intel/llvm#13262
+- Fixed a bug where calling certain built-in math functions that accept
+  pointers (like `fract`, `frexp`, `modf`, etc.) and passing pointers in the
   generic address space there would not compile for AMD devices.
   intel/llvm#13015 intel/llvm#13092 intel/llvm#13361 intel/llvm#13792
   intel/llvm#13546
@@ -475,8 +475,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 ### SYCL Library
 
 - Fixed a situation when querying
-  `sycl::ext::oneapi::experimental::info::device` could result in exception
-  being thrown instead of empty vector being returned. intel/llvm#13968
+  `sycl::ext::oneapi::experimental::info::device` could result in an exception
+  being thrown instead of an empty vector being returned. intel/llvm#13968
 - Fixed `esimd::atan` implementation under `-ffast-math` flag. intel/llvm#13186
 - Fixed an issue that component devices were not considered to be a descendent
   from their composite devices when creating a queue. intel/llvm#13513
@@ -491,7 +491,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   would lead to compilation errors. intel/llvm#13632
 - Fixed an issue that use of `atomic_ref<T *>` would not be detected as a use
   of `atomic64` aspect leading to errors due to speculative compilation. intel/llvm#14052
-- Fixed `ctanh` and `cexp` returning incorrect value in some edge cases. intel/llvm#14329
+- Fixed `ctanh` and `cexp` returning incorrect values in some edge cases.
+  intel/llvm#14329
 - Fixed a bug where values passed to `-Xs` option through `build_options`
   property were not passed down to device compiler when using
   [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
@@ -504,8 +505,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   `-fno-sycl-unnamed-lambda` would lead to a compilation error about unnamed
   lambdas being unsupported. intel/lvm#14614
 - Fixed an issue on CUDA & AMDGPU backends where `multi_ptr` relational
-  operators taking `std::nullptr_t` would produce different result comparing
-  to standard C++ helpers like `std::less`. intel/llvm#13201
+  operators taking `std::nullptr_t` would produce different results to their
+  corresponding standard C++ helpers like `std::less`. intel/llvm#13201
 - Fixed a compilation issue with `-fpreview-breaking-changes` flag when
   `windows.h` is included caued by conflict with `min`/`max` macro. intel/llvm#14260
 - Fixed strict alias violations in `sycl::vec<sycl::half, N>::operator[]`
@@ -516,7 +517,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed a compilation issue occurring when `printf` is used on CUDA backend
   on Windows. intel/llvm#13784
   TODO: was it really a compilation issue?
-- Fixed an issue where compiler could emit SPIR-V instructions for reversing
+- Fixed an issue where the compiler could emit SPIR-V instructions for reversing
   bits in a variable which are not supported by device compilers.
   intel/llvm#13810 intel/llvm#13044
 - Fixed a bug where having a default-constructed `local_accessor` as an argument
@@ -569,8 +570,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   queue for two different graphs would result in runtime error "Graph nodes
   cannot depend on events from another graph". intel/llvm#14212
 - Fixed intel/llvm#13066 where submitting a barrier into an empty in-order queue
-  whilst recording a graph results in runtime error "No event has been recorded
-  for the specified graph node". intel/llvm#13193
+  whilst recording a graph would result in the in runtime error "No event has
+  been recorded for the specified graph node". intel/llvm#13193
 - Fixed a resource leak in graph update implementation. intel/llvm#14029
 - Fixed a bug with invalid handling of discard filters within
   `ONEAPI_DEVICE_SELECTOR` env variable caused RT to mistakenly say that the
