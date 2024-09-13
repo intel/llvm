@@ -253,7 +253,7 @@ jobs:
 #     #     retention-days: 7
 
   run_benchmarks:
-    name: Run benchmarks (${{ inputs.name }})
+    name: ${{ inputs.name }}
     needs: [ check_build ]
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:

@@ -123,7 +123,7 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Linux, build]
-    if: ${{ inputs.skip_build != 'true' }}
+    if: ${{ inputs.skip_build != true }}
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
@@ -259,9 +259,9 @@ jobs:
         retention-days: ${{ inputs.retention-days }}
 
   skip_build:
-    name: Build skipped (${{ inputs.skip_reason }})
+    name: Skipping build
     runs-on: [Linux, aux-tasks]
-    if: ${{ inputs.skip_build == 'true' }}
+    if: ${{ inputs.skip_build == true }}
     outputs:
       build_conclusion: "skipped"
       artifact_archive_name: ""
