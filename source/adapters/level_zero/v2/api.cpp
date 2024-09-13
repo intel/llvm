@@ -49,42 +49,9 @@ ur_result_t urMemImageCreate(ur_context_handle_t hContext, ur_mem_flags_t flags,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
-                              ur_mem_flags_t flags, size_t size,
-                              const ur_buffer_properties_t *pProperties,
-                              ur_mem_handle_t *phBuffer) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemRetain(ur_mem_handle_t hMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemRelease(ur_mem_handle_t hMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemBufferPartition(ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
-                                 ur_buffer_create_type_t bufferCreateType,
-                                 const ur_buffer_region_t *pRegion,
-                                 ur_mem_handle_t *phMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
                                  ur_device_handle_t hDevice,
                                  ur_native_handle_t *phNativeMem) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -217,44 +184,9 @@ ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t
-urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                    size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                             ur_kernel_info_t propName, size_t propSize,
                             void *pPropValue, size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urKernelGetGroupInfo(ur_kernel_handle_t hKernel,
-                                 ur_device_handle_t hDevice,
-                                 ur_kernel_group_info_t propName,
-                                 size_t propSize, void *pPropValue,
-                                 size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel,
-                                    ur_device_handle_t hDevice,
-                                    ur_kernel_sub_group_info_t propName,
-                                    size_t propSize, void *pPropValue,
-                                    size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
-urKernelSetExecInfo(ur_kernel_handle_t hKernel, ur_kernel_exec_info_t propName,
-                    size_t propSize,
-                    const ur_kernel_exec_info_properties_t *pProperties,
-                    const void *pPropValue) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -263,14 +195,6 @@ ur_result_t
 urKernelSetArgSampler(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_sampler_properties_t *pProperties,
                       ur_sampler_handle_t hArgValue) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
-urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
-                     const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
@@ -308,23 +232,10 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
-                           size_t propSize, void *pPropValue,
-                           size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urEventGetProfilingInfo(ur_event_handle_t hEvent,
                                     ur_profiling_info_t propName,
                                     size_t propSize, void *pPropValue,
                                     size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

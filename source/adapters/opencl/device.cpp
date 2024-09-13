@@ -32,6 +32,17 @@ ur_result_t cl_adapter::getDeviceVersion(cl_device_id Dev,
   return UR_RESULT_SUCCESS;
 }
 
+static bool isIntelFPGAEmuDevice(cl_device_id Dev) {
+  size_t NameSize = 0;
+  CL_RETURN_ON_FAILURE(
+      clGetDeviceInfo(Dev, CL_DEVICE_NAME, 0, nullptr, &NameSize));
+  std::string NameStr(NameSize, '\0');
+  CL_RETURN_ON_FAILURE(
+      clGetDeviceInfo(Dev, CL_DEVICE_NAME, NameSize, NameStr.data(), nullptr));
+
+  return NameStr.find("Intel(R) FPGA Emulation Device") != std::string::npos;
+}
+
 ur_result_t cl_adapter::checkDeviceExtensions(
     cl_device_id Dev, const std::vector<std::string> &Exts, bool &Supported) {
   size_t ExtSize = 0;
@@ -46,6 +57,14 @@ ur_result_t cl_adapter::checkDeviceExtensions(
   Supported = true;
   for (const std::string &Ext : Exts) {
     if (!(Supported = (ExtStr.find(Ext) != std::string::npos))) {
+      // The Intel FPGA emulation device does actually support these, even if it
+      // doesn't report them.
+      if (isIntelFPGAEmuDevice(Dev) &&
+          (Ext == "cl_intel_device_attribute_query" ||
+           Ext == "cl_intel_required_subgroup_size")) {
+        Supported = true;
+        continue;
+      }
       break;
     }
   }
