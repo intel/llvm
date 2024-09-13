@@ -816,7 +816,7 @@ ur_result_t urProgramGetInfo(
     } catch (...) {
       return UR_RESULT_ERROR_UNKNOWN;
     }
-  case UR_PROGRAM_INFO_SOURCE:
+  case UR_PROGRAM_INFO_IL:
     return ReturnValue(Program->Code.get());
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
