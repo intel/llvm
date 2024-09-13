@@ -117,9 +117,8 @@ public:
 
   /// Returns all available SYCL platforms in the system.
   ///
-  /// By default the resulting vector always contains a single SYCL host
-  /// platform instance. There are means to override this behavior for testing
-  /// purposes. See environment variables guide for up-to-date instructions.
+  /// There are means to override this behavior for testing purposes. See
+  /// environment variables guide for up-to-date instructions.
   ///
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();

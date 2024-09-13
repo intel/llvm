@@ -55,9 +55,8 @@ specification.*
 
 The implementation of `sycl::platform` already allows querying for supported
 platforms - `static std::vector<platform> get_platforms()` - which returns all
-available SYCL platforms in the system (the resulting vector always contains a
-single SYCL host platform instance). This extension adds an API entry to list
-all unsupported platforms; the platform is considered unsupported if it is
+available SYCL platforms in the system. This extension adds an API entry to
+list all unsupported platforms; the platform is considered unsupported if it is
 non-SYCL, or does not have any devices associated.
 
 This extension exists to solve a specific problem: listing of all platforms
