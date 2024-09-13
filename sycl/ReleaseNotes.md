@@ -327,8 +327,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   operations. intel/llvm#13535
 - Lifted some of the restrictions from ESIMD `block_store` API. intel/llvm#13150
 - Added support for graph update functionality. intel/llvm#12840
-- Added support for external semaphores that can take a value to bindless images
-  extension. intel/llvm#13860
+- Added support for external semaphore wait and signal operations that can take
+  a value to bindless images extension. intel/llvm#13860
 - Added support for device-to-device copying of `image_device_handle`.
   intel/llvm#12449
 - Improved performance of `queue::fill` on CUDA backend by making it use 2- and
@@ -420,7 +420,11 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Updated
   [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
   extension:
-  - added support external semaphores that can take a value. intel/llvm#13860
+  - added support for external semaphore wait and signal operations that can
+    take a value. intel/llvm#13860
+  - added support for importing externally allocated buffers and semaphores
+    through Win32 NT handles, as well as DirectX 12 resources and fences.
+    intel/llvm#13860
   - added support for copying `image_mem_handle` between devices via
     `ext_oneapi_copy`. intel/llvm#12449
   - added `fetch_image` overload which accepts sampled image and coordinates.
