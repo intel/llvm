@@ -1171,7 +1171,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
 
   // Evaluation of -fsycl-device-obj is slightly different, we will emit
   // a warning and inform the user of the default behavior used.
-  // TODO: General usage of this option is to check fo 'spirv' and fallthrough
+  // TODO: General usage of this option is to check for 'spirv' and fallthrough
   // to using llvmir.  This can be improved to be more obvious in usage.
   if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
           options::OPT_fsycl_device_obj_EQ)) {
