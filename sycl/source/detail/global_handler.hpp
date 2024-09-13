@@ -22,14 +22,14 @@ class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class adapter;
+class Adapter;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using AdapterPtr = std::shared_ptr<adapter>;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///

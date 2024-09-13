@@ -42,11 +42,11 @@ namespace detail {
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_ur
-class adapter {
+class Adapter {
 public:
-  adapter() = delete;
+  Adapter() = delete;
 
-  adapter(ur_adapter_handle_t adapter, backend UseBackend)
+  Adapter(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         TracingMutex(std::make_shared<std::mutex>()),
         MAdapterMutex(std::make_shared<std::mutex>()) {
@@ -58,12 +58,12 @@ public:
   }
 
   // Disallow accidental copies of adapters
-  adapter &operator=(const adapter &) = delete;
-  adapter(const adapter &) = delete;
-  adapter &operator=(adapter &&other) noexcept = delete;
-  adapter(adapter &&other) noexcept = delete;
+  Adapter &operator=(const Adapter &) = delete;
+  Adapter(const Adapter &) = delete;
+  Adapter &operator=(Adapter &&other) noexcept = delete;
+  Adapter(Adapter &&other) noexcept = delete;
 
-  ~adapter() = default;
+  ~Adapter() = default;
 
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
@@ -226,9 +226,9 @@ private:
   void *UrLoaderHandle = nullptr;
 #endif
   UrFuncPtrMapT UrFuncPtrs;
-}; // class adapter
+}; // class Adapter
 
-using AdapterPtr = std::shared_ptr<adapter>;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 } // namespace detail
 } // namespace _V1

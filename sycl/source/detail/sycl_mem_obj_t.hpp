@@ -33,7 +33,7 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class adapter;
+class Adapter;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;

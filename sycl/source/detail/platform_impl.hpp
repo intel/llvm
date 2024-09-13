@@ -38,7 +38,7 @@ public:
   /// \param APlatform is a raw plug-in platform handle.
   /// \param AAdapter is a plug-in handle.
   explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<adapter> &AAdapter)
+                         const std::shared_ptr<Adapter> &AAdapter)
       : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
     ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;

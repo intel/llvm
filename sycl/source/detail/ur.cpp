@@ -223,7 +223,7 @@ static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
                                     sizeof(adapterBackend), &adapterBackend,
                                     nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Adapters.emplace_back(std::make_shared<adapter>(UrAdapter, syclBackend));
+    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION

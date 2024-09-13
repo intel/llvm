@@ -103,8 +103,8 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              void *user_data);
 }
 
-class adapter;
-using AdapterPtr = std::shared_ptr<adapter>;
+class Adapter;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 // TODO: To be removed as this was only introduced for esimd which was removed.
 template <sycl::backend BE>
