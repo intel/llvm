@@ -123,7 +123,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Added APIs for performing arithmetic operations on 33-bit extended values. intel/llvm#13006
 - Added APIs for performing bitwise operations on 33-bit extended values. intel/llvm#13727
 - Added `device_count` and `get_device_id` utility APIs. intel/llvm#14013
-- Added experimental `launch` API overloads that accept sub-group size. intel/llvm#13767
 - Added `wait` and `wait_and_throw` free functions. intel/llvm#13029
 - Added vectorized comparison `extend_vcompare[2|4]` APIs. intel/llvm#14079
 - Added vectorized math `extend_v*2` APIs. intel/llvm#13953
@@ -134,7 +133,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Added `filter_device` and `list_devices` APIs. intel/llvm#14016
 - Added `funnelshift_*` APIs. intel/llvm#13825
 - Added `match_[any|all]_over_sub_group` APIs. intel/llvm#12973
-- Added API to manage kernel libraries loading/unloading. intel/llvm#13053 intel/llvm#13932
+- Added APIs to manage kernel libraries loading/unloading. intel/llvm#13053
+  intel/llvm#13932
 - Added `cmul_add` API. intel/llvm#12969
 - Added experimental APIs for masked operations over sub-groups (`select`,
   `shift`, etc.). intel/llvm#12972
@@ -146,9 +146,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   `max`, `fmin_nan`, `fmax_nan`, `pow`, `relu`; wrappers are needed to support
   variety of combinations of argument types compared to `sycl::` counterparts
   of those functions. intel/llvm#13005
-- Added `SYCLCOMPT_CHECK_ERROR` macro which is an error handling utility for
+- Added `SYCLCOMPAT_CHECK_ERROR` macro which is an error handling utility for
   expressions that throw exceptions.
-- Added `image1d_max`, `image2d_max` and `image3d_max` device info getters
+- Added `image1d_max`, `image2d_max` and `image3d_max` `device_info` getters
   and setters. intel/llvm#13973
 - Added `get_major_version` and `get_minor_version` free functions. intel/llvm#14011
 - Expanded list of properties available through `device_info` class. intel/llvm#13050
