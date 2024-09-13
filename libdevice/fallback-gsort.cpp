@@ -1063,13 +1063,15 @@ void WG_JS_D(p1u8_p1i64_u32_p1i8)(uint8_t *keys, int64_t *vals, uint32_t n,
 DEVICE_EXTERN_C_INLINE
 void WG_JS_A(p1u8_p1f32_u32_p1i8)(uint8_t *keys, float *vals, uint32_t n,
                                   uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::less_equal<uint8_t>{});
+  merge_sort_key_value(keys, reinterpret_cast<uint32_t *>(vals), n, scratch,
+                       std::less_equal<uint8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
 void WG_JS_D(p1u8_p1f32_u32_p1i8)(uint8_t *keys, float *vals, uint32_t n,
                                   uint8_t *scratch) {
-  merge_sort_key_value(keys, vals, n, scratch, std::greater_equal<uint8_t>{});
+  merge_sort_key_value(keys, reinterpret_cast<uint32_t *>(vals), n, scratch,
+                       std::greater_equal<uint8_t>{});
 }
 
 // uint16_t as key type
