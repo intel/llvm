@@ -123,8 +123,7 @@ on:
         default: ''
         required: False
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   check_build:
