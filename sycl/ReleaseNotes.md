@@ -235,8 +235,10 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support cubemap images. intel/llvm#12996
 - Added ESIMD API for dynamic allocation of named barriers. intel/llvm#13826
 - Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support sampled image arrays. intel/llvm#14237
-- Added implementation for whole graph update (`executable_command_graph::update`).
-  intel/llvm#13220 intel/llvm#14379 intel/llvm#14236
+- Added implementation for whole graph update
+  (`executable_command_graph::update`).
+  intel/llvm#13220 intel/llvm#14379 intel/llvm#14236 intel/llvm#14111
+  intel/llvm#13987
 - Added a warning about use of the deprecated `<CL/sycl.hpp>` header. intel/llvm#13569
 - Made `local_accessor::get_pointer` and `local_accessor::get_multi_ptr` throw
   `invalid` exception if they are called on host. intel/llvm#13747
@@ -333,6 +335,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   intel/llvm#12449
 - Improved performance of `queue::fill` on CUDA backend by making it use 2- and
   4-byte operations instead of only using 1-byte operations. intel/llvm#13788
+  intel/llvm#13779
 - Enhanced `sycl_ext_oneapi_graph` extension implementation on Level Zero
   backend by taking advantage of copy engines available on some devices to be
   able to execute kernels and memory operations in parallel. intel/llvm#13051
@@ -351,6 +354,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   performed in very limited amount of cases. intel/llvm#13088
 - Implemented new `fetch_image` overload which accepts sampled image and
   coordinates. intel/llvm#12447
+- Extended address sanitizer support to cover Intel GPU devices besides CPU
+  devices. intel/llvm#13450
 
 ### Documentation
 
@@ -609,6 +614,11 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   intel/llvm#13364
 - Fixed performance regression when kernels without any dependencies are
   submitted into in-order queue. intel/llvm#13333
+- Fixed a bug where profiling info timestamps could be zeros on Level Zero
+  backend. intel/llvm#14360
+- Fixed a bug where using multiple queues with `immediate_command_list` and
+  `no_immediate_command_list` properties could result in a crash.
+  intel/llvm#14341
 
 ### Documentation
 
@@ -747,79 +757,6 @@ Breaking changes were also made to compiler flags:
   type. For more information on this issue consult with
   https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
 
-commit https://github.com/intel/llvm/commit/33c0829f3e3389006662845784980b930faf3b38
-Author: Igor Chorążewicz <igor.chorazewicz@intel.com>
-Date:   Thu Jul 25 23:00:19 2024 -0700
-
-    [UR] Bump UR version and enable dynamic linking with UMF (#13343)
-    
-    Testing PR for: https://github.com/oneapi-src/unified-runtime/pull/1430
-    
-    ---------
-    
-    Co-authored-by: Krzysztof Swiecicki <krzysztof.swiecicki@intel.com>
-    Co-authored-by: Steffen Larsen <steffen.larsen@intel.com>
-
-commit https://github.com/intel/llvm/commit/450683b6fa1d1be1b9391905f43073b7a9555aa1
-Author: Yang Zhao <yang2.zhao@intel.com>
-Date:   Thu Jul 25 00:02:46 2024 +0800
-
-    [SYCL][DeviceSanitizer] Support GPU DG2 Device (#13450)
-    
-    UR: https://github.com/oneapi-src/unified-runtime/pull/1521
-    
-    - Add MemToShadow_DG2
-    - Enable lit tests for GPU, decrease the global workgoup size in some
-    tests due to the limit of GPU memory
-    
-    Although, the "_DG2" suffix might be misleading: DG2 present all 48bits
-    virtual address devices, and PVC present all 58bits virtual address
-    devices.
-    
-    ---------
-    
-    Co-authored-by: Wenju He <wenju.he@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/bd97280007ee79bf118fdbade3d9cb14721b9014
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Wed Jul 24 07:20:14 2024 +0100
-
-    [UR] Bump main tag to 9b209642 (#14553)
-    
-    * https://github.com/oneapi-src/unified-runtime/pull/1791
-    * https://github.com/oneapi-src/unified-runtime/pull/1856
-    * https://github.com/oneapi-src/unified-runtime/pull/1861
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/5667218ed6be6dee8877efcc2fbcfc2ecd515cff
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Jul 16 18:05:26 2024 +0100
-
-    [UR] Bump main tag to 7e38af77 (#14552)
-    
-    * https://github.com/oneapi-src/unified-runtime/pull/1826
-    * https://github.com/oneapi-src/unified-runtime/pull/1852
-    * https://github.com/oneapi-src/unified-runtime/pull/1849
-    * https://github.com/oneapi-src/unified-runtime/pull/1828
-    * https://github.com/oneapi-src/unified-runtime/pull/1772
-    * https://github.com/oneapi-src/unified-runtime/pull/1862
-
-commit https://github.com/intel/llvm/commit/44861fec406fff7a20bd4791c4288d71828912cc
-Author: Callum Fare <callum@codeplay.com>
-Date:   Thu Jul 11 15:15:12 2024 +0100
-
-    [UR] Bump UR and implement changes to bindless image handle types (#14516)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1829
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
 commit https://github.com/intel/llvm/commit/c30769b122d99eb4d05bcb78f15e593491fe31ae
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
     [UR][L0] Use Intel Level Zero Driver Version String extension (#14426)
@@ -832,56 +769,17 @@ Author: Ross Brunton <ross@codeplay.com>
     https://github.com/oneapi-src/unified-runtime/pull/1458
     Seems to be an internal UR bugfix/improvement
 
-commit https://github.com/intel/llvm/commit/13ae57f97cfb45cbcee8db6155ac8b0f7b7fbb82
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Jul 10 10:53:12 2024 +0100
-
-    [UR] Bump main tag to 9d3bce6a (#14499)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1822
-
 commit https://github.com/intel/llvm/commit/db4d83e3969a5f7b5313aa5fb8466dd2ebbf9283
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
     [UR][L0] Fix Queue get info and fix Queue release decrement (#14411)
     https://github.com/oneapi-src/unified-runtime/pull/1814
     Could be an actual bugfix
 
-commit https://github.com/intel/llvm/commit/78ae397aab9b2040be945ee2f7f73d93404ffa06
-Author: Artur Gainullin <artur.gainullin@intel.com>
-Date:   Tue Jul 9 02:37:27 2024 -0700
-
-    [UR] Uplift UR tag to the fix in the L0 adapter regarding event timestamps (#14360)
-    
-    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1806
-
-commit https://github.com/intel/llvm/commit/ac556f9273e479c033e7dc76248fdb6861377ce7
-Author: Fábio <fabio.mestre@codeplay.com>
-Date:   Mon Jul 8 16:23:41 2024 +0100
-
-    [UR] Update main tag for L0 CommandBuffer refactor (#14240)
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
 commit https://github.com/intel/llvm/commit/eb03091539daa68a582ceab950379ca482e118d9
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
     [UR][L0] Fix Device Info return code to report unsupported enumeration (#14407)
     https://github.com/oneapi-src/unified-runtime/pull/1809
     ???
-
-commit https://github.com/intel/llvm/commit/577c349c5f3b1c893160de2470aff5ee3f87f0bc
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Fri Jul 5 04:30:49 2024 -0700
-
-    [UR][L0] Fix immediate command list use in Command Queues (#14341)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1802
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
 
 commit https://github.com/intel/llvm/commit/f2bd076eb55a2cc79de2e9d4748967ed3cb13c9b
 Author: Wu Yingcong <yingcong.wu@intel.com>
@@ -901,61 +799,6 @@ Date:   Tue Jun 25 07:03:05 2024 -0700
     https://github.com/oneapi-src/unified-runtime/pull/1778
     
     Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
-commit https://github.com/intel/llvm/commit/088a9475e7c5f39ecb2b74f79a479380c9dd64be
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Fri Jun 21 13:52:08 2024 +0100
-
-    [UR] Pull in changes from UR PR #805 (#12270)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/805
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/350b56fda217ffc4677c5a3443a7844e13ac209d
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Fri Jun 21 10:30:11 2024 +0100
-
-    [UR] Update main tag to 975313cb (#14225)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1774
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/ab77ba800e6b36d0217dea053d125435f0a0b2db
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Jun 18 17:51:02 2024 +0100
-
-    [UR] Bump L0 tag to 2a31795d (#14213)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1623
-
-commit https://github.com/intel/llvm/commit/174f7510328f49d6f24c578b226acea085489082
-Author: Steffen Larsen <steffen.larsen@intel.com>
-Date:   Mon Jun 17 15:01:45 2024 +0200
-
-    [UR] Bump main tag to 33eb5ea8 (#13950)
-    
-    Pull in changes from
-    https://github.com/oneapi-src/unified-runtime/pull/1678.
-    
-    ---------
-    
-    Signed-off-by: Larsen, Steffen <steffen.larsen@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-
-commit https://github.com/intel/llvm/commit/5e9e7a73ce11182af6ceafc1e91996b6c79f7180
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Mon Jun 17 10:30:32 2024 +0100
-
-    [UR] Pull in change to make urPlatformCreateWithNativeHandle take an adapter. (#14012)
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 
 commit https://github.com/intel/llvm/commit/579484f0ae9e5e30b9c9bd468799e1688d5de890
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
@@ -983,174 +826,6 @@ Date:   Wed Jun 12 16:46:31 2024 +0100
     
     Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 
-commit https://github.com/intel/llvm/commit/1a885ecacc468ab324c812ab47b4af7f3b086e52
-Author: Artur Gainullin <artur.gainullin@intel.com>
-Date:   Wed Jun 12 07:30:29 2024 -0700
-
-    [UR] Update UR tag to include L0 loader related changes (#14109)
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/7c530e154021d103259c8437233e7ba13ce98146
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Wed Jun 12 13:15:51 2024 +0100
-
-    [UR] Bump main tag to 78d02039 (#12269)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1128
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/3935e06bc2e3794b7eac715c069e28c30aeaee9c
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Mon Jun 10 12:46:11 2024 +0100
-
-    [SYCL][Graph] Combined L0 Graph Update fixes (#14111)
-    
-    Bumps the L0 adapter UR commit https://github.com/intel/llvm/commit/to include several merged fixes to the L0
-    adapter for implementing the SYCL-Graph update feature:
-    
-    * [Use fence rather than event for sync in L0 command-buffer
-    update](https://github.com/oneapi-src/unified-runtime/pull/1629)
-    * [Fix lifetime of pointer used in L0
-    update](https://github.com/oneapi-src/unified-runtime/pull/1721)
-    * [Fix L0 Event leak without return sync
-    point](https://github.com/oneapi-src/unified-runtime/pull/1706)
-
-commit https://github.com/intel/llvm/commit/fcfe36b705fa715b4813de95565bbba9a5b88223
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Mon Jun 10 10:16:54 2024 +0100
-
-    [UR] Bump main tag to f06bc02a (#14047)
-    
-    Includes the following:
-    
-    * https://github.com/oneapi-src/unified-runtime/pull/1653
-    * https://github.com/oneapi-src/unified-runtime/pull/1568
-    * https://github.com/oneapi-src/unified-runtime/pull/1634
-    * https://github.com/oneapi-src/unified-runtime/pull/1669
-
-commit https://github.com/intel/llvm/commit/0cec12826baea60a15483081b0feece49013049f
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Jun 5 11:20:25 2024 +0100
-
-    [UR] Bump HIP tag to 399430da (#14037)
-
-commit https://github.com/intel/llvm/commit/2838f40382bedddbda0a5f20ebeeba86310044da
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Wed Jun 5 09:20:03 2024 +0100
-
-    [SYCL][Graph][L0] Correctly report when device supports update (#13987)
-    
-    Bump UR L0 commit https://github.com/intel/llvm/commit/to
-    https://github.com/oneapi-src/unified-runtime/pull/1694 so that the SYCL
-    device aspect for supporting update in graphs is correctly reported for
-    L0 devices. Currently, support can be incorrectly reported.
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
-
-commit https://github.com/intel/llvm/commit/20991b1c2ee906148706aa1e7ae62c1084834799
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Jun 5 08:48:18 2024 +0100
-
-    [UR] Bump CUDA tag to 0e38fda0 (#14030)
-
-commit https://github.com/intel/llvm/commit/781b75abfd1dac36a2c68fbc13bd6f1bb845d35b
-Author: Wu Yingcong <yingcong.wu@intel.com>
-Date:   Tue Jun 4 06:09:03 2024 -0700
-
-    [UR] Test for unified runtime PR (#12902)
-    
-    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1385
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/f2a2de3b6e735ee4a54ecc212b648f370e47abbc
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Thu May 30 14:28:35 2024 +0100
-
-    [SYCL][Graph] Add debug logging for L0 Graph kernel update (#13892)
-    
-    Bumps UR to Level Zero adapter change from
-    https://github.com/oneapi-src/unified-runtime/pull/1654
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
-
-commit https://github.com/intel/llvm/commit/1fa2ac88a1fb3a5eba0315c03faa03c2d8e3c5f7
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Thu May 30 12:46:50 2024 +0100
-
-    [UR][HIP] Implement kernel set spec constant query (#13809)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1604
-
-commit https://github.com/intel/llvm/commit/e147f3673c77e566a63a1d4d57d6f5da0153cbdb
-Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
-Date:   Thu May 30 12:46:39 2024 +0100
-
-    [UR] Modify fill emulation to work for patterns which are not powers of 2 (#13779)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1603
-    Follow-up fix:
-        commit https://github.com/intel/llvm/commit/f34a65012c21192d6f90c10a893cffb35a250dff
-        Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
-        https://github.com/oneapi-src/unified-runtime/pull/1412
-
-    This patch is needed for #13788
-
-commit https://github.com/intel/llvm/commit/8086df575d7f622017521fcd2f8b2b90fdd49d39
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Thu May 30 02:57:41 2024 -0700
-
-    [UR][L0] Fix Multi Device Event Cache for shared Root Device (#13917)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1667
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
-commit https://github.com/intel/llvm/commit/16e0670ab6e2425a20e13aec2c7f5896fd4eabfc
-Author: Ross Brunton <ross@codeplay.com>
-Date:   Fri May 24 14:25:29 2024 +0100
-
-    [UR][OpenCL] Bump UR OpenCL adapter for invalid kernel args (#13658)
-    
-    For UR merge request
-    https://github.com/oneapi-src/unified-runtime/pull/1501
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/7fa793bc7d17b9447ac0726bd01eb33680432d38
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Fri May 24 13:33:08 2024 +0100
-
-    [UR] Bump L0 tag to e4287455 (#13910)
-
-commit https://github.com/intel/llvm/commit/f05c1c82d07a81050db4931eef6b8d02d359a325
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Wed May 22 14:37:14 2024 +0100
-
-    [UR] CUDA multi device ctx (#13616)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1565
-    
-    For UR multi device context, buffer interop is now deprecated since a
-    buffer refers to multiple device pointers.
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
-
 commit https://github.com/intel/llvm/commit/5a09c6a15279484434df299d9164d94b96d3507a
 Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 Date:   Wed May 22 10:42:06 2024 +0100
@@ -1158,32 +833,6 @@ Date:   Wed May 22 10:42:06 2024 +0100
     [UR][L0] Return device version based on DeviceIpVersion (#13812)
     
     https://github.com/oneapi-src/unified-runtime/pull/1401
-
-commit https://github.com/intel/llvm/commit/ba19132218050c4791c5aa82316cc10e38986f75
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Thu May 16 15:40:30 2024 +0100
-
-    [UR][HIP] Get Device From Queue (#13575)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1553
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
-
-commit https://github.com/intel/llvm/commit/99d7097c10ae92805c6a100ffb544bdf0630c063
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Thu May 16 07:06:42 2024 -0700
-
-    [UR][L0] ensure a valid kernel handle for the device when reading max wg (#13797)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1611
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 
 commit https://github.com/intel/llvm/commit/34292bbc89f71233ef687652c33c52b55a38839e
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
@@ -1196,18 +845,6 @@ Date:   Wed May 15 07:43:11 2024 -0700
     
     Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
     Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/9bf81044bfbe229b6846c96819a470e62065469a
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Wed May 15 15:05:06 2024 +0100
-
-    [CUDA][SYCL] Bump UR CUDA Tag (#13746)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1596
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie83@gmail.com>
 
 commit https://github.com/intel/llvm/commit/a5da94d1fb9a46f0a8334db500f26d30b62c1c02
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
@@ -1382,22 +1019,6 @@ Date:   Tue Apr 16 11:17:23 2024 -0700
     
     Fix this by making CHECK-NOT only match output generated by UR_L0_DEBUG.
 
-commit https://github.com/intel/llvm/commit/9958a742ab498b89fb5c49ccbe94fe6f9a7a6bf6
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Apr 16 18:00:03 2024 +0100
-
-    [UR] Bump CUDA tag to 3f5f5688 (#13399)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1510
-
-commit https://github.com/intel/llvm/commit/c959b5313c6c74f206609b526272206a4b144315
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Tue Apr 16 07:56:06 2024 -0500
-
-    [UR] Bump HIP tag to 15233fd2 (#13020)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1437
-
 commit https://github.com/intel/llvm/commit/684cd90e22fe67d4a524be92c69e026cca262f1c
 Author: aarongreig <aaron.greig@codeplay.com>
 Date:   Tue Apr 16 13:17:43 2024 +0100
@@ -1408,14 +1029,6 @@ Date:   Tue Apr 16 13:17:43 2024 +0100
     https://github.com/oneapi-src/unified-runtime/pull/1492
     https://github.com/oneapi-src/unified-runtime/pull/1494
     https://github.com/oneapi-src/unified-runtime/pull/1507
-
-commit https://github.com/intel/llvm/commit/e6d9d4c6bfabae78c29aa3b376e568974860a219
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Apr 16 10:29:06 2024 +0100
-
-    [UR] Bump CUDA tag to 1333d4a0 (#13398)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1342
 
 commit https://github.com/intel/llvm/commit/a884a54914f9e9cf052591d70eb5cac20a25a210
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
@@ -1434,14 +1047,6 @@ Date:   Mon Apr 15 01:58:14 2024 -0700
     
     Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
     Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/71358f095be30b1cccd8c39a5ac2224fab9491b5
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Mon Apr 15 09:49:02 2024 +0100
-
-    [UR] Bump CUDA tag to 68e525a4 (#13376)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1317
 
 commit https://github.com/intel/llvm/commit/d7c5a9c6b2c9edb52f14adca5c84c3c3e3419d7b
 Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
