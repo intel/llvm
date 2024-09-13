@@ -592,16 +592,15 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (IsNVPTX || IsSYCLNativeCPU) {
-        // Linking SYCL Device libs requires libclc as well as libdevice
-        if ((InputFilename.find("libspirv") != InputFilename.npos ||
-             InputFilename.find("libdevice") != InputFilename.npos))
-          return true;
-        if (IsNVPTX) {
-          LibPostfix = ".cubin";
-          NewLibPostfix = ".new.cubin";
-        }
-      }
+      // NativeCPU links against libclc (libspirv)
+      if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
+        return true;
+      // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
+      // and the CUDA libdevice
+      if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
+                      InputFilename.contains("libspirv") ||
+                      InputFilename.contains("libdevice")))
+        return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix) ||
