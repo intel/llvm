@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -101,6 +102,11 @@ void submit(queue Q, CommandGroupFunc &&CGF,
                 sycl::detail::code_location::current()) {
   sycl::ext::oneapi::experimental::detail::submit_impl(
       Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
+
+template <typename CommandGroupFunc>
+void submit(command_graph<graph_state::modifiable> G, CommandGroupFunc &&CGF) {
+  G.add(std::forward<CommandGroupFunc>(CGF), {property::node::depends_on_all_leaves()});
 }
 
 template <typename CommandGroupFunc>
