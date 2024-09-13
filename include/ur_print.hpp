@@ -17403,6 +17403,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     return os;
 }
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value) {
+    os << (value ? "true" : "false");
+    return os;
+}
+
 namespace ur::details {
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print pointer value

@@ -17,7 +17,8 @@ TEST_P(urContextCreateTest, Success) {
 }
 
 TEST_P(urContextCreateTest, SuccessWithProperties) {
-    ur_context_properties_t properties{UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES};
+    ur_context_properties_t properties{UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES,
+                                       nullptr, 0};
     uur::raii::Context context = nullptr;
     ASSERT_SUCCESS(urContextCreate(1, &device, &properties, context.ptr()));
     ASSERT_NE(nullptr, context);

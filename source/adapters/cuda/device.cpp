@@ -57,12 +57,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(4318u);
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
-    int ComputeUnits = 0;
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &ComputeUnits, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
-        hDevice->get()));
-    detail::ur::assertion(ComputeUnits >= 0);
-    return ReturnValue(static_cast<uint32_t>(ComputeUnits));
+    return ReturnValue(hDevice->getNumComputeUnits());
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS: {
     return ReturnValue(MaxWorkItemDimensions);

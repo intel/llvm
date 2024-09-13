@@ -24,7 +24,8 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
     auto kernel_name =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
+    ze_module_desc_t moduleDesc{};
+    moduleDesc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
     moduleDesc.inputSize = il_binary->size();
     moduleDesc.pInputModule =
@@ -36,7 +37,8 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
                              &module, NULL),
               ZE_RESULT_SUCCESS);
 
-    ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC};
+    ze_kernel_desc_t kernelDesc{};
+    kernelDesc.stype = ZE_STRUCTURE_TYPE_KERNEL_DESC;
     kernelDesc.pKernelName = kernel_name.c_str();
 
     ze_kernel_handle_t native_kernel;
@@ -75,7 +77,8 @@ TEST_P(urLevelZeroKernelNativeHandleTest, NullProgram) {
     auto kernel_name =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
 
-    ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
+    ze_module_desc_t moduleDesc{};
+    moduleDesc.stype = ZE_STRUCTURE_TYPE_MODULE_DESC;
     moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
     moduleDesc.inputSize = il_binary->size();
     moduleDesc.pInputModule =
@@ -87,7 +90,8 @@ TEST_P(urLevelZeroKernelNativeHandleTest, NullProgram) {
                              &module, NULL),
               ZE_RESULT_SUCCESS);
 
-    ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC};
+    ze_kernel_desc_t kernelDesc{};
+    kernelDesc.stype = ZE_STRUCTURE_TYPE_KERNEL_DESC;
     kernelDesc.pKernelName = kernel_name.c_str();
 
     ze_kernel_handle_t native_kernel;

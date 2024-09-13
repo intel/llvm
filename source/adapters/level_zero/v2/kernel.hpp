@@ -15,11 +15,11 @@
 #include "common.hpp"
 
 struct ur_single_device_kernel_t {
-  ur_single_device_kernel_t(ze_device_handle_t hDevice,
+  ur_single_device_kernel_t(ur_device_handle_t hDevice,
                             ze_kernel_handle_t hKernel, bool ownZeHandle);
   ur_result_t release();
 
-  ze_device_handle_t hDevice;
+  ur_device_handle_t hDevice;
   v2::raii::ze_kernel_handle_t hKernel;
   mutable ZeCache<ZeStruct<ze_kernel_properties_t>> zeKernelProperties;
 };
@@ -40,6 +40,9 @@ public:
   // Get program handle of the kernel.
   ur_program_handle_t getProgramHandle() const;
 
+  // Get devices the kernel is built for.
+  std::vector<ur_device_handle_t> getDevices() const;
+
   // Get name of the kernel.
   const std::string &getName() const;
 
@@ -56,6 +59,10 @@ public:
   setArgPointer(uint32_t argIndex,
                 const ur_kernel_arg_pointer_properties_t *pProperties,
                 const void *pArgValue);
+
+  // Implementation of urKernelSetExecInfo.
+  ur_result_t setExecInfo(ur_kernel_exec_info_t propName,
+                          const void *pPropValue);
 
   // Perform cleanup.
   ur_result_t release();
