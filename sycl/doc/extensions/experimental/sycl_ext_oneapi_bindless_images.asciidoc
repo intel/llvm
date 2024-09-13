@@ -744,7 +744,7 @@ address mode `clamp_to_edge` will be applied for all dimensions. If the
 performed when sampling along the cube face borders.
 ====
 
-=== Explicit copies
+=== Explicit copies [[explicit_copies]]
 
 ```cpp
 namespace sycl {
@@ -1398,9 +1398,14 @@ As with allocation, the descriptor must be populated appropriately, i.e.
 
 === Copying image array data [[copying_image_array_data]]
 
-When copying to or from image arrays, the user should copy to/from the entire 
-array of images in one call to `ext_oneapi_copy` by passing the image arrays'
-`image_mem_handle`.
+When copying to or from image arrays, the user should utilize `ext_oneapi_copy`
+and pass the image arrays' `image_mem_handle`, and any applicable sub-region
+copy parameters, as outlined in <<explicit_copies>>.
+
+In order to copy to specific layers of an image array, the offset and extent
+parameters involved in sub-region copies must be populated such that the 3rd
+dimension of the ranges represent the arrays' layer(s) being copied, regardless
+of whether the copy is performed on a 1D or 2D image array.
 
 === Reading an image array
 
@@ -2888,4 +2893,5 @@ These features still need to be handled:
                     `map_external_linear_memory`.
 |6 |2024-08-05 | - Collated all changes since revision 5.
                  - Bumped SYCL_EXT_ONEAPI_BINDLESS_IMAGES to number 6.
+|6.1|2024-09-09| - Update for image-array sub-region copy support.
 |======================

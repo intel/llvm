@@ -1,4 +1,4 @@
-// RUN: %{build} -O0 -o %t.out
+// RUN: %{build} %no_opt -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
