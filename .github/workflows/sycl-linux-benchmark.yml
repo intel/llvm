@@ -3,6 +3,8 @@ name: SYCL Benchmarking
 on:
   workflow_call:
     inputs:
+      name:
+        type: string
       runner:
         type: string
         required: True
@@ -252,6 +254,7 @@ jobs:
 #     #     retention-days: 7
 
   run_benchmarks:
+    name: Run benchmarks (${{ inputs.name }})
     needs: [ check_build ]
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
