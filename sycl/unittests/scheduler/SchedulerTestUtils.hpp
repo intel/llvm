@@ -224,7 +224,6 @@ public:
       : sycl::handler(Queue, CallerNeedsEvent) {}
   // Methods
   using sycl::handler::addReduction;
-  using sycl::handler::impl;
   using sycl::handler::getType;
   using sycl::handler::impl;
   using sycl::handler::setNDRangeDescriptor;

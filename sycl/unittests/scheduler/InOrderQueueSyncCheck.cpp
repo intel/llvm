@@ -10,7 +10,6 @@
 #include "SchedulerTestUtils.hpp"
 #include <detail/handler_impl.hpp>
 #include <detail/queue_impl.hpp>
-#include <detail/handler_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>

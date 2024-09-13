@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple amdgcn-amd-amdhsa -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,CHECK-NVPTX
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,CHECK-NVPTX
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 

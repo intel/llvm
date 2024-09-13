@@ -623,7 +623,6 @@
 ??_Fqueue@_V1@sycl@@QEAAXXZ
 ?AccessTargetMask@handler@_V1@sycl@@0HB
 ?Clear@exception_list@_V1@sycl@@AEAAXXZ
-?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?DirSep@OSUtil@detail@_V1@sycl@@2QEBDEB
 ?DisableRangeRounding@handler@_V1@sycl@@AEAA_NXZ
 ?GDBMethodsAnchor@SampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
@@ -3685,9 +3684,6 @@
 ?addOrReplaceAccessorProperties@buffer_plain@detail@_V1@sycl@@IEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
 ?addStream@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@_V1@sycl@@@std@@@Z
-?addArg@handler@_V1@sycl@@AEAAXW4kernel_param_kind_t@detail@23@PEAXHH@Z
-?addLifetimeSharedPtrStorage@handler@_V1@sycl@@AEAAXV?$shared_ptr@$$CBX@std@@@Z
-?addAccessorReq@handler@_V1@sycl@@AEAAXV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ?alignedAlloc@OSUtil@detail@_V1@sycl@@SAPEAX_K0@Z
 ?alignedFree@OSUtil@detail@_V1@sycl@@SAXPEAX@Z
 ?aligned_alloc@_V1@sycl@@YAPEAX_K0AEBVdevice@12@AEBVcontext@12@W4alloc@usm@12@AEBUcode_location@detail@12@@Z
@@ -4059,7 +4055,6 @@
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
 ?gpu_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
-?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
 ?handleRelease@buffer_plain@detail@_V1@sycl@@IEBAXXZ
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
@@ -4229,14 +4224,6 @@
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
 ?setType@handler@_V1@sycl@@AEAAXW4CGType@detail@23@@Z
 ?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
-?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@V?$id@$02@23@H@Z
-?setKernelClusterLaunch@handler@_V1@sycl@@AEAAXV?$range@$02@23@H@Z
-?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
-?setType@handler@_V1@sycl@@AEAAXW4CGType@detail@23@@Z
-?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@_NH@Z
-?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
-?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXXZ@std@@@Z
-?setNDRangeDescriptorPadded@handler@_V1@sycl@@AEAAXV?$range@$02@23@0V?$id@$02@23@H@Z
 ?set_access_mode@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KW4address_access_mode@12345@AEBVcontext@45@@Z
 ?set_arg@handler@_V1@sycl@@QEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?set_final_data_internal@buffer_plain@detail@_V1@sycl@@IEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
