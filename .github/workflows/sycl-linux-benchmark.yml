@@ -304,7 +304,7 @@ jobs:
       with:
         name: ${{ inputs.sycl_toolchain_artifact || 'sycl_linux_benchmark_ver' }}
     - name: Download SYCL toolchain [workflow_run]
-      if: && github.event_name == 'workflow_run'
+      if: github.event_name == 'workflow_run'
       uses: actions/github-script@v7
       with:
         script: |
