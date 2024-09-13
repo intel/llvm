@@ -450,15 +450,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       URValue[i].type = static_cast<ur_device_partition_t>(CLValue[0]);
       switch (URValue[i].type) {
       case UR_DEVICE_PARTITION_EQUALLY: {
-        URValue[i].value.equally = CLValue[i + 1];
+        URValue[i].value.equally = static_cast<uint32_t>(CLValue[i + 1]);
         break;
       }
       case UR_DEVICE_PARTITION_BY_COUNTS: {
-        URValue[i].value.count = CLValue[i + 1];
+        URValue[i].value.count = static_cast<uint32_t>(CLValue[i + 1]);
         break;
       }
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
-        URValue[i].value.affinity_domain = CLValue[i + 1];
+        URValue[i].value.affinity_domain =
+            static_cast<uint32_t>(CLValue[i + 1]);
         break;
       }
       default: {
