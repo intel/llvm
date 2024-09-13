@@ -71,7 +71,8 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
 
   const size_t maxWorkGroupSize =
       kernel.template get_info<work_group_size>(dev);
-  const size_t NumWorkItems = maxWorkGroupSize * maxWorkGroupSize;
+  // Will try to launch 2 work groups.
+  const size_t NumWorkItems = maxWorkGroupSize * 2;
 
   size_t workGroupSize = 32;
   size_t localMemorySizeInBytes{0};
@@ -100,8 +101,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // ===================== //
   // We must have at least one active group if we are below resource limits.
   assert(maxWGs > 0 && "max_num_work_groups query failed");
-  if (maxWGs == 0)
-    return 1;
 
   // Run the kernel
   auto launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
@@ -121,7 +120,6 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // ========================== //
   // Test 3 - use max resources //
   // ========================== //
-  // A little over the maximum work-group size for the purpose of exceeding.
   workGroupSize = maxWorkGroupSize;
   workGroupRange[0] = workGroupSize;
   size_t localSize =
@@ -133,9 +131,8 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
       syclex::info::kernel_queue_specific::max_num_work_groups>(
       q, workGroupRange, localMemorySizeInBytes);
 
+  // We must have at least one active group if we are at resource limits.
   assert(maxWGs > 0 && "max_num_work_groups query failed");
-  if (maxWGs == 0)
-    return 1;
 
   launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
                                    sycl::range<1>{workGroupSize}};
@@ -155,6 +152,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // =============================== //
   // Test 4 - exceed resource limits //
   // =============================== //
+  // A little over the maximum work-group size for the purpose of exceeding.
   workGroupSize = maxWorkGroupSize + 32;
   workGroupRange[0] = workGroupSize;
   maxWGs = kernel.template ext_oneapi_get_info<
@@ -163,10 +161,10 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // It cannot be possible to launch a kernel successfully with a configuration
   // that exceeds the available resources as in the above defined workGroupSize.
   // workGroupSize is larger than maxWorkGroupSize, hence maxWGs must equal 0.
+  // Note: Level-Zero currently always returns a non-zero value. While other
+  // backends (i.e., OpenCL, HIP) always return 1 in their implementations.
   if (dev.get_backend() == sycl::backend::ext_oneapi_cuda) {
     assert(maxWGs == 0 && "max_num_work_groups query failed");
-    if (maxWGs > 0)
-      return 1;
   }
 
   // As we ensured that the 'max_num_work_groups' query correctly
