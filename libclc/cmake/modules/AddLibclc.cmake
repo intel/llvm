@@ -86,12 +86,15 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * RSP_DIR <string>
+#     Directory where a response file should be placed
+#     (Only needed for WIN32 or CYGWIN)
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     ""
-    "TARGET"
+    "TARGET;RSP_DIR"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -100,7 +103,7 @@ function(link_bc)
   if( WIN32 OR CYGWIN )
     # Create a response file in case the number of inputs exceeds command-line
     # character limits on certain platforms.
-    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
     # Turn it into a space-separate list of input files
     list( JOIN ARG_INPUTS " " RSP_INPUT )
     file( WRITE ${RSP_FILE} ${RSP_INPUT} )
@@ -118,7 +121,10 @@ function(link_bc)
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
-  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES
+    TARGET_FILE ${ARG_TARGET}.bc
+    FOLDER "libclc/Device IR/Linking"
+  )
 endfunction()
 
 # Decomposes and returns variables based on a libclc triple and architecture
@@ -216,6 +222,50 @@ function(add_libclc_alias alias target)
 
 endfunction(add_libclc_alias alias target)
 
+# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#
+# ARGUMENTS:
+# * LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+# * IN_FILE string
+#     Target name of the input bytecode file
+# * OUT_DIR string
+#     Name of the directory where the output should be placed
+# *  DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(process_bc out_file)
+  cmake_parse_arguments(ARG
+    ""
+    "LIB_TGT;IN_FILE;OUT_DIR"
+    "OPT_FLAGS;DEPENDENCIES"
+    ${ARGN})
+  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+    ${ARG_IN_FILE}
+    DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
+  )
+  add_custom_target( ${ARG_LIB_TGT}
+    ALL DEPENDS ${ARG_LIB_TGT}.bc
+    )
+  set_target_properties( ${ARG_LIB_TGT}
+    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
+    )
+
+  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
+
+  # Add prepare target
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
+  add_custom_target( prepare-${out_file} ALL
+    DEPENDS ${ARG_OUT_DIR}/${out_file}
+  )
+  set_target_properties( prepare-${out_file}
+    PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
+  )
+endfunction()
+
 # add_libclc_builtin_set(arch_suffix
 #   TRIPLE string
 #     Triple used to compile
@@ -291,44 +341,28 @@ macro(add_libclc_builtin_set arch_suffix)
   link_bc(
     TARGET ${builtins_link_lib_tgt}
     INPUTS ${bytecode_files}
+    RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
     DEPENDENCIES ${builtins_comp_lib_tgt}
   )
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
+  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    DEPENDS ${builtins_link_lib} prepare_builtins )
+
   set( builtins_opt_lib_tgt builtins.opt.${arch_suffix} )
 
-  # Add opt target
-  add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
-    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-      ${builtins_link_lib}
-    DEPENDS ${opt_target} ${builtins_link_lib} ${builtins_link_lib_tgt}
-  )
-  add_custom_target( ${builtins_opt_lib_tgt}
-    ALL DEPENDS ${builtins_opt_lib_tgt}.bc
-  )
-  set_target_properties( ${builtins_opt_lib_tgt}
-    PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
-
-  # Add prepare target
-  set( obj_suffix ${arch_suffix}.bc )
-  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    COMMAND ${prepare_builtins_exe} -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} ${prepare_builtins_target} )
-  add_custom_target( prepare-${obj_suffix} ALL
-    DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
-  set_target_properties( prepare-${obj_suffix}
-    PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
+  process_bc(${arch_suffix}.bc
+    LIB_TGT ${builtins_opt_lib_tgt}
+    IN_FILE ${builtins_link_lib}
+    OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    OPT_FLAGS ${ARG_OPT_FLAGS}
+    DEPENDENCIES ${builtins_link_lib_tgt})
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
+  set( obj_suffix ${arch_suffix}.bc )
   add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
   set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
 

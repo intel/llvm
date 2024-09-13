@@ -58,12 +58,13 @@ submission. This may be as simple as adding a new node to the task-graph or
 adding multiple nodes to the graph, where one of the nodes represents the
 computation and the others dependent memory transfers.
 
-To model this, we create a global graph for every application instantiation and
-all kernel executions in the applications are added as nodes in this global
-graph. In the SYCL runtime, there is no obvious location where the creation of
-the global graph can be inserted as many objects are instantiated statically.
-Currently, we perform the graph creation during UR initialization, in the
-`initializePlugins()` call. In this call, we will perform two operations:
+To model this, we create a global graph for every application instantiation
+and all kernel executions in the applications are added as nodes in this
+global graph. In the SYCL runtime, there is no obvious location where the
+creation of the global graph can be inserted as many objects are
+instantiated statically. Currently, we embed the graph creation in the
+Unified Runtime (UR) layer `initializePlugins()` call. In this call, we will
+perform two operations:
 
 1. Initialize all listeners and create a trace event to represent the graph.
 This is done in `sycl/include/sycl/detail/ur.cpp`.

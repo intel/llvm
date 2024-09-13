@@ -212,18 +212,26 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
+  // For NVPTX we only use one single bitcode library and ignore
+  // manually specified SYCL device libraries.
+  bool IgnoreSingleLibs = TargetTriple.isNVPTX();
+
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
   };
 
-  bool NoDeviceLibs = false;
-  // Currently, all SYCL device libraries will be linked by default. Linkage
-  // of "internal" libraries cannot be affected via -fno-sycl-device-lib.
+  // Currently, all SYCL device libraries will be linked by default.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
       {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
       {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
       {"libm-bfloat16", true}, {"internal", true}};
+
+  // If -fno-sycl-device-lib is specified, its values will be used to exclude
+  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
+  // libraries cannot be affected via -fno-sycl-device-lib.
+  bool ExcludeDeviceLibs = false;
+
   if (Arg *A = Args.getLastArg(options::OPT_fsycl_device_lib_EQ,
                                options::OPT_fno_sycl_device_lib_EQ)) {
     if (A->getValues().size() == 0)
@@ -231,12 +239,24 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           << A->getAsString(Args);
     else {
       if (A->getOption().matches(options::OPT_fno_sycl_device_lib_EQ))
-        NoDeviceLibs = true;
+        ExcludeDeviceLibs = true;
+
+      // When single libraries are ignored and a subset of library names
+      // not containing the value "all" is specified by -fno-sycl-device-lib,
+      // print an unused argument warning.
+      bool PrintUnusedExcludeWarning = false;
 
       for (StringRef Val : A->getValues()) {
         if (Val == "all") {
+          PrintUnusedExcludeWarning = false;
+
+          // Make sure that internal libraries are still linked against
+          // when -fno-sycl-device-lib contains "all" and single libraries
+          // should be ignored.
+          IgnoreSingleLibs = IgnoreSingleLibs && !ExcludeDeviceLibs;
+
           for (const auto &K : DeviceLibLinkInfo.keys())
-            DeviceLibLinkInfo[K] = true && (!NoDeviceLibs || K == "internal");
+            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
           break;
         }
         auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
@@ -247,10 +267,20 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           C.getDriver().Diag(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
         }
-        DeviceLibLinkInfo[Val] = true && !NoDeviceLibs;
+        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
+        PrintUnusedExcludeWarning = IgnoreSingleLibs && ExcludeDeviceLibs;
       }
+      if (PrintUnusedExcludeWarning)
+        C.getDriver().Diag(diag::warn_drv_unused_argument) << A->getSpelling();
     }
   }
+
+  if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
+    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+
+  if (IgnoreSingleLibs)
+    return LibraryList;
+
   using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
 
   const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
@@ -304,10 +334,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
   bool IsNewOffload = C.getDriver().getUseNewOffloadingDriver();
   StringRef LibSuffix = ".bc";
-  if (TargetTriple.isNVPTX() ||
-      (TargetTriple.isSPIR() &&
-       TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga))
-    // For NVidia or FPGA, we are unbundling objects.
+  if (TargetTriple.isSPIR() &&
+      TargetTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
+    // For FPGA, we are unbundling objects.
     LibSuffix = IsWindowsMSVCEnv ? ".obj" : ".o";
   if (IsNewOffload)
     // For new offload model, we use packaged .bc files.
@@ -323,7 +352,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT || TargetTriple.isNVPTX())
+  if (IsSpirvAOT)
     addLibraries(SYCLDeviceFallbackLibs);
 
   bool NativeBfloatLibs;
@@ -551,7 +580,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
       StringRef LibPostfix = ".bc";
-      if (IsNVPTX || IsFPGA) {
+      if (IsFPGA) {
         LibPostfix = ".o";
         if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
             C.getDriver().IsCLMode())
@@ -1798,8 +1827,10 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
-  // Add ../include/sycl, ../include/sycl/stl_wrappers and ../include (in that
-  // order).
+  // Add the SYCL header search locations in the specified order.
+  //   ../include/sycl
+  //   ../include/sycl/stl_wrappers
+  //   ../include
   SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");

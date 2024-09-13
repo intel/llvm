@@ -35,6 +35,8 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
+void *getURLoaderLibrary() { return nullptr; }
+
 } // namespace detail::ur
 } // namespace _V1
 } // namespace sycl

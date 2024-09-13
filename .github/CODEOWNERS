@@ -97,6 +97,9 @@ invoke_simd/ @intel/dpcpp-esimd-reviewers
 InvokeSimd/ @intel/dpcpp-esimd-reviewers
 sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
+# dev-igc driver update
+devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
+
 # DevOps configs
 .github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
@@ -129,6 +132,7 @@ clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers
 sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
 sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
 sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
+libdevice/nativecpu* @intel/dpcpp-nativecpu-pi-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers

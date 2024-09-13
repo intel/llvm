@@ -13,7 +13,6 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_half_impl.hpp"

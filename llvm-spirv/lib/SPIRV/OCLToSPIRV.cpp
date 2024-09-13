@@ -485,6 +485,18 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
     auto Mutator = mutateCallInst(CI, kOCLBuiltinName::AtomicCmpXchgStrong);
     Value *Expected = Mutator.getArg(1);
     Type *MemTy = Mutator.getArg(2)->getType();
+    if (MemTy->isFloatTy() || MemTy->isDoubleTy()) {
+      MemTy =
+          MemTy->isFloatTy() ? Type::getInt32Ty(*Ctx) : Type::getInt64Ty(*Ctx);
+      Mutator.replaceArg(
+          0,
+          {Mutator.getArg(0),
+           TypedPointerType::get(
+               MemTy, Mutator.getArg(0)->getType()->getPointerAddressSpace())});
+      Mutator.mapArg(2, [=](IRBuilder<> &Builder, Value *V) {
+        return Builder.CreateBitCast(V, MemTy);
+      });
+    }
     assert(MemTy->isIntegerTy() &&
            "In SPIR-V 1.0 arguments of OpAtomicCompareExchange must be "
            "an integer type scalars");

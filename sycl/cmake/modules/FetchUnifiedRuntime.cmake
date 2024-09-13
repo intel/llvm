@@ -11,9 +11,9 @@ endif()
 
 # Options to override the default behaviour of the FetchContent to include UR
 # source code.
-set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
+set(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO
   "" CACHE STRING "Override the Unified Runtime FetchContent repository")
-set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
+set(SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG
   "" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0342c95cbe1dae72e874821698b3726dbe3db284
-  # Merge: d7e0fad5 a4c6e912
+  # commit 2bbe952669861579ea84fa30f14e1ed27ead0692
+  # Merge: d357964a 6b353545
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Aug 15 17:50:02 2024 +0100
-  #     Merge pull request #1953 from aarongreig/aaron/changeDeviceCreateWithNativeParam
-  #     Change urDeviceCreateWithNativeHandle to take an adapter handle.
-  set(UNIFIED_RUNTIME_TAG 0342c95cbe1dae72e874821698b3726dbe3db284)
+  # Date:   Thu Sep 12 11:36:11 2024 +0100
+  #     Merge pull request #1928 from isaacault/iault/image_array_copy
+  #     [Bindless][Exp] Image Array Sub-Region Copies
+  set(UNIFIED_RUNTIME_TAG 2bbe952669861579ea84fa30f14e1ed27ead0692)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -160,11 +160,11 @@ if(SYCL_UR_USE_FETCH_CONTENT)
     ${UNIFIED_RUNTIME_TAG}
   )
 
-  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
-    set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
+  if(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO)
+    set(UNIFIED_RUNTIME_REPO "${SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
-  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG)
-    set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
+  if(SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG)
+    set(UNIFIED_RUNTIME_TAG "${SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG}")
   endif()
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")

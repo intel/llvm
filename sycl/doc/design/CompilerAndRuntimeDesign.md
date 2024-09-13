@@ -776,7 +776,7 @@ Note: Kernel naming is not fully stable for now.
 ##### Kernel Fusion Support
 
 The [experimental kernel fusion
-extension](../extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc)
+extension](../extensions/removed/sycl_ext_codeplay_kernel_fusion.asciidoc)
 also supports the CUDA and HIP backends. However, as the CUBIN, PTX and AMD assembly
 are not suitable input formats for the [kernel fusion JIT compiler](KernelFusionJIT.md), a
 suitable IR has to be added as an additional device binary.
