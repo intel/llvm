@@ -32,7 +32,7 @@
 
 // REQUIRES: aspect-fp64
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

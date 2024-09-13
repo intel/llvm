@@ -85,10 +85,6 @@ private:
   std::tuple<T1 *, T2 *> KeyValue;
 };
 
-template <typename T> void swap(T &first, T &second) {
-  std::swap(first, second);
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

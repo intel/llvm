@@ -10,7 +10,7 @@
 
 #include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <map>
 #include <vector>
@@ -27,9 +27,8 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw);
 bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed);
 
-void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
-                    sycl::detail::pi::PiPlatform PiPlatform,
-                    const PluginPtr &Plugin);
+void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
+                    ur_platform_handle_t UrPlatform, const PluginPtr &Plugin);
 
 } // namespace detail
 } // namespace _V1

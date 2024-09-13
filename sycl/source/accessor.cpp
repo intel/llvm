@@ -15,12 +15,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 device getDeviceFromHandler(handler &cgh) {
-  assert((cgh.MQueue || cgh.MGraph) &&
+  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
   if (cgh.MQueue)
     return cgh.MQueue->get_device();
 
-  return cgh.MGraph->getDevice();
+  return getSyclObjImpl(cgh)->MGraph->getDevice();
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,

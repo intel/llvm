@@ -1,6 +1,7 @@
 #pragma once
 #include <random>
 #include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 template <typename DType, int NChannels>
 std::ostream &operator<<(std::ostream &os,
@@ -35,6 +36,44 @@ static void printTestName(std::string name, sycl::range<NDims> globalSize,
 
   std::cout << "\n";
 #endif
+}
+
+const char *channelTypeToString(sycl::image_channel_type type) {
+  switch (type) {
+  case sycl::image_channel_type::snorm_int8:
+    return "sycl::image_channel_type::snorm_int8";
+  case sycl::image_channel_type::snorm_int16:
+    return "sycl::image_channel_type::snorm_int16";
+  case sycl::image_channel_type::unorm_int8:
+    return "sycl::image_channel_type::unorm_int8";
+  case sycl::image_channel_type::unorm_int16:
+    return "sycl::image_channel_type::unorm_int16";
+  case sycl::image_channel_type::unorm_short_565:
+    return "sycl::image_channel_type::unorm_short_565";
+  case sycl::image_channel_type::unorm_short_555:
+    return "sycl::image_channel_type::unorm_short_555";
+  case sycl::image_channel_type::unorm_int_101010:
+    return "sycl::image_channel_type::unorm_int_101010";
+  case sycl::image_channel_type::signed_int8:
+    return "sycl::image_channel_type::signed_int8";
+  case sycl::image_channel_type::signed_int16:
+    return "sycl::image_channel_type::signed_int16";
+  case sycl::image_channel_type::signed_int32:
+    return "sycl::image_channel_type::signed_int32";
+  case sycl::image_channel_type::unsigned_int8:
+    return "sycl::image_channel_type::unsigned_int8";
+  case sycl::image_channel_type::unsigned_int16:
+    return "sycl::image_channel_type::unsigned_int16";
+  case sycl::image_channel_type::unsigned_int32:
+    return "sycl::image_channel_type::unsigned_int32";
+  case sycl::image_channel_type::fp16:
+    return "sycl::image_channel_type::fp16";
+  case sycl::image_channel_type::fp32:
+    return "sycl::image_channel_type::fp32";
+  default:
+    std::cerr << "Unsupported image_channel_type in channelTypeToString\n";
+    exit(-1);
+  }
 }
 
 template <typename DType, int NChannel>

@@ -1,6 +1,6 @@
-// REQUIRES: cuda
+// REQUIRES: cuda, cuda_dev_kit
 //
-// RUN: %{build} -o %t.out -lcuda
+// RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 //
 // Test for buffer use in a context with multiple devices (all found
@@ -8,13 +8,12 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
-//
 
 #include <cuda.h>
 #include <iostream>
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/detail/host_task_impl.hpp>
+#include <sycl/interop_handle.hpp>
 
 using namespace sycl;
 

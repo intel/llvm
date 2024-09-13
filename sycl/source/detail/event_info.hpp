@@ -19,33 +19,32 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type
-get_event_profiling_info(sycl::detail::pi::PiEvent Event,
-                         const PluginPtr &Plugin) {
+typename Param::return_type get_event_profiling_info(ur_event_handle_t Event,
+                                                     const PluginPtr &Plugin) {
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piEventGetProfilingInfo>(
-      Event, PiInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
+  Plugin->call<UrApiKind::urEventGetProfilingInfo>(
+      Event, UrInfoCode<Param>::value, sizeof(Result), &Result, nullptr);
   return Result;
 }
 
 template <typename Param>
-typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
+typename Param::return_type get_event_info(ur_event_handle_t Event,
                                            const PluginPtr &Plugin) {
   static_assert(is_event_info_desc<Param>::value,
                 "Unexpected event info descriptor");
   typename Param::return_type Result{0};
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piEventGetInfo>(Event, PiInfoCode<Param>::value,
+  Plugin->call<UrApiKind::urEventGetInfo>(Event, UrInfoCode<Param>::value,
                                           sizeof(Result), &Result, nullptr);
 
-  // If the status is PI_EVENT_QUEUED We need to change it since QUEUE is
+  // If the status is UR_EVENT_STATUS_QUEUED We need to change it since QUEUE is
   // not a valid status in sycl.
   if constexpr (std::is_same<Param,
                              info::event::command_execution_status>::value) {
-    Result = static_cast<pi_event_status>(Result) == PI_EVENT_QUEUED
+    Result = static_cast<ur_event_status_t>(Result) == UR_EVENT_STATUS_QUEUED
                  ? sycl::info::event_command_status::submitted
                  : Result;
   }

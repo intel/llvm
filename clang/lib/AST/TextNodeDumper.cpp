@@ -2389,8 +2389,8 @@ void TextNodeDumper::VisitNamespaceDecl(const NamespaceDecl *D) {
     OS << " inline";
   if (D->isNested())
     OS << " nested";
-  if (!D->isOriginalNamespace())
-    dumpDeclRef(D->getOriginalNamespace(), "original");
+  if (!D->isFirstDecl())
+    dumpDeclRef(D->getFirstDecl(), "original");
 }
 
 void TextNodeDumper::VisitUsingDirectiveDecl(const UsingDirectiveDecl *D) {

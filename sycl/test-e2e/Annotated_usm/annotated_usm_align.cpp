@@ -1,8 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // This e2e test checks the alignment of the annotated USM allocation (host &
 // device) in various cases
 

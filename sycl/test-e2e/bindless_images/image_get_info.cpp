@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include <iostream>
@@ -64,8 +64,6 @@ int main() {
         dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm);
     bool sampledFetch2DUSMSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_2d_usm);
-    bool sampledFetch3DUSMSupport =
-        dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm);
     bool sampledFetch1DSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_1d);
     bool sampledFetch2DSupport =
@@ -76,7 +74,6 @@ int main() {
 #ifdef VERBOSE_PRINT
     std::cout << "sampledFetch1DUSMSupport: " << sampledFetch1DUSMSupport
               << "\nsampledFetch2DUSMSupport: " << sampledFetch2DUSMSupport
-              << "\nsampledFetch3DUSMSupport: " << sampledFetch3DUSMSupport
               << "\nsampledFetch1DSupport: " << sampledFetch1DSupport
               << "\nsampledFetch2DSupport: " << sampledFetch2DSupport
               << "\nsampledFetch3DSupport: " << sampledFetch3DSupport << "\n";
@@ -132,22 +129,42 @@ int main() {
 #endif
 
     // Extension: query for bindless image interop support -- device aspects
-    bool interopMemoryImportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_memory_import);
-    bool interopMemoryExportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_memory_export);
-    bool interopSemaphoreImportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_semaphore_import);
-    bool interopSemaphoreExportSupport =
-        dev.has(sycl::aspect::ext_oneapi_interop_semaphore_export);
+    bool externalMemoryImportSupport =
+        dev.has(sycl::aspect::ext_oneapi_external_memory_import);
+    bool externalSemaphoreImportSupport =
+        dev.has(sycl::aspect::ext_oneapi_external_semaphore_import);
 
 #ifdef VERBOSE_PRINT
-    std::cout << "interopMemoryImportSupport: " << interopMemoryImportSupport
-              << "\ninteropMemoryExportSupport: " << interopMemoryExportSupport
-              << "\ninteropSemaphoreImportSupport: "
-              << interopSemaphoreImportSupport
-              << "\ninteropSemaphoreExportSupport: "
-              << interopSemaphoreExportSupport << "\n";
+    std::cout << "externalMemoryImportSupport: " << externalMemoryImportSupport
+              << "\nexternalSemaphoreImportSupport: "
+              << externalSemaphoreImportSupport << "\n";
+#endif
+
+    // Extension: query for bindless image array support - device aspect
+    bool imageArraySupport = dev.has(sycl::aspect::ext_oneapi_image_array);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "imageArraySupport: " << imageArraySupport << "\n";
+#endif
+
+    // Extension: query for bindless image unique addressing support - device
+    // aspect
+    bool uniqueAddrSupport =
+        dev.has(sycl::aspect::ext_oneapi_unique_addressing_per_dim);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "uniqueAddrSupport: " << uniqueAddrSupport << "\n";
+#endif
+
+    // Extension: query for usm sample support - device aspect
+    bool usm1DSampleSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_images_sample_1d_usm);
+    bool usm2DSampleSupport =
+        dev.has(sycl::aspect::ext_oneapi_bindless_images_sample_2d_usm);
+
+#ifdef VERBOSE_PRINT
+    std::cout << "usm1DSampleSupport: " << usm1DSampleSupport << "\n";
+    std::cout << "usm2DSampleSupport: " << usm2DSampleSupport << "\n";
 #endif
 
     auto rangeMem = imgMem.get_range();
@@ -209,6 +226,31 @@ int main() {
       printString("num channels is correct!\n");
     } else {
       printString("num channels is NOT correct!\n");
+      validated = false;
+    }
+
+    // Extension: image descriptor -- number of levels
+    sycl::ext::oneapi::experimental::image_descriptor mipDesc(
+        {width, height}, 4, sycl::image_channel_type::signed_int32,
+        sycl::ext::oneapi::experimental::image_type::mipmap, 3);
+
+    // Extension: allocate mipmap memory on device
+    sycl::ext::oneapi::experimental::image_mem mipMem(mipDesc, q);
+
+    auto numChannelsMipMem = mipMem.get_num_channels();
+    auto numChannelsMip =
+        sycl::ext::oneapi::experimental::get_image_num_channels(
+            mipMem.get_handle(), dev, ctxt);
+
+    if (numChannelsMipMem != numChannelsMip) {
+      printString(
+          "mipmap handle and mem object disagree on number of channels!\n");
+      validated = false;
+    }
+    if (numChannelsMip == 4) {
+      printString("mipmap num channels is correct!\n");
+    } else {
+      printString("mipmap num channels is NOT correct!\n");
       validated = false;
     }
 

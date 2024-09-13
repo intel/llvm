@@ -2280,10 +2280,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
     }
-    return mapValue(V, BM->addVariable(TranslatedTy, false,
-                                       spv::internal::LinkageTypeInternal,
-                                       nullptr, Alc->getName().str(),
-                                       StorageClassFunction, BB));
+    SPIRVType *VarTy =
+        V->getType()->getPointerAddressSpace() == SPIRAS_Generic
+            ? BM->addPointerType(StorageClassFunction,
+                                 TranslatedTy->getPointerElementType())
+            : TranslatedTy;
+    SPIRVValue *Var = BM->addVariable(
+        VarTy, false, spv::internal::LinkageTypeInternal, nullptr,
+        Alc->getName().str(), StorageClassFunction, BB);
+    if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
+      SPIRVValue *Cast =
+          BM->addUnaryInst(OpPtrCastToGeneric, TranslatedTy, Var, BB);
+      return mapValue(V, Cast);
+    }
+    return mapValue(V, Var);
   }
 
   if (auto *Switch = dyn_cast<SwitchInst>(V)) {
@@ -3799,6 +3809,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::roundeven:
   case Intrinsic::sin:
   case Intrinsic::sqrt:
+  case Intrinsic::tan:
   case Intrinsic::trunc:
   case Intrinsic::ctpop:
   case Intrinsic::ctlz:
@@ -3874,12 +3885,20 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
   //       and assume that the operations have no side effects (FP status flags
   //       aren't maintained), so the OpenCL builtin behavior should be
   //       acceptable.
+  case Intrinsic::acos:
+    return OpenCLLIB::Acos;
+  case Intrinsic::asin:
+    return OpenCLLIB::Asin;
+  case Intrinsic::atan:
+    return OpenCLLIB::Atan;
   case Intrinsic::ceil:
     return OpenCLLIB::Ceil;
   case Intrinsic::copysign:
     return OpenCLLIB::Copysign;
   case Intrinsic::cos:
     return OpenCLLIB::Cos;
+  case Intrinsic::cosh:
+    return OpenCLLIB::Cosh;
   case Intrinsic::exp:
     return OpenCLLIB::Exp;
   case Intrinsic::exp2:
@@ -3920,8 +3939,14 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Rint;
   case Intrinsic::sin:
     return OpenCLLIB::Sin;
+  case Intrinsic::sinh:
+    return OpenCLLIB::Sinh;
   case Intrinsic::sqrt:
     return OpenCLLIB::Sqrt;
+  case Intrinsic::tan:
+    return OpenCLLIB::Tan;
+  case Intrinsic::tanh:
+    return OpenCLLIB::Tanh;
   case Intrinsic::trunc:
     return OpenCLLIB::Trunc;
   default:
@@ -3948,6 +3973,8 @@ static SPIRVWord getNativeBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Native_sin;
   case Intrinsic::sqrt:
     return OpenCLLIB::Native_sqrt;
+  case Intrinsic::tan:
+    return OpenCLLIB::Native_tan;
   default:
     return getBuiltinIdForIntrinsic(IID);
   }
@@ -4052,8 +4079,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
 
   // Unary FP intrinsic
+  case Intrinsic::acos:
+  case Intrinsic::asin:
+  case Intrinsic::atan:
   case Intrinsic::ceil:
   case Intrinsic::cos:
+  case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
   case Intrinsic::fabs:
@@ -4066,7 +4097,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::round:
   case Intrinsic::roundeven:
   case Intrinsic::sin:
+  case Intrinsic::sinh:
   case Intrinsic::sqrt:
+  case Intrinsic::tan:
+  case Intrinsic::tanh:
   case Intrinsic::trunc: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;
@@ -4543,7 +4577,21 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     int64_t Size = dyn_cast<ConstantInt>(II->getOperand(0))->getSExtValue();
     if (Size == -1)
       Size = 0;
-    return BM->addLifetimeInst(OC, transValue(II->getOperand(1), BB), Size, BB);
+    Value *LLVMPtrOp = II->getOperand(1);
+    unsigned PtrAS = cast<PointerType>(LLVMPtrOp->getType())->getAddressSpace();
+    auto *PtrOp = transValue(LLVMPtrOp, BB);
+    if (PtrAS == SPIRAS_Private)
+      return BM->addLifetimeInst(OC, PtrOp, Size, BB);
+    // If pointer address space is Generic - cast to private first
+    BM->getErrorLog().checkError(
+        PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
+        "lifetime intrinsic pointer operand must be in private or generic AS");
+    auto *SrcTy = PtrOp->getType();
+    auto *DstTy = BM->addPointerType(StorageClassFunction,
+                                     SrcTy->getPointerElementType());
+    PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
+    ValueMap[LLVMPtrOp] = PtrOp;
+    return BM->addLifetimeInst(OC, PtrOp, Size, BB);
   }
   // We don't want to mix translation of regular code and debug info, because
   // it creates a mess, therefore translation of debug intrinsics is
@@ -6518,18 +6566,13 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
   }
-  case OpIAddCarry: {
+  case OpIAddCarry:
+  case OpISubBorrow:
+  case OpUMulExtended:
+  case OpSMulExtended: {
     Function *F = CI->getCalledFunction();
     StructType *St = cast<StructType>(F->getParamStructRetType(0));
-    SPIRVValue *V = BM->addBinaryInst(OpIAddCarry, transType(St),
-                                      transValue(CI->getArgOperand(1), BB),
-                                      transValue(CI->getArgOperand(2), BB), BB);
-    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
-  }
-  case OpISubBorrow: {
-    Function *F = CI->getCalledFunction();
-    StructType *St = cast<StructType>(F->getParamStructRetType(0));
-    SPIRVValue *V = BM->addBinaryInst(OpISubBorrow, transType(St),
+    SPIRVValue *V = BM->addBinaryInst(OC, transType(St),
                                       transValue(CI->getArgOperand(1), BB),
                                       transValue(CI->getArgOperand(2), BB), BB);
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), V, {}, BB);
@@ -6735,6 +6778,8 @@ VersionNumber getVersionFromTriple(const Triple &TT, SPIRVErrorLog &ErrorLog) {
     return VersionNumber::SPIRV_1_4;
   case Triple::SPIRVSubArch_v15:
     return VersionNumber::SPIRV_1_5;
+  case Triple::SPIRVSubArch_v16:
+    return VersionNumber::SPIRV_1_6;
   default:
     ErrorLog.checkError(false, SPIRVEC_InvalidSubArch, TT.getArchName().str());
     return VersionNumber::MaximumVersion;

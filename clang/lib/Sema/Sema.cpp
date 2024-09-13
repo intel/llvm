@@ -496,7 +496,9 @@ void Sema::Initialize() {
 #include "clang/Basic/OpenCLExtensionTypes.def"
   }
 
-  if (Context.getTargetInfo().hasAArch64SVETypes()) {
+  if (Context.getTargetInfo().hasAArch64SVETypes() ||
+      (Context.getAuxTargetInfo() &&
+       Context.getAuxTargetInfo()->hasAArch64SVETypes())) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -593,10 +595,6 @@ void Sema::runWithSufficientStackSpace(SourceLocation Loc,
   clang::runWithSufficientStackSpace([&] { warnStackExhausted(Loc); }, Fn);
 }
 
-/// makeUnavailableInSystemHeader - There is an error in the current
-/// context.  If we're still in a system header, and we can plausibly
-/// make the relevant declaration unavailable instead of erroring, do
-/// so and return true.
 bool Sema::makeUnavailableInSystemHeader(SourceLocation loc,
                                       UnavailableAttr::ImplicitReason reason) {
   // If we're not in a function, it's an error.
@@ -622,11 +620,6 @@ ASTMutationListener *Sema::getASTMutationListener() const {
   return getASTConsumer().GetASTMutationListener();
 }
 
-///Registers an external source. If an external source already exists,
-/// creates a multiplex external source and appends to it.
-///
-///\param[in] E - A non-null external sema source.
-///
 void Sema::addExternalSource(ExternalSemaSource *E) {
   assert(E && "Cannot use with NULL ptr");
 
@@ -641,7 +634,6 @@ void Sema::addExternalSource(ExternalSemaSource *E) {
     ExternalSource = new MultiplexExternalSemaSource(ExternalSource.get(), E);
 }
 
-/// Print out statistics about the semantic analysis.
 void Sema::PrintStats() const {
   llvm::errs() << "\n*** Semantic Analysis Stats:\n";
   llvm::errs() << NumSFINAEErrors << " SFINAE diagnostics trapped.\n";
@@ -755,8 +747,8 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
 
   diagnoseNullableToNonnullConversion(Ty, E->getType(), E->getBeginLoc());
   diagnoseZeroToNullptrConversion(Kind, E);
-  if (!isCast(CCK) && Kind != CK_NullToPointer &&
-      Kind != CK_NullToMemberPointer)
+  if (Context.hasAnyFunctionEffects() && !isCast(CCK) &&
+      Kind != CK_NullToPointer && Kind != CK_NullToMemberPointer)
     diagnoseFunctionEffectConversion(Ty, E->getType(), E->getBeginLoc());
 
   QualType ExprTy = Context.getCanonicalType(E->getType());
@@ -809,8 +801,6 @@ ExprResult Sema::ImpCastExprToType(Expr *E, QualType Ty,
                                   CurFPFeatureOverrides());
 }
 
-/// ScalarTypeToBooleanCastKind - Returns the cast kind corresponding
-/// to the conversion from scalar type ScalarTy to the Boolean type.
 CastKind Sema::ScalarTypeToBooleanCastKind(QualType ScalarTy) {
   switch (ScalarTy->getScalarTypeKind()) {
   case Type::STK_Bool: return CK_NoOp;
@@ -1127,9 +1117,6 @@ void Sema::emitAndClearUnusedLocalTypedefWarnings() {
   UnusedLocalTypedefNameCandidates.clear();
 }
 
-/// This is called before the very first declaration in the translation unit
-/// is parsed. Note that the ASTContext may have already injected some
-/// declarations.
 void Sema::ActOnStartOfTranslationUnit() {
   if (getLangOpts().CPlusPlusModules &&
       getLangOpts().getCompilingModule() == LangOptions::CMK_HeaderUnit)
@@ -1216,9 +1203,6 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   DelayedTypos.clear();
 }
 
-/// ActOnEndOfTranslationUnit - This is called at the very end of the
-/// translation unit when EOF is reached and all but the top-level scope is
-/// popped.
 void Sema::ActOnEndOfTranslationUnit() {
   assert(DelayedDiagnostics.getCurrentPool() == nullptr
          && "reached end of translation unit with a pool attached?");
@@ -1824,6 +1808,33 @@ public:
     --InOMPDeviceContext;
   }
 
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr) {
+      if (DS->isSingleDecl()) {
+        Decl *D = DS->getSingleDecl();
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          if (VD->isUsableInConstantExpressions(S.Context))
+            return;
+      } else {
+        for (auto *D : DS->getDeclGroup()) {
+          if (auto *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isUsableInConstantExpressions(S.Context))
+              return;
+          } else {
+            this->visitUsedDecl(DS->getBeginLoc(), D);
+          }
+        }
+      }
+    }
+    this->VisitStmt(DS);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+      return;
+    this->VisitStmt(E);
+  }
+
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
@@ -2021,7 +2032,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
-    auto &Diags = S.DeviceDeferredDiags[Fn];
+    auto &Diags = getDeviceDeferredDiags()[Fn];
     PartialDiagId.emplace(Diags.size());
     Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
@@ -2228,19 +2239,19 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   CheckType(Ty);
-  if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-    for (const auto &ParamTy : FPTy->param_types())
-      CheckType(ParamTy);
-    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+  if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
+    if (LangOpts.SYCLAllowAllFeaturesInConstexpr && FD->isConsteval())
+      return;
+    if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      for (const auto &ParamTy : FPTy->param_types())
+        CheckType(ParamTy);
+      CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+    }
+    if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
+      CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
   }
-  if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
-/// Looks through the macro-expansion chain for the given
-/// location, looking for a macro expansion with the given name.
-/// If one is found, returns true and sets the location to that
-/// expansion loc.
 bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   SourceLocation loc = locref;
   if (!loc.isMacroID()) return false;
@@ -2258,17 +2269,6 @@ bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
   return false;
 }
 
-/// Determines the active Scope associated with the given declaration
-/// context.
-///
-/// This routine maps a declaration context to the active Scope object that
-/// represents that declaration context in the parser. It is typically used
-/// from "scope-less" code (e.g., template instantiation, lazy creation of
-/// declarations) that injects a name for name-lookup purposes and, therefore,
-/// must update the Scope.
-///
-/// \returns The scope corresponding to the given declaraion context, or NULL
-/// if no such scope is open.
 Scope *Sema::getScopeForContext(DeclContext *Ctx) {
 
   if (!Ctx)
@@ -2399,13 +2399,6 @@ static void markEscapingByrefs(const FunctionScopeInfo &FSI, Sema &S) {
   }
 }
 
-/// Pop a function (or block or lambda or captured region) scope from the stack.
-///
-/// \param WP The warning policy to use for CFG-based warnings, or null if such
-///        warnings should not be produced.
-/// \param D The declaration corresponding to this function scope, if producing
-///        CFG-based warnings.
-/// \param BlockType The type of the block expression, if D is a BlockDecl.
 Sema::PoppedFunctionScopePtr
 Sema::PopFunctionScopeInfo(const AnalysisBasedWarnings::Policy *WP,
                            const Decl *D, QualType BlockType) {
@@ -2452,8 +2445,6 @@ void Sema::PopCompoundScope() {
   CurFunction->CompoundScopes.pop_back();
 }
 
-/// Determine whether any errors occurred within this function/method/
-/// block.
 bool Sema::hasAnyUnrecoverableErrorsInThisFunction() const {
   return getCurFunction()->hasUnrecoverableErrorOccurred();
 }
@@ -2604,17 +2595,6 @@ void ExternalSemaSource::ReadUndefinedButUsed(
 void ExternalSemaSource::ReadMismatchingDeleteExpressions(llvm::MapVector<
     FieldDecl *, llvm::SmallVector<std::pair<SourceLocation, bool>, 4>> &) {}
 
-/// Figure out if an expression could be turned into a call.
-///
-/// Use this when trying to recover from an error where the programmer may have
-/// written just the name of a function instead of actually calling it.
-///
-/// \param E - The expression to examine.
-/// \param ZeroArgCallReturnTy - If the expression can be turned into a call
-///  with no arguments, this parameter is set to the type returned by such a
-///  call; otherwise, it is set to an empty QualType.
-/// \param OverloadSet - If the expression is an overloaded function
-///  name, this parameter is populated with the decls of the various overloads.
 bool Sema::tryExprAsCall(Expr &E, QualType &ZeroArgCallReturnTy,
                          UnresolvedSetImpl &OverloadSet) {
   ZeroArgCallReturnTy = QualType();

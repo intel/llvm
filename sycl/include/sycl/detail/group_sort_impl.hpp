@@ -72,7 +72,7 @@ align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
     scratch_ptr =
         std::align(alignof(KeyTy), KeysSize, scratch_ptr, KeysScratchSpace);
     keys_scratch_begin = ::new (scratch_ptr) KeyTy[number_of_elements];
-    scratch_ptr = scratch.data() + KeysScratchSpace;
+    scratch_ptr = scratch.data() + KeysSize + alignof(KeyTy);
     scratch_ptr = std::align(alignof(ValueTy), ValuesSize, scratch_ptr,
                              ValuesScratchSpace);
     values_scratch_begin = ::new (scratch_ptr) ValueTy[number_of_elements];
@@ -85,9 +85,13 @@ align_key_value_scratch(sycl::span<std::byte> scratch, Group g,
 }
 #endif
 
+template <typename T> void swap_tuples(T &first, T &second) {
+  std::swap(first, second);
+}
+
 // Swap tuples of references.
 template <template <typename...> class Tuple, typename... T>
-void swap(Tuple<T &...> &&first, Tuple<T &...> &&second) {
+void swap_tuples(Tuple<T &...> &&first, Tuple<T &...> &&second) {
   auto lhs = first;
   auto rhs = second;
   // Do std::swap for each element of the tuple.
@@ -240,7 +244,7 @@ void bubble_sort(Iter first, const size_t begin, const size_t end,
       // Handle intermediate items
       for (size_t idx = begin; idx < begin + (end - 1 - i); ++idx) {
         if (comp(first[idx + 1], first[idx])) {
-          detail::swap(first[idx], first[idx + 1]);
+          detail::swap_tuples(first[idx], first[idx + 1]);
         }
       }
     }
@@ -491,28 +495,28 @@ public:
 
     operator T() const {
       T value{0};
-      detail::memcpy(&value, MPtr, sizeof(T));
+      detail::memcpy_no_adl(&value, MPtr, sizeof(T));
       return value;
     }
 
     T operator++(int) noexcept {
       T value{0};
-      detail::memcpy(&value, MPtr, sizeof(T));
+      detail::memcpy_no_adl(&value, MPtr, sizeof(T));
       T value_before = value++;
-      detail::memcpy(MPtr, &value, sizeof(T));
+      detail::memcpy_no_adl(MPtr, &value, sizeof(T));
       return value_before;
     }
 
     T operator++() noexcept {
       T value{0};
-      detail::memcpy(&value, MPtr, sizeof(T));
+      detail::memcpy_no_adl(&value, MPtr, sizeof(T));
       ++value;
-      detail::memcpy(MPtr, &value, sizeof(T));
+      detail::memcpy_no_adl(MPtr, &value, sizeof(T));
       return value;
     }
 
     ReferenceObj &operator=(const T &value) noexcept {
-      detail::memcpy(MPtr, &value, sizeof(T));
+      detail::memcpy_no_adl(MPtr, &value, sizeof(T));
       return *this;
     }
 
@@ -527,7 +531,7 @@ public:
     }
 
     void copy(const ReferenceObj &value) noexcept {
-      detail::memcpy(MPtr, value.MPtr, sizeof(T));
+      detail::memcpy_no_adl(MPtr, value.MPtr, sizeof(T));
     }
 
   private:

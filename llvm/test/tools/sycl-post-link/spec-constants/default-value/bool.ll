@@ -6,6 +6,7 @@
 
 ; CHECK: %bool1 = trunc i8 1 to i1
 ; CHECK: %frombool = zext i1 %bool1 to i8
+; CHECK: !sycl.specialization-constants-default-values-module = !{}
 ; CHECK-LOG: sycl.specialization-constants
 ; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 1}
 ; CHECK-LOG: sycl.specialization-constants-default-values

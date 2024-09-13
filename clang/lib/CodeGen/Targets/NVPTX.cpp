@@ -207,8 +207,11 @@ ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
 void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
-  for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+
+  for (auto &&[ArgumentsCount, I] : llvm::enumerate(FI.arguments()))
+    I.info = ArgumentsCount < FI.getNumRequiredArgs()
+                 ? classifyArgumentType(I.type)
+                 : ABIArgInfo::getDirect();
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -219,29 +222,32 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
 RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                                QualType Ty, AggValueSlot Slot) const {
-  llvm_unreachable("NVPTX does not support varargs");
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/false,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(1),
+                          /*AllowHigherAlign=*/true, Slot);
 }
 
-// Get current CudaArch and ignore any unknown values
+// Get current OffloadArch and ignore any unknown values
 // Copied from CGOpenMPRuntimeGPU
-static CudaArch getCudaArch(CodeGenModule &CGM) {
+static OffloadArch getOffloadArch(CodeGenModule &CGM) {
   if (!CGM.getTarget().hasFeature("ptx"))
-    return CudaArch::UNKNOWN;
+    return OffloadArch::UNKNOWN;
   for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
     if (Feature.getValue()) {
-      CudaArch Arch = StringToCudaArch(Feature.getKey());
-      if (Arch != CudaArch::UNKNOWN)
+      OffloadArch Arch = StringToOffloadArch(Feature.getKey());
+      if (Arch != OffloadArch::UNKNOWN)
         return Arch;
     }
   }
-  return CudaArch::UNKNOWN;
+  return OffloadArch::UNKNOWN;
 }
 
-static bool supportsGridConstant(CudaArch Arch) {
-  assert((Arch == CudaArch::UNKNOWN || IsNVIDIAGpuArch(Arch)) &&
+static bool supportsGridConstant(OffloadArch Arch) {
+  assert((Arch == OffloadArch::UNKNOWN || IsNVIDIAOffloadArch(Arch)) &&
          "Unexpected architecture");
-  static_assert(CudaArch::UNKNOWN < CudaArch::SM_70);
-  return Arch >= CudaArch::SM_70;
+  static_assert(OffloadArch::UNKNOWN < OffloadArch::SM_70);
+  return Arch >= OffloadArch::SM_70;
 }
 
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
@@ -276,7 +282,7 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       F->addFnAttr(llvm::Attribute::NoInline);
 
       if (M.getLangOpts().SYCLIsDevice &&
-          supportsGridConstant(getCudaArch(M))) {
+          supportsGridConstant(getOffloadArch(M))) {
         // Add grid_constant annotations to all relevant kernel-function
         // parameters. We can guarantee that in SYCL, all by-val kernel
         // parameters are "grid_constant".
@@ -289,49 +295,6 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
         }
         if (!GridConstantParamIdxs.empty())
           addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
-      }
-    }
-    bool HasMaxWorkGroupSize = false;
-    bool HasMinWorkGroupPerCU = false;
-    if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      HasMaxWorkGroupSize = true;
-      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
-      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
-      // fastest-moving dimension.
-      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
-      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
-      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
-    }
-
-    auto attrValue = [&](Expr *E) {
-      const auto *CE = cast<ConstantExpr>(E);
-      std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-      return Val->getZExtValue();
-    };
-
-    if (const auto *MWGPCU =
-            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      if (!HasMaxWorkGroupSize && FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPCU << 0;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
-        HasMinWorkGroupPerCU = true;
-      }
-    }
-
-    if (const auto *MWGPMP =
-            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      if ((!HasMaxWorkGroupSize || !HasMinWorkGroupPerCU) &&
-          FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPMP << 1;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
       }
     }
   }

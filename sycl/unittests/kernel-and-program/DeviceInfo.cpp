@@ -8,7 +8,7 @@
 
 #include <detail/context_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -27,101 +27,96 @@ struct TestCtx {
 
 static std::unique_ptr<TestCtx> TestContext;
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_UUID) {
+static ur_result_t redefinedDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_UUID) {
     TestContext->UUIDInfoCalled = true;
-  } else if (param_name == PI_DEVICE_INFO_BUILT_IN_KERNELS) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = TestContext->BuiltInKernels.size() + 1;
-    } else if (param_value) {
-      char *dst = static_cast<char *>(param_value);
-      dst[TestContext->BuiltInKernels.copy(dst, param_value_size)] = '\0';
+  } else if (*params.ppropName == UR_DEVICE_INFO_BUILT_IN_KERNELS) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = TestContext->BuiltInKernels.size() + 1;
+    } else if (*params.ppPropValue) {
+      char *dst = static_cast<char *>(*params.ppPropValue);
+      dst[TestContext->BuiltInKernels.copy(dst, *params.ppropSize)] = '\0';
     }
-  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY) {
+  } else if (*params.ppropName == UR_DEVICE_INFO_GLOBAL_MEM_FREE) {
     TestContext->FreeMemoryInfoCalled = true;
-  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE) {
-    if (param_value_size_ret)
-      *param_value_size_ret = 4;
+  } else if (*params.ppropName == UR_DEVICE_INFO_MEMORY_CLOCK_RATE) {
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = 4;
 
-    if (param_value) {
-      assert(param_value_size == sizeof(uint32_t));
-      *static_cast<uint32_t *>(param_value) = 800;
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(uint32_t));
+      *static_cast<uint32_t *>(*params.ppPropValue) = 800;
     }
-  } else if (param_name == PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH) {
-    if (param_value_size_ret)
-      *param_value_size_ret = 4;
+  } else if (*params.ppropName == UR_DEVICE_INFO_MEMORY_BUS_WIDTH) {
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = 4;
 
-    if (param_value) {
-      assert(param_value_size == sizeof(uint32_t));
-      *static_cast<uint32_t *>(param_value) = 64;
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(uint32_t));
+      *static_cast<uint32_t *>(*params.ppPropValue) = 64;
     }
   }
 
   // This mock device has no sub-devices
-  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 0;
+  if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 0;
     }
   }
-  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
-    assert(param_value_size == sizeof(pi_device_affinity_domain));
-    if (param_value) {
-      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+  if (*params.ppropName == UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(*params.ppropSize == sizeof(ur_device_affinity_domain_flags_t));
+    if (*params.ppPropValue) {
+      *static_cast<ur_device_affinity_domain_flags_t *>(*params.ppPropValue) =
+          0;
     }
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class DeviceInfoTest : public ::testing::Test {
 public:
-  DeviceInfoTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  DeviceInfoTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfo);
+    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfo);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
-static pi_result redefinedNegativeDeviceGetInfo(pi_device device,
-                                                pi_device_info param_name,
-                                                size_t param_value_size,
-                                                void *param_value,
-                                                size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_DEVICE_INFO_UUID:
-  case PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE:
-  case PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH:
-    return PI_ERROR_INVALID_VALUE;
+static ur_result_t redefinedNegativeDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_UUID:
+  case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
+  case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
+  case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
+    return UR_RESULT_ERROR_INVALID_VALUE;
   default:
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class DeviceInfoNegativeTest : public ::testing::Test {
 public:
-  DeviceInfoNegativeTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  DeviceInfoNegativeTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piDeviceGetInfo>(
-        redefinedNegativeDeviceGetInfo);
+    mock::getCallbacks().set_before_callback("urDeviceGetInfo",
+                                             &redefinedNegativeDeviceGetInfo);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
@@ -136,8 +131,8 @@ TEST_F(DeviceInfoTest, GetDeviceUUID) {
   auto UUID = Dev.get_info<ext::intel::info::device::uuid>();
 
   EXPECT_EQ(TestContext->UUIDInfoCalled, true)
-      << "Expect piDeviceGetInfo to be "
-      << "called with PI_DEVICE_INFO_UUID";
+      << "Expect urDeviceGetInfo to be "
+      << "called with UR_DEVICE_INFO_UUID";
 
   EXPECT_EQ(sizeof(UUID), 16 * sizeof(unsigned char))
       << "Expect device UUID to be "
@@ -155,8 +150,8 @@ TEST_F(DeviceInfoTest, GetDeviceFreeMemory) {
   auto FreeMemory = Dev.get_info<ext::intel::info::device::free_memory>();
 
   EXPECT_EQ(TestContext->FreeMemoryInfoCalled, true)
-      << "Expect piDeviceGetInfo to be "
-      << "called with PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY";
+      << "Expect urDeviceGetInfo to be "
+      << "called with UR_DEVICE_INFO_GLOBAL_MEM_FREE";
 
   EXPECT_EQ(sizeof(FreeMemory), sizeof(uint64_t))
       << "Expect free_memory to be of uint64_t size";
