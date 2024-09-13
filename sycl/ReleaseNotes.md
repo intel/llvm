@@ -242,8 +242,8 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   `invalid` exception if they are called on host. intel/llvm#13747
 - Extended detection of nested `queue` operations to support shortcut methods. intel/llvm#13659
 - Added overloads of various ESIMD APIs (`atomic_update`, `block_[load|store]`
-  and some other) which allow to omit some template arguments, thus simplifying
-  the interface. intel/llvm#14043 intel/llvm#14065 intel/llvm#14000
+  and some other) which allow thee omission of some template arguments, thus
+  simplifying the interface. intel/llvm#14043 intel/llvm#14065 intel/llvm#14000
   intel/llvm#14024 intel/llvm#13978 intel/llvm#13964 intel/llvm#13977
   intel/llvm#13956 intel/llvm#13941 intel/llvm#13920
 - Updated [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc)
@@ -570,7 +570,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed a bug where a command submission time would not be always recorded in
   profiling info when using `sycl_ext_oneapi_graph` extension. intel/llvm#14678
 - Fixed a bug with graph recording where submitting a barrier using the same
-  queue for two different graphs would result in runtime error "Graph nodes
+  queue for two different graphs would result in the runtime error "Graph nodes
   cannot depend on events from another graph". intel/llvm#14212
 - Fixed intel/llvm#13066 where submitting a barrier into an empty in-order queue
   whilst recording a graph would result in the in runtime error "No event has
