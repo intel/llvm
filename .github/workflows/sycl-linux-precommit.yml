@@ -94,7 +94,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-            extra_lit_opts: --param gpu-intel-pvc=True
+            extra_lit_opts: --param gpu-intel-pvc=True -j 20
           - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
@@ -106,7 +106,7 @@ jobs:
             use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             # Run only if the PR does not have the 'ci-no-devigc' label.
             skip_run: ${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') }}
-            extra_lit_opts: --param gpu-intel-pvc=True
+            extra_lit_opts: --param gpu-intel-pvc=True -j 20
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
