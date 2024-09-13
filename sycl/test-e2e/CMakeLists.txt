@@ -83,11 +83,7 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
   )
 endif() # Standalone.
 
-if(SYCL_TEST_E2E_STANDALONE)
-  if( NOT zstd_FOUND )
-    find_package(zstd)
-  endif()
-endif() # Standalone.
+find_package(zstd)
 
 add_custom_target(check-sycl-e2e
   COMMAND ${Python3_EXECUTABLE} ${LLVM_LIT} ${SYCL_E2E_TESTS_LIT_FLAGS} .
