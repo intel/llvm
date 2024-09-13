@@ -9,9 +9,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
-
 // This is a basic test to validate the expanded load API.
 
 #include "esimd_test_utils.hpp"
