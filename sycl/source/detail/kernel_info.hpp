@@ -31,15 +31,15 @@ get_kernel_info(ur_kernel_handle_t Kernel, const PluginPtr &Plugin) {
   size_t ResultSize = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urKernelGetInfo, Kernel, UrInfoCode<Param>::value, 0, nullptr,
-               &ResultSize);
+  Plugin->call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value, 0,
+                                           nullptr, &ResultSize);
   if (ResultSize == 0) {
     return "";
   }
   std::vector<char> Result(ResultSize);
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urKernelGetInfo, Kernel, UrInfoCode<Param>::value, ResultSize,
-               Result.data(), nullptr);
+  Plugin->call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
+                                           ResultSize, Result.data(), nullptr);
   return std::string(Result.data());
 }
 
@@ -50,8 +50,8 @@ get_kernel_info(ur_kernel_handle_t Kernel, const PluginPtr &Plugin) {
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urKernelGetInfo, Kernel, UrInfoCode<Param>::value,
-               sizeof(uint32_t), &Result, nullptr);
+  Plugin->call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
+                                           sizeof(uint32_t), &Result, nullptr);
   return Result;
 }
 
@@ -62,8 +62,8 @@ get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
                                        const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  Plugin->call(urKernelGetSubGroupInfo, Kernel, Device,
-               UrInfoCode<Param>::value, Size, Result, nullptr);
+  Plugin->call<UrApiKind::urKernelGetSubGroupInfo>(
+      Kernel, Device, UrInfoCode<Param>::value, Size, Result, nullptr);
 }
 
 template <typename Param>
@@ -71,8 +71,8 @@ typename std::enable_if<IsKernelInfo<Param>::value>::type
 get_kernel_device_specific_info_helper(
     ur_kernel_handle_t Kernel, [[maybe_unused]] ur_device_handle_t Device,
     const PluginPtr &Plugin, void *Result, size_t Size) {
-  Plugin->call(urKernelGetInfo, Kernel, UrInfoCode<Param>::value, Size, Result,
-               nullptr);
+  Plugin->call<UrApiKind::urKernelGetInfo>(Kernel, UrInfoCode<Param>::value,
+                                           Size, Result, nullptr);
 }
 
 template <typename Param>
@@ -82,9 +82,8 @@ get_kernel_device_specific_info_helper(ur_kernel_handle_t Kernel,
                                        ur_device_handle_t Device,
                                        const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  ur_result_t Error =
-      Plugin->call_nocheck(urKernelGetGroupInfo, Kernel, Device,
-                           UrInfoCode<Param>::value, Size, Result, nullptr);
+  ur_result_t Error = Plugin->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UrInfoCode<Param>::value, Size, Result, nullptr);
   if (Error != UR_RESULT_SUCCESS)
     kernel_get_group_info::handleErrorOrWarning(Error, UrInfoCode<Param>::value,
                                                 Plugin);
@@ -140,8 +139,9 @@ uint32_t get_kernel_device_specific_info_with_input(ur_kernel_handle_t Kernel,
 
   uint32_t Result = 0;
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call(urKernelGetSubGroupInfo, Kernel, Device,
-               UrInfoCode<Param>::value, sizeof(uint32_t), &Result, nullptr);
+  Plugin->call<UrApiKind::urKernelGetSubGroupInfo>(
+      Kernel, Device, UrInfoCode<Param>::value, sizeof(uint32_t), &Result,
+      nullptr);
 
   return Result;
 }
