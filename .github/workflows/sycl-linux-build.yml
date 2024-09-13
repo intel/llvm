@@ -50,6 +50,18 @@ on:
         description: 'Artifacts retention period'
         type: string
         default: 3
+      skip_build:
+        description: |
+          Build is skipped if set to true. This is used to implement building
+          based on a condition, as github currently does not provide a way to
+          have dynamic `needs` dependencies between jobs.
+        type: boolean
+        default: false
+      skip_reason:
+        description: |
+          Reason for skipping the build.
+        type: string
+        default: "inputs.skip-reason set to true."
 
     outputs:
       build_conclusion:
@@ -109,6 +121,7 @@ jobs:
   build:
     name: Build + LIT
     runs-on: [Linux, build]
+    if: ${{ inputs.skip_build != 'true' }}
     container:
       image: ${{ inputs.build_image }}
       options: -u 1001:1001
@@ -242,3 +255,14 @@ jobs:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
         path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
         retention-days: ${{ inputs.retention-days }}
+
+  skip_build:
+    name: Build skipped (${{ inputs.skip_reason }})
+    runs-on: [Linux, aux-tasks]
+    if: ${{ inputs.skip_build == 'true' }}
+    outputs:
+      build_conclusion: "skipped"
+      artifact_archive_name: ""
+      artifact_decompress_command: ""
+    steps:
+      - run: echo "Build skipped -- ${{ inputs.skip_reason }}."

@@ -28,7 +28,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Three options: "e2e", "cts", "benchmark".
+          Two options: "e2e", "cts"
         type: string
         default: "e2e"
 
@@ -117,7 +117,6 @@ on:
         options:
           - e2e
           - cts
-          - benchmark
 
       env:
         description: |
@@ -379,39 +378,3 @@ jobs:
         grep 'exit code: [^0]' -r logs >> $GITHUB_STEP_SUMMARY
 
         exit $ret
-
-    - name: Install deps
-      if: inputs.tests_selector == 'benchmark' && success()
-      run: |
-        sudo apt install -y ssh
-    - name: Run compute-benchmarks
-      id: run_benchmarks
-      if: inputs.tests_selector == 'benchmark' && success()
-      run: |
-        export CMPLR_ROOT=$PWD/toolchain
-        ./devops/scripts/benchmarking/benchmark.sh
-        echo $?
-    - name: Push compute-benchmarks
-      if: inputs.tests_selector == 'benchmark' && success()
-      env:
-        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
-      run: |
-        find -maxdepth 3
-        mkdir -p ~/.ssh
-        echo "$SSH_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        eval "$(ssh-agent -s)"
-        ssh-add -k ~/.ssh/id_rsa
-        cd llvm-ci-perf-results
-        git config --global user.name "iclsrc"
-        git config --global user.email "ia.compiler.tools.git@intel.com"
-        git add .
-        git commit -m "Update results"
-        git push
-    # - name: Upload sycl-bench microbenchmark results
-    #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
-    #     path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
-    #     retention-days: 7
