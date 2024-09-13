@@ -60,7 +60,7 @@ jobs:
             reset_intel_gpu: true
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
