@@ -282,7 +282,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   `opencl` backend. intel/llvm#14119
 - Moved bit shift and rotate ESIMD functions out of `experimental` namespace.
   intel/llvm#13545
-- moved `rdtsc` ESIMD function out of `experimental` namespace. intel/llvm#13417
+- Moved `rdtsc` ESIMD function out of `experimental` namespace. intel/llvm#13417
 - Added check for template argument `N` of `media_block_load` ESIMD API. intel/llvm#13668
 - Enhanced deprecation message for `sub_group::barrier` to indicate which API
   should be used instead. intel/llvm#13276
