@@ -163,7 +163,8 @@ public:
       : ptr(ext::oneapi::experimental::static_address_cast<
             AddressSpace, access::decorated::no>(&ref)) {}
 #else
-  // CUDA/HIP don't support `ext::oneapi::experimental::static_address_cast` yet.
+  // CUDA/HIP don't support `ext::oneapi::experimental::static_address_cast`
+  // yet.
   explicit atomic_ref_base(T &ref)
       : ptr(address_space_cast<AddressSpace, access::decorated::no>(&ref)) {}
 #endif

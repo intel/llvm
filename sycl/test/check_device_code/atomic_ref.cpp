@@ -13,6 +13,8 @@
 SYCL_EXTERNAL auto atomic_ref_global(int &i) {
   // Verify that we use _Z33__spirv_GenericCastToPtr_ToGlobalPvi that doesn't
   // perform dynamic address space validation.
-  sycl::atomic_ref<int, sycl::memory_order::acq_rel, sycl::memory_scope::device, sycl::access::address_space::global_space> a(i);
+  sycl::atomic_ref<int, sycl::memory_order::acq_rel, sycl::memory_scope::device,
+                   sycl::access::address_space::global_space>
+      a(i);
   return a.load();
 }
