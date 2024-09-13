@@ -55,7 +55,7 @@ add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
 
 # Enable compression unit-tests only if zstd is present.
-if (SYCL_ZSTD_AVAILABLE)
+if (LLVM_ENABLE_ZSTD)
     add_subdirectory(compression)
 endif()
 

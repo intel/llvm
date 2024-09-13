@@ -73,7 +73,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # being found on Windows CI machines.
   set(CMAKE_FIND_DEBUG_MODE 1)
 
-  if (NOT SYCL_ZSTD_AVAILABLE)
+  if (NOT LLVM_ENABLE_ZSTD)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
   else()
     target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
