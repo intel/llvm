@@ -146,8 +146,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(cuda
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    https://github.com/GeorgeWeb/unified-runtime.git
+    8ab63e2982af8218d4776f20e9eb50ff96cedfd1
   )
 
   fetch_adapter_source(hip
