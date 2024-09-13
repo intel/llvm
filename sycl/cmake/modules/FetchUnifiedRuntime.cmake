@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit a985a81dc9ba8adfcc8b54e35ad287e97766fb3e
-  # Merge: b7b0c8b3 f772f907
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Jul 29 09:11:29 2024 +0200
-  #     Merge pull request #1905 from igchor/umf_hwloc_disable
-  #     Bump UMF version to allow disabling hwloc
-  set(UNIFIED_RUNTIME_TAG review/yang/dsan_nullpointer)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4517290650a9938537666e6409fb8e0db73ff4d8
+  # Merge: 6298474e 3dbb7a2a
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Wed Sep 18 08:48:03 2024 +0100
+  #     Merge pull request #1914 from AllanZyne/review/yang/dsan_nullpointer
+  #     [DeviceSanitizer] Support nullpointer detection
+  set(UNIFIED_RUNTIME_TAG 4517290650a9938537666e6409fb8e0db73ff4d8)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

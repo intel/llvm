@@ -784,18 +784,19 @@ protected:
       if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
-      if (Deps.LastBarrier)
+      if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
+                               (!Deps.LastBarrier->isEnqueued())))
         Handler.depends_on(Deps.LastBarrier);
+
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-          Deps.LastBarrier = EventRetImpl;
-          Deps.UnenqueuedCmdEvents.clear();
-        } else
-          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.UnenqueuedCmdEvents.clear();
+      } else if (!EventRetImpl->isEnqueued()) {
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }

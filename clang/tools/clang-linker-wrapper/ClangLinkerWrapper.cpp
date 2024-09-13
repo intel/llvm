@@ -251,8 +251,8 @@ Expected<OffloadFile> getInputBitcodeLibrary(StringRef Input) {
   Image.StringData["arch"] = Arch;
   Image.Image = std::move(*ImageOrError);
 
-  std::unique_ptr<MemoryBuffer> Binary =
-      MemoryBuffer::getMemBufferCopy(OffloadBinary::write(Image));
+  std::unique_ptr<MemoryBuffer> Binary = MemoryBuffer::getMemBufferCopy(
+      OffloadBinary::write(Image), Image.Image->getBufferIdentifier());
   auto NewBinaryOrErr = OffloadBinary::create(*Binary);
   if (!NewBinaryOrErr)
     return NewBinaryOrErr.takeError();
@@ -1356,6 +1356,135 @@ static Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
     reportError(DeviceLinkedFile.takeError());
 
   return *DeviceLinkedFile;
+}
+
+static bool isStaticArchiveFile(const StringRef Filename) {
+  if (!llvm::sys::path::has_extension(Filename))
+    // Any file with no extension should not be considered an Archive.
+    return false;
+  llvm::file_magic Magic;
+  llvm::identify_magic(Filename, Magic);
+  // Only archive files are to be considered.
+  // TODO: .lib check to be added
+  return (Magic == llvm::file_magic::archive);
+}
+
+static Expected<StringRef> listSection(StringRef Filename,
+                                       const ArgList &Args) {
+  Expected<std::string> OffloadBundlerPath = findProgram(
+      "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
+  if (!OffloadBundlerPath)
+    return OffloadBundlerPath.takeError();
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*OffloadBundlerPath);
+  bool IsArchive = isStaticArchiveFile(Filename);
+  CmdArgs.push_back(IsArchive ? "-type=aoo" : "-type=o");
+  CmdArgs.push_back(Saver.save("-input=" + Filename));
+  CmdArgs.push_back("-list");
+  auto Output = createOutputFile("bundled-targets", "list");
+  if (!Output)
+    return Output.takeError();
+  SmallVector<std::optional<StringRef>> Redirects{std::nullopt, *Output,
+                                                  std::nullopt};
+  int ErrCode = llvm::sys::ExecuteAndWait(*OffloadBundlerPath, CmdArgs,
+                                          std::nullopt, Redirects);
+  if (ErrCode != 0)
+    return createStringError(inconvertibleErrorCode(),
+                             "Failed to list targets");
+  return *Output;
+}
+
+// This routine is used to run the clang-offload-bundler tool and unbundle
+// device inputs that have been created with an older compiler where the
+// device object is bundled into a host object.
+static Expected<StringRef> unbundle(StringRef Filename, const ArgList &Args,
+                                    llvm::Triple Triple) {
+  Expected<std::string> OffloadBundlerPath = findProgram(
+      "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
+  if (!OffloadBundlerPath)
+    return OffloadBundlerPath.takeError();
+
+  // Create a new file to write the unbundled file to.
+  auto TempFileOrErr =
+      createOutputFile(sys::path::filename(ExecutableName), "ir");
+  if (!TempFileOrErr)
+    return TempFileOrErr.takeError();
+
+  BumpPtrAllocator Alloc;
+  StringSaver Saver(Alloc);
+
+  SmallVector<StringRef, 8> CmdArgs;
+  CmdArgs.push_back(*OffloadBundlerPath);
+  bool IsArchive = isStaticArchiveFile(Filename);
+  CmdArgs.push_back(IsArchive ? "-type=aoo" : "-type=o");
+  auto *Target = Args.MakeArgString(Twine("-targets=sycl-") + Triple.str());
+  CmdArgs.push_back(Target);
+  CmdArgs.push_back(Saver.save("-input=" + Filename));
+  CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
+  CmdArgs.push_back("-unbundle");
+  CmdArgs.push_back("-allow-missing-bundles");
+  if (Error Err = executeCommands(*OffloadBundlerPath, CmdArgs))
+    return std::move(Err);
+  return *TempFileOrErr;
+}
+
+Error extractBundledObjects(StringRef Filename, const ArgList &Args,
+                            SmallVector<OffloadFile> &Binaries) {
+  auto List = listSection(Filename, Args);
+  if (!List)
+    return List.takeError();
+  SmallVector<StringRef> TriplesInFile;
+  llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> TripleList =
+      llvm::MemoryBuffer::getFileOrSTDIN(*List, /*isText=*/true);
+  if (std::error_code EC = TripleList.getError())
+    return createFileError(*List, EC);
+  (*TripleList)
+      ->getBuffer()
+      .split(TriplesInFile, '\n', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+  for (StringRef TripleStr : TriplesInFile) {
+    StringRef SYCLPrefix = "sycl-";
+    if (!TripleStr.starts_with(SYCLPrefix))
+      continue;
+    llvm::Triple Triple(TripleStr.substr(SYCLPrefix.size()));
+    auto UnbundledFile = unbundle(Filename, Args, Triple);
+    if (!UnbundledFile)
+      return UnbundledFile.takeError();
+    if (*UnbundledFile == Filename)
+      continue;
+
+    SmallVector<StringRef> ObjectFilePaths;
+    if (sycl::isStaticArchiveFile(Filename)) {
+      llvm::ErrorOr<std::unique_ptr<MemoryBuffer>> ObjList =
+          llvm::MemoryBuffer::getFileOrSTDIN(*UnbundledFile, /*isText=*/true);
+      if (std::error_code EC = ObjList.getError())
+        return createFileError(*UnbundledFile, EC);
+      (*ObjList)->getBuffer().split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
+                                    /*KeepEmpty=*/false);
+    } else {
+      ObjectFilePaths.push_back(*UnbundledFile);
+    }
+    for (StringRef ObjectFilePath : ObjectFilePaths) {
+      llvm::file_magic Magic;
+      llvm::identify_magic(ObjectFilePath, Magic);
+      if (Magic == file_magic::spirv_object)
+        return createStringError(
+            "SPIR-V fat objects must be generated with --offload-new-driver");
+      auto Arg = Args.MakeArgString(
+          "sycl-" +
+          (Triple.isSPIROrSPIRV() ? Triple.str() + "-" : Triple.str()) + "=" +
+          ObjectFilePath);
+      auto Binary = getInputBitcodeLibrary(Arg);
+
+      if (!Binary)
+        return Binary.takeError();
+
+      Binaries.push_back(std::move(*Binary));
+    }
+  }
+  return Error::success();
 }
 
 } // namespace sycl
@@ -2634,8 +2763,14 @@ getDeviceInput(const ArgList &Args) {
     if (identify_magic(Buffer.getBuffer()) == file_magic::elf_shared_object)
       continue;
     SmallVector<OffloadFile> Binaries;
+    size_t OldSize = Binaries.size();
     if (Error Err = extractOffloadBinaries(Buffer, Binaries))
       return std::move(Err);
+    if (Binaries.size() == OldSize) {
+      if (Error Err = sycl::extractBundledObjects(*Filename, Args, Binaries))
+        return std::move(Err);
+    }
+
     for (auto &OffloadFile : Binaries) {
       if (identify_magic(Buffer.getBuffer()) == file_magic::archive &&
           !WholeArchive)

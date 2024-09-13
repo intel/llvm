@@ -122,7 +122,7 @@ if config.extra_environment:
     for env_pair in config.extra_environment.split(","):
         [var, val] = env_pair.split("=", 1)
         if val:
-            llvm_config.with_environment(var, val, append_path=True)
+            llvm_config.with_environment(var, val)
             lit_config.note("\t" + var + "=" + val)
         else:
             lit_config.note("\tUnset " + var)
@@ -382,6 +382,7 @@ if cl_options:
     config.substitutions.append(("%cxx_std_option", "/std:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
+    config.substitutions.append(("%no_opt", "/Od"))
 else:
     config.substitutions.append(
         (
@@ -406,6 +407,7 @@ else:
         ("%fPIC", ("" if platform.system() == "Windows" else "-fPIC"))
     )
     config.substitutions.append(("%shared_lib", "-shared"))
+    config.substitutions.append(("%no_opt", "-O0"))
 
 # Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
 if "verbose-print" in lit_config.params:
