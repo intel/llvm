@@ -106,7 +106,8 @@ void submit(queue Q, CommandGroupFunc &&CGF,
 
 template <typename CommandGroupFunc>
 void submit(command_graph<graph_state::modifiable> G, CommandGroupFunc &&CGF) {
-  G.add(std::forward<CommandGroupFunc>(CGF), {property::node::depends_on_all_leaves()});
+  G.add(std::forward<CommandGroupFunc>(CGF),
+        {property::node::depends_on_all_leaves()});
 }
 
 template <typename CommandGroupFunc>
