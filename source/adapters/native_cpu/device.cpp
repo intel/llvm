@@ -160,9 +160,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-    return ReturnValue(bool{false});
+    return ReturnValue(bool{true});
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
-    return ReturnValue(bool{false});
+    return ReturnValue(bool{true});
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
     return ReturnValue(static_cast<uint32_t>(hDevice->tp.num_threads()));
   case UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES:
