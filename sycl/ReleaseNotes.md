@@ -89,10 +89,11 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   extension. intel/llvm#13512 intel/llvm#13924 intel/llvm#14743
 - Added support for `get_backend_info` API into various SYCL classes (`platform`, `context`, etc.). intel/llvm#12906
 - Implemented [`sycl_ext_oneapi_group_load_store`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_load_store.asciidoc).
-  Please note that the implementation is naive and does not expose any special
-  HW capabilities, it won't provide any performance benefit over how a group
-  load/store could be done without this extension using simple `for` loop and
-  group barriers. intel/llvm#13043
+  Please note that the implementation exposes native block read/write HW
+  capabilities only if the operation can be directly mapped to a single block
+  operation. In other cases, it uses a naive implementation in form of a simple
+  'for' loop and group barriers. intel/llvm#13043 intel/llvm#13734
+  intel/llvm#13673
 - Implemented [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
 - Added initial support for [`sycl_ext_oneapi_free_function_kernels`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) extension. intel/llvm#13207 intel/llvm#13885
   Known limitations:
@@ -325,8 +326,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Enhanced ESIMD `slm_atomic_update` API to also support `fsub` and `fadd`
   operations. intel/llvm#13535
 - Lifted some of the restrictions from ESIMD `block_store` API. intel/llvm#13150
-- Improved implementation of `group_store` and `group_load` APIs with intent for
-  it to have better performance in some cases. intel/llvm#13734 intel/llvm#13673
 - Added support for graph update functionality. intel/llvm#12840
 - Added support for external semaphores that can take a value to bindless images
   extension. intel/llvm#13860
