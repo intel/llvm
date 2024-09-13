@@ -709,6 +709,32 @@ optimize such partial barriers.
 _{endnote}_]
 |====
 
+==== Command Graph
+
+The functions in this section are only available if the
+link:./sycl_ext_oneapi_graph.asciidoc[
+  sycl_ext_oneapi_graph] extension is supported.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <typename CommandGroupFunc>
+void submit(command_graph<graph_state::modifiable> g, CommandGroupFunc&& cgf);
+
+}
+----
+!====
+_Effects_: Submits a command-group function object (as defined by the SYCL
+specification) to the `command_graph` for deferred execution. Subsequent calls
+will create a linear chain of nodes with implicit edges.
+|====
+
 
 == Issues
 
