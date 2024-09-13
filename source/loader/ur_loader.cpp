@@ -21,9 +21,8 @@ ur_result_t context_t::init() {
     // Suppress system errors.
     // Tells the system to not display the critical-error-handler message box.
     // Instead, the system sends the error to the calling process.
-    // This is crucial for graceful handling of plugins that couldn't be
+    // This is crucial for graceful handling of adapters that couldn't be
     // loaded, e.g. due to missing native run-times.
-    // Sometimes affects L0 or the unified runtime.
     // TODO: add reporting in case of an error.
     // NOTE: we restore the old mode to not affect user app behavior.
     // See https://github.com/intel/llvm/blob/sycl/sycl/ur_win_proxy_loader/ur_win_proxy_loader.cpp (preloadLibraries())
