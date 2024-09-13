@@ -369,14 +369,14 @@ jobs:
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
-        mkdir -p ~/.ssh
-        echo "$SSH_KEY" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
+        mkdir -p .ssh
+        echo "$SSH_KEY" > .ssh/id_rsa
+        chmod 600 .ssh/id_rsa
         echo "###"
         echo "$(ssh-agent -s)"
         echo "###"
         eval "$(ssh-agent -s)"
-        ssh-add -k ~/.ssh/id_rsa
+        ssh-add -k .ssh/id_rsa
         cd llvm-ci-perf-results
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
