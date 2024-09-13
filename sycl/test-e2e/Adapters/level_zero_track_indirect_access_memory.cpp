@@ -9,7 +9,7 @@
 // Tracking and deferred release is necessary for memory which can be indirectly
 // accessed because such memory can't be released as soon as someone calls free.
 // It can be released only after completion of all kernels which can possibly
-// access this memory indirectly. Currently the Level Zero plugin marks all
+// access this memory indirectly. Currently the Level Zero adapter marks all
 // kernels with indirect access flag conservatively. This flag means that kernel
 // starts to reference all existing memory allocations (even if not explicitly
 // used in the kernel) as soon as it is submitted. That's why basically all

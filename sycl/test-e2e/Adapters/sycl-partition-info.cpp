@@ -1,7 +1,7 @@
 // RUN:  %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// various plugins may return a larger choice of partition properties than SYCL
+// various adapters may return a larger choice of partition properties than SYCL
 // supports ensure we are only returning SYCL standard  partition properties.
 
 #include <cassert>

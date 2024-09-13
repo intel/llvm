@@ -73,7 +73,7 @@
 
 // level_zero_batch_test.cpp
 //
-// This tests the level zero plugin's kernel batching code.  The default
+// This tests the level zero adapter's kernel batching code.  The default
 // batching is 4, and exact batch size can be controlled with environment
 // variable SYCL_PI_LEVEL_ZEOR+BATCH_SIZE=N.
 // This test enqueues 8 kernels and then does a wait. And it does this 3 times.
