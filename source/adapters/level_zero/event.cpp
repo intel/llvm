@@ -221,9 +221,8 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     return UR_RESULT_SUCCESS;
   }
 
-  ur_event_handle_t InternalEvent;
+  ur_event_handle_t ResultEvent = nullptr;
   bool IsInternal = OutEvent == nullptr;
-  ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
   // For in-order queue and wait-list which is empty or has events from
   // the same queue just use the last command event as the barrier event.
@@ -234,7 +233,10 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
                                             EventWaitList) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
     UR_CALL(ur::level_zero::urEventRetain(Queue->LastCommandEvent));
-    *Event = Queue->LastCommandEvent;
+    ResultEvent = Queue->LastCommandEvent;
+    if (OutEvent) {
+      *OutEvent = ResultEvent;
+    }
     return UR_RESULT_SUCCESS;
   }
 
@@ -264,15 +266,20 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
         EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
-    UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, *Event, IsInternal));
+    UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, ResultEvent,
+                                     IsInternal));
 
     UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
 
     // Because of the dependency between commands in the in-order queue we don't
     // need to keep track of any active barriers if we have in-order queue.
     if (UseMultipleCmdlistBarriers && !Queue->isInOrderQueue()) {
-      auto UREvent = reinterpret_cast<ur_event_handle_t>(*Event);
+      auto UREvent = reinterpret_cast<ur_event_handle_t>(ResultEvent);
       Queue->ActiveBarriers.add(UREvent);
+    }
+
+    if (OutEvent) {
+      *OutEvent = ResultEvent;
     }
     return UR_RESULT_SUCCESS;
   }
@@ -361,14 +368,14 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     // Insert a barrier with the events from each command-queue into the
     // convergence command list. The resulting event signals the convergence of
     // all barriers.
-    UR_CALL(insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList, *Event,
-                                     IsInternal));
+    UR_CALL(insertBarrierIntoCmdList(ConvergenceCmdList, BaseWaitList,
+                                     ResultEvent, IsInternal));
   } else {
     // If there is only a single queue then insert a barrier and the single
     // result event can be used as our active barrier and used as the return
     // event. Take into account whether output event is discarded or not.
-    UR_CALL(insertBarrierIntoCmdList(CmdLists[0], _ur_ze_event_list_t{}, *Event,
-                                     IsInternal));
+    UR_CALL(insertBarrierIntoCmdList(CmdLists[0], _ur_ze_event_list_t{},
+                                     ResultEvent, IsInternal));
   }
 
   // Execute each command list so the barriers can be encountered.
@@ -384,8 +391,10 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
   }
 
   UR_CALL(Queue->ActiveBarriers.clear());
-  auto UREvent = reinterpret_cast<ur_event_handle_t>(*Event);
-  Queue->ActiveBarriers.add(UREvent);
+  Queue->ActiveBarriers.add(ResultEvent);
+  if (OutEvent) {
+    *OutEvent = ResultEvent;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -1508,8 +1517,8 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
-        ur_device_handle_t QueueRootDevice;
-        ur_device_handle_t CurrentQueueRootDevice;
+        ur_device_handle_t QueueRootDevice = nullptr;
+        ur_device_handle_t CurrentQueueRootDevice = nullptr;
         if (Queue) {
           QueueRootDevice = Queue->Device;
           CurrentQueueRootDevice = CurQueueDevice;

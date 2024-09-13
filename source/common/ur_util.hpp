@@ -480,6 +480,25 @@ template <typename T> class AtomicSingleton {
     }
 };
 
+template <typename Numeric>
+static inline std::string groupDigits(Numeric numeric) {
+    auto number = std::to_string(numeric);
+    std::string sign = numeric >= 0 ? "" : "-";
+    auto digits = number.substr(sign.size(), number.size() - sign.size());
+
+    std::string separated;
+
+    for (size_t i = 0; i < digits.size(); i++) {
+        separated.push_back(digits[i]);
+
+        if (i != digits.size() - 1 && (digits.size() - i - 1) % 3 == 0) {
+            separated.push_back('\'');
+        }
+    }
+
+    return sign + separated;
+}
+
 template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
 
 #endif /* UR_UTIL_H */
