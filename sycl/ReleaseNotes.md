@@ -42,16 +42,16 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   the range rounding feature. In comparison with the previously available
   `-fsycl-disable-range-rounding` command line option and
   `__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__` macro the new flag also allows
-  to _force_ range rounding which will complete disable generation of
+  to _force_ range rounding which will completely disable the generation of
   non-rounded kernels, thus improving binary size. intel/llvm#12715
 - Added `-fsycl-exp-range-rounding` command line option that enables
   experimental range rounding mode in which range rounding is performed across
   all dimensions. intel/llvm#12690
 - Added support for the so-called [new offloading model](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/OffloadDesign.md).
-  It can be enabled by `--offload-new-driver` command line option and provides
-  a better infrastructure for us. In the future we expect to leverage that
-  infrastructure to improve link times by reducing the amount of I/O used by the
-  compiler and the amount of external processes that it spawns.
+  It can be enabled by the `--offload-new-driver` command line option and
+  provides an improved infrastructure for us. In the future we expect to
+  leverage that infrastructure to improve link times by reducing the amount of
+  I/O used by the compiler and the amount of external processes that it spawns.
   The foundation for this work has been performed in previous release time frame
   and the following list of PRs only includes those done within this release
   time frame. intel/llvm#14252 intel/llvm#13394 intel/llvm#13648 intel/llvm#13687
@@ -191,9 +191,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Enhanced address sanitizer to detect incorrect uses of USM deallocation
   functions (like calling `sycl::free` on a pointer that was not allocated as
   a USM pointer). intel/llvm#12882
-- Enhanced `-fintelfpga` flag: when it is used together with `-fp-module=fast`
-  it also implies that `-vpfp-relaxed` will be passed to backend (device)
-  compiler. intel/llvm#13651
+- Enhanced `-fintelfpga` flag. When used together with `-fp-module=fast` it
+  also implies that `-vpfp-relaxed` will be passed to backend (device) compiler.
+  intel/llvm#13651
 - Implemented support for `memory_order::seq_cst` on CUDA backend, resolving
   intel/llvm#11208. intel/llvm#12516
 - Implementation of optional kernel features mechanism has been extended to also
