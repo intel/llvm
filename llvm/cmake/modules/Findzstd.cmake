@@ -10,6 +10,8 @@
 # zstd::libzstd_shared
 # zstd::libzstd_static
 
+set(CMAKE_FIND_DEBUG_MODE 1)
+
 if(MSVC)
   set(zstd_STATIC_LIBRARY_SUFFIX "_static\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
 else()

@@ -69,10 +69,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
-  # TODO: Remove debug print. Need this to figure out why zstd is not
-  # being found on Windows CI machines.
-  set(CMAKE_FIND_DEBUG_MODE 1)
-
   if (NOT LLVM_ENABLE_ZSTD)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
   else()
