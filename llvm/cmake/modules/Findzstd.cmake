@@ -10,20 +10,17 @@
 # zstd::libzstd_shared
 # zstd::libzstd_static
 
-set(CMAKE_FIND_DEBUG_MODE 1)
-
 if(MSVC)
   set(zstd_STATIC_LIBRARY_SUFFIX "_static\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
 else()
   set(zstd_STATIC_LIBRARY_SUFFIX "\\${CMAKE_STATIC_LIBRARY_SUFFIX}$")
 endif()
 
-find_path(zstd_INCLUDE_DIR NAMES zstd.h HINTS $ENV{ZSTD_ROOT}/include)
-find_library(zstd_LIBRARY NAMES zstd zstd_static HINTS $ENV{ZSTD_ROOT}/lib)
+find_path(zstd_INCLUDE_DIR NAMES zstd.h)
+find_library(zstd_LIBRARY NAMES zstd zstd_static)
 find_library(zstd_STATIC_LIBRARY NAMES
   zstd_static
-  "${CMAKE_STATIC_LIBRARY_PREFIX}zstd${CMAKE_STATIC_LIBRARY_SUFFIX}"
-  HINTS $ENV{ZSTD_ROOT}/lib)
+  "${CMAKE_STATIC_LIBRARY_PREFIX}zstd${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(

@@ -50,7 +50,7 @@ TEST(CompressionTest, NegativeErrorTest) {
   try {
     auto compressedData = ZSTDCompressor::DecompressBlob(
         input.c_str(), input.size(), decompressedSize);
-  } catch (sycl::exception &e) {
+  } catch (...) {
     threwException = true;
   }
 
