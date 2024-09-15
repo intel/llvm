@@ -4,17 +4,17 @@
 // REQUIRES: zstd, opencl-aot, cpu, linux
 
 //////////////////////  Compile device images
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=g++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=g++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL2' -DENABLE_KERNEL2 -c %s -o %t_kernel2_aot.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL1' -DENABLE_KERNEL1 -c %s -o %t_kernel1_aot.o
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -fsycl-host-compiler=clang++ -fsycl-host-compiler-options='-std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -DENABLE_KERNEL2' -DENABLE_KERNEL2 -c %s -o %t_kernel2_aot.o
 
 //////////////////////   Link device images
 // RUN: %clangxx --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -v
 
 //////////////////////   Compile the host program
-// RUN: g++ -I%T/../../../../../include -I%T/../../../../../include/sycl -std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -c %s -o %t_main.o
+// RUN: %clangxx -fsycl -std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -c %s -o %t_main.o
 
 //////////////////////   Link the host program and compressed device images
-// RUN: g++ %t_main.o %t_kernel1_aot.o %t_kernel2_aot.o %t_compressed_image.o  -L%T/../../../../../lib -lsycl -o %t_compress.out
+// RUN: %clangxx -fsycl %t_main.o %t_kernel1_aot.o %t_kernel2_aot.o %t_compressed_image.o -o %t_compress.out
 
 // RUN: %{run} %t_compress.out
 
