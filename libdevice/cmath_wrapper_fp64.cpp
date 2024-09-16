@@ -179,6 +179,9 @@ double atanh(double x) { return __devicelib_atanh(x); }
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
 
+DEVICE_EXTERN_C_INLINE
+long int lrint(double x) { return __devicelib_lrint(x); }
+
 #ifdef __NVPTX__
 extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
 DEVICE_EXTERN_C_INLINE
@@ -188,9 +191,9 @@ extern "C" SYCL_EXTERNAL double __nv_rint(double);
 DEVICE_EXTERN_C_INLINE
 double rint(double x) { return __nv_rint(x); }
 
-extern "C" SYCL_EXTERNAL long int __nv_lrint(double);
-DEVICE_EXTERN_C_INLINE
-long int lrint(double x) { return __nv_lrint(x); }
+// extern "C" SYCL_EXTERNAL long int __nv_lrint(double);
+// DEVICE_EXTERN_C_INLINE
+// long int lrint(double x) { return __nv_lrint(x); }
 
 extern "C" SYCL_EXTERNAL long long __nv_llrint(double);
 DEVICE_EXTERN_C_INLINE

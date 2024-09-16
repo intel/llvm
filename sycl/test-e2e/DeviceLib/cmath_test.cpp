@@ -23,9 +23,9 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 71
+#define TEST_NUM 70
 
-float ref[TEST_NUM] = {2, 100, 0.5, 1.0, 0,   0,   -2, 1,   2, 1, 1, 0, 1, 1, 0,
+float ref[TEST_NUM] = {100, 0.5, 1.0, 0,   0,   -2, 1,   2, 1, 1, 0, 1, 1, 0,
                        0,   0,   0,   0,   1,   1,  0.5, 0, 0, 1, 0, 2, 0, 0,
                        0,   0,   0,   1,   0,   1,  2,   0, 1, 2, 5, 0, 0, 0,
                        0,   0.5, 0.5, NAN, NAN, 2,  0,   0, 0, 0, 0, 0, 0, 0,
@@ -59,7 +59,7 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         float subnormal;
         *((uint32_t *)&subnormal) = 0x7FFFFF;
 
-        res_access[i++] = std::lrint(2.3);
+        //res_access[i++] = std::lrint(2.3);
         res_access[i++] = sycl::exp10(2.0f);
         res_access[i++] = sycl::rsqrt(4.0f);
         res_access[i++] = std::trunc(1.2f);
@@ -206,6 +206,7 @@ void device_integer_math_test(s::queue &deviceQueue) {
   int result_i2[1];
   long int result_l2[1];
   long long int result_ll2[1];
+  long int result_l1[1];
 
   {
     s::buffer<div_t, 1> buffer1(result_i, s::range<1>{1});
@@ -214,6 +215,7 @@ void device_integer_math_test(s::queue &deviceQueue) {
     s::buffer<int, 1> buffer4(result_i2, s::range<1>{1});
     s::buffer<long int, 1> buffer5(result_l2, s::range<1>{1});
     s::buffer<long long int, 1> buffer6(result_ll2, s::range<1>{1});
+    s::buffer<long int, 1> buffer7(result_l1, s::range<1>{1});
     deviceQueue.submit([&](s::handler &cgh) {
       auto res_i_access = buffer1.get_access<sycl_write>(cgh);
       // auto res_l_access = buffer2.get_access<sycl_write>(cgh);
@@ -221,6 +223,7 @@ void device_integer_math_test(s::queue &deviceQueue) {
       auto res_i2_access = buffer4.get_access<sycl_write>(cgh);
       auto res_l2_access = buffer5.get_access<sycl_write>(cgh);
       auto res_ll2_access = buffer6.get_access<sycl_write>(cgh);
+      auto res_l1_access = buffer6.get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceIntMathTest>([=]() {
         res_i_access[0] = std::div(99, 4);
         // res_l_access[0] = std::ldiv(10000, 23);
@@ -228,6 +231,7 @@ void device_integer_math_test(s::queue &deviceQueue) {
         res_i2_access[0] = std::abs(-111);
         res_l2_access[0] = std::labs(10000);
         res_ll2_access[0] = std::llabs(-2000000);
+        res_l1_access[0] =std::lrint(2.3);
       });
     });
   }
@@ -238,6 +242,7 @@ void device_integer_math_test(s::queue &deviceQueue) {
   assert(result_i2[0] == 111);
   assert(result_l2[0] == 10000);
   assert(result_ll2[0] == 2000000);
+  assert(result_l1[0] == 2);
 }
 
 int main() {
