@@ -174,16 +174,16 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_PASS: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-remove-unused-external-funcs %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_OPT_NO_PASS %s
 // CHECK_SYCL_POST_LINK_OPT_NO_PASS-NOT: sycl-post-link{{.*}}emit-only-kernels-as-entry-points
 
 /// Check selective passing of -allow-device-image-dependencies to sycl-post-link tool
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
-// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fsycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_PASS %s
+// RUN: %clang_cl -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen -fno-sycl-allow-device-image-dependencies %s 2>&1 | FileCheck -check-prefix=CHECK_SYCL_POST_LINK_ADID_NO_PASS %s
 
 // CHECK_SYCL_POST_LINK_ADID_PASS: sycl-post-link{{.*}}allow-device-image-dependencies
 // CHECK_SYCL_POST_LINK_ADID_NO_PASS-NOT: sycl-post-link{{.*}}allow-device-image-dependencies

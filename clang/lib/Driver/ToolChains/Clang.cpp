@@ -10801,7 +10801,7 @@ static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
                      options::OPT_fno_sycl_allow_device_image_dependencies, false))
     return true;
-  
+
   return false;
 }
 
@@ -10833,7 +10833,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
   if (allowDeviceImageDependencies(TCArgs))
-    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+    addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
