@@ -97,7 +97,7 @@ The cache is split into two levels:
 
 ### In-memory cache
 
-The cache stores underlying PI objects behind `sycl::program` and `sycl::kernel`
+The cache stores underlying UR objects behind `sycl::program` and `sycl::kernel`
 user-level objects in a per-context data storage. The storage consists of two
 maps: one is for programs and the other is for kernels.
 
@@ -122,8 +122,8 @@ binary image the kernel is contained in.
 and link options) set in application or environment variables. There are three
 sources of build options that the cache is aware of:
 
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
+- from device image (sycl_device_binary_struct::CompileOptions,
+  sycl_device_binary_struct::LinkOptions);
 - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
   SYCL_PROGRAM_LINK_OPTIONS);
 - options passed through SYCL API.
@@ -141,7 +141,7 @@ which is provided to methods of `sycl::handler` (e.g. `parallel_for` or
 
 ### Persistent cache
 
-The cache works behind in-memory cache and stores the same underlying PI
+The cache works behind in-memory cache and stores the same underlying UR
 object behind `sycl::program` user-level objects in a per-context data storage.
 The storage is organized as a map for storing device code image. It uses
 different keys to address difference in SYCL objects ids between applications
@@ -181,8 +181,8 @@ upgrades.
 compile and link options) set in application or environment variables. There are
 three sources of build options:
 
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
+- from device image (sycl_device_binary_struct::CompileOptions,
+  sycl_device_binary_struct::LinkOptions);
 - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
   SYCL_PROGRAM_LINK_OPTIONS);
 - options passed through SYCL API.
@@ -248,7 +248,7 @@ queue). Possibility of enqueueing multiple cacheable kernels simultaneously
 from multiple threads requires us to provide thread-safety for the caching
 mechanisms.
 
-It is worth of noting that we don't cache the PI resource (kernel or program)
+It is worth of noting that we don't cache the UR resource (kernel or program)
 by itself. Instead we augment the resource with the status of build process.
 Hence, what is cached is a wrapper structure `BuildResult` which contains three
 information fields - pointer to built resource, build error (if applicable) and
@@ -439,8 +439,8 @@ The caching isn't done when:
 - Employ the same built object for multiple devices of the same ISA,
   capabilities and so on. *NOTE:* It's not really known if it's possible to
   check if two distinct devices are *exactly* the same. Probably this should be
-  an improvement request for plugins. By now it is assumed that two devices with
-  the same device id <a name="what-is-did">2</a> are the same.
+  an improvement request for the UR adapters. By now it is assumed that two
+  devices with the same device id <a name="what-is-did">2</a> are the same.
 - Improve testing: cover real use-cases. See currently covered cases
   [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 - Implement tool for exploring cache items (initially it is possible using OS
