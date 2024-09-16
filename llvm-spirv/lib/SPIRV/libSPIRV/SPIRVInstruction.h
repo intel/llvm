@@ -452,24 +452,25 @@ protected:
   SPIRVId NoAliasInstID;
 };
 
-class SPIRVVariable : public SPIRVInstruction {
+class SPIRVVariableBase : public SPIRVInstruction {
 public:
   // Complete constructor for integer constant
-  SPIRVVariable(SPIRVType *TheType, SPIRVId TheId, SPIRVValue *TheInitializer,
-                const std::string &TheName,
-                SPIRVStorageClassKind TheStorageClass, SPIRVBasicBlock *TheBB,
-                SPIRVModule *TheM)
-      : SPIRVInstruction(TheInitializer && !TheInitializer->isUndef() ? 5 : 4,
-                         OpVariable, TheType, TheId, TheBB, TheM),
+  SPIRVVariableBase(Op OC, SPIRVType *TheType, SPIRVId TheId,
+                    SPIRVValue *TheInitializer, const std::string &TheName,
+                    SPIRVStorageClassKind TheStorageClass,
+                    SPIRVBasicBlock *TheBB, SPIRVModule *TheM, SPIRVWord WC)
+      : SPIRVInstruction(WC, OC, TheType, TheId, TheBB, TheM),
         StorageClass(TheStorageClass) {
     if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
     Name = TheName;
     validate();
   }
-  // Incomplete constructor
-  SPIRVVariable()
-      : SPIRVInstruction(OpVariable), StorageClass(StorageClassFunction) {}
+  // Incomplete constructors
+  SPIRVVariableBase(Op OC)
+      : SPIRVInstruction(OC), StorageClass(StorageClassFunction) {}
+  SPIRVVariableBase()
+      : SPIRVInstruction(OpNop), StorageClass(StorageClassFunction) {}
 
   SPIRVStorageClassKind getStorageClass() const { return StorageClass; }
   SPIRVValue *getInitializer() const {
@@ -519,6 +520,77 @@ protected:
 
   SPIRVStorageClassKind StorageClass;
   std::vector<SPIRVId> Initializer;
+};
+
+class SPIRVVariable : public SPIRVVariableBase {
+public:
+  // Complete constructor for integer constant
+  SPIRVVariable(SPIRVType *TheType, SPIRVId TheId, SPIRVValue *TheInitializer,
+                const std::string &TheName,
+                SPIRVStorageClassKind TheStorageClass, SPIRVBasicBlock *TheBB,
+                SPIRVModule *TheM)
+      : SPIRVVariableBase(OpVariable, TheType, TheId, TheInitializer, TheName,
+                          TheStorageClass, TheBB, TheM,
+                          TheInitializer && !TheInitializer->isUndef() ? 5
+                                                                       : 4) {}
+  // Incomplete constructor
+  SPIRVVariable() : SPIRVVariableBase(OpVariable) {}
+};
+
+class SPIRVUntypedVariableKHR : public SPIRVVariableBase {
+public:
+  SPIRVUntypedVariableKHR(SPIRVType *TheType, SPIRVId TheId,
+                          SPIRVType *TheDataType, SPIRVValue *TheInitializer,
+                          const std::string &TheName,
+                          SPIRVStorageClassKind TheStorageClass,
+                          SPIRVBasicBlock *TheBB, SPIRVModule *TheM)
+      : SPIRVVariableBase(
+            OpUntypedVariableKHR, TheType, TheId, TheInitializer, TheName,
+            TheStorageClass, TheBB, TheM,
+            TheDataType && !TheDataType->isUndef()
+                ? (TheInitializer && !TheInitializer->isUndef() ? 6 : 5)
+                : 4) {
+    if (TheDataType && !TheDataType->isUndef())
+      DataType.push_back(TheDataType->getId());
+    validate();
+  }
+  SPIRVUntypedVariableKHR() : SPIRVVariableBase(OpUntypedVariableKHR) {}
+  SPIRVType *getDataType() const {
+    if (DataType.empty())
+      return nullptr;
+    assert(DataType.size() == 1);
+    return get<SPIRVType>(DataType[0]);
+  }
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    std::vector<SPIRVEntry *> Vec;
+    if (SPIRVType *T = getDataType())
+      Vec.push_back(T);
+    if (SPIRVValue *V = getInitializer())
+      Vec.push_back(V);
+    return Vec;
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_untyped_pointers;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityUntypedPointersKHR);
+  }
+
+protected:
+  void validate() const override {
+    SPIRVVariableBase::validate();
+    assert(DataType.size() == 1 || DataType.empty());
+  }
+  void setWordCount(SPIRVWord TheWordCount) override {
+    SPIRVEntry::setWordCount(TheWordCount);
+    if (TheWordCount > 4)
+      DataType.resize(1);
+    if (TheWordCount > 5)
+      Initializer.resize(1);
+  }
+  _SPIRV_DEF_ENCDEC5(Type, Id, StorageClass, DataType, Initializer)
+
+  std::vector<SPIRVId> DataType;
 };
 
 class SPIRVStore : public SPIRVInstruction, public SPIRVMemoryAccess {
@@ -572,9 +644,6 @@ protected:
         (getValueType(PtrId)
              ->getPointerElementType()
              ->isTypeUntypedPointerKHR() ||
-         // TODO: This check should be removed once we support untyped
-         // variables.
-         getValueType(ValId)->isTypeUntypedPointerKHR() ||
          getValueType(PtrId)->getPointerElementType() == getValueType(ValId)) &&
         "Inconsistent operand types");
   }
@@ -629,8 +698,6 @@ protected:
             getValueType(PtrId)
                 ->getPointerElementType()
                 ->isTypeUntypedPointerKHR() ||
-            // TODO: This check should be removed once we support untyped
-            // variables.
             Type->isTypeUntypedPointerKHR() ||
             Type == getValueType(PtrId)->getPointerElementType()) &&
            "Inconsistent types");
@@ -688,9 +755,14 @@ protected:
     } else if (isBinaryPtrOpCode(OpCode)) {
       assert((Op1Ty->isTypePointer() && Op2Ty->isTypePointer()) &&
              "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
-      assert(static_cast<SPIRVTypePointer *>(Op1Ty)->getElementType() ==
-                 static_cast<SPIRVTypePointer *>(Op2Ty)->getElementType() &&
-             "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
+      if (!Op1Ty->isTypeUntypedPointerKHR() ||
+          !Op2Ty->isTypeUntypedPointerKHR())
+        assert(
+            static_cast<SPIRVTypePointer *>(Op1Ty)->getElementType() ==
+                static_cast<SPIRVTypePointer *>(Op2Ty)->getElementType() &&
+            "Invalid types for PtrEqual, PtrNotEqual, or PtrDiff instruction");
+      else if (OpCode == OpPtrDiff)
+        assert(Op1Ty == Op2Ty && "Invalid types for PtrDiff instruction");
     } else {
       assert(0 && "Invalid op code!");
     }

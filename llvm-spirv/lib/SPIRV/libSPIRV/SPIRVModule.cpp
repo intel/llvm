@@ -127,7 +127,7 @@ public:
   }
   std::set<std::string> &getExtension() override { return SPIRVExt; }
   SPIRVFunction *getFunction(unsigned I) const override { return FuncVec[I]; }
-  SPIRVVariable *getVariable(unsigned I) const override {
+  SPIRVVariableBase *getVariable(unsigned I) const override {
     return VariableVec[I];
   }
   SPIRVValue *getValue(SPIRVId TheId) const override;
@@ -456,9 +456,9 @@ public:
                                      SPIRVBasicBlock *BB) override;
   SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                  SPIRVBasicBlock *) override;
-  SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
-                                SPIRVValue *, const std::string &,
-                                SPIRVStorageClassKind,
+  SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
+                                SPIRVLinkageTypeKind, SPIRVValue *,
+                                const std::string &, SPIRVStorageClassKind,
                                 SPIRVBasicBlock *) override;
   SPIRVValue *addVectorShuffleInst(SPIRVType *Type, SPIRVValue *Vec1,
                                    SPIRVValue *Vec2,
@@ -516,7 +516,7 @@ private:
   typedef std::vector<SPIRVTypeForwardPointer *> SPIRVForwardPointerVec;
   typedef std::vector<SPIRVType *> SPIRVTypeVec;
   typedef std::vector<SPIRVValue *> SPIRVConstantVector;
-  typedef std::vector<SPIRVVariable *> SPIRVVariableVec;
+  typedef std::vector<SPIRVVariableBase *> SPIRVVariableVec;
   typedef std::vector<SPIRVString *> SPIRVStringVec;
   typedef std::vector<SPIRVMemberName *> SPIRVMemberNameVec;
   typedef std::vector<SPIRVDecorationGroup *> SPIRVDecGroupVec;
@@ -757,8 +757,9 @@ void SPIRVModuleImpl::layoutEntry(SPIRVEntry *E) {
   case OpMemberName:
     addTo(MemberNameVec, E);
     break;
-  case OpVariable: {
-    auto *BV = static_cast<SPIRVVariable *>(E);
+  case OpVariable:
+  case OpUntypedVariableKHR: {
+    auto *BV = static_cast<SPIRVVariableBase *>(E);
     if (!BV->getParent())
       addTo(VariableVec, E);
   } break;
@@ -1855,12 +1856,20 @@ SPIRVModuleImpl::getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
   return getOrAddMemAliasingINTELInst<SPIRVAliasScopeListDeclINTEL>(Args, MD);
 }
 
-SPIRVInstruction *SPIRVModuleImpl::addVariable(
-    SPIRVType *Type, bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
-    SPIRVValue *Initializer, const std::string &Name,
-    SPIRVStorageClassKind StorageClass, SPIRVBasicBlock *BB) {
-  SPIRVVariable *Variable = new SPIRVVariable(Type, getId(), Initializer, Name,
-                                              StorageClass, BB, this);
+SPIRVInstruction *
+SPIRVModuleImpl::addVariable(SPIRVType *Type, SPIRVType *AllocType,
+                             bool IsConstant, SPIRVLinkageTypeKind LinkageTy,
+                             SPIRVValue *Initializer, const std::string &Name,
+                             SPIRVStorageClassKind StorageClass,
+                             SPIRVBasicBlock *BB) {
+  SPIRVVariableBase *Variable = nullptr;
+  if (Type->isTypeUntypedPointerKHR()) {
+    Variable = new SPIRVUntypedVariableKHR(
+        Type, getId(), AllocType, Initializer, Name, StorageClass, BB, this);
+  } else {
+    Variable = new SPIRVVariable(Type, getId(), Initializer, Name, StorageClass,
+                                 BB, this);
+  }
   if (BB)
     return addInstruction(Variable, BB, BB->getVariableInsertionPoint());
 
@@ -1893,7 +1902,7 @@ class TopologicalSort {
   enum DFSState : char { Unvisited, Discovered, Visited };
   typedef std::vector<SPIRVType *> SPIRVTypeVec;
   typedef std::vector<SPIRVValue *> SPIRVConstantVector;
-  typedef std::vector<SPIRVVariable *> SPIRVVariableVec;
+  typedef std::vector<SPIRVVariableBase *> SPIRVVariableVec;
   typedef std::vector<SPIRVEntry *> SPIRVConstAndVarVec;
   typedef std::vector<SPIRVTypeForwardPointer *> SPIRVForwardPointerVec;
   typedef std::function<bool(SPIRVEntry *, SPIRVEntry *)> Comp;
