@@ -107,6 +107,7 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(
       "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+  BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
   queue Q1{Ctx, default_selector_v, property::queue::in_order()};

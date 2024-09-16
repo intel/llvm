@@ -1321,9 +1321,15 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
         reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
         CompileTargetByteArray.size());
     // Note: there are no explicit targets for CPUs, so on x86_64,
-    // so we use a spir64_x86_64 compile target image.
+    // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
+    // compile target image.
+    // TODO: When dedicated targets for CPU are added, (i.e.
+    // -fsycl-targets=intel_cpu_spr etc.) remove this special
+    // handling of CPU targets.
     if ((ArchName == CompileTarget) ||
-        (ArchName == "x86_64" && CompileTarget == "spir64_x86_64")) {
+        (CompileTarget == "spir64_x86_64" &&
+         (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
+          ArchName == "intel_cpu_gnr"))) {
       AddImg();
     }
   }
@@ -1605,7 +1611,8 @@ ProgramManager::ProgramPtr ProgramManager::build(
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+      Error == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
     Context->getKernelProgramCache().reset();
     Error = doLink();
   }
@@ -2427,7 +2434,8 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   };
   ur_result_t Error = doLink();
   if (Error == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+      Error == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+      Error == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
     ContextImpl->getKernelProgramCache().reset();
     Error = doLink();
   }
