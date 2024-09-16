@@ -103,7 +103,7 @@ jobs:
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
-            use_igc_dev: True
+            use_igc_dev: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
