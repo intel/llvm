@@ -4,6 +4,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// See https://github.com/intel/llvm/issues/15398
+// UNSUPPORTED: gpu-intel-gen12
+
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
