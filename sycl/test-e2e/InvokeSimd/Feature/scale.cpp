@@ -23,6 +23,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -105,10 +106,10 @@ template <class T, class QueueTY> bool test(QueueTY q) {
                 acca.template get_multi_ptr<access::decorated::yes>().get() +
                 offset);
             T vc = invoke_simd(sg, SIMD_CALLEE_scale<T>, va, uniform{n});
-            sg.store(
+            group_store(
+                sg, vc,
                 accc.template get_multi_ptr<access::decorated::yes>().get() +
-                    offset,
-                vc);
+                    offset);
           });
     });
     e.wait();
