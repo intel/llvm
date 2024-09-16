@@ -2818,7 +2818,8 @@ int main(int Argc, char **Argv) {
     timeTraceProfilerInitialize(Granularity, Argv[0]);
   }
 
-  UseSYCLPostLinkTool = !Args.hasArg(OPT_no_use_sycl_post_link_tool);
+  UseSYCLPostLinkTool = Args.hasFlag(OPT_use_sycl_post_link_tool,
+                                     OPT_no_use_sycl_post_link_tool, true);
   if (!UseSYCLPostLinkTool && Args.hasArg(OPT_use_sycl_post_link_tool))
     reportError(createStringError("-use-sycl-post-link-tool and "
                                   "-no-use-sycl-post-link-tool options can't "
@@ -2828,7 +2829,7 @@ int main(int Argc, char **Argv) {
     if (UseSYCLPostLinkTool)
       reportError(createStringError(
           "-sycl-module-split-mode should be used with "
-          "-no-use-sycl-post-link-tool command line option."));
+          "the -no-use-sycl-post-link-tool command line option."));
 
     StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
     SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
