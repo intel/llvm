@@ -332,9 +332,17 @@ typedef enum ur_structure_type_t {
 #if defined(_WIN32)
 /// @brief Microsoft-specific dllexport storage-class attribute
 #define UR_APIEXPORT __declspec(dllexport)
+#endif // defined(_WIN32)
+#endif // UR_APIEXPORT
+
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_APIEXPORT
+#if __GNUC__ >= 4
+/// @brief GCC-specific dllexport storage-class attribute
+#define UR_APIEXPORT __attribute__((visibility("default")))
 #else
 #define UR_APIEXPORT
-#endif // defined(_WIN32)
+#endif // __GNUC__ >= 4
 #endif // UR_APIEXPORT
 
 ///////////////////////////////////////////////////////////////////////////////
