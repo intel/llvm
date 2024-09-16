@@ -1,4 +1,5 @@
-= sycl_ext_global_defaults
+= sycl_ext_oneapi_global_defaults
+
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
