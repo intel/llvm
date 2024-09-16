@@ -4,7 +4,7 @@
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
-; TODO: enable back once spirv-tools are updated and untyped variable is implemented.
+; TODO: enable back once spirv-tools are updated.
 ; R/UN: spirv-val %t.spv
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o %t.spt
@@ -18,17 +18,20 @@
 ; CHECK-SPIRV: Extension "SPV_KHR_untyped_pointers"
 ; CHECK-SPIRV-DAG: TypeInt [[#IntTy:]] 32 0
 ; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#Constant0:]] 0
+; CHECK-SPIRV-DAG: Constant [[#IntTy]] [[#Constant42:]] 42
 ; CHECK-SPIRV-DAG: TypeUntypedPointerKHR [[#UntypedPtrTy:]] 5
 ; CHECK-SPIRV-DAG: TypeUntypedPointerKHR [[#UntypedPtrTyFunc:]] 7
 
 ; CHECK-SPIRV: FunctionParameter [[#UntypedPtrTy]] [[#FuncParam:]]
-; CHECK-SPIRV: Variable [[#UntypedPtrTyFunc]] [[#VarBId:]] 7
+; CHECK-SPIRV: UntypedVariableKHR [[#UntypedPtrTyFunc]] [[#VarBId:]] 7 [[#UntypedPtrTy]]
 ; CHECK-SPIRV: Store [[#VarBId]] [[#FuncParam]] 2 4
 ; CHECK-SPIRV: Load [[#UntypedPtrTy]] [[#LoadId:]] [[#VarBId]] 2 4
 ; CHECK-SPIRV: Store [[#LoadId]] [[#Constant0]] 2 4
 
 ; CHECK-SPIRV: FunctionParameter [[#UntypedPtrTy]] [[#FuncParam0:]]
 ; CHECK-SPIRV: FunctionParameter [[#UntypedPtrTy]] [[#FuncParam1:]]
+; CHECK-SPIRV: UntypedVariableKHR [[#UntypedPtrTyFunc]] [[#VarCId:]] 7 [[#IntTy]]
+; CHECK-SPIRV: Store [[#VarCId]] [[#Constant42]] 2 4
 ; CHECK-SPIRV: Load [[#IntTy]] [[#LoadId:]] [[#FuncParam1]] 2 4
 ; CHECK-SPIRV: Store [[#FuncParam0]] [[#LoadId]] 2 4
 
@@ -36,7 +39,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; CHECK-LLVM: define spir_func void @foo(ptr addrspace(1) %a)
-; CHECK-LLVM:   %b = alloca ptr, align 4
+; CHECK-LLVM:   %b = alloca ptr addrspace(1), align 4
 ; CHECK-LLVM:   store ptr addrspace(1) %a, ptr %b, align 4
 ; CHECK-LLVM:   %0 = load ptr addrspace(1), ptr %b, align 4
 ; CHECK-LLVM:   store i32 0, ptr addrspace(1) %0, align 4
@@ -50,10 +53,15 @@ entry:
 }
 
 ; CHECK-LLVM: define spir_func void @boo(ptr addrspace(1) %0, ptr addrspace(1) %1)
-; CHECK-LLVM:   %3 = load i32, ptr addrspace(1) %1, align 4
-; CHECK-LLVM:   store i32 %3, ptr addrspace(1) %0, align 4
+; CHECK-LLVM: %c = alloca i32
+; CHECK-LLVM: store i32 42, ptr %c, align 4
+; CHECK-LLVM: %2 = load i32, ptr addrspace(1) %1, align 4
+; CHECK-LLVM: store i32 %2, ptr addrspace(1) %0, align 4
 define dso_local void @boo(ptr addrspace(1) %0, ptr addrspace(1) %1) {
-  %3 = load i32, ptr addrspace(1) %1, align 4
-  store i32 %3, ptr addrspace(1) %0, align 4
+entry:
+  %c = alloca i32, align 4
+  store i32 42, ptr %c, align 4
+  %2 = load i32, ptr addrspace(1) %1, align 4
+  store i32 %2, ptr addrspace(1) %0, align 4
   ret void
 }

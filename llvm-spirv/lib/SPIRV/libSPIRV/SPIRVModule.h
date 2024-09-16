@@ -84,7 +84,7 @@ class SPIRVTypeQueue;
 class SPIRVTypePipe;
 class SPIRVTypeVmeImageINTEL;
 class SPIRVValue;
-class SPIRVVariable;
+class SPIRVVariableBase;
 class SPIRVDecorateGeneric;
 class SPIRVDecorationGroup;
 class SPIRVGroupDecorate;
@@ -138,7 +138,7 @@ public:
   virtual SPIRVExtInstSetKind getBuiltinSet(SPIRVId) const = 0;
   virtual std::set<std::string> &getExtension() = 0;
   virtual SPIRVFunction *getFunction(unsigned) const = 0;
-  virtual SPIRVVariable *getVariable(unsigned) const = 0;
+  virtual SPIRVVariableBase *getVariable(unsigned) const = 0;
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
   virtual unsigned getNumVariables() const = 0;
@@ -464,8 +464,9 @@ public:
                                              SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                          SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
-                                        SPIRVValue *, const std::string &,
+  virtual SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
+                                        SPIRVLinkageTypeKind, SPIRVValue *,
+                                        const std::string &,
                                         SPIRVStorageClassKind,
                                         SPIRVBasicBlock *) = 0;
   virtual SPIRVValue *
