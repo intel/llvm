@@ -401,11 +401,10 @@ of the link:sycl_ext_intel_matrix.asciidoc[sycl_ext_intel_matrix]
 
 Besides the `Group` and the `joint_matrix` arguments,
 `joint_matrix_apply` takes a C++ Callable object which is invoked once
-for each element of the matrix. There are two cases: (1) The input and
-output matrix are the same, (2) The output matrix is different from
-the input matrix.
+for each element of the matrix. There are two cases: (1) one matrix is
+passed, (2) two matrices are passed.
 
-===== Input and output matrix are the same
+===== Unary Operation
 In this case, `joint_matrix_apply` takes one `joint_matrix`
 argument. The callable object must be invocable with a single
 parameter of type `T&`. Commonly, applications pass a lambda
@@ -433,11 +432,11 @@ joint_matrix_apply(sg, C, [=](T &x) {
 });
 ```
 
-===== Input and output matrix are different
+===== Binary Operation
 In this case, `joint_matrix_apply` takes two `joint_matrix` arguments:
-`srcjm` and `destjm` that have the same `use`, type, number of rows,
-number of columns, and `layout`. `srcjm` is a read-only argument but
-`destjm` is a read and write argument. The callable object must be
+`jm0` and `jm1` that have the same `use`, type, number of rows,
+number of columns, and `layout`. `jm0` and `jm1` can be read-only,
+write-only, or read and write arguments. The callable object must be
 invocable with two parameters of type `T&`. Commonly, applications
 pass a lambda expression.
 
@@ -447,8 +446,8 @@ namespace sycl::ext::oneapi::experimental::matrix {
 template<typename Group, typename T, use Use, size_t Rows, size_t Cols,
   layout Layout, typename F>
 void joint_matrix_apply(Group g,
-          joint_matrix<Group, T, Use, Rows, Cols, Layout>& srcjm,
-          joint_matrix<Group, T, Use, Rows, Cols, Layout>& destjm,
+          joint_matrix<Group, T, Use, Rows, Cols, Layout>& jm0,
+          joint_matrix<Group, T, Use, Rows, Cols, Layout>& jm1,
 	  F&& func);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
