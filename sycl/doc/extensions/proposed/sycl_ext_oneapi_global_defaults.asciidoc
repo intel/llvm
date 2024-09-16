@@ -78,7 +78,8 @@ free enqueue functions, this allows for a simplified way to write SYCL code.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_GLOBAL_DEFAULTS` to one of the values defined in the table
+macro `SYCL_EXT_ONEAPI_GLOBAL_DEFAULTS` to one of the values defined in the table
+
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
