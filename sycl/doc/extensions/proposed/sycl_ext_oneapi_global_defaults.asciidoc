@@ -465,7 +465,8 @@ usm_allocator(get_current_device().get_platform().ext_oneapi_get_default_context
 ----
 
 '''
-=== Additions to the `queue` class
+=== Additions to the `device` class
+
 
 [frame=all,grid=none,separator="@"]
 !====
