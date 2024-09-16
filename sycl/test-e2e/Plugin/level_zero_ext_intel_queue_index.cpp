@@ -1,6 +1,9 @@
 // REQUIRES: aspect-ext_intel_device_id
 // REQUIRES: level_zero
 // UNSUPPORTED: gpu-intel-pvc-1T
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 
 // TODO: at this time PVC 1T systems are not correctly supporting CSLICE

@@ -917,10 +917,7 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     if (Attrs.hasParamAttr(ArgNo, Attribute::ReadOnly))
       BA->addAttr(FunctionParameterAttributeNoWrite);
     if (Attrs.hasParamAttr(ArgNo, Attribute::ReadNone))
-      // TODO: intel/llvm customization
-      // see https://github.com/intel/llvm/issues/7592
-      // Need to return FunctionParameterAttributeNoReadWrite
-      BA->addAttr(FunctionParameterAttributeNoWrite);
+      BA->addAttr(FunctionParameterAttributeNoReadWrite);
     if (Attrs.hasParamAttr(ArgNo, Attribute::ZExt))
       BA->addAttr(FunctionParameterAttributeZext);
     if (Attrs.hasParamAttr(ArgNo, Attribute::SExt))
@@ -3885,12 +3882,20 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
   //       and assume that the operations have no side effects (FP status flags
   //       aren't maintained), so the OpenCL builtin behavior should be
   //       acceptable.
+  case Intrinsic::acos:
+    return OpenCLLIB::Acos;
+  case Intrinsic::asin:
+    return OpenCLLIB::Asin;
+  case Intrinsic::atan:
+    return OpenCLLIB::Atan;
   case Intrinsic::ceil:
     return OpenCLLIB::Ceil;
   case Intrinsic::copysign:
     return OpenCLLIB::Copysign;
   case Intrinsic::cos:
     return OpenCLLIB::Cos;
+  case Intrinsic::cosh:
+    return OpenCLLIB::Cosh;
   case Intrinsic::exp:
     return OpenCLLIB::Exp;
   case Intrinsic::exp2:
@@ -3931,10 +3936,14 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Rint;
   case Intrinsic::sin:
     return OpenCLLIB::Sin;
+  case Intrinsic::sinh:
+    return OpenCLLIB::Sinh;
   case Intrinsic::sqrt:
     return OpenCLLIB::Sqrt;
   case Intrinsic::tan:
     return OpenCLLIB::Tan;
+  case Intrinsic::tanh:
+    return OpenCLLIB::Tanh;
   case Intrinsic::trunc:
     return OpenCLLIB::Trunc;
   default:
@@ -4067,8 +4076,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
 
   // Unary FP intrinsic
+  case Intrinsic::acos:
+  case Intrinsic::asin:
+  case Intrinsic::atan:
   case Intrinsic::ceil:
   case Intrinsic::cos:
+  case Intrinsic::cosh:
   case Intrinsic::exp:
   case Intrinsic::exp2:
   case Intrinsic::fabs:
@@ -4081,8 +4094,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::round:
   case Intrinsic::roundeven:
   case Intrinsic::sin:
+  case Intrinsic::sinh:
   case Intrinsic::sqrt:
   case Intrinsic::tan:
+  case Intrinsic::tanh:
   case Intrinsic::trunc: {
     if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
       break;

@@ -22,9 +22,11 @@
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
+// CHECK-NEXT: stl_wrappers/cassert
+// CHECK-NEXT: stl_wrappers/assert.h
+// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp

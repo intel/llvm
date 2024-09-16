@@ -15,37 +15,42 @@
 #define LLVM_CLANG_SEMA_SEMA_H
 
 #include "clang/APINotes/APINotesManager.h"
-#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/Attr.h"
-#include "clang/AST/Availability.h"
-#include "clang/AST/ComparisonCategories.h"
+#include "clang/AST/AttrIterator.h"
+#include "clang/AST/CharUnits.h"
+#include "clang/AST/DeclBase.h"
+#include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclarationName.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprConcepts.h"
-#include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExternalASTSource.h"
-#include "clang/AST/LocInfoType.h"
-#include "clang/AST/MangleNumberingContext.h"
-#include "clang/AST/NSAPI.h"
-#include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/OperationKinds.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/Type.h"
 #include "clang/AST/TypeLoc.h"
-#include "clang/AST/TypeOrdering.h"
-#include "clang/Basic/BitmaskEnum.h"
+#include "clang/Basic/AttrSubjectMatchRules.h"
 #include "clang/Basic/Builtins.h"
+#include "clang/Basic/CapturedStmt.h"
 #include "clang/Basic/Cuda.h"
-#include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticSema.h"
+#include "clang/Basic/ExceptionSpecificationType.h"
 #include "clang/Basic/ExpressionTraits.h"
-#include "clang/Basic/IdentifierTable.h"
+#include "clang/Basic/LLVM.h"
+#include "clang/Basic/Lambda.h"
+#include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/OpenCLOptions.h"
+#include "clang/Basic/OperatorKinds.h"
+#include "clang/Basic/PartialDiagnostic.h"
 #include "clang/Basic/PragmaKinds.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
 #include "clang/Basic/TemplateKinds.h"
+#include "clang/Basic/TokenKinds.h"
 #include "clang/Basic/TypeTraits.h"
 #include "clang/Sema/AnalysisBasedWarnings.h"
 #include "clang/Sema/Attr.h"
@@ -53,124 +58,100 @@
 #include "clang/Sema/DeclSpec.h"
 #include "clang/Sema/ExternalSemaSource.h"
 #include "clang/Sema/IdentifierResolver.h"
-#include "clang/Sema/ObjCMethodList.h"
 #include "clang/Sema/Ownership.h"
+#include "clang/Sema/ParsedAttr.h"
 #include "clang/Sema/Redeclaration.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaBase.h"
-#include "clang/Sema/SemaConcept.h"
-#include "clang/Sema/SemaDiagnostic.h"
 #include "clang/Sema/TypoCorrection.h"
 #include "clang/Sema/Weak.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitmaskEnum.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/FloatingPointMode.h"
+#include "llvm/ADT/FoldingSet.h"
+#include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/PointerIntPair.h"
+#include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLForwardCompat.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallBitVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/TinyPtrVector.h"
+#include "llvm/Support/Allocator.h"
+#include "llvm/Support/Compiler.h"
+#include "llvm/Support/Error.h"
+#include "llvm/Support/ErrorHandling.h"
+#include <cassert>
+#include <climits>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
+#include <functional>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace llvm {
-class APSInt;
-template <typename ValueT, typename ValueInfoT> class DenseSet;
-class SmallBitVector;
 struct InlineAsmIdentifierInfo;
 } // namespace llvm
 
 namespace clang {
 class ADLResult;
+class APValue;
+struct ASTConstraintSatisfaction;
 class ASTConsumer;
 class ASTContext;
+class ASTDeclReader;
 class ASTMutationListener;
 class ASTReader;
 class ASTWriter;
-class ArrayType;
-class ParsedAttr;
-class BindingDecl;
-class BlockDecl;
-class CapturedDecl;
 class CXXBasePath;
 class CXXBasePaths;
-class CXXBindTemporaryExpr;
-typedef SmallVector<CXXBaseSpecifier *, 4> CXXCastPath;
-class CXXConstructorDecl;
-class CXXConversionDecl;
-class CXXDeleteExpr;
-class CXXDestructorDecl;
 class CXXFieldCollector;
-class CXXMemberCallExpr;
-class CXXMethodDecl;
-class CXXScopeSpec;
-class CXXTemporary;
-class CXXTryStmt;
-class CallExpr;
-class ClassTemplateDecl;
-class ClassTemplatePartialSpecializationDecl;
-class ClassTemplateSpecializationDecl;
-class VarTemplatePartialSpecializationDecl;
 class CodeCompleteConsumer;
-class CodeCompletionAllocator;
-class CodeCompletionTUInfo;
-class CodeCompletionResult;
-class CoroutineBodyStmt;
-class Decl;
-class DeclAccessPair;
-class DeclContext;
-class DeclRefExpr;
-class DeclaratorDecl;
+enum class ComparisonCategoryType : unsigned char;
+class ConstraintSatisfaction;
+class DarwinSDKInfo;
+class DeclGroupRef;
 class DeducedTemplateArgument;
+struct DeductionFailureInfo;
 class DependentDiagnostic;
-class DesignatedInitExpr;
 class Designation;
-class EnableIfAttr;
-class EnumConstantDecl;
-class Expr;
-class ExtVectorType;
-class FormatAttr;
-class FriendDecl;
-class FunctionDecl;
-class FunctionProtoType;
-class FunctionTemplateDecl;
+class IdentifierInfo;
 class ImplicitConversionSequence;
 typedef MutableArrayRef<ImplicitConversionSequence> ConversionSequenceList;
-class InitListExpr;
 class InitializationKind;
 class InitializationSequence;
 class InitializedEntity;
-class IntegerLiteral;
-class LabelStmt;
-class LambdaExpr;
-class LangOptions;
+enum class LangAS : unsigned int;
 class LocalInstantiationScope;
 class LookupResult;
-class MacroInfo;
+class MangleNumberingContext;
 typedef ArrayRef<std::pair<IdentifierInfo *, SourceLocation>> ModuleIdPath;
 class ModuleLoader;
 class MultiLevelTemplateArgumentList;
-class NamedDecl;
-class ObjCImplementationDecl;
+struct NormalizedConstraint;
 class ObjCInterfaceDecl;
 class ObjCMethodDecl;
-class ObjCProtocolDecl;
 struct OverloadCandidate;
 enum class OverloadCandidateParamOrder : char;
 enum OverloadCandidateRewriteKind : unsigned;
 class OverloadCandidateSet;
-class OverloadExpr;
-class ParenListExpr;
-class ParmVarDecl;
 class Preprocessor;
-class PseudoDestructorTypeStorage;
-class PseudoObjectExpr;
-class QualType;
 class SemaAMDGPU;
 class SemaARM;
 class SemaAVR;
@@ -197,41 +178,19 @@ class SemaSystemZ;
 class SemaWasm;
 class SemaX86;
 class StandardConversionSequence;
-class Stmt;
-class StringLiteral;
-class SwitchStmt;
 class TemplateArgument;
-class TemplateArgumentList;
 class TemplateArgumentLoc;
-class TemplateDecl;
 class TemplateInstantiationCallback;
-class TemplateParameterList;
 class TemplatePartialOrderingContext;
-class TemplateTemplateParmDecl;
+class TemplateSpecCandidateSet;
 class Token;
-class TypeAliasDecl;
-class TypedefDecl;
-class TypedefNameDecl;
-class TypeLoc;
+class TypeConstraint;
 class TypoCorrectionConsumer;
-class UnqualifiedId;
-class UnresolvedLookupExpr;
-class UnresolvedMemberExpr;
 class UnresolvedSetImpl;
 class UnresolvedSetIterator;
-class UsingDecl;
-class UsingShadowDecl;
-class ValueDecl;
-class VarDecl;
-class VarTemplateSpecializationDecl;
-class VisibilityAttr;
 class VisibleDeclConsumer;
-class IndirectFieldDecl;
-struct DeductionFailureInfo;
-class TemplateSpecCandidateSet;
 
 namespace sema {
-class AccessedEntity;
 class BlockScopeInfo;
 class Capture;
 class CapturedRegionScopeInfo;
@@ -241,8 +200,6 @@ class DelayedDiagnostic;
 class DelayedDiagnosticPool;
 class FunctionScopeInfo;
 class LambdaScopeInfo;
-class PossiblyUnreachableDiag;
-class RISCVIntrinsicManager;
 class SemaPPCallbacks;
 class TemplateDeductionInfo;
 } // namespace sema
@@ -537,38 +494,40 @@ class Sema final : public SemaBase {
   // Table of Contents
   // -----------------
   // 1. Semantic Analysis (Sema.cpp)
-  // 2. C++ Access Control (SemaAccess.cpp)
-  // 3. Attributes (SemaAttr.cpp)
-  // 4. Availability Attribute Handling (SemaAvailability.cpp)
-  // 5. Casts (SemaCast.cpp)
-  // 6. Extra Semantic Checking (SemaChecking.cpp)
-  // 7. C++ Coroutines (SemaCoroutine.cpp)
-  // 8. C++ Scope Specifiers (SemaCXXScopeSpec.cpp)
-  // 9. Declarations (SemaDecl.cpp)
-  // 10. Declaration Attribute Handling (SemaDeclAttr.cpp)
-  // 11. C++ Declarations (SemaDeclCXX.cpp)
-  // 12. C++ Exception Specifications (SemaExceptionSpec.cpp)
-  // 13. Expressions (SemaExpr.cpp)
-  // 14. C++ Expressions (SemaExprCXX.cpp)
-  // 15. Member Access Expressions (SemaExprMember.cpp)
-  // 16. Initializers (SemaInit.cpp)
-  // 17. C++ Lambda Expressions (SemaLambda.cpp)
-  // 18. Name Lookup (SemaLookup.cpp)
-  // 19. Modules (SemaModule.cpp)
-  // 20. C++ Overloading (SemaOverload.cpp)
-  // 21. Statements (SemaStmt.cpp)
-  // 22. `inline asm` Statement (SemaStmtAsm.cpp)
-  // 23. Statement Attribute Handling (SemaStmtAttr.cpp)
-  // 24. C++ Templates (SemaTemplate.cpp)
-  // 25. C++ Template Argument Deduction (SemaTemplateDeduction.cpp)
-  // 26. C++ Template Deduction Guide (SemaTemplateDeductionGuide.cpp)
-  // 27. C++ Template Instantiation (SemaTemplateInstantiate.cpp)
-  // 28. C++ Template Declaration Instantiation
+  // 2. API Notes (SemaAPINotes.cpp)
+  // 3. C++ Access Control (SemaAccess.cpp)
+  // 4. Attributes (SemaAttr.cpp)
+  // 5. Availability Attribute Handling (SemaAvailability.cpp)
+  // 6. Bounds Safety (SemaBoundsSafety.cpp)
+  // 7. Casts (SemaCast.cpp)
+  // 8. Extra Semantic Checking (SemaChecking.cpp)
+  // 9. C++ Coroutines (SemaCoroutine.cpp)
+  // 10. C++ Scope Specifiers (SemaCXXScopeSpec.cpp)
+  // 11. Declarations (SemaDecl.cpp)
+  // 12. Declaration Attribute Handling (SemaDeclAttr.cpp)
+  // 13. C++ Declarations (SemaDeclCXX.cpp)
+  // 14. C++ Exception Specifications (SemaExceptionSpec.cpp)
+  // 15. Expressions (SemaExpr.cpp)
+  // 16. C++ Expressions (SemaExprCXX.cpp)
+  // 17. Member Access Expressions (SemaExprMember.cpp)
+  // 18. Initializers (SemaInit.cpp)
+  // 19. C++ Lambda Expressions (SemaLambda.cpp)
+  // 20. Name Lookup (SemaLookup.cpp)
+  // 21. Modules (SemaModule.cpp)
+  // 22. C++ Overloading (SemaOverload.cpp)
+  // 23. Statements (SemaStmt.cpp)
+  // 24. `inline asm` Statement (SemaStmtAsm.cpp)
+  // 25. Statement Attribute Handling (SemaStmtAttr.cpp)
+  // 26. C++ Templates (SemaTemplate.cpp)
+  // 27. C++ Template Argument Deduction (SemaTemplateDeduction.cpp)
+  // 28. C++ Template Deduction Guide (SemaTemplateDeductionGuide.cpp)
+  // 29. C++ Template Instantiation (SemaTemplateInstantiate.cpp)
+  // 30. C++ Template Declaration Instantiation
   //     (SemaTemplateInstantiateDecl.cpp)
-  // 29. C++ Variadic Templates (SemaTemplateVariadic.cpp)
-  // 30. Constraints and Concepts (SemaConcept.cpp)
-  // 31. Types (SemaType.cpp)
-  // 32. FixIt Helpers (SemaFixItUtils.cpp)
+  // 31. C++ Variadic Templates (SemaTemplateVariadic.cpp)
+  // 32. Constraints and Concepts (SemaConcept.cpp)
+  // 33. Types (SemaType.cpp)
+  // 34. FixIt Helpers (SemaFixItUtils.cpp)
 
   /// \name Semantic Analysis
   /// Implementations are in Sema.cpp
@@ -1133,6 +1092,11 @@ public:
   /// must be codegen'ed.  Because handling these correctly adds overhead to
   /// compilation, this is currently only enabled for CUDA compilations.
   SemaDiagnosticBuilder::DeferredDiagnosticsType DeviceDeferredDiags;
+  /// Used to track deferred diagnostic that happened in an initializer of a
+  /// constexpr variable. When it is known that a variable doesn't have
+  /// constexpr initializer content of this container is pushed to
+  /// DeviceDeferredDiags.
+  SemaDiagnosticBuilder::DeferredDiagnosticsType MaybeDeviceDeferredDiags;
 
   /// CurContext - This is the current declaration context of parsing.
   DeclContext *CurContext;
@@ -1317,6 +1281,25 @@ private:
   std::unique_ptr<SemaSystemZ> SystemZPtr;
   std::unique_ptr<SemaWasm> WasmPtr;
   std::unique_ptr<SemaX86> X86Ptr;
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name API Notes
+  /// Implementations are in SemaAPINotes.cpp
+  ///@{
+
+public:
+  /// Map any API notes provided for this declaration to attributes on the
+  /// declaration.
+  ///
+  /// Triggered by declaration-attribute processing.
+  void ProcessAPINotes(Decl *D);
 
   ///@}
 
@@ -2096,6 +2079,39 @@ public:
   //
   //
 
+  /// \name Bounds Safety
+  /// Implementations are in SemaBoundsSafety.cpp
+  ///@{
+public:
+  /// Check if applying the specified attribute variant from the "counted by"
+  /// family of attributes to FieldDecl \p FD is semantically valid. If
+  /// semantically invalid diagnostics will be emitted explaining the problems.
+  ///
+  /// \param FD The FieldDecl to apply the attribute to
+  /// \param E The count expression on the attribute
+  /// \param CountInBytes If true the attribute is from the "sized_by" family of
+  ///                     attributes. If the false the attribute is from
+  ///                     "counted_by" family of attributes.
+  /// \param OrNull If true the attribute is from the "_or_null" suffixed family
+  ///               of attributes. If false the attribute does not have the
+  ///               suffix.
+  ///
+  /// Together \p CountInBytes and \p OrNull decide the attribute variant. E.g.
+  /// \p CountInBytes and \p OrNull both being true indicates the
+  /// `counted_by_or_null` attribute.
+  ///
+  /// \returns false iff semantically valid.
+  bool CheckCountedByAttrOnField(FieldDecl *FD, Expr *E, bool CountInBytes,
+                                 bool OrNull);
+
+  ///@}
+
+  //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
   /// \name Casts
   /// Implementations are in SemaCast.cpp
   ///@{
@@ -2168,6 +2184,8 @@ public:
   /// ExpressionEvaluationContextRecord object.
   bool isConstantEvaluatedOverride = false;
 
+  bool InConstexprVarInit = false;
+
   bool isConstantEvaluatedContext() const {
     return currentEvaluationContext().isConstantEvaluated() ||
            isConstantEvaluatedOverride;
@@ -2215,6 +2233,7 @@ public:
     FST_FreeBSDKPrintf,
     FST_OSTrace,
     FST_OSLog,
+    FST_Syslog,
     FST_Unknown
   };
   static FormatStringType GetFormatStringType(const FormatAttr *Format);
@@ -3464,6 +3483,8 @@ public:
                                     TemplateIdAnnotation *TemplateId,
                                     bool IsMemberSpecialization);
 
+  bool checkPointerAuthEnabled(SourceLocation Loc, SourceRange Range);
+
   bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
 
   /// Diagnose function specifiers on a declaration of an identifier that
@@ -3805,7 +3826,8 @@ public:
                                    const ParsedAttributesView &DeclAttrs,
                                    MultiTemplateParamsArg TemplateParams,
                                    bool IsExplicitInstantiation,
-                                   RecordDecl *&AnonRecord);
+                                   RecordDecl *&AnonRecord,
+                                   SourceLocation EllipsisLoc = {});
 
   /// BuildAnonymousStructOrUnion - Handle the declaration of an
   /// anonymous structure or union. Anonymous unions are a C++ feature
@@ -4702,159 +4724,6 @@ public:
   /// Essentially, this just moves them to the current pool.
   void redelayDiagnostics(sema::DelayedDiagnosticPool &pool);
 
-  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr **Exprs, unsigned Size);
-  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
-                               const Expr *LHSZDim, const Expr *RHSXDim,
-                               const Expr *RHSYDim, const Expr *RHSZDim);
-  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
-                             const Expr *LHSZDim, const Expr *RHSXDim,
-                             const Expr *RHSYDim, const Expr *RHSZDim);
-  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLWorkGroupSizeHintAttr *
-  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
-  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  IntelReqdSubGroupSizeAttr *
-  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
-  IntelNamedSubGroupSizeAttr *
-  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
-  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelNumSimdWorkItemsAttr *
-  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
-                                     const SYCLIntelNumSimdWorkItemsAttr &A);
-  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelESimdVectorizeAttr *
-  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
-                                   const SYCLIntelESimdVectorizeAttr &A);
-  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
-  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
-      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
-  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelLoopFuseAttr *
-  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
-  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  SYCLIntelMaxReplicatesAttr *
-  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
-  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelForcePow2DepthAttr *
-  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
-                                   const SYCLIntelForcePow2DepthAttr &A);
-  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
-      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
-
-  SYCLIntelMaxConcurrencyAttr *
-  MergeSYCLIntelMaxConcurrencyAttr(Decl *D,
-                                   const SYCLIntelMaxConcurrencyAttr &A);
-  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelMaxGlobalWorkDimAttr *
-  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
-  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
-  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
-  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
-  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
-  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLIntelBankWidthAttr *
-  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
-  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelNumBanksAttr *
-  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
-  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
-                                            const SYCLDeviceHasAttr &A);
-  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
-                            Expr **Exprs, unsigned Size);
-  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
-                                                const SYCLUsesAspectsAttr &A);
-  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
-                              Expr **Exprs, unsigned Size);
-  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
-                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
-                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
-  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLIntelMaxWorkGroupSizeAttr *
-  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
-                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
-  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
-  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
-      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
-  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesKernelParameterAttr *
-  MergeSYCLAddIRAttributesKernelParameterAttr(
-      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
-  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
-                                                 const AttributeCommonInfo &CI,
-                                                 MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesGlobalVariableAttr *
-  MergeSYCLAddIRAttributesGlobalVariableAttr(
-      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
-  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
-                                                const AttributeCommonInfo &CI,
-                                                MutableArrayRef<Expr *> Args);
-  SYCLAddIRAnnotationsMemberAttr *
-  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
-                                      const SYCLAddIRAnnotationsMemberAttr &A);
-  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         MutableArrayRef<Expr *> Args);
-  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLReqdWorkGroupSizeAttr *
-  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
-
-  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                  SYCLTypeAttr::SYCLType TypeName);
-
-  /// Emit a diagnostic about the given attribute having a deprecated name, and
-  /// also emit a fixit hint to generate the new attribute name.
-  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
-                                   StringRef NewName);
-
-  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
-  /// the attribute in the 'intel' namespace instead.
-  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
-                                            StringRef NewName = "");
-
-  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
-  /// declaration.
-  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
-  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
-                                                const SYCLIntelPipeIOAttr &A);
-
-  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
-  /// particular declaration.
-  void AddSYCLIntelMaxConcurrencyAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-
   bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
   /// Check if IdxExpr is a valid parameter index for a function or
   /// instance method D.  May output an error.
@@ -5703,7 +5572,8 @@ public:
   /// parameters present at all, require proper matching, i.e.
   ///   template <> template \<class T> friend class A<int>::B;
   Decl *ActOnFriendTypeDecl(Scope *S, const DeclSpec &DS,
-                            MultiTemplateParamsArg TemplateParams);
+                            MultiTemplateParamsArg TemplateParams,
+                            SourceLocation EllipsisLoc);
   NamedDecl *ActOnFriendFunctionDecl(Scope *S, Declarator &D,
                                      MultiTemplateParamsArg TemplateParams);
 
@@ -6017,6 +5887,7 @@ public:
                                      unsigned TagSpec, SourceLocation TagLoc,
                                      CXXScopeSpec &SS, IdentifierInfo *Name,
                                      SourceLocation NameLoc,
+                                     SourceLocation EllipsisLoc,
                                      const ParsedAttributesView &Attr,
                                      MultiTemplateParamsArg TempParamLists);
 
@@ -12222,14 +12093,17 @@ public:
 
   void CheckDeductionGuideTemplate(FunctionTemplateDecl *TD);
 
-  Decl *ActOnConceptDefinition(Scope *S,
-                               MultiTemplateParamsArg TemplateParameterLists,
-                               const IdentifierInfo *Name,
-                               SourceLocation NameLoc, Expr *ConstraintExpr,
-                               const ParsedAttributesView &Attrs);
+  ConceptDecl *ActOnStartConceptDefinition(
+      Scope *S, MultiTemplateParamsArg TemplateParameterLists,
+      const IdentifierInfo *Name, SourceLocation NameLoc);
+
+  ConceptDecl *ActOnFinishConceptDefinition(Scope *S, ConceptDecl *C,
+                                            Expr *ConstraintExpr,
+                                            const ParsedAttributesView &Attrs);
 
   void CheckConceptRedefinition(ConceptDecl *NewDecl, LookupResult &Previous,
                                 bool &AddToScope);
+  bool CheckConceptUseInDefinition(ConceptDecl *Concept, SourceLocation Loc);
 
   TypeResult ActOnDependentTag(Scope *S, unsigned TagSpec, TagUseKind TUK,
                                const CXXScopeSpec &SS,
@@ -14375,6 +14249,10 @@ public:
   std::optional<unsigned> getNumArgumentsInExpansion(
       QualType T, const MultiLevelTemplateArgumentList &TemplateArgs);
 
+  std::optional<unsigned> getNumArgumentsInExpansionFromUnexpanded(
+      llvm::ArrayRef<UnexpandedParameterPack> Unexpanded,
+      const MultiLevelTemplateArgumentList &TemplateArgs);
+
   /// Determine whether the given declarator contains any unexpanded
   /// parameter packs.
   ///
@@ -15222,25 +15100,6 @@ public:
   std::string getFixItZeroInitializerForType(QualType T,
                                              SourceLocation Loc) const;
   std::string getFixItZeroLiteralForType(QualType T, SourceLocation Loc) const;
-
-  ///@}
-
-  //
-  //
-  // -------------------------------------------------------------------------
-  //
-  //
-
-  /// \name API Notes
-  /// Implementations are in SemaAPINotes.cpp
-  ///@{
-
-public:
-  /// Map any API notes provided for this declaration to attributes on the
-  /// declaration.
-  ///
-  /// Triggered by declaration-attribute processing.
-  void ProcessAPINotes(Decl *D);
 
   ///@}
 };
