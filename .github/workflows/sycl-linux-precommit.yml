@@ -202,16 +202,18 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
-            reset_intel_gpu: true
+            env: |
+              { 
+                "RESET_GPU": "1"
+              }
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
           # - name: E2E tests on Intel Arc A-Series Graphics
           #   runner: '["Linux", "arc"]'
           #   image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
           #   image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
           #   target_devices: level_zero:gpu;opencl:gpu
-          #   reset_intel_gpu: true
-          #   install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-          #   env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+          #   
+          #   env: '{"RESET_GPU"="1", "INSTALL_DRIVERS": "${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}", "LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           # - name: E2E tests with dev igc on Intel Arc A-Series Graphics
           #   runner: '["Linux", "arc"]'
           #   image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
@@ -233,9 +235,6 @@ jobs:
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
-      reset_gpu: ${{ matrix.reset_intel_gpu }}
-      install_drivers: ${{ matrix.install_drivers }}
-      use_dev_igc: ${{ matrix.use_dev_igc }}
       env: ${{ matrix.env || '{}' }}
 
       ref: ${{ github.sha }}

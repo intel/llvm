@@ -43,18 +43,14 @@ on:
         default: ''
         required: False
 
-      reset_gpu:
-        type: string
-        required: False
-      install_drivers:
-        type: string
-        required: False
-      use_dev_igc:
-        type: string
-        required: False
       env:
         type: string
         default: '{}'
+        required: False
+
+      cache_results:
+        type: boolean
+        default: false
         required: False
 
   workflow_dispatch:
@@ -89,26 +85,13 @@ on:
           - 'ext_oneapi_hip:gpu'
       env:
         description: |
-          Suggested variables: for E2E tests - LIT_FILTER, LIT_FILTER_OUT.
-          LIT_OPTS won't work as we redefine it as part of this workflow.
-
-          For SYCL CTS - CTS_TESTS_TO_BUILD to specify which categories to
-          build.
-
           Format: '{"VAR1":"VAL1","VAR2":"VAL2",...}'
+
+          Special variables:
+          * RESET_GPU       -- set to "1" to reset Intel GPUs
+          * INSTALL_DRIVERS -- set to "1" to install drivers
+          * USE_DEV_IGC     -- set to "1" to use dev igc
         default: '{}'
-
-      install_drivers:
-        type: choice
-        options:
-          - false
-          - true
-
-      use_dev_igc:
-        type: choice
-        options:
-          - false
-          - true
 
       sycl_toolchain_artifact:
         type: string
@@ -121,6 +104,11 @@ on:
       sycl_toolchain_decompress_command:
         type: string
         default: ''
+        required: False
+
+      cache_results:
+        type: boolean
+        default: false
         required: False
 
 permissions: read-all
@@ -139,119 +127,6 @@ jobs:
       skip_build: ${{ inputs.sycl_toolchain_archive != '' }}
       skip_reason: "SYCL toolchain artifact already provided, no build necessary"
 
-#   run_archive:
-#     if: inputs.sycl_toolchain_archive != ''
-#     runs-on: ${{ fromJSON(inputs.runner) }}
-#     container:
-#       image: ${{ inputs.image }}
-#       options: ${{ inputs.image_options }}
-#     env: ${{ fromJSON(inputs.env) }}
-#     steps:
-#     - name: Reset GPU
-#       if: inputs.reset_gpu == 'true'
-#       run: |
-#         sudo mount -t debugfs none /sys/kernel/debug
-#         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-#     - uses: actions/checkout@v4
-#       with:
-#         ref: ${{ inputs.ref }}
-#         sparse-checkout: |
-#           devops
-#     - name: Register cleanup after job is finished
-#       uses: ./devops/actions/cleanup
-#     - name: Install drivers
-#       if: inputs.install_drivers == 'true'
-#       env:
-#         GITHUB_TOKEN: ${{ github.token }}
-#       run: |
-#         if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
-#             # If libllvm14 is already installed (dev igc docker), still return true.
-#             sudo apt-get install -yqq libllvm14 || true;
-#         fi
-#         sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
-#     - name: Source OneAPI TBB vars.sh
-#       shell: bash
-#       run: |
-#         # https://github.com/actions/runner/issues/1964 prevents us from using
-#         # the ENTRYPOINT in the image.
-#         env | sort > env_before
-#         if [ -e /runtimes/oneapi-tbb/env/vars.sh ]; then
-#           source /runtimes/oneapi-tbb/env/vars.sh;
-#         elif [ -e /opt/runtimes/oneapi-tbb/env/vars.sh ]; then
-#           source /opt/runtimes/oneapi-tbb/env/vars.sh;
-#         else
-#           echo "no TBB vars in /opt/runtimes or /runtimes";
-#         fi
-#         env | sort > env_after
-#         comm -13 env_before env_after >> $GITHUB_ENV
-#         rm env_before env_after
-# 
-#     - name: Download SYCL toolchain
-#       if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
-#       uses: actions/download-artifact@v4
-#       with:
-#         name: ${{ inputs.sycl_toolchain_artifact }}
-#     - name: Download SYCL toolchain [workflow_run]
-#       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
-#       uses: actions/github-script@v7
-#       with:
-#         script: |
-#           const name = '${{ inputs.sycl_toolchain_artifact }}'
-#           let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-#              owner: context.repo.owner,
-#              repo: context.repo.repo,
-#              run_id: context.payload.workflow_run.id,
-#           });
-#           let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-#             return artifact.name == name
-#           })[0];
-#           let download = await github.rest.actions.downloadArtifact({
-#              owner: context.repo.owner,
-#              repo: context.repo.repo,
-#              artifact_id: matchArtifact.id,
-#              archive_format: 'zip',
-#           });
-#           let fs = require('fs');
-#           fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/` + name + '.zip', Buffer.from(download.data));
-#     - name: Unzip artifact [workflow_run]
-#       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
-#       run: |
-#         unzip ${{ inputs.sycl_toolchain_artifact }}.zip
-#         rm ${{ inputs.sycl_toolchain_artifact }}.zip
-#     - name: Extract/Setup SYCL toolchain
-#       if: inputs.sycl_toolchain_artifact != ''
-#       run: |
-#         mkdir toolchain
-#         tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
-#         rm -f ${{ inputs.sycl_toolchain_archive }}
-#         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
-#         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
-#     - run: which clang++ sycl-ls
-#     - run: sycl-ls --verbose
-#     - run: SYCL_UR_TRACE=1 sycl-ls
-#     - run: |
-#           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
-#             cat /usr/local/lib/igc/IGCTAG.txt
-#           fi
-# 
-#     - name: Run compute-benchmarks
-#       id: run_benchmarks
-#       if: success()
-#       run: |
-#         whereis clang++
-#         whereis sycl-ls
-#         clang++ --version
-#         ls
-#         export CMPLR_ROOT=$PWD/toolchain
-#         ./devops/scripts/benchmarking/benchmark.sh
-#     # - name: Upload sycl-bench microbenchmark results
-#     #   if: inputs.tests_selector == 'benchmark' && steps.run_benchmarks.outcome == 'success'
-#     #   uses: actions/upload-artifact@v4
-#     #   with:
-#     #     name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
-#     #     path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
-#     #     retention-days: 7
-
   run_benchmarks:
     name: ${{ inputs.name }}
     needs: [ check_build ]
@@ -262,7 +137,7 @@ jobs:
     env: ${{ fromJSON(inputs.env) }}
     steps:
     - name: Reset GPU
-      if: inputs.reset_gpu == 'true'
+      if: env.RESET_GPU == '1'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
@@ -274,15 +149,15 @@ jobs:
     - name: Register cleanup after job is finished
       uses: ./devops/actions/cleanup
     - name: Install drivers
-      if: inputs.install_drivers == 'true'
+      if: env.INSTALL_DRIVERS == '1'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+        if [ "$USE_DEV_IGC" = "1" ]; then
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ env.USE_DEV_IGC == '1' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -365,16 +240,14 @@ jobs:
         ./devops/scripts/benchmarking/benchmark.sh
         exit $?
     - name: Push compute-benchmarks
-      if: success()
+      if: inputs.cache_results == true && success()
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
         mkdir -p .ssh
+        echo "$SSH_KEY" | wc -c
         echo "$SSH_KEY" > .ssh/id_rsa
         chmod 600 .ssh/id_rsa
-        echo "###"
-        echo "$(ssh-agent -s)"
-        echo "###"
         eval "$(ssh-agent -s)"
         ssh-add -k .ssh/id_rsa
         cd llvm-ci-perf-results
