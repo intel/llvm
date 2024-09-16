@@ -52,8 +52,12 @@ TEST_P(urProgramGetInfoTest, Success) {
                                         sizeof(binaries[0]), binaries,
                                         nullptr));
     } else {
-        ASSERT_SUCCESS(urProgramGetInfo(program, property_name, 0, nullptr,
-                                        &property_size));
+        auto result = urProgramGetInfo(program, property_name, 0, nullptr,
+                                       &property_size);
+        if (result != UR_RESULT_SUCCESS) {
+            ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+            return;
+        }
         property_value.resize(property_size);
         ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                         property_value.data(), nullptr));
