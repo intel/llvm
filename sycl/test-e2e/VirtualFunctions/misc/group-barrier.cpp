@@ -19,6 +19,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <sycl/usm.hpp>
 
 #include "helpers.hpp"
@@ -47,7 +48,7 @@ public:
       }
     }
 
-    return Res;
+    return sycl::group_broadcast(It.get_group(), Res);
   }
 };
 
@@ -64,7 +65,7 @@ public:
       }
     }
 
-    return Res;
+    return sycl::group_broadcast(It.get_group(), Res);
   }
 };
 
