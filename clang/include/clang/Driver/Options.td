@@ -7025,10 +7025,10 @@ def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-extern
 def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
   HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
 def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependencies">,
-  HelpText<"Deprecated: please use -fsycl-allow-device-image-dependencies instead.">;
+  HelpText<"Deprecated: please use -fsycl-allow-device-image-dependencies instead.">,
   Flags<[Deprecated]>;
 def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
-  HelpText<"Deprecated: please use -fno-sycl-allow-device-image-dependencies instead.">;
+  HelpText<"Deprecated: please use -fno-sycl-allow-device-image-dependencies instead.">,
   Flags<[Deprecated]>;
 def fsycl_allow_device_image_dependencies : Flag<["-"], "fsycl-allow-device-image-dependencies">,
   HelpText<"Allow dependencies between device code images">;
