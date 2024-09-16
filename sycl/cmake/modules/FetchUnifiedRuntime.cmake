@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2bbe952669861579ea84fa30f14e1ed27ead0692
-  # Merge: d357964a 6b353545
+  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
+  # Merge: fa9ebe7b 53abe070
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Sep 12 11:36:11 2024 +0100
-  #     Merge pull request #1928 from isaacault/iault/image_array_copy
-  #     [Bindless][Exp] Image Array Sub-Region Copies
-  set(UNIFIED_RUNTIME_TAG 2bbe952669861579ea84fa30f14e1ed27ead0692)
+  # Date:   Mon Sep 16 10:20:10 2024 +0100
+  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
+  #     [Loader] Suppress system errors when loading adapters on Windows
+  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
