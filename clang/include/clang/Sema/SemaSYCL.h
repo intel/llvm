@@ -13,8 +13,8 @@
 #ifndef LLVM_CLANG_SEMA_SEMASYCL_H
 #define LLVM_CLANG_SEMA_SEMASYCL_H
 
+#include "clang/AST/ASTFwd.h"
 #include "clang/AST/Attr.h"
-#include "clang/AST/Decl.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/Cuda.h"
 #include "clang/Basic/SourceLocation.h"

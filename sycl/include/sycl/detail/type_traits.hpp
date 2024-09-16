@@ -86,8 +86,7 @@ template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
+    : std::bool_constant<is_group<T>::value || is_sub_group<T>::value> {};
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 

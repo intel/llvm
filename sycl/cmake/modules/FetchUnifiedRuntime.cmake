@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  # commit fa9ebe7bd3d9bd11dd5ea8a59eff12f5746411d3
+  # Merge: 92638b2a 9eb1c74f
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Fri Sep 13 14:44:27 2024 +0100
+  #     Merge pull request #1821 from PietroGhg/pietro/native_cpu_specconstants
+  #     [NATIVECPU] Initial support for spec constants on Native CPU
+  set(UNIFIED_RUNTIME_TAG fa9ebe7bd3d9bd11dd5ea8a59eff12f5746411d3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

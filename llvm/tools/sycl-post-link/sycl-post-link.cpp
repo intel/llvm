@@ -509,6 +509,10 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   assert(NewModuleDesc->Props.SpecConstsMet &&
          "This property should be true since the presence of SpecConsts "
          "has been checked before the run of the pass");
+  // Add metadata to the module so we can identify it as the default value split
+  // later.
+  NewModuleDesc->getModule().getOrInsertNamedMetadata(
+      SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
   NewModuleDesc->rebuildEntryPoints();
   return NewModuleDesc;
 }
