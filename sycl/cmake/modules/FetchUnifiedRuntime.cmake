@@ -117,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a99dbcee3404a56d05b8803c63caede64a073076 (HEAD, origin/main, origin/HEAD)
-  # Merge: 9d71afb8 4bf58035
-  # Author: Callum Fare <callum@codeplay.com>
-  # Date:   Fri Sep 6 16:00:14 2024 +0100
-  #  Merge pull request #2067 from sarnex/fixbuild
-  #  [OpenCL] Use older OpenCL-Headers commit to fix build
-  set(UNIFIED_RUNTIME_TAG a99dbcee3404a56d05b8803c63caede64a073076)
+  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
+  # Merge: fa9ebe7b 53abe070
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Mon Sep 16 10:20:10 2024 +0100
+  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
+  #     [Loader] Suppress system errors when loading adapters on Windows
+  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
