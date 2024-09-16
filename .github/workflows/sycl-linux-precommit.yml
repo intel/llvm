@@ -117,9 +117,9 @@ jobs:
       env: ${{ matrix.env || '{}' }}
 
       install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      install_dev_igc_driver: ${{matrix.use_igc_dev || 'false'}} && ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
+      install_dev_igc_driver: ${{ matrix.use_igc_dev && contains(needs.detect_changes.outputs.filters, 'devigccfg') || 'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
-      skip_run: ${{matrix.use_igc_dev || 'false'}} && ${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') }}
+      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 
       ref: ${{ github.sha }}
       merge_ref: ''
