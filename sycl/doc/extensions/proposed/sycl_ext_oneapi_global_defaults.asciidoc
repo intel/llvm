@@ -96,7 +96,8 @@ supports.
 
 === New free functions
 
-This extension adds the following new free functions to the `sycl` namespace:
+This extension adds the following new free functions:
+
 
 '''
 
