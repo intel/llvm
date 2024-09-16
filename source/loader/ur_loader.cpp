@@ -17,6 +17,18 @@ namespace ur_loader {
 context_t *getContext() { return context_t::get_direct(); }
 
 ur_result_t context_t::init() {
+#ifdef _WIN32
+    // Suppress system errors.
+    // Tells the system to not display the critical-error-handler message box.
+    // Instead, the system sends the error to the calling process.
+    // This is crucial for graceful handling of adapters that couldn't be
+    // loaded, e.g. due to missing native run-times.
+    // TODO: add reporting in case of an error.
+    // NOTE: we restore the old mode to not affect user app behavior.
+    // See https://github.com/intel/llvm/blob/sycl/sycl/ur_win_proxy_loader/ur_win_proxy_loader.cpp (preloadLibraries())
+    UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+#endif
+
 #ifdef UR_STATIC_ADAPTER_LEVEL_ZERO
     // If the adapters were force loaded, it means the user wants to use
     // a specific adapter library. Don't load any static adapters.
@@ -35,6 +47,10 @@ ur_result_t context_t::init() {
             }
         }
     }
+#ifdef _WIN32
+    // Restore system error handling.
+    (void)SetErrorMode(SavedMode);
+#endif
 
     forceIntercept = getenv_tobool("UR_ENABLE_LOADER_INTERCEPT");
 
