@@ -223,8 +223,6 @@ ur_result_t urProgramBuildExp(
     hProgram->ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
   }
 
-  // We no longer need the IL / native code.
-  hProgram->Code.reset();
   if (!hProgram->ZeModuleMap.empty())
     hProgram->ZeModule = hProgram->ZeModuleMap.begin()->second;
   if (!hProgram->ZeBuildLogMap.empty())
@@ -817,7 +815,7 @@ ur_result_t urProgramGetInfo(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   case UR_PROGRAM_INFO_IL:
-    return ReturnValue(Program->Code.get());
+    return ReturnValue(Program->Code.get(), Program->CodeLength);
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
