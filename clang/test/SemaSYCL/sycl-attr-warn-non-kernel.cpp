@@ -44,11 +44,19 @@ public:
   [[intel::reqd_sub_group_size(4)]] void operator()() const{}  // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 };
 
+class Functor8 {
+public:
+  void operator()() const;  
+};
+
+[[sycl::reqd_work_group_size(8)]] void Functor8::operator()() const {} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+
 int main() {
   sycl::queue q;
   Functor16x16 f16x16;
   FunctorSubGroupSize4 fs4;
-
+  Functor8 f8;
+  
   q.submit([&](sycl::handler& h) {
     h.single_task<class kernel_name>(
       []()[[sycl::reqd_work_group_size(16)]]{ // OK attribute reqd_work_group_size applied to kernel
