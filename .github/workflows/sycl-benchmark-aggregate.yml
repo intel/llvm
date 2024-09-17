@@ -6,7 +6,8 @@ on:
   workflow_dispatch:
   workflow_call:
 
-permissions: read-all
+permissions:
+  contents: write
 
 jobs:
   aggregate:

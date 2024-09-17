@@ -111,7 +111,8 @@ on:
         default: false
         required: False
 
-permissions: read-all
+permissions:
+  contents: write
 
 jobs:
   check_build:
@@ -135,6 +136,8 @@ jobs:
       image: ${{ inputs.image }}
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
+    permissions:
+      contents: write
     steps:
     - name: Reset GPU
       if: env.RESET_GPU == '1'
