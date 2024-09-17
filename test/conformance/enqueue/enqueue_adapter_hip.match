@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 # HIP can't check kernel arguments
 urEnqueueKernelLaunchTest.InvalidKernelArgs/AMD_HIP_BACKEND___{{.*}}_
 urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/AMD_HIP_BACKEND___{{.*}}_

@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 {{OPT}}urProgramBuildTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urProgramBuildTest.SuccessWithOptions/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urProgramBuildTest.InvalidNullHandleContext/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
