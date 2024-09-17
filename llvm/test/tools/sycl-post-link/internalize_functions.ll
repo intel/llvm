@@ -1,8 +1,8 @@
-; Test that when -support-dynamic-linking is used
+; Test that when -allow-device-image-dependencies is used
 ; non SYCL_EXTERNAL functions are internalized.
 ; Variables must not be internalized.
 
-; RUN: sycl-post-link -symbols -support-dynamic-linking -split=kernel -S < %s -o %t.table
+; RUN: sycl-post-link -symbols -allow-device-image-dependencies -split=kernel -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYM-0
 ; RUN: FileCheck %s -input-file=%t_0.ll  --check-prefixes CHECK-LL-0
 
