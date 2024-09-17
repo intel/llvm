@@ -23,8 +23,9 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This extension has been replaced with a new version under the same name
-that completely changed the interfaces.
+NOTE: This extension has been replaced with a
+link:../experimental/sycl_ext_oneapi_group_load_store.asciidoc[`new version`]
+under the same name that completely changed the interfaces.
 
 == Notice
 
