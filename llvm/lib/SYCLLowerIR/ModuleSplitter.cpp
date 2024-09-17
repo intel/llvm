@@ -52,9 +52,9 @@ constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
-cl::opt<bool> SupportDynamicLinking{
-    "support-dynamic-linking",
-    cl::desc("Generate device images that are suitable for dynamic linking"),
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
     cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
@@ -670,7 +670,7 @@ static bool mustPreserveGV(const GlobalValue &GV) {
     // When dynamic linking is supported, we internalize everything that can
     // not be imported which also means that there is no point of having it
     // visible outside of the current module.
-    if (SupportDynamicLinking)
+    if (AllowDeviceImageDependencies)
       return canBeImportedFunction(*F);
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
@@ -715,7 +715,7 @@ void ModuleDesc::cleanup() {
 
   // Callback for internalize can't be a lambda with captures, so we propagate
   // necessary information through the module itself.
-  if (!SupportDynamicLinking)
+  if (!AllowDeviceImageDependencies)
     for (Function *F : EntryPoints.Functions)
       F->addFnAttr("sycl-entry-point");
 
@@ -1391,7 +1391,7 @@ bool canBeImportedFunction(const Function &F) {
   // of user device code (e.g. _Z38__spirv_JointMatrixWorkItemLength...) In
   // order to be safe and not require perfect name analysis just start with this
   // simple check.
-  if (!SupportDynamicLinking)
+  if (!AllowDeviceImageDependencies)
     return false;
 
   // SYCL_EXTERNAL property is not recorded for a declaration
