@@ -137,16 +137,16 @@ int main(void) {
   return 0;
 }
 
-// CHECK-LABEL: ---> urProgramBuild
+// CHECK-LABEL: <--- urProgramBuild
 // CHECK-WITH-VAR-SAME: -g
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
 
-// CHECK-NO-VAR: urProgramBuild{{.*}}-ze-opt-large-register-file
-// CHECK-WITH-VAR: urProgramBuild{{.*}}-g -ze-opt-large-register-file
-// CHECK-AUTO-NO-VAR: urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
-// CHECK-AUTO-WITH-VAR: urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
+// CHECK-NO-VAR: <--- urProgramBuild{{.*}}-ze-opt-large-register-file
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: <--- urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS

@@ -14,12 +14,12 @@ int main() {
   return 0;
 }
 
-// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunch(
 // FIXME the order of these 2 varies between plugins due to a Level Zero
 // specific queue workaround.
-// CHECK-DAG: ---> urEventRelease(
-// CHECK-DAG: ---> urQueueRelease(
-// CHECK: ---> urContextRelease(
-// CHECK: ---> urKernelRelease(
-// CHECK: ---> urProgramRelease(
-// CHECK: ---> urDeviceRelease(
+// CHECK-DAG: <--- urEventRelease(
+// CHECK-DAG: <--- urQueueRelease(
+// CHECK: <--- urContextRelease(
+// CHECK: <--- urKernelRelease(
+// CHECK: <--- urProgramRelease(
+// CHECK: <--- urDeviceRelease(

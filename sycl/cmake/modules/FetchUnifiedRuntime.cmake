@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00f958f375205fd86309f95b925141cf664ff955
-  # Merge: cc2d5909 98a67a2e
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 2 09:51:21 2024 +0100
-  #     Merge pull request #2139 from nrspruit/zeHandle_copy_dependencies
-  #     [L0] Pass and track event dependencies required before executing Memory
-  #     Copy buffer inits
-  set(UNIFIED_RUNTIME_TAG 00f958f375205fd86309f95b925141cf664ff955)
+  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
+  # Merge: 1f13d2ce cf5994a1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Oct 3 10:47:01 2024 +0200
+  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
+  #     Fix mixed output of adapter and regular traces
+  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

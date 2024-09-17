@@ -46,11 +46,11 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> urContextCreate
-// CHECK:---> urQueueCreate
-// CHECK:---> urProgramCreate
-// CHECK:---> urKernelCreate
-// CHECK:---> urQueueRelease
-// CHECK:---> urContextRelease
-// CHECK:---> urKernelRelease
-// CHECK:---> urProgramRelease
+// CHECK: <--- urContextCreate
+// CHECK: <--- urQueueCreate
+// CHECK: <--- urProgramCreate
+// CHECK: <--- urKernelCreate
+// CHECK: <--- urQueueRelease
+// CHECK: <--- urContextRelease
+// CHECK: <--- urKernelRelease
+// CHECK: <--- urProgramRelease
