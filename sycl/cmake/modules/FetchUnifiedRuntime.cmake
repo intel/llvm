@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f31160dea6d142014f441bc4ca5e58e48827490e
-  # Merge: 2bbe9526 64068799
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Sep 12 14:19:48 2024 +0200
-  #     Merge pull request #2083 from kswiecicki/xpti-init-fix
-  #     Fix XPTI initialization bug
-  set(UNIFIED_RUNTIME_TAG f31160dea6d142014f441bc4ca5e58e48827490e)
+  # commit cfecab08e6e6dbb694f614b4f6271a258a41fc10
+  # Merge: 10fd78c1 5bebef5d
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Tue Sep 17 12:26:35 2024 +0100
+  #   Merge pull request #1874 from PietroGhg/pietro/membarrier
+  #   [NATIVECPU] Support atomic fence queries
+  set(UNIFIED_RUNTIME_TAG cfecab08e6e6dbb694f614b4f6271a258a41fc10)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
