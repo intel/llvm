@@ -88,6 +88,7 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
