@@ -496,10 +496,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   property were not passed down to device compiler when using
   [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
   extension. intel/llvm#14522
-- Fixed a bug in
-  [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
-  extension implementation
-  TODO: add description here. @cperkinsintel . intel/llvm#14490
 - Fixed a bug where defining kernel as a named functor whilst using
   `-fno-sycl-unnamed-lambda` would lead to a compilation error about unnamed
   lambdas being unsupported. intel/lvm#14614
@@ -515,7 +511,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   tasks with barriers. intel/llvm#13094 intel/llvm#13863 intel/llvm#13094
 - Fixed a compilation issue occurring when `printf` is used on CUDA backend
   on Windows. intel/llvm#13784
-  TODO: was it really a compilation issue?
 - Fixed an issue where the compiler could emit SPIR-V instructions for reversing
   bits in a variable which are not supported by device compilers.
   intel/llvm#13810 intel/llvm#13044
@@ -530,7 +525,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   fail to create necessary directories for the cache to work. intel/llvm#13019
 - Fixed a bug where querying a kernel by name from a kernel bundle would crash
   a program. intel/llvm#13155
-  TODO: ask @cperkinsintel for feedback about the wording here.
 - Fixed an error handling bug where non-blocking `pipe` operations would lead
   to exceptions being mistakenly thrown. intel/llvm#13166
 - Fixed compilation issues happening when non-uniform group built-ins were used
