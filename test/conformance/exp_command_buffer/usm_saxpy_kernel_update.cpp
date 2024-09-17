@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include <array>
 #include <cstring>
 
 // Test that updating a command-buffer with a single kernel command
