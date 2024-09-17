@@ -302,7 +302,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS: {
-    if (*(static_cast<const ur_bool_t *>(pPropValue)) == true) {
+    if (*(static_cast<const ur_bool_t *>(pPropValue))) {
       UR_RETURN_ON_FAILURE(usmSetIndirectAccess(hKernel));
     }
     return UR_RESULT_SUCCESS;

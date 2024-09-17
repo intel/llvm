@@ -560,19 +560,20 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                     const auto thirdDeviceId = getDeviceId(thirdPart);
                     deviceList.push_back(DeviceSpec{
                         DevicePartLevel::SUBSUB, hardwareType, firstDeviceId,
-                        secondDeviceId, thirdDeviceId});
+                        secondDeviceId, thirdDeviceId, nullptr});
                 } else {
                     // second dot not found, this is a subdevice
-                    deviceList.push_back(DeviceSpec{DevicePartLevel::SUB,
-                                                    hardwareType, firstDeviceId,
-                                                    secondDeviceId});
+                    deviceList.push_back(
+                        DeviceSpec{DevicePartLevel::SUB, hardwareType,
+                                   firstDeviceId, secondDeviceId, 0, nullptr});
                 }
             } else {
                 // first dot not found, this is a root device
                 const auto hardwareType = getRootHardwareType(filterString);
                 const auto firstDeviceId = getDeviceId(filterString);
                 deviceList.push_back(DeviceSpec{DevicePartLevel::ROOT,
-                                                hardwareType, firstDeviceId});
+                                                hardwareType, firstDeviceId, 0,
+                                                0, nullptr});
             }
         }
     }
@@ -587,8 +588,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
         // for example, we pretend that "garbage:0;!cuda:*" was just "!cuda:*"
         // so we add an implicit accept-all term (equivalent to prepending "*:*;")
         // as we would have done if the user had given us the corrected string
-        acceptDeviceList.push_back(DeviceSpec{
-            DevicePartLevel::ROOT, ::UR_DEVICE_TYPE_ALL, DeviceIdTypeALL});
+        acceptDeviceList.push_back(DeviceSpec{DevicePartLevel::ROOT,
+                                              ::UR_DEVICE_TYPE_ALL,
+                                              DeviceIdTypeALL, 0, 0, nullptr});
     }
 
     logger::debug("DEBUG: size of acceptDeviceList = {}",

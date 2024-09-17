@@ -8,13 +8,30 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <tuple>
 #include <ur_api.h>
+#include <utility>
 
-#include "queue.hpp"
+namespace ur::level_zero {
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueNativeCommandExp(
-    ur_exp_enqueue_native_command_function_t, void *, uint32_t,
-    const ur_mem_handle_t *, const ur_exp_enqueue_native_command_properties_t *,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
+ur_result_t urEnqueueNativeCommandExp(
+    ur_queue_handle_t hQueue,
+    ur_exp_enqueue_native_command_function_t pfnNativeEnqueue, void *data,
+    uint32_t numMemsInMemList, const ur_mem_handle_t *phMemList,
+    const ur_exp_enqueue_native_command_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = pfnNativeEnqueue;
+  std::ignore = data;
+  std::ignore = numMemsInMemList;
+  std::ignore = phMemList;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+} // namespace ur::level_zero

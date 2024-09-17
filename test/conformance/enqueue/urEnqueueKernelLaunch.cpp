@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include <array>
 #include <uur/fixtures.h>
 
 struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {

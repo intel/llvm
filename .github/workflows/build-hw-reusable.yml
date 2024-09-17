@@ -18,6 +18,10 @@ on:
         required: false
         type: string
         default: OFF
+      static_adapter:
+        required: false
+        type: string
+        default: OFF
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}"},
+          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}", static_adapter: "${{inputs.static_loader}}"},
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -48,6 +52,10 @@ jobs:
          - adapter: {static_Loader: ON}
            build_type: Release
          - adapter: {static_Loader: ON}
+           compiler: {c: clang, cxx: clang++}
+         - adapter: {static_adapter: ON}
+           build_type: Release
+         - adapter: {static_adapter: ON}
            compiler: {c: clang, cxx: clang++}
 
     runs-on: ${{inputs.runner_name}}
@@ -76,6 +84,7 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
+        -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}

@@ -13,3 +13,6 @@ add_unit_test(params
 
 add_unit_test(print
     print.cpp)
+
+add_unit_test(helpers
+    helpers.cpp)
