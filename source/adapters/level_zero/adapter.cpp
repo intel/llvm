@@ -60,12 +60,14 @@ ur_result_t getZesDeviceHandle(zes_uuid_t coreDeviceUuid,
   std::vector<zes_driver_handle_t> ZesDrivers;
   std::vector<zes_device_handle_t> ZesDevices;
   ze_result_t ZesResult = ZE_RESULT_ERROR_INVALID_ARGUMENT;
-  ZE2UR_CALL(zesDriverGet, (&ZesDriverCount, nullptr));
+  ZE2UR_CALL(GlobalAdapter->getSysManDriversFunctionPtr,
+             (&ZesDriverCount, nullptr));
   ZesDrivers.resize(ZesDriverCount);
-  ZE2UR_CALL(zesDriverGet, (&ZesDriverCount, ZesDrivers.data()));
+  ZE2UR_CALL(GlobalAdapter->getSysManDriversFunctionPtr,
+             (&ZesDriverCount, ZesDrivers.data()));
   for (uint32_t I = 0; I < ZesDriverCount; ++I) {
     ZesResult = ZE_CALL_NOCHECK(
-        zesDriverGetDeviceByUuidExp,
+        GlobalAdapter->getDeviceByUUIdFunctionPtr,
         (ZesDrivers[I], coreDeviceUuid, ZesDevice, SubDevice, SubDeviceId));
     if (ZesResult == ZE_RESULT_SUCCESS) {
       return UR_RESULT_SUCCESS;
@@ -207,8 +209,38 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
-
-    GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(zesInit, (0));
+    // Dynamically load the new L0 SysMan separate init and new EXP apis
+    // separately. This must be done to avoid attempting to use symbols that do
+    // not exist in older loader runtimes.
+#ifdef _WIN32
+    std::string l0LoaderName = "ze_loader.dll";
+#else
+    std::string l0LoaderName = "libze_loader.so.1";
+#endif
+    GlobalAdapter->loaderHandle =
+        ur_loader::LibLoader::loadAdapterLibrary(l0LoaderName.c_str());
+    if (GlobalAdapter->loaderHandle.get() != nullptr) {
+      GlobalAdapter->getDeviceByUUIdFunctionPtr =
+          (zes_pfnDriverGetDeviceByUuidExp_t)
+              ur_loader::LibLoader::getFunctionPtr(
+                  GlobalAdapter->loaderHandle.get(),
+                  "zesDriverGetDeviceByUuidExp");
+      GlobalAdapter->getSysManDriversFunctionPtr =
+          (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
+              GlobalAdapter->loaderHandle.get(), "zesDriverGet");
+      GlobalAdapter->sysManInitFunctionPtr =
+          (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
+              GlobalAdapter->loaderHandle.get(), "zesInit");
+    }
+    if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
+        GlobalAdapter->getSysManDriversFunctionPtr &&
+        GlobalAdapter->sysManInitFunctionPtr) {
+      logger::debug("\nzesInit with flags value of {}\n", static_cast<int>(0));
+      GlobalAdapter->ZesResult =
+          ZE_CALL_NOCHECK(GlobalAdapter->sysManInitFunctionPtr, (0));
+    } else {
+      GlobalAdapter->ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
 
     ur_result_t err = initPlatforms(platforms, *GlobalAdapter->ZesResult);
     if (err == UR_RESULT_SUCCESS) {
