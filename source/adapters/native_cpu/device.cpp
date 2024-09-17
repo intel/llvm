@@ -364,11 +364,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
     return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
+    // Currently for Native CPU fences are implemented using OCK
+    // builtins, so we have different capabilities than atomic operations
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+    return ReturnValue(Capabilities);
+  }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED;
     return ReturnValue(Capabilities);
   }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                             UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
