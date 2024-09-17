@@ -124,4 +124,35 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
     EXPECT_TRUE(BarrierCalled);
   }
 }
+
+std::vector<size_t> KernelEventListSize;
+
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  KernelEventListSize.push_back(*params.pnumEventsInWaitList);
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  event Ev = InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueue.wait();
+
+  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
+  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
+  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
+  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+}
+
 } // anonymous namespace

@@ -229,7 +229,7 @@ static std::string commandToName(Command::CommandType Type) {
 #endif
 
 std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
+Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls, const QueueImplPtr& CommandQueue, bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     auto Handle = EventImpl->getHandle();
@@ -240,14 +240,19 @@ Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
     // At this stage dependency is definitely ur task and need to check if
     // current one is a host task. In this case we should not skip ur event due
     // to different sync mechanisms for different task types on in-order queue.
-    if (MWorkerQueue && EventImpl->getWorkerQueue() == MWorkerQueue &&
-        MWorkerQueue->isInOrder() && !isHostTask())
+    if (CommandQueue && EventImpl->getWorkerQueue() == CommandQueue &&
+        CommandQueue->isInOrder() && !IsHostTaskCommand)
       continue;
 
     RetUrEvents.push_back(Handle);
   }
 
   return RetUrEvents;
+}
+
+std::vector<ur_event_handle_t>
+Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls) const {
+  return getUrEvents(EventImpls, MWorkerQueue, isHostTask());
 }
 
 // This function is implemented (duplicating getUrEvents a lot) as short term
@@ -869,6 +874,8 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
     return true;
+
+ 
 
   // If the command is blocked from enqueueing
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
@@ -2567,6 +2574,8 @@ void enqueueImpKernel(
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
 
+  
+
   // Use kernel_bundle if available unless it is interop.
   // Interop bundles can't be used in the first branch, because the kernels
   // in interop kernel bundles (if any) do not have kernel_id
@@ -2855,6 +2864,7 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 }
 
 ur_result_t ExecCGCommand::enqueueImp() {
+   std::cout <<"cgTypeToString = " << cgTypeToString(MCommandGroup->getType()) <<std::endl;
   if (MCommandBuffer) {
     return enqueueImpCommandBuffer();
   } else {
