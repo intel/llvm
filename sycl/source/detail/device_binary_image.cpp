@@ -244,7 +244,8 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
       compressedDataSize, DecompressedSize);
 
   Bin = new sycl_device_binary_struct(*CompressedBin);
-  Bin->BinaryStart = (const unsigned char *)(m_DecompressedData.get());
+  Bin->BinaryStart =
+      reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
   Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
   // Set the new format to none and let RT determine the format.

@@ -8,8 +8,8 @@
 // RUN: %{build} %t_kernel1.so %t_kernel2.so -Wl,-rpath=%T -o %t_compress.out
 // RUN: %{run} %t_compress.out
 #if defined(ENABLE_KERNEL1) || defined(ENABLE_KERNEL2)
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
-
 using namespace sycl;
 #endif
 
@@ -21,7 +21,7 @@ void kernel1() {
     queue q;
     q.submit([&](sycl::handler &cgh) {
       auto acc = accessor(b, cgh);
-      cgh.single_task([=]{ acc[0] = __builtin_abs(acc[0]);});
+      cgh.single_task([=] { acc[0] = abs(acc[0]); });
     });
   }
   assert(data == 1);
@@ -36,7 +36,7 @@ void kernel2() {
     queue q;
     q.submit([&](sycl::handler &cgh) {
       auto acc = accessor(b, cgh);
-      cgh.single_task([=]{ acc[0] = __builtin_abs(acc[0]);});
+      cgh.single_task([=] { acc[0] = abs(acc[0]); });
     });
   }
   assert(data == 2);

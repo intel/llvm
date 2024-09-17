@@ -39,6 +39,7 @@ private:
   // Public APIs
 public:
   // Blob (de)compression do not assume format/structure of the input buffer.
+  // This function can be used in future for compression in on-disk cache.
   static std::unique_ptr<char> CompressBlob(const char *src, size_t srcSize,
                                             size_t &dstSize, int level) {
     auto &instance = GetSingletonInstance();

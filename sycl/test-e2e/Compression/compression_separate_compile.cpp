@@ -26,7 +26,7 @@ using namespace sycl;
 #ifdef ENABLE_KERNEL1
 class test_kernel1;
 void run_kernel1(int *a, queue q) {
-  q.single_task<test_kernel1>([=]() { *a *= 3; });
+  q.single_task<test_kernel1>([=]() { *a *= 3; }).wait();
 }
 #endif
 
@@ -34,7 +34,7 @@ void run_kernel1(int *a, queue q) {
 #ifdef ENABLE_KERNEL2
 class test_kernel2;
 void run_kernel2(int *a, queue q) {
-  q.single_task<test_kernel2>([=]() { *a += 42; });
+  q.single_task<test_kernel2>([=]() { *a += 42; }).wait();
 }
 #endif
 
@@ -50,7 +50,7 @@ void run_kernel1(int *a, queue q);
 void run_kernel2(int *a, queue q);
 int main() {
   int retCode = 0;
-  queue q(cpu_selector_v, {property::queue::in_order()});
+  queue q;
 
   if (!q.get_device().get_info<info::device::usm_shared_allocations>())
     return 0;
