@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urEnqueueKernelLaunchTest.InvalidKernelArgs/NVIDIA_CUDA_BACKEND___{{.*}}_
 urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 urEnqueueKernelLaunchKernelSubGroupTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_

@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urUSMDeviceAllocTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UsePoolEnabled
 urUSMDeviceAllocTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UsePoolDisabled
 urUSMDeviceAllocTest.SuccessWithDescriptors/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UsePoolEnabled
