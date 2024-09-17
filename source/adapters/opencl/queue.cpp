@@ -8,9 +8,9 @@
 
 #include "common.hpp"
 #include "platform.hpp"
+#include <limits>
 
 cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
-
   switch (PropName) {
   case UR_QUEUE_INFO_CONTEXT:
     return CL_QUEUE_CONTEXT;
@@ -25,7 +25,7 @@ cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
   case UR_QUEUE_INFO_SIZE:
     return CL_QUEUE_SIZE;
   default:
-    return -1;
+    return std::numeric_limits<cl_command_queue_info>::max();
   }
 }
 

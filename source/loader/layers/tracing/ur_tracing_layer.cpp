@@ -12,8 +12,16 @@
 #include "ur_tracing_layer.hpp"
 #include "ur_api.h"
 #include "ur_util.hpp"
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4245)
+#endif
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
+#ifdef _MSC_VER
+#pragma warning(default : 4245)
+#endif
+
 #include <atomic>
 #include <cstdint>
 #include <optional>

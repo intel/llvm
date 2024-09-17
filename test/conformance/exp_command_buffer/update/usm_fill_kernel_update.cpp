@@ -222,7 +222,7 @@ struct USMMultipleFillCommandTest
         std::memset(shared_ptr, 0, allocation_size);
 
         // Append multiple kernel commands to command-buffer
-        for (size_t k = 0; k < num_kernels; k++) {
+        for (uint32_t k = 0; k < num_kernels; k++) {
             // Calculate offset into output allocation, and set as
             // kernel output.
             void *offset_ptr = (uint32_t *)shared_ptr + (k * elements);
@@ -270,7 +270,7 @@ struct USMMultipleFillCommandTest
     static constexpr size_t global_offset = 0;
     static constexpr size_t n_dimensions = 1;
     static constexpr size_t allocation_size = sizeof(val) * global_size;
-    static constexpr size_t num_kernels = 8;
+    static constexpr uint32_t num_kernels = 8;
     static constexpr size_t elements = global_size / num_kernels;
 
     void *shared_ptr = nullptr;
@@ -290,7 +290,7 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
 
     uint32_t *output = (uint32_t *)shared_ptr;
     for (size_t i = 0; i < global_size; i++) {
-        const uint32_t expected = val + (i / elements);
+        const uint32_t expected = val + (static_cast<uint32_t>(i) / elements);
         ASSERT_EQ(expected, output[i]);
     }
 
@@ -314,7 +314,7 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
         };
 
         // Update fill value
-        uint32_t new_fill_val = new_val + k;
+        uint32_t new_fill_val = new_val + static_cast<uint32_t>(k);
         ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
             UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
             nullptr,                                                    // pNext
@@ -352,7 +352,7 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
     // Verify that update occurred correctly
     uint32_t *updated_output = (uint32_t *)new_shared_ptr;
     for (size_t i = 0; i < global_size; i++) {
-        uint32_t expected = new_val + (i / elements);
+        uint32_t expected = new_val + (static_cast<uint32_t>(i) / elements);
         ASSERT_EQ(expected, updated_output[i]) << i;
     }
 }

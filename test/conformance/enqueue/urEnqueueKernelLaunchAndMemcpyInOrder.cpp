@@ -354,7 +354,7 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
     for (size_t i = 0; i < numThreads; i++) {
         threads.emplace_back([this, i, queuePerThread, useEvents]() {
             constexpr size_t global_offset = 0;
-            constexpr size_t n_dimensions = 1;
+            constexpr uint32_t n_dimensions = 1;
 
             auto queue = queuePerThread ? queues[i] : queues.back();
             auto kernel = kernels[i];
@@ -362,7 +362,7 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
 
             std::vector<uur::raii::Event> Events(numOpsPerThread + 1);
             for (size_t j = 0; j < numOpsPerThread; j++) {
-                size_t waitNum = 0;
+                uint32_t waitNum = 0;
                 ur_event_handle_t *lastEvent = nullptr;
                 ur_event_handle_t *signalEvent = nullptr;
 

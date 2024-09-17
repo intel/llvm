@@ -39,8 +39,8 @@ struct urMultiDeviceProgramCreateWithBinaryTest
 
         // Now create a program with multiple device binaries.
         ASSERT_SUCCESS(urProgramCreateWithBinary(
-            context, devices.size(), devices.data(), binary_sizes.data(),
-            pointers.data(), nullptr, &binary_program));
+            context, static_cast<uint32_t>(devices.size()), devices.data(),
+            binary_sizes.data(), pointers.data(), nullptr, &binary_program));
     }
 
     void TearDown() override {
@@ -61,7 +61,7 @@ struct urMultiDeviceProgramCreateWithBinaryTest
 TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
        CreateAndRunKernelOnAllDevices) {
     constexpr size_t global_offset = 0;
-    constexpr size_t n_dimensions = 1;
+    constexpr uint32_t n_dimensions = 1;
     constexpr size_t global_size = 100;
     constexpr size_t local_size = 100;
 
@@ -112,8 +112,9 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
         pointers_with_invalid_binary.push_back(nullptr);
     }
     uur::raii::Program invalid_bin_program;
-    ASSERT_EQ(urProgramCreateWithBinary(context, devices.size(), devices.data(),
-                                        binary_sizes.data(),
+    ASSERT_EQ(urProgramCreateWithBinary(context,
+                                        static_cast<uint32_t>(devices.size()),
+                                        devices.data(), binary_sizes.data(),
                                         pointers_with_invalid_binary.data(),
                                         nullptr, invalid_bin_program.ptr()),
               UR_RESULT_ERROR_INVALID_VALUE);
@@ -132,20 +133,23 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
         devices.begin(), devices.begin() + devices.size() / 2);
     auto second_subset = std::vector<ur_device_handle_t>(
         devices.begin() + devices.size() / 2, devices.end());
-    ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
+    ASSERT_SUCCESS(urProgramBuildExp(binary_program,
+                                     static_cast<uint32_t>(first_subset.size()),
                                      first_subset.data(), nullptr));
     auto kernelName =
         uur::KernelsEnvironment::instance->GetEntryPointNames("foo")[0];
     uur::raii::Kernel kernel;
     ASSERT_SUCCESS(
         urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
-    ASSERT_SUCCESS(urProgramBuildExp(binary_program, second_subset.size(),
-                                     second_subset.data(), nullptr));
+    ASSERT_SUCCESS(urProgramBuildExp(
+        binary_program, static_cast<uint32_t>(second_subset.size()),
+        second_subset.data(), nullptr));
     ASSERT_SUCCESS(
         urKernelCreate(binary_program, kernelName.data(), kernel.ptr()));
 
     // Building for the same subset of devices should not fail.
-    ASSERT_SUCCESS(urProgramBuildExp(binary_program, first_subset.size(),
+    ASSERT_SUCCESS(urProgramBuildExp(binary_program,
+                                     static_cast<uint32_t>(first_subset.size()),
                                      first_subset.data(), nullptr));
 }
 

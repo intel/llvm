@@ -14,7 +14,7 @@ TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, Success) {
         0, &global_var.value, 0, nullptr, nullptr));
 
     size_t global_offset = 0;
-    size_t n_dimensions = 1;
+    uint32_t n_dimensions = 1;
     size_t global_size = 1;
 
     // execute the kernel

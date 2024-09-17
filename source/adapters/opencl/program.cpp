@@ -161,10 +161,10 @@ urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
   UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
-  CL_RETURN_ON_FAILURE(clCompileProgram(cl_adapter::cast<cl_program>(hProgram),
-                                        DevicesInProgram->size(),
-                                        DevicesInProgram->data(), pOptions, 0,
-                                        nullptr, nullptr, nullptr, nullptr));
+  CL_RETURN_ON_FAILURE(clCompileProgram(
+      cl_adapter::cast<cl_program>(hProgram),
+      static_cast<cl_uint>(DevicesInProgram->size()), DevicesInProgram->data(),
+      pOptions, 0, nullptr, nullptr, nullptr, nullptr));
 
   return UR_RESULT_SUCCESS;
 }
@@ -219,9 +219,10 @@ urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
   UR_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
 
-  CL_RETURN_ON_FAILURE(clBuildProgram(
-      cl_adapter::cast<cl_program>(hProgram), DevicesInProgram->size(),
-      DevicesInProgram->data(), pOptions, nullptr, nullptr));
+  CL_RETURN_ON_FAILURE(
+      clBuildProgram(cl_adapter::cast<cl_program>(hProgram),
+                     static_cast<cl_uint>(DevicesInProgram->size()),
+                     DevicesInProgram->data(), pOptions, nullptr, nullptr));
   return UR_RESULT_SUCCESS;
 }
 

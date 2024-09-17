@@ -176,8 +176,6 @@ ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
             object, UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT,
             out_ref_count);
     }
-
-    return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
 inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {

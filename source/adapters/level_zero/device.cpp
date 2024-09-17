@@ -155,7 +155,7 @@ ur_result_t urDeviceGet(
     }
   }
 
-  uint32_t ZeDeviceCount = MatchedDevices.size();
+  uint32_t ZeDeviceCount = static_cast<uint32_t>(MatchedDevices.size());
 
   auto N = (std::min)(ZeDeviceCount, NumEntries);
   if (Devices)
@@ -318,9 +318,10 @@ ur_result_t urDeviceGetInfo(
         Device->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
             .ZeIndex >= 0;
     if (RepresentsCSlice)
-      MaxComputeUnits /= Device->RootDevice->SubDevices.size();
+      MaxComputeUnits /=
+          static_cast<uint32_t>(Device->RootDevice->SubDevices.size());
 
-    return ReturnValue(uint32_t{MaxComputeUnits});
+    return ReturnValue(MaxComputeUnits);
   }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     // Level Zero spec defines only three dimensions
@@ -422,7 +423,8 @@ ur_result_t urDeviceGetInfo(
       return Res;
     }
 
-    uint32_t ZeSubDeviceCount = Device->SubDevices.size();
+    uint32_t ZeSubDeviceCount =
+        static_cast<uint32_t>(Device->SubDevices.size());
     if (pSize && ZeSubDeviceCount < 2) {
       *pSize = 0;
       return UR_RESULT_SUCCESS;
@@ -1157,8 +1159,6 @@ ur_result_t urDeviceGetInfo(
                   logger::toHex(ParamName));
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 bool CopyEngineRequested(const ur_device_handle_t &Device) {
@@ -1206,7 +1206,7 @@ ur_result_t urDevicePartition(
     return Res;
   }
 
-  auto EffectiveNumDevices = [&]() -> decltype(Device->SubDevices.size()) {
+  auto EffectiveNumDevices = [&]() -> uint32_t {
     if (Device->SubDevices.size() == 0)
       return 0;
 
@@ -1229,7 +1229,7 @@ ur_result_t urDevicePartition(
       }
     }
 
-    return Device->SubDevices.size();
+    return static_cast<uint32_t>(Device->SubDevices.size());
   }();
 
   // TODO: Consider support for partitioning to <= total sub-devices.
