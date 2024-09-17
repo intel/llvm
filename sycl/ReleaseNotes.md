@@ -755,6 +755,19 @@ Breaking changes were also made to compiler flags:
   compilation. This particularly affects matrix operations using `half` data
   type. For more information on this issue consult with
   https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
+- [new] When using `queue` shortcut functions with in-order queues dependencies
+  between commands submitted to different queues may be ignored:
+  ```c++
+  // q1 long running task
+  sycl::event e = q1.single_task([=](){ /* ... */ });
+  // q2 task
+  q2.single_task(e, [=](){ /* ... */ });
+  ```
+  In the example above, the seocnd kernel will start execution *before* the
+  first completes its execution. A workaround is to explicitly call `.wait()`.
+  This will be fixed in the next release, see intel/llvm#15412
+- [new] C/C++ math built-ins (like `exp` or `tanh`) can return incorrect
+  results for some edge-case input when they are called from SYCL kernels.
 
 commit https://github.com/intel/llvm/commit/c30769b122d99eb4d05bcb78f15e593491fe31ae
 Author: Neil R. Spruit <neil.r.spruit@intel.com>
