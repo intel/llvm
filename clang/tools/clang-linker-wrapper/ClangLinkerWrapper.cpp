@@ -1138,7 +1138,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << "Wrapped Module\n" << M;
 
-  // TODO: Once "llc tool->runCompile" migration is finished we need to remove
+  // TODO: Once "clang tool->runCompile" migration is finished we need to remove
   // this scope and use community flow.
   int FD = -1;
   if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
@@ -1153,10 +1153,10 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
 /// 'InputFile' is the wrapped input file.
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
-/// llc tool.
+/// clang tool.
 static Expected<StringRef> runCompile(StringRef &InputFile,
                                       const ArgList &Args) {
-  // Create a new file to write the output of llc to.
+  // Create a new file to write the output of clang to.
   auto OutputFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "o");
   if (!OutputFileOrErr)
@@ -1189,14 +1189,14 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
   return *OutputFileOrErr;
 }
 
-// Run wrapping library and llc
+// Run wrapping library and clang
 static Expected<StringRef>
 runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
   auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
   if (!OutputFile)
     return OutputFile.takeError();
-  // call to llc
+  // call to clang
   auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
