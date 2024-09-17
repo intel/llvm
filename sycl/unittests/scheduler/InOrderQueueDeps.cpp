@@ -175,7 +175,6 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   event EvFirst = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
   std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
-    // even adding explicit dependency
     CGH.depends_on(EvFirst);
     CGH.single_task<TestKernel<>>([] {});
   });
@@ -184,7 +183,8 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
 
   ASSERT_EQ(KernelEventListSize.size(), 2u);
   EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
-  // no deps is passed to backend even when explicit dependency specified
+  // native device events for device kernel submitted to the same in-order queue
+  // don't need to be explicitly passed as dependencies
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
 }
 
