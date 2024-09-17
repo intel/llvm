@@ -239,13 +239,18 @@ jobs:
         export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh
         exit $?
+    - name: debug -- delete after
+      env:
+        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+      run:
+        # Is this key even a thing?
+        echo "$SSH_KEY" | wc -c
     - name: Push compute-benchmarks
       if: inputs.cache_results == true && success()
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run: |
         mkdir -p .ssh
-        echo "$SSH_KEY" | wc -c
         echo "$SSH_KEY" > .ssh/id_rsa
         chmod 600 .ssh/id_rsa
         eval "$(ssh-agent -s)"
@@ -263,3 +268,7 @@ jobs:
     #     name: sycl_benchmark_res_${{ steps.run_benchmarks.outputs.TIMESTAMP }}
     #     path: ${{ steps.run_benchmarks.outputs.BENCHMARK_RESULTS }}
     #     retention-days: 7
+
+  test_aggregate:
+    name: Testing sycl-benchmark-aggregate.yml (DELETE AFTER)
+    uses: ./.github/workflows/sycl-benchmark-aggregate.yml

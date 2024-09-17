@@ -1,0 +1,59 @@
+name: Aggregate benchmark averages
+
+on:
+  schedule:
+  - cron: 0 1 * * *
+  workflow_dispatch:
+  workflow_call:
+
+permissions: read-all
+
+jobs:
+  aggregate:
+    name: Aggregate average value for all metrics (median)
+    permissions:
+      contents: write  # for Git to git push
+    runs-on: ubuntu-latest
+    if: github.repository == 'intel/llvm'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: llvm
+        sparse-checkout: |
+          devops
+    - name: Load benchmarking configuration
+      run:
+        . llvm/devops/scripts/benchmarking/benchmark-ci.conf
+        echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
+        echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
+        echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
+    - uses: actions/checkout@v4
+      with:
+        # TODO populate default values before loading configuration
+        path: ${{ env.PERF_RES_PATH }}
+        repository: ${{ env.PERF_RES_GIT_REPO }}
+        branch: ${{ env.PERF_RES_BRANCH }}
+    - run: find . -maxdepth 2
+    - name: Run aggregator on cloned data
+      run: |
+        for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
+          python llvm/devops/benchmarking/aggregate.py "$(basename dir)"
+        done
+    - name: Debug
+      run: |
+        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
+    - name: Upload average to the repo
+      env:
+        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
+      run: |
+        mkdir -p ~/.ssh
+        echo "$SSH_KEY" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        eval "$(ssh-agent -s)"
+        ssh-add -k ~/.ssh/id_rsa
+        cd $PERF_RES_PATH
+        git config --global user.name "iclsrc"
+        git config --global user.email "ia.compiler.tools.git@intel.com"
+        git add .
+        git commit -m "Average aggregate $(date "+%m/%d/%y %H:%M")" -s
+        git push
