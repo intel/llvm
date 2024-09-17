@@ -4762,7 +4762,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
-  // llvm.trap and llvm.debug.trap intrinsics are not implemented. But for now
+  // llvm.trap and llvm.debugtrap intrinsics are not implemented. But for now
   // don't crash. This change is pending the trap/abort intrinsic
   // implementation.
   case Intrinsic::trap:
