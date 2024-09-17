@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/lslusarczyk/unified-runtime.git")
   # commit cfecab08e6e6dbb694f614b4f6271a258a41fc10
   # Merge: 10fd78c1 5bebef5d
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
   # Date:   Tue Sep 17 12:26:35 2024 +0100
   #   Merge pull request #1874 from PietroGhg/pietro/membarrier
   #   [NATIVECPU] Support atomic fence queries
-  set(UNIFIED_RUNTIME_TAG cfecab08e6e6dbb694f614b4f6271a258a41fc10)
+  set(UNIFIED_RUNTIME_TAG 4bb6a1030797063f34e0d8fad53b28d580c38265)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
