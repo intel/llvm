@@ -7817,12 +7817,7 @@ private:
             const Expr *VarRef = nullptr, bool ForDeviceAddr = false) {
           if (SkipVarSet.contains(D))
             return;
-          auto It = Info.find(D);
-          if (It == Info.end())
-            It = Info
-                     .insert(std::make_pair(
-                         D, SmallVector<SmallVector<MapInfo, 8>, 4>(Total)))
-                     .first;
+          auto It = Info.try_emplace(D, Total).first;
           It->second[Kind].emplace_back(
               L, MapType, MapModifiers, MotionModifiers, ReturnDevicePointer,
               IsImplicit, Mapper, VarRef, ForDeviceAddr);
@@ -8866,7 +8861,6 @@ emitMappingInformation(CodeGenFunction &CGF, llvm::OpenMPIRBuilder &OMPBuilder,
     PrintingPolicy P(CGF.getContext().getLangOpts());
     llvm::raw_string_ostream OS(ExprName);
     MapExprs.getMapExpr()->printPretty(OS, nullptr, P);
-    OS.flush();
   } else {
     ExprName = MapExprs.getMapDecl()->getNameAsString();
   }

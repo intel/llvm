@@ -613,7 +613,7 @@ std::string SYCLUniqueStableNameExpr::ComputeName(ASTContext &Context,
   llvm::raw_string_ostream Out(Buffer);
   Ctx->mangleCanonicalTypeName(Ty, Out);
 
-  return Out.str();
+  return Buffer;
 }
 
 SYCLUniqueStableIdExpr::SYCLUniqueStableIdExpr(EmptyShell Empty,
@@ -853,7 +853,6 @@ std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
     FD->printQualifiedName(POut, Policy);
 
     if (IK == PredefinedIdentKind::Function) {
-      POut.flush();
       Out << Proto;
       return std::string(Name);
     }
@@ -935,14 +934,11 @@ std::string PredefinedExpr::ComputeName(PredefinedIdentKind IK,
       }
     }
 
-    TOut.flush();
     if (!TemplateParams.empty()) {
       // remove the trailing comma and space
       TemplateParams.resize(TemplateParams.size() - 2);
       POut << " [" << TemplateParams << "]";
     }
-
-    POut.flush();
 
     // Print "auto" for all deduced return types. This includes C++1y return
     // type deduction and lambdas. For trailing return types resolve the
