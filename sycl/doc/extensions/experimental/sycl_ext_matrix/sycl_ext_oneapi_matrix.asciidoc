@@ -437,8 +437,10 @@ In this case, `joint_matrix_apply` takes two `joint_matrix` arguments:
 `jm0` and `jm1` that have the same `use`, type, number of rows,
 number of columns, and `layout`. `jm0` and `jm1` can be read-only,
 write-only, or read and write arguments. The callable object must be
-invocable with two parameters of type `T&`. Commonly, applications
-pass a lambda expression.
+invocable with two parameters `x` and `y` of type `T&` where `x` is an
+element from `jm0` and `y` is an element from `jm1`. Moreover, `x` and
+`y` are guaranteed to have identical coordinates in their respective
+matrices. Commonly, applications pass a lambda expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -453,9 +455,9 @@ void joint_matrix_apply(Group g,
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-In the following example, every element of the matrix `C` is
-multiplied by `alpha`. The result is returned into a different matrix
-`D`.
+In the following example, every element `x` of the matrix `C` is
+multiplied by `alpha`. The result is returned into the element `y` of
+the matrix `D`.
 
 ```c++
 joint_matrix_apply(sg, C, D, [=](const T &x, T &y) {
