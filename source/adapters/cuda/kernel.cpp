@@ -203,8 +203,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
 
     int MaxNumActiveGroupsPerCU{0};
     UR_CHECK_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
-        &MaxNumActiveGroupsPerCU, hKernel->get(), localWorkSize,
-        dynamicSharedMemorySize));
+        &MaxNumActiveGroupsPerCU, hKernel->get(),
+        static_cast<int>(localWorkSize), dynamicSharedMemorySize));
     detail::ur::assertion(MaxNumActiveGroupsPerCU >= 0);
     // Handle the case where we can't have all SMs active with at least 1 group
     // per SM. In that case, the device is still able to run 1 work-group, hence

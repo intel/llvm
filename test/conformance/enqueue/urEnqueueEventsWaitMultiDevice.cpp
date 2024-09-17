@@ -175,8 +175,9 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest, EnqueueWaitOnAllQueues) {
     doComputation(work);
 
     uur::raii::Event gatherEvent;
-    ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], devices.size(), events.data(),
-                                       gatherEvent.ptr()));
+    ASSERT_SUCCESS(urEnqueueEventsWait(queues[0],
+                                       static_cast<uint32_t>(devices.size()),
+                                       events.data(), gatherEvent.ptr()));
     ASSERT_SUCCESS(urEventWait(1, gatherEvent.ptr()));
 
     for (size_t i = 0; i < devices.size(); i++) {
@@ -201,9 +202,9 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest,
     doComputation(work);
 
     uur::raii::Event hGatherEvent;
-    ASSERT_SUCCESS(urEnqueueEventsWait(queues[0], eventHandles.size(),
-                                       eventHandles.data(),
-                                       hGatherEvent.ptr()));
+    ASSERT_SUCCESS(urEnqueueEventsWait(
+        queues[0], static_cast<uint32_t>(eventHandles.size()),
+        eventHandles.data(), hGatherEvent.ptr()));
     ASSERT_SUCCESS(urEventWait(1, hGatherEvent.ptr()));
 
     for (auto &event : eventHandles) {

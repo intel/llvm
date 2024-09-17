@@ -614,12 +614,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
   }
   cl_int ClResult = CL_SUCCESS;
   if (blocking) {
-    ClResult = clWaitForEvents(Events.size(), Events.data());
+    ClResult =
+        clWaitForEvents(static_cast<cl_uint>(Events.size()), Events.data());
   }
   if (phEvent && ClResult == CL_SUCCESS) {
     ClResult = clEnqueueBarrierWithWaitList(
-        cl_adapter::cast<cl_command_queue>(hQueue), Events.size(),
-        Events.data(), cl_adapter::cast<cl_event *>(phEvent));
+        cl_adapter::cast<cl_command_queue>(hQueue),
+        static_cast<cl_uint>(Events.size()), Events.data(),
+        cl_adapter::cast<cl_event *>(phEvent));
   }
   for (const auto &E : Events) {
     CL_RETURN_ON_FAILURE(clReleaseEvent(E));

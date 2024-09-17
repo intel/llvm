@@ -105,7 +105,7 @@ UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgSamplerTest);
 TEST_P(urKernelSetArgSamplerTest, SuccessWithProps) {
     ur_kernel_arg_sampler_properties_t props{
         UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES, nullptr};
-    size_t arg_index = 2;
+    uint32_t arg_index = 2;
     ASSERT_SUCCESS(urKernelSetArgSampler(kernel, arg_index, &props, sampler));
 }
 

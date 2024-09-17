@@ -89,8 +89,9 @@ if(UR_BUILD_ADAPTER_L0)
     endif()
 
     # TODO: fix level_zero adapter conversion warnings
+    # C4267: The compiler detected a conversion from size_t to a smaller type.
     target_compile_options(ur_adapter_level_zero PRIVATE
-        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
+        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244 /wd4267>
     )
 
     set_target_properties(ur_adapter_level_zero PROPERTIES
@@ -98,9 +99,9 @@ if(UR_BUILD_ADAPTER_L0)
         SOVERSION "${PROJECT_VERSION_MAJOR}"
     )
 
-    if (WIN32)
-    # 0x800: Search for the DLL only in the System32 folder
-    target_link_options(ur_adapter_level_zero PRIVATE /DEPENDENTLOADFLAG:0x800)
+    if(CMAKE_CXX_COMPILER_LINKER_ID MATCHES MSVC)
+        # 0x800: Search for the DLL only in the System32 folder
+        target_link_options(ur_adapter_level_zero PRIVATE LINKER:/DEPENDENTLOADFLAG:0x800)
     endif()
 
     target_link_libraries(ur_adapter_level_zero PRIVATE
@@ -183,8 +184,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
     target_compile_definitions(ur_adapter_level_zero_v2 PUBLIC UR_ADAPTER_LEVEL_ZERO_V2)
 
     # TODO: fix level_zero adapter conversion warnings
+    # C4267: The compiler detected a conversion from size_t to a smaller type.
     target_compile_options(ur_adapter_level_zero_v2 PRIVATE
-        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
+        $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244 /wd4100 /wd4267>
     )
 
     set_target_properties(ur_adapter_level_zero_v2 PROPERTIES
@@ -192,9 +194,9 @@ if(UR_BUILD_ADAPTER_L0_V2)
         SOVERSION "${PROJECT_VERSION_MAJOR}"
     )
 
-    if (WIN32)
-    # 0x800: Search for the DLL only in the System32 folder
-    target_link_options(ur_adapter_level_zero_v2 PUBLIC /DEPENDENTLOADFLAG:0x800)
+    if(CMAKE_CXX_COMPILER_LINKER_ID MATCHES MSVC)
+        # 0x800: Search for the DLL only in the System32 folder
+        target_link_options(ur_adapter_level_zero_v2 PUBLIC LINKER:/DEPENDENTLOADFLAG:0x800)
     endif()
 
     target_link_libraries(ur_adapter_level_zero_v2 PRIVATE

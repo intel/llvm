@@ -99,18 +99,25 @@ function(add_ur_target_compile_options name)
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
             $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
-            /W3
+            /W4
+            /wd4456  # Disable: declaration of 'identifier' hides previous local declaration
+            /wd4457  # Disable: declaration of 'identifier' hides function parameter
+            /wd4458  # Disable: declaration of 'identifier' hides class member
+            /wd4459  # Disable: declaration of 'identifier' hides global declaration
             /MD$<$<CONFIG:Debug>:d>
             /GS
             /DWIN32_LEAN_AND_MEAN
             /DNOMINMAX
         )
 
-        if(UR_DEVELOPER_MODE)
+        target_compile_definitions(${name} PRIVATE
             # _CRT_SECURE_NO_WARNINGS used mainly because of getenv
-            # C4267: The compiler detected a conversion from size_t to a smaller type.
+            _CRT_SECURE_NO_WARNINGS
+        )
+
+        if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE
-                /WX /GS /D_CRT_SECURE_NO_WARNINGS /wd4267
+                /WX /GS
             )
         endif()
     endif()

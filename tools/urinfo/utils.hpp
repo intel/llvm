@@ -51,7 +51,7 @@ inline std::string getAdapterBackend(ur_adapter_handle_t adapter) {
         stripPrefix(adapterBackendStream.str(), "UR_ADAPTER_BACKEND_");
     std::transform(adapterBackendStr.begin(), adapterBackendStr.end(),
                    adapterBackendStr.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+                   [](char c) { return static_cast<char>(std::tolower(c)); });
     return adapterBackendStr;
 }
 
@@ -65,7 +65,7 @@ inline std::string getDeviceType(ur_device_handle_t device) {
         stripPrefix(deviceTypeStream.str(), "UR_DEVICE_TYPE_");
     std::transform(deviceTypeStr.begin(), deviceTypeStr.end(),
                    deviceTypeStr.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+                   [](char c) { return static_cast<char>(std::tolower(c)); });
     return deviceTypeStr;
 }
 

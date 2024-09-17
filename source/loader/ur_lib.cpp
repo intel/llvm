@@ -17,6 +17,7 @@
 #define NOMINMAX
 #include "ur_api.h"
 #include "ur_ldrddi.hpp"
+#include <limits>
 #endif // !NOMINMAX
 
 #include "logger/ur_logger.hpp"
@@ -412,7 +413,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
 
     using DeviceIdType = unsigned long;
     constexpr DeviceIdType DeviceIdTypeALL =
-        -1; // ULONG_MAX but without #include <climits>
+        std::numeric_limits<DeviceIdType>::max();
 
     struct DeviceSpec {
         DevicePartLevel level;
@@ -426,8 +427,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     auto getRootHardwareType =
         [](const std::string &input) -> DeviceHardwareType {
         std::string lowerInput(input);
-        std::transform(lowerInput.cbegin(), lowerInput.cend(),
-                       lowerInput.begin(), ::tolower);
+        std::transform(
+            lowerInput.cbegin(), lowerInput.cend(), lowerInput.begin(),
+            [](char c) { return static_cast<char>(std::tolower(c)); });
         if (lowerInput == "cpu") {
             return ::UR_DEVICE_TYPE_CPU;
         }
@@ -482,9 +484,8 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                         platformBackendName.cend(), backend.cbegin(),
                         backend.cend(), [](const auto &a, const auto &b) {
                             // case-insensitive comparison by converting both tolower
-                            return std::tolower(
-                                       static_cast<unsigned char>(a)) ==
-                                   std::tolower(static_cast<unsigned char>(b));
+                            return std::tolower(static_cast<char>(a)) ==
+                                   std::tolower(static_cast<char>(b));
                         })) {
             // irrelevant term for current request: different backend -- silently ignore
             logger::error("unrecognised backend '{}'", backend);

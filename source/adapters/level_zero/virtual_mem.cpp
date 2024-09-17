@@ -38,7 +38,6 @@ ur_result_t urVirtualMemGranularityGetInfo(
                   propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
@@ -119,7 +118,5 @@ ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
                   propName, propName);
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero

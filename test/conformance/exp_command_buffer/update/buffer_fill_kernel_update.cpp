@@ -336,7 +336,7 @@ TEST_P(BufferFillCommandTest, OverrideUpdate) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(command_handle,
                                                         &first_update_desc));
 
-    uint32_t second_val = -99;
+    uint32_t second_val = 99;
     ur_exp_command_buffer_update_value_arg_desc_t second_input_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
@@ -393,7 +393,7 @@ TEST_P(BufferFillCommandTest, OverrideArgList) {
         &first_val, // hArgValue
     };
 
-    uint32_t second_val = -99;
+    uint32_t second_val = 99;
     input_descs[1] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext

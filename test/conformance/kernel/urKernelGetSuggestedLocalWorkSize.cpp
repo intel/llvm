@@ -12,7 +12,7 @@ struct urKernelGetSuggestedLocalWorkSizeTest : uur::urKernelExecutionTest {
     }
     size_t global_size = 32;
     size_t global_offset = 0;
-    size_t n_dimensions = 1;
+    uint32_t n_dimensions = 1;
 
     size_t suggested_local_work_size;
 };

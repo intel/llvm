@@ -31,7 +31,7 @@ struct BufferSaxpyKernelTest
         }
 
         // Variable that is incremented as arguments are added to the kernel
-        size_t current_arg_index = 0;
+        uint32_t current_arg_index = 0;
         // Index 0 is output buffer for HIP/Non-HIP
         ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index++,
                                             nullptr, buffers[0]));

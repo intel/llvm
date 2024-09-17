@@ -242,7 +242,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
     if ((PatternSize == 1) || (PatternSize == 2) || (PatternSize == 4)) {
       CUDA_MEMSET_NODE_PARAMS NodeParams = {};
       NodeParams.dst = DstPtr;
-      NodeParams.elementSize = PatternSize;
+      NodeParams.elementSize = static_cast<unsigned int>(PatternSize);
       NodeParams.height = N;
       NodeParams.pitch = PatternSize;
       NodeParams.width = 1;
@@ -508,12 +508,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     auto &ArgIndices = hKernel->getArgIndices();
     CUDA_KERNEL_NODE_PARAMS NodeParams = {};
     NodeParams.func = CuFunc;
-    NodeParams.gridDimX = BlocksPerGrid[0];
-    NodeParams.gridDimY = BlocksPerGrid[1];
-    NodeParams.gridDimZ = BlocksPerGrid[2];
-    NodeParams.blockDimX = ThreadsPerBlock[0];
-    NodeParams.blockDimY = ThreadsPerBlock[1];
-    NodeParams.blockDimZ = ThreadsPerBlock[2];
+    NodeParams.gridDimX = static_cast<unsigned int>(BlocksPerGrid[0]);
+    NodeParams.gridDimY = static_cast<unsigned int>(BlocksPerGrid[1]);
+    NodeParams.gridDimZ = static_cast<unsigned int>(BlocksPerGrid[2]);
+    NodeParams.blockDimX = static_cast<unsigned int>(ThreadsPerBlock[0]);
+    NodeParams.blockDimY = static_cast<unsigned int>(ThreadsPerBlock[1]);
+    NodeParams.blockDimZ = static_cast<unsigned int>(ThreadsPerBlock[2]);
     NodeParams.sharedMemBytes = LocalSize;
     NodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
 
@@ -1397,12 +1397,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   CUDA_KERNEL_NODE_PARAMS &Params = KernelCommandHandle->Params;
 
   Params.func = CuFunc;
-  Params.gridDimX = BlocksPerGrid[0];
-  Params.gridDimY = BlocksPerGrid[1];
-  Params.gridDimZ = BlocksPerGrid[2];
-  Params.blockDimX = ThreadsPerBlock[0];
-  Params.blockDimY = ThreadsPerBlock[1];
-  Params.blockDimZ = ThreadsPerBlock[2];
+  Params.gridDimX = static_cast<unsigned int>(BlocksPerGrid[0]);
+  Params.gridDimY = static_cast<unsigned int>(BlocksPerGrid[1]);
+  Params.gridDimZ = static_cast<unsigned int>(BlocksPerGrid[2]);
+  Params.blockDimX = static_cast<unsigned int>(ThreadsPerBlock[0]);
+  Params.blockDimY = static_cast<unsigned int>(ThreadsPerBlock[1]);
+  Params.blockDimZ = static_cast<unsigned int>(ThreadsPerBlock[2]);
   Params.sharedMemBytes = KernelCommandHandle->Kernel->getLocalSize();
   Params.kernelParams =
       const_cast<void **>(KernelCommandHandle->Kernel->getArgIndices().data());
