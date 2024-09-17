@@ -141,18 +141,23 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   sycl::platform Plt = sycl::platform();
 
   context Ctx{Plt};
-  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueueFirst{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueueSecond{Ctx, default_selector_v, property::queue::in_order()};
 
-  event Ev = InOrderQueue.submit([&](sycl::handler &CGH) {
+  event EvFirst = InOrderQueueFirst.submit([&](sycl::handler &CGH) {
+    CGH.single_task<TestKernel<>>([] {});
+  });
+  std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(EvFirst);
     CGH.single_task<TestKernel<>>([] {});
   });
 
-  InOrderQueue.wait();
+  InOrderQueueFirst.wait();
+  InOrderQueueSecond.wait();
 
-  EXPECT_EQ(ExecutedCommands[0].first /*CommandType*/, CommandType::MEMSET);
-  EXPECT_EQ(ExecutedCommands[0].second /*EventsCount*/, 0u);
-  EXPECT_EQ(ExecutedCommands[1].first /*CommandType*/, CommandType::KERNEL);
-  EXPECT_EQ(ExecutedCommands[1].second /*EventsCount*/, 0u);
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 1u);
 }
 
 } // anonymous namespace

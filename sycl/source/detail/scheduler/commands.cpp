@@ -2864,7 +2864,6 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 }
 
 ur_result_t ExecCGCommand::enqueueImp() {
-   std::cout <<"cgTypeToString = " << cgTypeToString(MCommandGroup->getType()) <<std::endl;
   if (MCommandBuffer) {
     return enqueueImpCommandBuffer();
   } else {
