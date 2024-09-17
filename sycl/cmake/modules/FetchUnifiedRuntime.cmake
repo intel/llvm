@@ -141,8 +141,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(opencl
-    ${UNIFIED_RUNTIME_REPO}
-    ${UNIFIED_RUNTIME_TAG}
+    "https://github.com/Bensuo/unified-runtime.git"
+    "ewan/update_opencl_headers"
   )
 
   fetch_adapter_source(cuda
