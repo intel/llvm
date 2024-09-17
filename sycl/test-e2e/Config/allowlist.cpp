@@ -12,6 +12,7 @@
 // RUN: env TEST_DEVICE_IS_NOT_AVAILABLE=1 env SYCL_DEVICE_ALLOWLIST="PlatformName:{{SUCH NAME DOESN'T EXIST}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
 // RUN: env TEST_INCORRECT_VALUE=1 env SYCL_DEVICE_ALLOWLIST="IncorrectKey:{{.*}}" ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} %t.out
 
+#include "../helpers.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <exception>
@@ -33,7 +34,7 @@ static void replaceSpecialCharacters(std::string &Str) {
 int main() {
 
   // Expected that the allowlist filter is not set
-  if (getenv("PRINT_PLATFORM_INFO")) {
+  if (env::isDefined("PRINT_PLATFORM_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       std::string Name = Platform.get_info<sycl::info::platform::name>();
       std::string Ver = Platform.get_info<sycl::info::platform::version>();
@@ -51,7 +52,7 @@ int main() {
   }
 
   // Expected that the allowlist filter is not set
-  if (getenv("PRINT_DEVICE_INFO")) {
+  if (env::isDefined("PRINT_DEVICE_INFO")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       const sycl::device Dev = Platform.get_devices().at(0);
       std::string Name = Dev.get_info<sycl::info::device::name>();
@@ -71,7 +72,7 @@ int main() {
   }
 
   // Expected the allowlist to be set with the "PRINT_DEVICE_INFO" run result
-  if (getenv("TEST_DEVICE_AVAILABLE")) {
+  if (env::isDefined("TEST_DEVICE_AVAILABLE")) {
     for (const sycl::platform &Platform : sycl::platform::get_platforms()) {
       if (Platform.get_devices().size() != 1)
         throw std::runtime_error("Expected only one device.");
@@ -82,13 +83,13 @@ int main() {
   }
 
   // Expected the allowlist to be set but empty
-  if (getenv("TEST_DEVICE_IS_NOT_AVAILABLE")) {
+  if (env::isDefined("TEST_DEVICE_IS_NOT_AVAILABLE")) {
     if (!sycl::platform::get_platforms().empty())
       throw std::runtime_error("Expected no device is available");
     return 0;
   }
 
-  if (getenv("TEST_INCORRECT_VALUE")) {
+  if (env::isDefined("TEST_INCORRECT_VALUE")) {
     try {
       sycl::platform::get_platforms();
     } catch (sycl::exception &E) {

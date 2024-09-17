@@ -397,9 +397,9 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -449,9 +449,9 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -562,6 +562,17 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, half>, T>
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
@@ -582,6 +593,17 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto SPIRVScope = getScope(Scope);
   I ValueInt = sycl::bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, half>>
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+            memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -612,6 +634,17 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+               memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
@@ -638,6 +671,17 @@ inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -700,6 +744,17 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMinEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
@@ -718,6 +773,17 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 // Native shuffles map directly to a shuffle intrinsic:
@@ -1104,9 +1170,9 @@ EnableIfGenericShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = Shuffle(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1119,9 +1185,9 @@ EnableIfGenericShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleXor(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1134,9 +1200,9 @@ EnableIfGenericShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleDown(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1149,9 +1215,9 @@ EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleUp(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;

@@ -1,4 +1,3 @@
-//==--------------- USM.cpp --- dependency chain unit tests ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +8,7 @@
 #include <detail/event_impl.hpp>
 #include <sycl/usm.hpp>
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -21,51 +20,48 @@ struct {
 } TestContext;
 
 // Dummy event values for bookkeeping
-pi_event WAIT = nullptr;
-pi_event MEMCPY = nullptr;
-pi_event MEMSET = nullptr;
+ur_event_handle_t WAIT = nullptr;
+ur_event_handle_t MEMCPY = nullptr;
+ur_event_handle_t MEMSET = nullptr;
 
 template <typename T> auto getVal(T obj) {
-  return detail::getSyclObjImpl(obj)->getHandleRef();
+  return detail::getSyclObjImpl(obj)->getHandle();
 }
 
-pi_result redefinedEnqueueEventsWaitAfter(pi_queue, pi_uint32 NumDeps,
-                                          const pi_event *Deps,
-                                          pi_event *Event) {
-  EXPECT_EQ(NumDeps, TestContext.Deps.size());
-  for (size_t i = 0; i < NumDeps; ++i) {
-    EXPECT_EQ(Deps[i], getVal(TestContext.Deps[i]));
+ur_result_t redefinedEnqueueEventsWaitAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, TestContext.Deps.size());
+  for (size_t i = 0; i < *params.pnumEventsInWaitList; ++i) {
+    EXPECT_EQ((*params.pphEventWaitList)[i], getVal(TestContext.Deps[i]));
   }
-  WAIT = *Event;
-  return PI_SUCCESS;
+  WAIT = **params.pphEvent;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemcpyAfter(pi_queue, pi_bool, void *,
-                                         const void *, size_t, pi_uint32,
-                                         const pi_event *, pi_event *Event) {
+ur_result_t redefinedUSMEnqueueMemcpyAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_memcpy_params_t *>(pParams);
   // Set MEMCPY to the event produced by the original USMEnqueueMemcpy
-  MEMCPY = *Event;
-  return PI_SUCCESS;
+  MEMCPY = **params.pphEvent;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedUSMEnqueueMemsetAfter(pi_queue, void *, const void *, size_t,
-                                         size_t, pi_uint32, const pi_event *,
-                                         pi_event *Event) {
+ur_result_t redefinedUSMEnqueueMemFillAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
   // Set MEMSET to the event produced by the original USMEnqueueMemcpy
-  MEMSET = *Event;
-  return PI_SUCCESS;
+  MEMSET = **params.pphEvent;
+  return UR_RESULT_SUCCESS;
 }
 
-// Check that zero-length USM memset/memcpy use piEnqueueEventsWait.
+// Check that zero-length USM memset/memcpy use urEnqueueEventsWait.
 TEST(USM, NoOpPreservesDependencyChain) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineAfter<detail::PiApiKind::piEnqueueEventsWait>(
-      redefinedEnqueueEventsWaitAfter);
-  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueMemcpy>(
-      redefinedUSMEnqueueMemcpyAfter);
-  Mock.redefineAfter<detail::PiApiKind::piextUSMEnqueueFill>(
-      redefinedUSMEnqueueMemsetAfter);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_after_callback("urEnqueueEventsWait",
+                                          &redefinedEnqueueEventsWaitAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueUSMMemcpy",
+                                          &redefinedUSMEnqueueMemcpyAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueUSMFill",
+                                          &redefinedUSMEnqueueMemFillAfter);
 
   context Ctx{Plt.get_devices()[0]};
   queue Q{Ctx, default_selector()};

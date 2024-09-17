@@ -904,18 +904,6 @@ struct UnknownPragmaHandler : public PragmaHandler {
 };
 } // end anonymous namespace
 
-FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
-  FileID FooterFileID;
-  llvm::Expected<FileEntryRef> ExpectedFileRef =
-      SM.getFileManager().getFileRef(Footer);
-  if (ExpectedFileRef) {
-    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
-                                        SrcMgr::CharacteristicKind::C_User);
-  }
-  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
-  return FooterFileID;
-}
-
 static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
                                std::string Footer,
                                PrintPPOutputPPCallbacks *Callbacks) {
@@ -923,7 +911,7 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
   PresumedLoc UserLoc = SourceMgr.getPresumedLoc(Loc);
   if (UserLoc.isInvalid())
     return;
-  FileID FooterFileID = ComputeValidFooterFileID(SourceMgr, Footer);
+  FileID FooterFileID = SourceMgr.ComputeValidFooterFileID(Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
   // print out the name of the integration footer.
   Callbacks->WriteFooterInfo(Footer);
@@ -1028,7 +1016,6 @@ static void PrintPreprocessedTokens(Preprocessor &PP, Token &Tok,
         *Callbacks->OS << static_cast<unsigned>(*Iter);
         PrintComma = true;
       }
-      IsStartOfLine = true;
     } else if (Tok.isAnnotation()) {
       // Ignore annotation tokens created by pragmas - the pragmas themselves
       // will be reproduced in the preprocessed output.

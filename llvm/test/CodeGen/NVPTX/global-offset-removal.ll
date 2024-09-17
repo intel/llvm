@@ -6,7 +6,7 @@ target triple = "nvptx64-nvidia-cuda"
 declare ptr @llvm.nvvm.implicit.offset()
 ; CHECK-NOT: llvm.nvvm.implicit.offset
 
-define weak_odr dso_local i64 @_ZTS14example_kernel() {
+define i64 @_ZTS14example_kernel() {
 entry:
 ; CHECK-NOT: @llvm.nvvm.implicit.offset()
 ; CHECK-NOT: getelementptr
@@ -19,3 +19,6 @@ entry:
   %3 = zext i32 %2 to i64
   ret i64 %3
 }
+
+!llvm.module.flags = !{!0}
+!0 = !{i32 1, !"sycl-device", i32 1}

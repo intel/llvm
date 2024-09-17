@@ -12,6 +12,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -367,7 +368,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     SmallVector<StringRef, 3> ValStrs;
     Attr.getValueAsString().split(ValStrs, ',');
 
-    assert(ValStrs.size() <= 3 &&
+    size_t NumDims = ValStrs.size();
+    assert(NumDims <= 3 &&
            "sycl-work-group-size and sycl-work-group-size-hint currently only "
            "support up to three values");
 
@@ -384,6 +386,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     for (StringRef ValStr : ValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+    while (MDVals.size() < 3)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1, 10))));
+
+    if (NumDims < 3) {
+      if (!F.hasMetadata("work_group_num_dim"))
+        F.setMetadata("work_group_num_dim",
+                      MDNode::get(Ctx, ConstantAsMetadata::get(ConstantInt::get(
+                                           Type::getInt32Ty(Ctx), NumDims))));
+    }
 
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
@@ -416,6 +428,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -428,6 +441,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -436,6 +450,20 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
     return std::pair<std::string, MDNode *>("ip_interface",
                                             MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
   }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
@@ -572,9 +600,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
+
   for (Function &F : M) {
     // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments

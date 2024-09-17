@@ -11,7 +11,8 @@
 
 // CHECK: static constexpr
 // CHECK-NEXT: const char* const kernel_names[] = {
-// CHECK-NEXT:   "_ZTSZ4mainE14wrapped_access"
+// CHECK-NEXT:   "_ZTSZ4mainE14wrapped_access",
+// CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
 // CHECK: static constexpr

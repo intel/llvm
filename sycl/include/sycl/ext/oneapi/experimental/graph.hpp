@@ -39,8 +39,9 @@ enum class graph_state {
   executable, ///< In executable state, the graph is ready to execute.
 };
 
-// Forward declare Graph class
+// Forward declare ext::oneapi::experimental classes
 template <graph_state State> class command_graph;
+class raw_kernel_arg;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -54,7 +55,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
-  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8
+  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
+  sycl_ext_codeplay_enqueue_native_command = 9
 };
 
 inline const char *
@@ -79,6 +81,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_bindless_images";
   case UGF::sycl_ext_oneapi_experimental_cuda_cluster_launch:
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
+  case UGF::sycl_ext_codeplay_enqueue_native_command:
+    return "sycl_ext_codeplay_enqueue_native_command";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -437,6 +441,11 @@ public:
 
 protected:
   void updateValue(const void *NewValue, size_t Size);
+
+  // Update a sycl_ext_oneapi_raw_kernel_arg parameter. Size parameter is
+  // ignored as it represents sizeof(raw_kernel_arg), which doesn't represent
+  // the number of underlying bytes.
+  void updateValue(const raw_kernel_arg *NewRawValue, size_t Size);
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
   std::shared_ptr<dynamic_parameter_impl> impl;

@@ -49,6 +49,7 @@ public:
   }
 
   friend class DispatchHostTask;
+  friend class ExecCGCommand;
 };
 
 } // namespace detail

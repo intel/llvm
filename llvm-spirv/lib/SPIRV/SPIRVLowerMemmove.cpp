@@ -35,7 +35,6 @@
 // This file implements lowering llvm.memmove into several llvm.memcpys.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvmemmove"
 
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVInternal.h"
@@ -44,6 +43,8 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
+
+#define DEBUG_TYPE "spvmemmove"
 
 using namespace llvm;
 using namespace SPIRV;

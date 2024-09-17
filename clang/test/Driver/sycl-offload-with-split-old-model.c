@@ -13,15 +13,15 @@
 /// The same phase graph will be used with -fsycl-device-obj=llvmir
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-targets=spir64-unknown-unknown -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=spirv %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=spirv %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=spirv -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // RUN:   %clang -ccc-print-phases -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=llvmir %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-DEFAULT-MODE %s
-// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=llvmir %s 2>&1 \
+// RUN:   %clang_cl -ccc-print-phases --target=x86_64-pc-windows-msvc -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-device-code-split=per_source -fsycl-device-obj=llvmir -- %s 2>&1 \
 // RUN:   | FileCheck -check-prefixes=CHK-PHASES,CHK-PHASES-CL-MODE %s
 // CHK-PHASES: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
@@ -199,7 +199,9 @@
 // CHK-TOOLS-AOT: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
 // CHK-TOOLS-AOT: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-o" "[[OUTPUT10:.+\.o]]"
 // CHK-TOOLS-AOT: llvm-link{{.*}} "[[OUTPUT1]]" "-o" "[[OUTPUT2:.+\.bc]]"
-// CHK-TOOLS-AOT: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
+// CHK-TOOLS-FPGA: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
+// CHK-TOOLS-GEN: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
+// CHK-TOOLS-CPU: sycl-post-link{{.*}} "-split=auto"{{.*}} "-spec-const=emulation"{{.*}} "-o" "spir64_x86_64,[[OUTPUT3:.+\.table]]" "[[OUTPUT2]]"
 // CHK-TOOLS-AOT: file-table-tform{{.*}} "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-TOOLS-AOT: llvm-foreach{{.*}} "--in-file-list=[[OUTPUT4]]" "--in-replace=[[OUTPUT4]]" "--out-ext=spv" "--out-file-list=[[OUTPUT5:.+\.txt]]" "--out-replace=[[OUTPUT5]]" "--" "{{.*}}llvm-spirv{{.*}}" "-o" "[[OUTPUT5]]" {{.*}} "[[OUTPUT4]]"
 // CHK-TOOLS-FPGA: llvm-foreach{{.*}} "--out-file-list=[[OUTPUT6:.+\.txt]]{{.*}} "--" "{{.*}}aoc{{.*}} "-o" "[[OUTPUT6]]" "[[OUTPUT5]]"
@@ -276,34 +278,34 @@
 // Check -fsycl-device-code-split=per_kernel option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_kernel -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-ONE-KERNEL
 // CHK-ONE-KERNEL: sycl-post-link{{.*}} "-split=kernel"{{.*}} "-o"{{.*}}
 
 // Check -fsycl-device-code-split=per_source option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=per_source -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-PER-SOURCE
 // CHK-PER-SOURCE: sycl-post-link{{.*}} "-split=source"{{.*}} "-o"{{.*}}
 
 // Check -fsycl-device-code-split option passing.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split=auto -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-AUTO
 // RUN:   %clang -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-AUTO
 // CHK-AUTO: sycl-post-link{{.*}} "-split=auto"{{.*}} "-o"{{.*}}
 
 // Check no device code split mode.
 // RUN:   %clang -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off %s 2>&1 \
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -fsycl-device-code-split -fsycl-device-code-split=off -- %s 2>&1 \
 // RUN:    | FileCheck %s -check-prefixes=CHK-NO-SPLIT
 // CHK-NO-SPLIT-NOT: sycl-post-link{{.*}} "-split={{.*}}
 
@@ -319,18 +321,18 @@
 
 // Check ESIMD device code split.
 // RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // RUN:   %clang    -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
-// RUN:   %clang_cl -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
+// RUN:   %clang_cl -### -fintelfpga -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-SPLIT
 // CHK-ESIMD-SPLIT: sycl-post-link{{.*}} "-split-esimd"
 
 // Check lowering of ESIMD device code.
 // RUN:   %clang    -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang_cl -### -fsycl --no-offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fsycl --no-offload-new-driver -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang    -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // RUN:   %clang    -### -fsycl --no-offload-new-driver -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
-// RUN:   %clang_cl -### -fintelfpga %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
+// RUN:   %clang_cl -### -fintelfpga -- %s 2>&1 | FileCheck %s -check-prefixes=CHK-ESIMD-LOWER
 // CHK-ESIMD-LOWER: sycl-post-link{{.*}} "-lower-esimd"
 
 // Check -f[no]sycl-device-code-split-esimd option's effect on sycl-post-link invocation

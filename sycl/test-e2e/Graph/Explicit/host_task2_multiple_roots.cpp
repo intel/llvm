@@ -15,6 +15,10 @@
 // https://github.com/intel/llvm/issues/11852
 // UNSUPPORTED: windows
 
+// Failed in Nightly on Linux
+// https://github.com/intel/llvm/issues/14852
+// UNSUPPORTED: linux
+
 #define GRAPH_E2E_EXPLICIT
 
 #include "../Inputs/host_task2_multiple_roots.cpp"

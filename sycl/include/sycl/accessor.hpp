@@ -22,7 +22,6 @@
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
 #include <sycl/detail/helpers.hpp>                    // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -38,6 +37,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 #include <sycl/sampler.hpp>                           // for addressing_mode
+#include <ur_api.h>                                   // for UR_RESULT_ERRO...
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash

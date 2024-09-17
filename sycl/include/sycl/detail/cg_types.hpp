@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
 #include <sycl/detail/item_base.hpp>           // for id
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
 #include <sycl/exception.hpp>
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
@@ -24,6 +23,7 @@
 #include <sycl/nd_item.hpp>                    // for nd_item
 #include <sycl/nd_range.hpp>                   // for nd_range
 #include <sycl/range.hpp>                      // for range, operator*
+#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 
 #include <functional>  // for function
 #include <stddef.h>    // for size_t
@@ -65,6 +65,7 @@ enum class CGType : unsigned int {
   SemaphoreWait = 24,
   SemaphoreSignal = 25,
   ProfilingTag = 26,
+  EnqueueNativeCommand = 27,
 };
 
 template <typename, typename T> struct check_fn_signature {
@@ -157,6 +158,8 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
+  // NOTE: InstatiateKernelOnHost() should not be called.
+  virtual void InstantiateKernelOnHost() = 0;
 };
 
 // Class which stores specific lambda object.
@@ -174,6 +177,50 @@ public:
   char *getPtr() override { return reinterpret_cast<char *>(&MKernel); }
 
   ~HostKernel() = default;
+
+  // This function is needed for host-side compilation to keep kernels
+  // instantitated. This is important for debuggers to be able to associate
+  // kernel code instructions with source code lines.
+  // NOTE: InstatiateKernelOnHost() should not be called.
+  void InstantiateKernelOnHost() override {
+    if constexpr (std::is_same_v<KernelArgType, void>) {
+      runKernelWithoutArg(MKernel);
+    } else if constexpr (std::is_same_v<KernelArgType, sycl::id<Dims>>) {
+      sycl::id ID = InitializedVal<Dims, id>::template get<0>();
+      runKernelWithArg<const KernelArgType &>(MKernel, ID);
+    } else if constexpr (std::is_same_v<KernelArgType, item<Dims, true>> ||
+                         std::is_same_v<KernelArgType, item<Dims, false>>) {
+      constexpr bool HasOffset =
+          std::is_same_v<KernelArgType, item<Dims, true>>;
+      KernelArgType Item = IDBuilder::createItem<Dims, HasOffset>(
+          InitializedVal<Dims, range>::template get<1>(),
+          InitializedVal<Dims, id>::template get<0>());
+      runKernelWithArg<KernelArgType>(MKernel, Item);
+    } else if constexpr (std::is_same_v<KernelArgType, nd_item<Dims>>) {
+      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+      sycl::group<Dims> Group =
+          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+      sycl::item<Dims, true> GlobalItem =
+          IDBuilder::createItem<Dims, true>(Range, ID, ID);
+      sycl::item<Dims, false> LocalItem =
+          IDBuilder::createItem<Dims, false>(Range, ID);
+      KernelArgType NDItem =
+          IDBuilder::createNDItem<Dims>(GlobalItem, LocalItem, Group);
+      runKernelWithArg<const KernelArgType>(MKernel, NDItem);
+    } else if constexpr (std::is_same_v<KernelArgType, sycl::group<Dims>>) {
+      sycl::range<Dims> Range = InitializedVal<Dims, range>::template get<1>();
+      sycl::id<Dims> ID = InitializedVal<Dims, id>::template get<0>();
+      KernelArgType Group =
+          IDBuilder::createGroup<Dims>(Range, Range, Range, ID);
+      runKernelWithArg<KernelArgType>(MKernel, Group);
+    } else {
+      // Assume that anything else can be default-constructed. If not, this
+      // should fail to compile and the implementor should implement a generic
+      // case for the new argument type.
+      runKernelWithArg<KernelArgType>(MKernel, KernelArgType{});
+    }
+  }
 };
 
 } // namespace detail

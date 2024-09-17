@@ -22,8 +22,19 @@ template <access::address_space Space, access::decorated DecorateAddress,
 multi_ptr<ElementType, Space, DecorateAddress>
 static_address_cast(ElementType *Ptr) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto CastPtr = sycl::detail::spirv::GenericCastToPtr<Space>(Ptr);
-  return multi_ptr<ElementType, Space, DecorateAddress>(CastPtr);
+  // TODO: Remove this restriction.
+  static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
+                "The extension expect undecorated raw pointers only!");
+  if constexpr (Space == access::address_space::generic_space) {
+    // Undecorated raw pointer is in generic AS already, no extra casts needed.
+    // Note for future, for `OpPtrCastToGeneric`, `Pointer` must point to one of
+    // `Storage Classes` that doesn't include `Generic`, so this will have to
+    // remain a special case even if the restriction above is lifted.
+    return multi_ptr<ElementType, Space, DecorateAddress>(Ptr);
+  } else {
+    auto CastPtr = sycl::detail::spirv::GenericCastToPtr<Space>(Ptr);
+    return multi_ptr<ElementType, Space, DecorateAddress>(CastPtr);
+  }
 #else
   return multi_ptr<ElementType, Space, DecorateAddress>(Ptr);
 #endif
@@ -34,8 +45,15 @@ template <access::address_space Space, access::decorated DecorateAddress,
 multi_ptr<ElementType, Space, DecorateAddress>
 dynamic_address_cast(ElementType *Ptr) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto CastPtr = sycl::detail::spirv::GenericCastToPtrExplicit<Space>(Ptr);
-  return multi_ptr<ElementType, Space, DecorateAddress>(CastPtr);
+  // TODO: Remove this restriction.
+  static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
+                "The extension expect undecorated raw pointers only!");
+  if constexpr (Space == access::address_space::generic_space) {
+    return multi_ptr<ElementType, Space, DecorateAddress>(Ptr);
+  } else {
+    auto CastPtr = sycl::detail::spirv::GenericCastToPtrExplicit<Space>(Ptr);
+    return multi_ptr<ElementType, Space, DecorateAddress>(CastPtr);
+  }
 #else
   return multi_ptr<ElementType, Space, DecorateAddress>(Ptr);
 #endif
