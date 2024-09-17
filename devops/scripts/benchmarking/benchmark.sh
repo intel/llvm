@@ -160,10 +160,10 @@ load_configs() {
     . $BENCHMARK_CI_CONFIG
 }
 
-COMPUTE_BENCH_COMPILE_FLAGS=""
-TIMESTAMP="$(date '+%Y%m%d_%H%M%S')"
-
 load_configs
+
+COMPUTE_BENCH_COMPILE_FLAGS=""
+TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
 
 # CLI overrides to configuration options
 while getopts "p:b:r:f:cC" opt; do

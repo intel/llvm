@@ -41,3 +41,11 @@ def load_configs():
 
         for perf_res in perf_res_re.findall(configs_str):
             PERF_RES_PATH = str(perf_res[1:-1])
+        
+
+def valid_timestamp(timestamp: str) -> bool:
+    timestamp_re = re.compile(
+        # YYMMDD_HHMMSS
+        '^\d{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])_(0[0-9]|1[0-9]|2[0-3])[0-5][0-9][0-5][0-9]$'
+    )
+    return timestamp_re.match(timestamp) is not None

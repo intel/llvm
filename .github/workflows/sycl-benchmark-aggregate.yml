@@ -4,7 +4,16 @@ on:
   schedule:
   - cron: 0 1 * * *
   workflow_dispatch:
+    inputs:
+      cutoff_timestamp:
+        description: "Timestamp "
+        type: string
+        required: false
   workflow_call:
+    inputs:
+      cutoff_timestamp:
+        type: string
+        required: false
 
 permissions:
   contents: write
@@ -23,22 +32,37 @@ jobs:
         sparse-checkout: |
           devops
     - name: Load benchmarking configuration
-      run:
-        . llvm/devops/scripts/benchmarking/benchmark-ci.conf
+      run: |
+        . llvm/devops/scripts/benchmarking/benchmark-ci.conf;
         echo "PERF_RES_GIT_REPO=$PERF_RES_GIT_REPO" >> $GITHUB_ENV
         echo "PERF_RES_BRANCH=$PERF_RES_BRANCH" >> $GITHUB_ENV
         echo "PERF_RES_PATH=$PERF_RES_PATH" >> $GITHUB_ENV
+
+        if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
+          # No time given, use default time period
+          echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" "$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
+        else
+          # If the provided time is a unix `date` timestamp, convert the time to our format
+          _converted_timestamp="$(date --date '${{ inputs.cutoff_timestamp }}' +"$TIMESTAMP_FORMAT" 2> /dev/null)"
+          if [ -n "$_converted_timestamp" ]; then
+            echo "CUTOFF_TIMESTAMP=$_converted_timestamp" >> $GITHUB_ENV
+          else
+            # If not a valid unix `date` timestamp, it could be in our timestamp format already.
+            # aggregate.py will ensure the timestamp is in the proper format, so we can pass the
+            # time forward regardless: 
+            echo 'CUTOFF_TIMESTAMP=${{ inputs.cutoff_timestamp }}' >> $GITHUB_ENV
+          fi
+        fi
     - uses: actions/checkout@v4
       with:
         # TODO populate default values before loading configuration
         path: ${{ env.PERF_RES_PATH }}
         repository: ${{ env.PERF_RES_GIT_REPO }}
         branch: ${{ env.PERF_RES_BRANCH }}
-    - run: find . -maxdepth 2
     - name: Run aggregator on cloned data
       run: |
         for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
-          python llvm/devops/benchmarking/aggregate.py "$(basename dir)"
+          python llvm/devops/benchmarking/aggregate.py "$(basename dir)" "$CUTOFF_TIMESTAMP"
         done
     - name: Debug
       run: |

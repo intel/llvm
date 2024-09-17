@@ -33,14 +33,15 @@ class StreamingMedian:
             return -self.maxheap_smaller[0]
 
 
-def aggregate_median(benchmark: str):
+def aggregate_median(benchmark: str, cutoff: str):
 
 	def csv_samples() -> list[str]:
 		# TODO check that the path below is valid directory
 		with Path(f"{common.PERF_RES_PATH}/{benchmark}") as cache_dir:
 			# TODO check for time range; What time range do I want?
-			return filter(lambda f: f.is_file(),
-						  cache_dir.glob(f"{benchmark}-*.csv"))
+			return filter(lambda f: f.is_file() and
+						  common.valid_timestamp(str(f)[-13:]) and str(f)[-13:] > cutoff,
+						  cache_dir.glob(f"{benchmark}-*_*.csv"))
 	
 	# Calculate median of every desired metric:
 	aggregate_s = dict()
@@ -64,7 +65,11 @@ def aggregate_median(benchmark: str):
 	
 		
 if __name__ == "__main__":
-	if len(sys.argv) < 2:
-		print(f"Usage: {sys.argv[0]} <test case name>")
-		exit()
-	aggregate_median(sys.argv[1])
+	if len(sys.argv) < 3:
+		print(f"Usage: {sys.argv[0]} <test case name> <cutoff date YYMMDD_HHMMSS>")
+		exit(1)
+	if not common.valid_timestamp(sys.argv[2]):
+		print(f"Bad cutoff timestamp, please use YYMMDD_HHMMSS.")
+		exit(1)
+
+	aggregate_median(sys.argv[1], sys.argv[2])

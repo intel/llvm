@@ -249,7 +249,7 @@ jobs:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
       run:
         # Is this key even a thing?
-        echo "$SSH_KEY" | wc -c
+        echo "$SSH_KEY" | head -c 4
     - name: Push compute-benchmarks
       if: inputs.cache_results == true && success()
       env:
