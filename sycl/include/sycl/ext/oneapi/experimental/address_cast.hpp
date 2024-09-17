@@ -16,6 +16,9 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+namespace detail {
+using namespace sycl::detail;
+}
 // Shorthands for address space names
 constexpr inline access::address_space global_space = access::address_space::global_space;
 constexpr inline access::address_space local_space = access::address_space::local_space;
@@ -23,22 +26,19 @@ constexpr inline access::address_space private_space = access::address_space::pr
 constexpr inline access::address_space generic_space = access::address_space::generic_space;
 
 template <access::address_space Space, typename ElementType>
-multi_ptr<ElementType, Space, access::decorated::no>
+multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space,
+          access::decorated::no>
 static_address_cast(ElementType *Ptr) {
-  using ret_ty = multi_ptr<ElementType, Space, access::decorated::no>;
+  using ret_ty =
+      multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>,
+                Space, access::decorated::no>;
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Remove this restriction.
-  static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
-                "The extension expect undecorated raw pointers only!");
-  if constexpr (Space == generic_space) {
-    // Undecorated raw pointer is in generic AS already, no extra casts needed.
-    // Note for future, for `OpPtrCastToGeneric`, `Pointer` must point to one of
-    // `Storage Classes` that doesn't include `Generic`, so this will have to
-    // remain a special case even if the restriction above is lifted.
+  constexpr auto SrcAS = detail::deduce_AS<ElementType *>::value;
+  if constexpr (SrcAS == Space || Space == generic_space) {
     return ret_ty(Ptr);
   } else {
-    auto CastPtr = sycl::detail::spirv::GenericCastToPtr<Space>(Ptr);
-    return ret_ty(CastPtr);
+    static_assert(SrcAS == generic_space, "Invalid address cast!");
+    return ret_ty(sycl::detail::spirv::GenericCastToPtr<Space>(Ptr));
   }
 #else
   return ret_ty(Ptr);
@@ -56,18 +56,19 @@ multi_ptr<ElementType, Space, DecorateAddress> static_address_cast(
 }
 
 template <access::address_space Space, typename ElementType>
-multi_ptr<ElementType, Space, access::decorated::no>
+multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space,
+          access::decorated::no>
 dynamic_address_cast(ElementType *Ptr) {
-  using ret_ty = multi_ptr<ElementType, Space, access::decorated::no>;
+  using ret_ty =
+      multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>,
+                Space, access::decorated::no>;
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Remove this restriction.
-  static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
-                "The extension expect undecorated raw pointers only!");
-  if constexpr (Space == generic_space) {
+  constexpr auto SrcAS = detail::deduce_AS<ElementType *>::value;
+  if constexpr (SrcAS == Space || Space == generic_space) {
     return ret_ty(Ptr);
   } else {
-    auto CastPtr = sycl::detail::spirv::GenericCastToPtrExplicit<Space>(Ptr);
-    return ret_ty(CastPtr);
+    static_assert(SrcAS == generic_space, "Invalid address cast!");
+    return ret_ty(sycl::detail::spirv::GenericCastToPtrExplicit<Space>(Ptr));
   }
 #else
   return ret_ty(Ptr);
