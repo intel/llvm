@@ -7,23 +7,8 @@ Release notes for commit range
 
 ## TODO
 
-commit https://github.com/intel/llvm/commit/9876e19f4ff387b35b0c98c7d62e5f50e6de187d
-    [SYCL][XPTI] 'queue_id' metadata feature refactoring (#13070)
-    bugfix?
-
 commit https://github.com/intel/llvm/commit/29b4d855fa1a378e89182795e0d368304c40c3f6
     [SYCL][CUDA] Enable support of msvc math functions for nvptx target. (#14007)
-
-commit https://github.com/intel/llvm/commit/7a9d3b1e9483b69baa0b8c6f1097016efd52854c
-    [SYCL][NVPTX] Do not decompose SYCL functor unless necessary (#14434)
-
-commit https://github.com/intel/llvm/commit/38e663ecd37de513d8e31afdfdf245cf8c9d17f0
-    [SYCL] Declare __devicelib_assert_read only when fallback assert is enabled (#13241)
-    Is there any particular user-visible bug associated with this?
-
-commit https://github.com/intel/llvm/commit/4b993a7b32f7743980bce646765a1b427b0996b6
-    Revert "[SYCL][Driver] Link with sycl libs at link step of clang-cl -fsycl (#12793)" (#13326)
-    revert commit https://github.com/intel/llvm/commit/seems to be a part of a previous release
 
 commit https://github.com/intel/llvm/commit/4b14d706d93891cdb5b0e6a8d4b0b027c1d54ab8
     [SYCL][DeviceSanitizer] Use -asan-constructor-kind=none to disable ctor/dtor (#13259)
@@ -76,6 +61,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   [dynamic linking](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/SharedLibraries.md).
   Current implementation lacks support for `kernel_bundle` API and AOT mode.
   intel/llvm#14587 intel/llvm#14189 intel/llvm#14103
+- Added `-fno-sycl-decompose-functor` compiler flag which instructs compiler
+  to emit less kernel arguments if possible. The flag is experimental and it
+  only has effect when compiling for CUDA targets. intel/llvm#14434
 
 ### SYCL Library
 
@@ -637,6 +625,17 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed `atomic_compare_exchange_strong` not using address space template
   parameter. intel/llvm#13821
 - Fixed compilation issues when `SYCL_COMPAT_PROFILING_ENABLED` is defined. intel/llvm#14574
+
+## Misc
+
+### SYCL Compiler
+
+- Reverted changes previously made as a bugfix on Windows to support a separate
+  compilation scenario where compilation step is performed _without_ the
+  `-fsycl` flag, but link step _with_ the `-fsycl` flag, expecting the compiler
+  to do the right thing. However, this is now considered to be a unsupported
+  scenario, because during link step the compiler doesn't know which version
+  (debug or release) of the standard library to link. intel/llvm#13326
 
 ## API/ABI Breaking Changes
 
