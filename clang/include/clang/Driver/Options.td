@@ -7030,10 +7030,11 @@ def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependenci
 def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
   HelpText<"Deprecated: please use -fno-sycl-allow-device-image-dependencies instead.">,
   Flags<[Deprecated]>;
-def fsycl_allow_device_image_dependencies : Flag<["-"], "fsycl-allow-device-image-dependencies">,
-  HelpText<"Allow dependencies between device code images">;
-def fno_sycl_allow_device_image_dependencies : Flag<["-"], "fno-sycl-allow-device-image-dependencies">,
-  HelpText<"Do not allow dependencies between device code images (default)">;
+
+defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sycl-allow-device-image-dependencies",
+  PosFlag<SetTrue, [], [ClangOption], "Allow dependencies between device code images">,
+  NegFlag<SetFalse, [], [ClangOption], "Do not allow dependencies between device code images (default)">>;
+
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
