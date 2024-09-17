@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4d19115165b5497b647ae1b2e110488f84d1806a
-  # Merge: fb6df497 3f128d09
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Tue Sep 17 10:31:44 2024 +0200
-  #     Merge pull request #2087 from nrspruit/fix_driver_inorder_event_wait
-  #     [L0] Fix urEnqueueEventsWaitWithBarrier for driver in order lists
-  set(UNIFIED_RUNTIME_TAG 4d19115165b5497b647ae1b2e110488f84d1806a)
+  # commit cfecab08e6e6dbb694f614b4f6271a258a41fc10
+  # Merge: 10fd78c1 5bebef5d
+  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
+  # Date:   Tue Sep 17 12:26:35 2024 +0100
+  #   Merge pull request #1874 from PietroGhg/pietro/membarrier
+  #   [NATIVECPU] Support atomic fence queries
+  set(UNIFIED_RUNTIME_TAG cfecab08e6e6dbb694f614b4f6271a258a41fc10)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -156,9 +156,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(native_cpu
-    "https://github.com/PietroGhg/unified-runtime.git"
-    pietro/membarrier
-
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   if(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO)
