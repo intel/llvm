@@ -17,8 +17,6 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
     [DeviceSanitizer] Disable handling no return calls (#14652)
     // bugfix?
 
-+UR commit below
-
 ## New Features
 
 ### SYCL Compiler
@@ -768,95 +766,6 @@ Breaking changes were also made to compiler flags:
   This will be fixed in the next release, see intel/llvm#15412
 - [new] C/C++ math built-ins (like `exp` or `tanh`) can return incorrect
   results for some edge-case input when they are called from SYCL kernels.
-
-commit https://github.com/intel/llvm/commit/c30769b122d99eb4d05bcb78f15e593491fe31ae
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    [UR][L0] Use Intel Level Zero Driver Version String extension (#14426)
-    https://github.com/oneapi-src/unified-runtime/pull/1816
-    Sounds like improvement to stability of driver version query
-
-commit https://github.com/intel/llvm/commit/8ddd7291219256f9bcb78328cc85322037736171
-Author: Ross Brunton <ross@codeplay.com>
-    [UR] Update to new urProgramLink interface (#13085)
-    https://github.com/oneapi-src/unified-runtime/pull/1458
-    Seems to be an internal UR bugfix/improvement
-
-commit https://github.com/intel/llvm/commit/db4d83e3969a5f7b5313aa5fb8466dd2ebbf9283
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    [UR][L0] Fix Queue get info and fix Queue release decrement (#14411)
-    https://github.com/oneapi-src/unified-runtime/pull/1814
-    Could be an actual bugfix
-
-commit https://github.com/intel/llvm/commit/eb03091539daa68a582ceab950379ca482e118d9
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-    [UR][L0] Fix Device Info return code to report unsupported enumeration (#14407)
-    https://github.com/oneapi-src/unified-runtime/pull/1809
-    ???
-
-commit https://github.com/intel/llvm/commit/f2bd076eb55a2cc79de2e9d4748967ed3cb13c9b
-Author: Wu Yingcong <yingcong.wu@intel.com>
-    [UR] fix use-after-free problems (#13855)
-    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1637
-    Related to ASAN
-
-commit https://github.com/intel/llvm/commit/c6428bee93a01009291ee704dca9db6262045aed
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Tue Jun 25 07:03:05 2024 -0700
-
-    [UR][L0] Fix Handle used in calls to L0 Driver zex apis given multi d… (#14250)
-    
-    …rivers
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1778
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
-commit https://github.com/intel/llvm/commit/579484f0ae9e5e30b9c9bd468799e1688d5de890
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Fri Jun 14 05:45:42 2024 -0700
-
-    [UR][L0] Maintain Lock of Queue while syncing the Last Command Event (#14150)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1749
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/5a09c6a15279484434df299d9164d94b96d3507a
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed May 22 10:42:06 2024 +0100
-
-    [UR][L0] Return device version based on DeviceIpVersion (#13812)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1401
-
-commit https://github.com/intel/llvm/commit/e404d9984d1587ca130d267c342d10747bc09a1f
-    [SYCL][NATIVECPU] Threadpool implementation for Native CPU (#13176)
-    Native CPU backend improvement to be able to run work-groups in parallel?
-
-commit https://github.com/intel/llvm/commit/d86a50045bbbe488869991be49cbfe3213809d72
-    [UR][CL] Atomic order memory capability for Intel FPGA driver (#13041)
-    Potentially user-visible fix.
-
-commit https://github.com/intel/llvm/commit/2e2010e2cc4acf1375cf88ce65d3a5cb8cbc9427
-    [UR] Add DEVICE_NOT_AVAILABLE UR error code and PI translation for same. (#13206)
-    Does it fix any actual issues in some negative cases where we previosly
-    reported a wrong error if device is not available?
-
-commit https://github.com/intel/llvm/commit/43f096308b03fa4c5a7f6845461a133d6cfaceae
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-    [UR] CI for UR PR refactor-guess-local-worksize (#12663)
-    https://github.com/oneapi-src/unified-runtime/pull/1326
-    Could be a bugfix?
-
-commit https://github.com/intel/llvm/commit/cf402b8473e9b3a4ee675a6154b80f0d54b198d1
-    [UR][L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access… (#12983)
-    Strictly speaking, this may have a visible effect for end users since some
-    of queries won't always return `false` anymore.
 
 # Mar'24 release notes
 Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
