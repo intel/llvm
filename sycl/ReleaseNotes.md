@@ -226,7 +226,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Added implementation for whole graph update
   (`executable_command_graph::update`).
   intel/llvm#13220 intel/llvm#14379 intel/llvm#14236 intel/llvm#14111
-  intel/llvm#13987
+  intel/llvm#13987 intel/llvm#12724
 - Added a warning about use of the deprecated `<CL/sycl.hpp>` header. intel/llvm#13569
 - Made `local_accessor::get_pointer` and `local_accessor::get_multi_ptr` throw
   `invalid` exception if they are called on host. intel/llvm#13747
@@ -344,6 +344,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   coordinates. intel/llvm#12447
 - Extended address sanitizer support to cover Intel GPU devices besides CPU
   devices. intel/llvm#13450
+- Updated `info::device::max_mem_alloc_size` query to return total amount of
+  a device memory for CUDA devices, because they have no limit on size of
+  memory allocations. intel/llvm#13344
 
 ### Documentation
 
@@ -607,6 +610,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed a bug where using multiple queues with `immediate_command_list` and
   `no_immediate_command_list` properties could result in a crash.
   intel/llvm#14341
+- Fixed a bug where `info::kernel_device_specific::work_group_size` would
+  return `device`-specific limit ignoring the kernel on Level Zero backend.
+  intel/llvm#13474
 
 ### Documentation
 
@@ -826,18 +832,6 @@ Date:   Fri Jun 14 05:45:42 2024 -0700
     Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
     Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 
-commit https://github.com/intel/llvm/commit/ae79b95cc07ab68fcf706d47851b93e5b299dc87
-Author: Hugh Delaney <hugh.delaney@codeplay.com>
-Date:   Wed Jun 12 16:46:31 2024 +0100
-
-    [UR] Bump main tag to b13c5e1f (#14042)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1711
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
 commit https://github.com/intel/llvm/commit/5a09c6a15279484434df299d9164d94b96d3507a
 Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
 Date:   Wed May 22 10:42:06 2024 +0100
@@ -846,317 +840,9 @@ Date:   Wed May 22 10:42:06 2024 +0100
     
     https://github.com/oneapi-src/unified-runtime/pull/1401
 
-commit https://github.com/intel/llvm/commit/34292bbc89f71233ef687652c33c52b55a38839e
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Wed May 15 07:43:11 2024 -0700
-
-    [UR][L0] Fix timestamp event evict after delete (#13717)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1592
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/a5da94d1fb9a46f0a8334db500f26d30b62c1c02
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Fri May 10 02:20:00 2024 -0700
-
-    [UR][L0] Disable Usage of Driver In order Lists by default (#13715)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1591
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
-commit https://github.com/intel/llvm/commit/c6be822ba3fbf1dc7c2f89805493400704ad89b5
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Tue May 7 02:47:56 2024 -0700
-
-    [UR][L0] Fix the repo tag for the L0 adapter to use the global variable (#13667)
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-
-commit https://github.com/intel/llvm/commit/dd183bf2a706571e29428a425d3a5f9bb6133a69
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Tue May 7 10:30:00 2024 +0100
-
-    [UR][L0] Pull in some minor fixes for L0 device queries. (#13424)
-    
-    UR PR https://github.com/oneapi-src/unified-runtime/pull/1513
-
-commit https://github.com/intel/llvm/commit/85037b20a9131400ce7cddac9c215adf563b6577
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Fri May 3 19:22:38 2024 +0100
-
-    [UR] Bump L0 tag to fb342f06 (#13646)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1549
-
-commit https://github.com/intel/llvm/commit/d1dddccded89ee1b34a120575726022ef8c97634
-Author: Piotr Balcer <piotr.balcer@intel.com>
-Date:   Fri May 3 12:57:22 2024 +0200
-
-    [UR][L0] fix queue locking behavior when creating event lists (#13564)
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/1a5595f8e43a12fc361c8868b04f265182259657
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Thu May 2 11:31:48 2024 -0700
-
-    [UR][L0] Enable Batching out of order commands without signal events (#13462)
-    
-    - pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1526
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/4c7baa7aa553ce5a6f68eeb74851ece279efbd3d
-Author: jinge90 <ge.jin@intel.com>
-Date:   Tue Apr 30 21:20:23 2024 +0800
-
-    [UR] Intercept urProgramLinkExp in ur ASAN layer (#13048)
-    
-    UR part: https://github.com/oneapi-src/unified-runtime/pull/1452
-    
-    ---------
-    
-    Signed-off-by: jinge90 <ge.jin@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/15c9c62bc171c849588fa58029f4c40dc142e80f
-Author: Omar Ahmed <30423288+omarahmed1111@users.noreply.github.com>
-Date:   Tue Apr 30 11:04:50 2024 +0100
-
-    Testing add validation tests to getInfo tests (#12782)
-    
-    Testing PR for [UR
-    PR](https://github.com/oneapi-src/unified-runtime/pull/1346)
-    
-    After correcting hip program info returned for program device to return
-    context device rather than the binary associated device that have fixed
-    the kernel fusion cooperative kernels e2e test.
-    
-    ---------
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/7cd48cbac6ddcb3e950748b76acd42812fab18bb
-Author: Ben Tracy <ben.tracy@codeplay.com>
-Date:   Mon Apr 29 08:37:48 2024 +0100
-
-    [SYCL][Graph] Bump UR commit https://github.com/intel/llvm/commit/for in-order L0 optimization (#13565)
-    
-    - Bumps commit https://github.com/intel/llvm/commit/only and includes minimal pi2ur changes for new
-    descriptor members
-    - In-order path not currently used, enable profiling by default (match
-    previous behaviour)
-    
-    UR PR: https://github.com/oneapi-src/unified-runtime/pull/1442
-
-commit https://github.com/intel/llvm/commit/95420f09ea81539d8c18fbb7d7406ec82947aeb5
-Author: Winston Zhang <winston.zhang@intel.com>
-Date:   Fri Apr 26 06:56:11 2024 -0700
-
-    [UR][L0] Testing for counter-based-events implementation in URT draft (#12848)
-    
-    commit https://github.com/intel/llvm/commit/tag: 4134bfce72d33e89eebcad11186bdf00310bba83
-    URT PR: https://github.com/oneapi-src/unified-runtime/pull/1370
-    
-    ---------
-    
-    Signed-off-by: Zhang, Winston <winston.zhang@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/fc94a16a8a97464f96ea07bf77600d6337c00f76
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Fri Apr 26 03:16:19 2024 -0700
-
-    [UR][L0] reset command lists on error unknown (#13522)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1539
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/719207dbac44ebb1bcae96eca992276171172120
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Wed Apr 24 09:10:44 2024 +0100
-
-    [SYCL][Graph] Bump UR commit https://github.com/intel/llvm/commit/to OpenCL kernel update (#12724)
-    
-    Test the UR commit https://github.com/intel/llvm/commit/that enables updating kernel commands in a
-    command-buffer in the OpenCL adapter
-    https://github.com/oneapi-src/unified-runtime/pull/1358
-
-commit https://github.com/intel/llvm/commit/96b07cf9c3b8407194d0082b0b30170f4f232a39
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Apr 23 11:14:52 2024 +0100
-
-    [UR] Bump main tag to 31d0fe15 (#13511)
-    
-    * https://github.com/oneapi-src/unified-runtime/pull/1032
-    * https://github.com/oneapi-src/unified-runtime/pull/1183
-    * https://github.com/oneapi-src/unified-runtime/pull/1243
-
-commit https://github.com/intel/llvm/commit/723b7b7b043783f04b6b0ec2195971a5e95f216b
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Fri Apr 19 22:15:55 2024 +0100
-
-    [UR][L0] Update main UR tag to 717791b (#13474)
-    
-    This pulls in fixes from:
-    https://github.com/oneapi-src/unified-runtime/pull/1298
-    https://github.com/oneapi-src/unified-runtime/pull/1495
-    https://github.com/oneapi-src/unified-runtime/pull/1517
-    
-    Also remove now unnecessary XFAIL from Basic/kernel_max_wg_size.cpp
-
-commit https://github.com/intel/llvm/commit/8cd2eb0ac2efc65cd109e0bfce02aedd69ce4cf2
-Author: Igor Chorążewicz <igor.chorazewicz@intel.com>
-Date:   Tue Apr 16 11:17:23 2024 -0700
-
-    [UR][L0] fix ze commands matching in level_zero_eager_init.cpp (#13277)
-    
-    If the test is run with UR_L0_LEAKS_DEBUG var set, UR will print ze call
-    count summary. This summary can cause the test to fail as it will
-    contain zeCommandQueueCreate, etc.
-    
-    Fix this by making CHECK-NOT only match output generated by UR_L0_DEBUG.
-
-commit https://github.com/intel/llvm/commit/684cd90e22fe67d4a524be92c69e026cca262f1c
-Author: aarongreig <aaron.greig@codeplay.com>
-Date:   Tue Apr 16 13:17:43 2024 +0100
-
-    [UR][L0] Pull in a batch of L0 fixes (#13400)
-    
-    Pulls in fixes
-    https://github.com/oneapi-src/unified-runtime/pull/1492
-    https://github.com/oneapi-src/unified-runtime/pull/1494
-    https://github.com/oneapi-src/unified-runtime/pull/1507
-
-commit https://github.com/intel/llvm/commit/a884a54914f9e9cf052591d70eb5cac20a25a210
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Mon Apr 15 01:58:14 2024 -0700
-
-    [UR][L0][Image] Set ZeImageDesc member of _ur_image in release build … (#13338)
-    
-    …for legacy image
-    
-    - reenable the image interop test with fix to image interop in release
-    builds
-    - precommit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1498
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/d7c5a9c6b2c9edb52f14adca5c84c3c3e3419d7b
-Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
-Date:   Mon Apr 15 08:43:44 2024 +0100
-
-    [UR] [NATIVECPU] CI for: Extended usm fill to bigger patterns than 1 byte (#13263)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1489
-    
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-
-commit https://github.com/intel/llvm/commit/16da4ec202cc818b9e79b75ecd9b7e301e3bea53
-Author: Konrad Kusiak <konrad.kusiak@codeplay.com>
-Date:   Fri Apr 12 15:33:18 2024 +0100
-
-    [UR] Bump HIP tag to 1473ed8a (#12898)
-    
-    https://github.com/oneapi-src/unified-runtime/pull/1395
-
-commit https://github.com/intel/llvm/commit/6ba50805672c72654c8288d33960f36c09cc89bb
-Author: Neil R. Spruit <neil.r.spruit@intel.com>
-Date:   Fri Apr 12 02:07:48 2024 -0700
-
-    [UR][L0] Fix regular in order command list reuse given inorder queue (#13195)
-    
-    pre-commit https://github.com/intel/llvm/commit/PR for
-    https://github.com/oneapi-src/unified-runtime/pull/1483
-    
-    ---------
-    
-    Signed-off-by: Neil R. Spruit <neil.r.spruit@intel.com>
-    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/1c89e51aa23fbd01eab1a2bba98ffc3598470e93
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Fri Apr 12 10:05:29 2024 +0100
-
-    [UR] Bump HIP tag to 760eaa38 (#12758)
-    
-    Bump UR commit https://github.com/intel/llvm/commit/to include a bugfix for HIP UR adapter dereferencing a
-    nullptr https://github.com/oneapi-src/unified-runtime/pull/1357
-
 commit https://github.com/intel/llvm/commit/e404d9984d1587ca130d267c342d10747bc09a1f
     [SYCL][NATIVECPU] Threadpool implementation for Native CPU (#13176)
     Native CPU backend improvement to be able to run work-groups in parallel?
-
-commit https://github.com/intel/llvm/commit/1d52f907d28edab7e23f69175a5b00d1bbe0acdc
-Author: Fábio <fabio.mestre@codeplay.com>
-Date:   Wed Apr 10 17:56:05 2024 +0100
-
-    [UR] Bump CUDA tag to 6e76c98a (#12285)
-
-commit https://github.com/intel/llvm/commit/7cf70ddd403d3262b51d0729cdc8a19e1bec7fab
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Apr 10 17:43:57 2024 +0100
-
-    [UR] Bump HIP tag to 08b3e8fe (#13352)
-
-commit https://github.com/intel/llvm/commit/a14d0b548e96014c643b00927be128193781769c
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Apr 10 16:06:52 2024 +0100
-
-    [UR] Bump Native CPU tag to e2b5b7fa (#13349)
-
-commit https://github.com/intel/llvm/commit/60a5c90b5dc4736ff818586072b7c7a270ac40c1
-Author: Georgi Mirazchiyski <georgi.mirazchiyski@codeplay.com>
-Date:   Wed Apr 10 16:06:37 2024 +0100
-
-    [HIP][UR] Fix memory type detection in allocation info queries and USM copy2D (#13059)
-    
-    Test CI for https://github.com/oneapi-src/unified-runtime/pull/1455
-    
-    ---------
-    
-    Co-authored-by: Aaron Greig <aaron.greig@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/e3b112bae042f3293d13dd64dc825809a4348dff
-Author: Fábio <fabio.mestre@codeplay.com>
-Date:   Wed Apr 10 16:06:20 2024 +0100
-
-    [UR] Bump CUDA tag to cda0cd94 (#12287)
-
-commit https://github.com/intel/llvm/commit/090323ea1c1007c12e184f8c990d6a45238529a0
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Wed Apr 10 12:24:30 2024 +0100
-
-    [UR] Bump CUDA tag to 05b58992 (#13344)
-
-commit https://github.com/intel/llvm/commit/cb28e0941683b921583553d9c3c5f29add7e42c2
-Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-Date:   Tue Apr 9 17:47:00 2024 +0100
-
-    [UR][OpenCL] Revert urMemBufferCreate extension function lookup error (#13331)
-    
-    Revert https://github.com/oneapi-src/unified-runtime/pull/1448, pulls in
-    OpenCL adapter changes from
-    https://github.com/oneapi-src/unified-runtime/pull/1496.
 
 commit https://github.com/intel/llvm/commit/d86a50045bbbe488869991be49cbfe3213809d72
     [UR][CL] Atomic order memory capability for Intel FPGA driver (#13041)
@@ -1167,44 +853,11 @@ commit https://github.com/intel/llvm/commit/2e2010e2cc4acf1375cf88ce65d3a5cb8cbc
     Does it fix any actual issues in some negative cases where we previosly
     reported a wrong error if device is not available?
 
-commit https://github.com/intel/llvm/commit/93a1abb42f352eff587cd1a081e90089c232339b
-Author: Piotr Balcer <piotr.balcer@intel.com>
-Date:   Wed Mar 27 12:11:36 2024 +0100
-
-    [UR][L0] fix a deadlock on a recursive event rwlock (#13112)
-
-commit https://github.com/intel/llvm/commit/dd78c6e9c0dc6afc6fb5757fb88c4c5b0b0fe5b5
-Author: Raiyan Latif <raiyan.latif@intel.com>
-Date:   Fri Mar 22 09:35:09 2024 -0700
-
-    [UR][L0] Enable default support for L0 in-order lists (#13033)
-    
-    Signed-off-by: Raiyan Latif <raiyan.latif@intel.com>
-    Co-authored-by: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-
-commit https://github.com/intel/llvm/commit/7c70e59db3ec813021beb970ebd21034586da53e
-Author: Ewan Crawford <ewan@codeplay.com>
-Date:   Thu Mar 21 10:28:46 2024 +0000
-
-    [SYCL][Graph][HIP] Set minimum ROCm version for graphs (#13035)
-    
-    Tests UR PR https://github.com/oneapi-src/unified-runtime/pull/1447 that
-    only reports support for UR command-buffers on ROCm 5.5.1 and later to
-    work around HIP driver bugs related to HIP-Graph in earlier version.
-    
-    This requirement is also explicitly mentioned in the design doc.
-
 commit https://github.com/intel/llvm/commit/43f096308b03fa4c5a7f6845461a133d6cfaceae
 Author: Hugh Delaney <hugh.delaney@codeplay.com>
     [UR] CI for UR PR refactor-guess-local-worksize (#12663)
     https://github.com/oneapi-src/unified-runtime/pull/1326
     Could be a bugfix?
-
-commit https://github.com/intel/llvm/commit/1f9bf7a731b16d6d0d017c35245991ca95d0aef7
-Author: Artur Gainullin <artur.gainullin@intel.com>
-Date:   Tue Mar 19 14:47:58 2024 -0700
-
-    [SYCL][Graph][UR] Update UR to support updating kernel commands in command buffers for L0 (#12897)
 
 commit https://github.com/intel/llvm/commit/cf402b8473e9b3a4ee675a6154b80f0d54b198d1
     [UR][L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access… (#12983)
