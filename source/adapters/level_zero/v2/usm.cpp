@@ -22,7 +22,8 @@ ur_context_handle_t ur_usm_pool_handle_t_::getContextHandle() const {
   return hContext;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
+namespace ur::level_zero {
+ur_result_t urUSMPoolCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_usm_pool_desc_t *
         pPoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
@@ -34,15 +35,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRetain(
-    ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
+ur_result_t
+urUSMPoolRetain(ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
 ) {
   hPool->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
-    ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
+ur_result_t
+urUSMPoolRelease(ur_usm_pool_handle_t hPool ///< [in] pointer to USM memory pool
 ) {
   if (hPool->RefCount.decrementAndTest()) {
     delete hPool;
@@ -50,7 +51,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
+ur_result_t urUSMPoolGetInfo(
     ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool
     ur_usm_pool_info_t propName, ///< [in] name of the pool property to query
     size_t propSize, ///< [in] size in bytes of the pool property value provided
@@ -74,7 +75,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
   }
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
+ur_result_t urUSMDeviceAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_usm_desc_t
@@ -96,7 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
+ur_result_t urUSMSharedAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_usm_desc_t
@@ -121,7 +122,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
+ur_result_t urUSMHostAlloc(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_usm_desc_t
         *pUSMDesc, ///< [in][optional] USM memory allocation descriptor
@@ -142,9 +143,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pMem                    ///< [in] pointer to USM memory object
+ur_result_t
+urUSMFree(ur_context_handle_t hContext, ///< [in] handle of the context object
+          void *pMem                    ///< [in] pointer to USM memory object
 ) {
   std::ignore = hContext;
 
@@ -152,7 +153,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
+ur_result_t urUSMGetMemAllocInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const void *ptr,              ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t
@@ -223,3 +224,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   }
   return UR_RESULT_SUCCESS;
 }
+} // namespace ur::level_zero

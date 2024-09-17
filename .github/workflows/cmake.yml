@@ -20,7 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
-        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
+        latency_tracking: ['-DUR_ENABLE_LATENCY_HISTOGRAM=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -40,7 +40,7 @@ jobs:
           - os: 'ubuntu-22.04'
             build_type: Release
             compiler: {c: clang, cxx: clang++}
-            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
+            latency_tracking: '-DUR_ENABLE_LATENCY_HISTOGRAM=ON'
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
@@ -155,6 +155,7 @@ jobs:
       adapter_name: L0
       runner_name: L0
       static_loader: ON
+      static_adapter: ON
 
   opencl:
     name: OpenCL
@@ -216,7 +217,8 @@ jobs:
         os: ['windows-2019', 'windows-2022']
         adapter: [
           {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'},
-          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'},
+          {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
         ]
 
         # TODO: building level zero loader on windows-2019 and clang-cl is currently broken
@@ -225,9 +227,13 @@ jobs:
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
          - os: 'windows-2019'
            adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+         - os: 'windows-2019'
+           adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
          - adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+           compiler: {c: clang-cl, cxx: clang-cl}
+         - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
 
         build_type: [Debug, Release]
@@ -235,6 +241,11 @@ jobs:
         include:
           - compiler: {c: clang-cl, cxx: clang-cl}
             toolset: "-T ClangCL"
+          - os: 'windows-2022'
+            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
+            build_type: 'Release'
+            compiler: {c: cl, cxx: cl}
+
     runs-on: ${{matrix.os}}
 
     steps:

@@ -18,7 +18,9 @@
 #include "queue.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
+namespace ur::level_zero {
+
+ur_result_t urContextCreate(
     uint32_t DeviceCount, ///< [in] the number of devices given in phDevices
     const ur_device_handle_t
         *Devices, ///< [in][range(0, DeviceCount)] array of handle of devices.
@@ -53,7 +55,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(
+ur_result_t urContextRetain(
     ur_context_handle_t
         Context ///< [in] handle of the context to get a reference of.
 ) {
@@ -61,7 +63,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextRetain(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextRelease(
+ur_result_t urContextRelease(
     ur_context_handle_t Context ///< [in] handle of the context to release.
 ) {
   ur_platform_handle_t Plt = Context->getPlatform();
@@ -85,7 +87,7 @@ static const bool UseMemcpy2DOperations = [] {
   return std::atoi(UseMemcpy2DOperationsFlag) > 0;
 }();
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
+ur_result_t urContextGetInfo(
     ur_context_handle_t Context,       ///< [in] handle of the context
     ur_context_info_t ContextInfoType, ///< [in] type of the info to retrieve
     size_t PropSize,    ///< [in] the number of bytes of memory pointed to by
@@ -133,7 +135,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
+ur_result_t urContextGetNativeHandle(
     ur_context_handle_t Context,      ///< [in] handle of the context.
     ur_native_handle_t *NativeContext ///< [out] a pointer to the native
                                       ///< handle of the context.
@@ -142,7 +144,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
+ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t
         NativeContext, ///< [in] the native handle of the context.
     ur_adapter_handle_t, uint32_t NumDevices, const ur_device_handle_t *Devices,
@@ -166,7 +168,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
+ur_result_t urContextSetExtendedDeleter(
     ur_context_handle_t Context, ///< [in] handle of the context.
     ur_context_extended_deleter_t
         Deleter,   ///< [in] Function pointer to extended deleter.
@@ -180,6 +182,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+} // namespace ur::level_zero
 
 ur_result_t ur_context_handle_t_::initialize() {
 
@@ -509,7 +512,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   // Create one event ZePool per MaxNumEventsPerPool events
   if (*ZePool == nullptr) {
     ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
-        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC};
+        ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
     ZeStruct<ze_event_pool_desc_t> ZeEventPoolDesc;
     ZeEventPoolDesc.count = MaxNumEventsPerPool;
     ZeEventPoolDesc.flags = 0;
@@ -527,6 +530,8 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
         counterBasedExt.flags =
             ZE_EVENT_POOL_COUNTER_BASED_EXP_FLAG_NON_IMMEDIATE;
       }
+      logger::debug("ze_event_pool_desc_t counter based flags set to: {}",
+                    counterBasedExt.flags);
       ZeEventPoolDesc.pNext = &counterBasedExt;
     }
 
@@ -576,8 +581,8 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   ur_device_handle_t Device = nullptr;
 
-  if (!Event->IsMultiDevice && Legacy(Event->UrQueue)) {
-    Device = Legacy(Event->UrQueue)->Device;
+  if (!Event->IsMultiDevice && Event->UrQueue) {
+    Device = Event->UrQueue->Device;
   }
 
   auto Cache = getEventCache(Event->isHostVisible(),
@@ -598,10 +603,10 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 
   ze_device_handle_t ZeDevice = nullptr;
   bool UsingImmediateCommandlists =
-      !Legacy(Event->UrQueue) || Legacy(Event->UrQueue)->UsingImmCmdLists;
+      !Event->UrQueue || Event->UrQueue->UsingImmCmdLists;
 
-  if (!Event->IsMultiDevice && Legacy(Event->UrQueue)) {
-    ZeDevice = Legacy(Event->UrQueue)->Device->ZeDevice;
+  if (!Event->IsMultiDevice && Event->UrQueue) {
+    ZeDevice = Event->UrQueue->Device->ZeDevice;
   }
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
@@ -644,7 +649,7 @@ static const size_t CmdListsCleanupThreshold = [] {
 
 // Retrieve an available command list to be used in a PI call.
 ur_result_t ur_context_handle_t_::getAvailableCommandList(
-    ur_queue_handle_legacy_t Queue, ur_command_list_ptr_t &CommandList,
+    ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
     bool UseCopyEngine, uint32_t NumEventsInWaitList,
     const ur_event_handle_t *EventWaitList, bool AllowBatching,
     ze_command_queue_handle_t *ForcedCmdQueue) {
@@ -767,9 +772,11 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         ur_command_list_info_t(ZeFence, true, false,
-                                                ZeCommandQueue, ZeQueueDesc,
-                                                Queue->useCompletionBatching()))
+                         ur_command_list_info_t(
+                             ZeFence, true, false, ZeCommandQueue, ZeQueueDesc,
+                             Queue->useCompletionBatching(), true,
+                             ZeCommandListIt->second.InOrderList,
+                             ZeCommandListIt->second.IsImmediate))
                 .first;
       }
       ZeCommandListCache.erase(ZeCommandListIt);

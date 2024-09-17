@@ -50,7 +50,7 @@ using provider_unique_handle_t =
         typename std::enable_if<HAS_OP_##op<T>::value, umf_result_t>::type     \
             CALL_OP_##op(T *t, Args &&...args) {                               \
         return t->op(std::forward<Args>(args)...);                             \
-    };                                                                         \
+    }                                                                          \
                                                                                \
     static inline umf_result_t CALL_OP_##op(...) {                             \
         return UMF_RESULT_ERROR_NOT_SUPPORTED;                                 \

@@ -43,7 +43,7 @@ inline size_t command_list_descriptor_hash_t::operator()(
 command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext)
     : ZeContext{ZeContext} {}
 
-raii::ze_command_list_t
+raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   if (auto ImmCmdDesc =
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
@@ -61,7 +61,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
         (ZeContext, ImmCmdDesc->ZeDevice, &QueueDesc, &ZeCommandList));
-    return raii::ze_command_list_t(ZeCommandList, &zeCommandListDestroy);
+    return raii::ze_command_list_handle_t(ZeCommandList);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
@@ -72,7 +72,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
                                             &CmdListDesc, &ZeCommandList));
-    return raii::ze_command_list_t(ZeCommandList, &zeCommandListDestroy);
+    return raii::ze_command_list_handle_t(ZeCommandList);
   }
 }
 
@@ -94,8 +94,7 @@ command_list_cache_t::getImmediateCommandList(
   auto CommandList = getCommandList(Desc).release();
   return raii::cache_borrowed_command_list_t(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
-        Cache->addCommandList(
-            Desc, raii::ze_command_list_t(CmdList, &zeCommandListDestroy));
+        Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
       });
 }
 
@@ -113,12 +112,11 @@ command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
 
   return raii::cache_borrowed_command_list_t(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
-        Cache->addCommandList(
-            Desc, raii::ze_command_list_t(CmdList, &zeCommandListDestroy));
+        Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
       });
 }
 
-raii::ze_command_list_t
+raii::ze_command_list_handle_t
 command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
   std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   auto it = ZeCommandListCache.find(desc);
@@ -129,7 +127,8 @@ command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
 
   assert(!it->second.empty());
 
-  raii::ze_command_list_t CommandListHandle = std::move(it->second.top());
+  raii::ze_command_list_handle_t CommandListHandle =
+      std::move(it->second.top());
   it->second.pop();
 
   if (it->second.empty())
@@ -138,8 +137,9 @@ command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
   return CommandListHandle;
 }
 
-void command_list_cache_t::addCommandList(const command_list_descriptor_t &desc,
-                                          raii::ze_command_list_t cmdList) {
+void command_list_cache_t::addCommandList(
+    const command_list_descriptor_t &desc,
+    raii::ze_command_list_handle_t cmdList) {
   // TODO: add a limit?
   std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   auto [it, _] = ZeCommandListCache.try_emplace(desc);

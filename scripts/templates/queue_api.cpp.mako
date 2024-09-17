@@ -24,8 +24,9 @@ from templates import helper as th
 ur_queue_handle_t_::~ur_queue_handle_t_() {}
 
 ## FUNCTION ###################################################################
+namespace ${x}::level_zero {
 %for obj in th.get_queue_related_functions(specs, n, tags):
-${X}_APIEXPORT ${x}_result_t ${X}_APICALL
+${x}_result_t
 ${th.make_func_name(n, tags, obj)}(
     %for line in th.make_param_lines(n, tags, obj, format=["name", "type", "delim"]):
     ${line}
@@ -35,3 +36,4 @@ ${th.make_func_name(n, tags, obj)}(
     return ${obj['params'][0]['name']}->${th.transform_queue_related_function_name(n, tags, obj, format=["name"])};
 }
 %endfor
+}

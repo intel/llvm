@@ -411,6 +411,11 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 %endfor
 %endfor
 
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ur_bool_t value) {
+    os << (value ? "true" : "false");
+    return os;
+}
+
 namespace ${x}::details {
 ///////////////////////////////////////////////////////////////////////////////
 // @brief Print pointer value

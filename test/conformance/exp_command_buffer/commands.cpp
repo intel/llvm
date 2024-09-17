@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
+#include <array>
 
 struct urCommandBufferCommandsTest
     : uur::command_buffer::urCommandBufferExpTest {
