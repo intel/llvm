@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
-  # Merge: e26bba51 45a781f4
+  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
+  # Merge: fa9ebe7b 53abe070
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 10 12:08:57 2024 +0100
-  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
-  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
-  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
+  # Date:   Mon Sep 16 10:20:10 2024 +0100
+  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
+  #     [Loader] Suppress system errors when loading adapters on Windows
+  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

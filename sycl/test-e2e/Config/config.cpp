@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} %debug_option -O0 -o %t.out
+// RUN: %{build} %debug_option %no_opt -o %t.out
 // RUN: echo SYCL_PRINT_EXECUTION_GRAPH=always > %t.cfg
 // RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
 // RUN: cat *.dot > /dev/null
