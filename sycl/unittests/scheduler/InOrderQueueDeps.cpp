@@ -143,11 +143,11 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
 
   context Ctx{Plt};
   queue InOrderQueueFirst{Ctx, default_selector_v, property::queue::in_order()};
-  queue InOrderQueueSecond{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueueSecond{Ctx, default_selector_v,
+                           property::queue::in_order()};
 
-  event EvFirst = InOrderQueueFirst.submit([&](sycl::handler &CGH) {
-    CGH.single_task<TestKernel<>>([] {});
-  });
+  event EvFirst = InOrderQueueFirst.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
   std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
     CGH.depends_on(EvFirst);
     CGH.single_task<TestKernel<>>([] {});
@@ -172,9 +172,8 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
-  event EvFirst = InOrderQueue.submit([&](sycl::handler &CGH) {
-    CGH.single_task<TestKernel<>>([] {});
-  });
+  event EvFirst = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
   std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
     // even adding explicit dependency
     CGH.depends_on(EvFirst);

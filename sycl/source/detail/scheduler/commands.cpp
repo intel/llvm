@@ -229,7 +229,8 @@ static std::string commandToName(Command::CommandType Type) {
 #endif
 
 std::vector<ur_event_handle_t>
-Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls, const QueueImplPtr& CommandQueue, bool IsHostTaskCommand) {
+Command::getUrEvents(const std::vector<EventImplPtr> &EventImpls,
+                     const QueueImplPtr &CommandQueue, bool IsHostTaskCommand) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (auto &EventImpl : EventImpls) {
     auto Handle = EventImpl->getHandle();
@@ -873,7 +874,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #endif
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
-    return true; 
+    return true;
 
   // If the command is blocked from enqueueing
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
