@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
-  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
-  # Merge: fa9ebe7b 53abe070
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Sep 16 10:20:10 2024 +0100
-  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
-  #     [Loader] Suppress system errors when loading adapters on Windows
-  set(UNIFIED_RUNTIME_TAG 3f128d09d7f7832f90f2bbbc3d4465a5d6083f29)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4d19115165b5497b647ae1b2e110488f84d1806a
+  # Merge: fb6df497 3f128d09
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Tue Sep 17 10:31:44 2024 +0200
+  #     Merge pull request #2087 from nrspruit/fix_driver_inorder_event_wait
+  #     [L0] Fix urEnqueueEventsWaitWithBarrier for driver in order lists
+  set(UNIFIED_RUNTIME_TAG 4d19115165b5497b647ae1b2e110488f84d1806a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
