@@ -873,9 +873,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
 #endif
   // Exit if already enqueued
   if (MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
-    return true;
-
- 
+    return true; 
 
   // If the command is blocked from enqueueing
   if (MIsBlockable && MEnqueueStatus == EnqueueResultT::SyclEnqueueBlocked) {
@@ -2573,8 +2571,6 @@ void enqueueImpKernel(
 
   std::shared_ptr<kernel_impl> SyclKernelImpl;
   std::shared_ptr<device_image_impl> DeviceImageImpl;
-
-  
 
   // Use kernel_bundle if available unless it is interop.
   // Interop bundles can't be used in the first branch, because the kernels
