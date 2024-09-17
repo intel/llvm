@@ -20,5 +20,3 @@
 // This test checks that a valid GPU is returned by sycl-ls by default if one
 // is present.
 // UNSUPPORTED: hip
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
