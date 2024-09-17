@@ -854,19 +854,6 @@ static bool addSYCLDefaultTriple(Compilation &C,
   return true;
 }
 
-// Special function that checks if -fsycl-device-only was passed on the
-// command line.  -fsycl-device-only is an alias of --offload-device-only.
-static bool hasSYCLDeviceOnly(const ArgList &Args) {
-  if (const Arg *SYCLDeviceOnlyArg =
-          Args.getLastArg(options::OPT_offload_device_only)) {
-    while (SYCLDeviceOnlyArg->getAlias())
-      SYCLDeviceOnlyArg = SYCLDeviceOnlyArg->getAlias();
-    if (SYCLDeviceOnlyArg->getSpelling().contains("sycl-device-only"))
-      return true;
-  }
-  return false;
-}
-
 void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                               InputList &Inputs) {
 
@@ -1089,7 +1076,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
                                false) ||
-      hasSYCLDeviceOnly(C.getInputArgs());
+      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -1171,6 +1158,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *RangeRoundingPreference =
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit
+  // a warning and inform the user of the default behavior used.
+  // TODO: General usage of this option is to check for 'spirv' and fallthrough
+  // to using llvmir.  This can be improved to be more obvious in usage.
+  if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
+          options::OPT_fsycl_device_obj_EQ)) {
+    StringRef ArgValue(DeviceObj->getValue());
+    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
+      Diag(clang::diag::warn_ignoring_value_using_default)
+          << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+  }
 
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
@@ -1758,12 +1758,13 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   if (Args.getLastArg(options::OPT_fsycl_dump_device_code_EQ))
     DumpDeviceCode = true;
 
-  if (const Arg *A = Args.getLastArg(options::OPT_offload_host_only,
-                                     options::OPT_offload_device_only,
-                                     options::OPT_offload_host_device)) {
+  if (const Arg *A = Args.getLastArg(
+          options::OPT_offload_host_only, options::OPT_offload_device_only,
+          options::OPT_fsycl_device_only, options::OPT_offload_host_device)) {
     if (A->getOption().matches(options::OPT_offload_host_only))
       Offload = OffloadHost;
-    else if (A->getOption().matches(options::OPT_offload_device_only))
+    else if (A->getOption().matches(options::OPT_offload_device_only) ||
+             A->getOption().matches(options::OPT_fsycl_device_only))
       Offload = OffloadDevice;
     else
       Offload = OffloadHostDevice;
@@ -3138,7 +3139,7 @@ void Driver::BuildInputs(const ToolChain &TC, DerivedArgList &Args,
   Arg *InputTypeArg = nullptr;
   bool IsSYCL =
       Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false) ||
-      hasSYCLDeviceOnly(Args);
+      Args.hasArg(options::OPT_fsycl_device_only);
 
   // The last /TC or /TP option sets the input type to C or C++ globally.
   if (Arg *TCTP = Args.getLastArgNoClaim(options::OPT__SLASH_TC,

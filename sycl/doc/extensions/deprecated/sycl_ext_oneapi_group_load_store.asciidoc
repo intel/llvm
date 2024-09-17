@@ -23,12 +23,8 @@ NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
 trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc.
 used by permission by Khronos.
 
-NOTE: This extension is experimental: interfaces are subject to change later.
-
-NOTE: This extension documents functionality that predates SYCL 2020's formal
-extension mechanism. Work is underway to align the extension with SYCL 2020;
-the documentation in its current state does not reflect the intended long-term
-direction of the extension.
+NOTE: This extension has been replaced with a new version under the same name
+that completely changed the interfaces.
 
 == Notice
 

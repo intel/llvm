@@ -3843,6 +3843,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::dbg_label:
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
+  case Intrinsic::debugtrap:
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::usub_with_overflow:
   case Intrinsic::arithmetic_fence:
@@ -4719,10 +4720,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   case Intrinsic::invariant_start:
   case Intrinsic::invariant_end:
   case Intrinsic::dbg_label:
-  // llvm.trap intrinsic is not implemented. But for now don't crash. This
-  // change is pending the trap/abort intrinsic implementation.
+  // llvm.trap and llvm.debugtrap intrinsics are not implemented. But for now
+  // don't crash. This change is pending the trap/abort intrinsic
+  // implementation.
   case Intrinsic::trap:
   case Intrinsic::ubsantrap:
+  case Intrinsic::debugtrap:
   // llvm.instrprof.* intrinsics are not supported
   case Intrinsic::instrprof_increment:
   case Intrinsic::instrprof_increment_step:

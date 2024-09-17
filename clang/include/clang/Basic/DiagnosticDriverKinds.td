@@ -522,6 +522,9 @@ def warn_drv_no_floating_point_registers: Warning<
   InGroup<UnsupportedABI>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
+def warn_ignoring_value_using_default : Warning<
+  "ignoring invalid '%0' value '%1', using default value '%2'">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;

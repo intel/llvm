@@ -6813,7 +6813,7 @@ def fintelfpga : Flag<["-"], "fintelfpga">,
   MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
   HelpText<"Perform ahead-of-time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">,
-  Alias<offload_device_only>, HelpText<"Compile SYCL kernels for device">;
+  HelpText<"Compile SYCL kernels for device">;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
