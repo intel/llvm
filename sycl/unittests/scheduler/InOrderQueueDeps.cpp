@@ -134,6 +134,7 @@ inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
 }
 
 TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
+  KernelEventListSize.clear();
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
                                            &customEnqueueKernelLaunch);
@@ -158,6 +159,34 @@ TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
   ASSERT_EQ(KernelEventListSize.size(), 2u);
   EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 1u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  event EvFirst = InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.single_task<TestKernel<>>([] {});
+  });
+  std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
+    // even adding explicit dependency
+    CGH.depends_on(EvFirst);
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  // no deps is passed to backend even when explicit dependency specified
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
 }
 
 } // anonymous namespace
