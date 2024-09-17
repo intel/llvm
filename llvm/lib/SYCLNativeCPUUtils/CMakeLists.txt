@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   Core
   Support
   Passes
+  SYCLLowerIR
   Target
   TargetParser
   TransformUtils
@@ -26,7 +27,7 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
 # Don't fetch OCK if Native CPU is not enabled.
-if(NOT "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(NATIVECPU_USE_OCK Off CACHE BOOL "Use the oneAPI Construction Kit for Native CPU" FORCE)
 endif()
 

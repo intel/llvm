@@ -40,6 +40,11 @@
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" -shared "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SHARED %s
 // CHK-SHARED: "{{.*}}llc"{{.*}} -relocation-model=pic
 
+// RUN: rm %T/linker_wrapper_dump || true
+// RUN: clang-linker-wrapper -sycl-dump-device-code=%T/linker_wrapper_dump -sycl-device-libraries=%t.devicelib.o "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" -shared "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run
+// RUN: ls %T/linker_wrapper_dump | FileCheck -check-prefix=CHK-SYCL-DUMP-DEVICE %s
+// CHK-SYCL-DUMP-DEVICE: {{.*}}.spv
+
 /// Check for list of commands for standalone clang-linker-wrapper run for sycl (AOT for Intel GPU)
 // -------
 // Generate .o file as linker wrapper input.

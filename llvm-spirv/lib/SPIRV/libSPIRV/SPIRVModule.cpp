@@ -565,6 +565,8 @@ private:
   SPIRVTypeVoid *VoidTy;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
   SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
+  SmallDenseMap<std::pair<unsigned, SPIRVType *>, SPIRVTypePointer *, 4>
+      PointerTypeMap;
   std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
@@ -1003,8 +1005,13 @@ SPIRVTypeFloat *SPIRVModuleImpl::addFloatType(unsigned BitWidth) {
 SPIRVTypePointer *
 SPIRVModuleImpl::addPointerType(SPIRVStorageClassKind StorageClass,
                                 SPIRVType *ElementType) {
-  return addType(
-      new SPIRVTypePointer(this, getId(), StorageClass, ElementType));
+  auto Desc = std::make_pair(StorageClass, ElementType);
+  auto Loc = PointerTypeMap.find(Desc);
+  if (Loc != PointerTypeMap.end())
+    return Loc->second;
+  auto *Ty = new SPIRVTypePointer(this, getId(), StorageClass, ElementType);
+  PointerTypeMap[Desc] = Ty;
+  return addType(Ty);
 }
 
 SPIRVTypeFunction *SPIRVModuleImpl::addFunctionType(

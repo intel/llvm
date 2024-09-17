@@ -11,16 +11,16 @@ endif()
 
 # Options to override the default behaviour of the FetchContent to include UR
 # source code.
-set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
+set(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO
   "" CACHE STRING "Override the Unified Runtime FetchContent repository")
-set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
+set(SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG
   "" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
 # to improve developer workflow.
-option(SYCL_PI_UR_USE_FETCH_CONTENT
+option(SYCL_UR_USE_FETCH_CONTENT
   "Use FetchContent to acquire the Unified Runtime source code" ON)
-set(SYCL_PI_UR_SOURCE_DIR
+set(SYCL_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
 option(SYCL_UMF_DISABLE_HWLOC
@@ -30,26 +30,27 @@ option(SYCL_UMF_DISABLE_HWLOC
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
 set(UR_BUILD_XPTI_LIBS OFF)
+set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
-if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
 endif()
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_CUDA ON)
 endif()
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_HIP ON)
-  if (SYCL_ENABLE_KERNEL_FUSION)
+  if (SYCL_ENABLE_EXTENSION_JIT)
     set(UR_ENABLE_COMGR ON)
   endif()
 endif()
-if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
   set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
     "Path of the OpenCL ICD Loader library" FORCE)
 endif()
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
 endif()
 
@@ -69,15 +70,15 @@ else()
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
 endif()
 
-if(SYCL_PI_UR_USE_FETCH_CONTENT)
+if(SYCL_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   # The fetch_adapter_source function can be used to perform a separate content
-  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # fetch for a UR adapter (backend), this allows development of adapters to be decoupled
   # from each other.
   #
   # A separate content fetch will not be performed if:
-  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The adapter name is not present in the SYCL_ENABLE_BACKENDS variable.
   # * The repo and tag provided match the values of the
   #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
   #
@@ -86,7 +87,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+    if(NOT ${name} IN_LIST SYCL_ENABLE_BACKENDS)
       return()
     endif()
     if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
@@ -116,13 +117,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c5d2175b5823d5b74de1e7e0d6081ab6d885bc34
-  # Merge: 99489ad4 c86beb60
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Jul 31 14:52:26 2024 +0100
-  #     Merge pull request #1882 from przemektmalon/przemek/interop-map-memory
-  #    [Bindless][Exp] Add interop memory mapping to USM.
-  set(UNIFIED_RUNTIME_TAG c5d2175b5823d5b74de1e7e0d6081ab6d885bc34)
+  # commit 4d19115165b5497b647ae1b2e110488f84d1806a
+  # Merge: fb6df497 3f128d09
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Tue Sep 17 10:31:44 2024 +0200
+  #     Merge pull request #2087 from nrspruit/fix_driver_inorder_event_wait
+  #     [L0] Fix urEnqueueEventsWaitWithBarrier for driver in order lists
+  set(UNIFIED_RUNTIME_TAG 4d19115165b5497b647ae1b2e110488f84d1806a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -160,11 +161,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   )
 
-  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
-    set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
+  if(SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO)
+    set(UNIFIED_RUNTIME_REPO "${SYCL_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
-  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG)
-    set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
+  if(SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG)
+    set(UNIFIED_RUNTIME_TAG "${SYCL_UR_OVERRIDE_FETCH_CONTENT_TAG}")
   endif()
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
@@ -179,24 +180,24 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   set(UNIFIED_RUNTIME_SOURCE_DIR
     "${unified-runtime_SOURCE_DIR}" CACHE PATH
     "Path to Unified Runtime Headers" FORCE)
-elseif(SYCL_PI_UR_SOURCE_DIR)
-  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has been set,
+elseif(SYCL_UR_SOURCE_DIR)
+  # SYCL_UR_USE_FETCH_CONTENT is OFF and SYCL_UR_SOURCE_DIR has been set,
   # use the external Unified Runtime source directory.
   set(UNIFIED_RUNTIME_SOURCE_DIR
-    "${SYCL_PI_UR_SOURCE_DIR}" CACHE PATH
+    "${SYCL_UR_SOURCE_DIR}" CACHE PATH
     "Path to Unified Runtime Headers" FORCE)
   add_subdirectory(
     ${UNIFIED_RUNTIME_SOURCE_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/unified-runtime)
 else()
-  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
+  # SYCL_UR_USE_FETCH_CONTENT is OFF and SYCL_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
   if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      "SYCL_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
       Runtime source directory has been provided, either:
 
-      * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
+      * Set -DSYCL_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
   endif()
   # The fallback local directory for the Unified Runtime repository has been
@@ -269,26 +270,26 @@ function(add_sycl_ur_adapter NAME)
     SYCL_TOOLCHAIN_INSTALL_COMPONENTS ur_adapter_${NAME})
 endfunction()
 
-if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(level_zero)
 
   # TODO: L0 adapter does other... things in its cmake - make sure they get
   # added to the new build system
 endif()
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(cuda)
 endif()
 
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(hip)
 endif()
 
-if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(opencl)
 endif()
 
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   add_sycl_ur_adapter(native_cpu)
 
   # Deal with OCK option

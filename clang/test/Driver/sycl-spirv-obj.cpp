@@ -11,7 +11,7 @@
 // SPIRV_DEVICE_OBJ-SAME: "-o" "[[DEVICE_BC:.+\.bc]]"
 // SPIRV_DEVICE_OBJ: llvm-spirv{{.*}} "-o" "[[DEVICE_SPV:.+\.spv]]"
 // SPIRV_DEVICE_OBJ-SAME: "--spirv-preserve-auxdata"
-// SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_KHR_cooperative_matrix"
+// SPIRV_DEVICE_OBJ-SAME: "-spirv-ext=-all,{{.*}},+SPV_EXT_shader_atomic_float16_add"
 // SPIRV_DEVICE_OBJ-SAME: "[[DEVICE_BC]]"
 // SPIRV_DEVICE_OBJ: clang-offload-packager{{.*}} "--image=file=[[DEVICE_SPV]]{{.*}}"
 // SPIRV_DEVICE_OBJ: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu"
@@ -37,6 +37,5 @@
 /// Use of -fsycl-device-obj=spirv should not be effective during linking
 // RUN: touch %t.o
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -fsycl-device-obj=spirv -### %t.o 2>&1 | \
-// RUN:  FileCheck %s -check-prefixes=OPT_WARNING,LLVM_SPIRV_R
-// OPT_WARNING: warning: argument unused during compilation: '-fsycl-device-obj=spirv'
+// RUN:  FileCheck %s -check-prefixes=LLVM_SPIRV_R
 // LLVM_SPIRV_R: clang-linker-wrapper{{.*}}

@@ -1,4 +1,4 @@
-// RUN: %{build} -std=c++17 -o %t.out
+// RUN: %{build} %cxx_std_optionc++17 -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -std=c++17 -o %t2.out %}

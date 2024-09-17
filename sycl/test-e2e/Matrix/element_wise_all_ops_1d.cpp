@@ -6,12 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
+// REQUIRES-INTEL-DRIVER: lin: 30049
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out
-
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 #include "common.hpp"
 #include "element_wise_all_ops_impl.hpp"

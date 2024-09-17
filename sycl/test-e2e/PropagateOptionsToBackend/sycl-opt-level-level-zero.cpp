@@ -1,13 +1,13 @@
 // REQUIRES: level_zero
 
 // RUN: %{build} %if cl_options %{/Od%} %else %{-O0%} -o %t0.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECK0
+// RUN: env SYCL_UR_TRACE=2 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECK0
 // RUN: %{build} -O1 -o %t1.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
 // RUN: %{build} -O2 -o %t2.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
 // RUN: %{build} -O3 -o %t3.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
 
 // This test verifies the propagation of front-end compiler optimization
 // option to the backend.

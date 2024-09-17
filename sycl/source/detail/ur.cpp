@@ -23,6 +23,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
+#include <ur_api.h>
 
 #include <bitset>
 #include <cstdarg>
@@ -49,9 +50,9 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
   const auto &Plugin = impl->getPlugin();
-  Plugin->call(urContextSetExtendedDeleter, impl->getHandleRef(),
-               reinterpret_cast<ur_context_extended_deleter_t>(func),
-               user_data);
+  Plugin->call<UrApiKind::urContextSetExtendedDeleter>(
+      impl->getHandleRef(),
+      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
 }
 } // namespace pi
 
@@ -74,8 +75,13 @@ void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
   return nullptr;
 }
 
+ur_code_location_t codeLocationCallback(void *);
+
 namespace ur {
-bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
+bool trace(TraceLevel Level) {
+  auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
+  return (TraceLevelMask & Level) == Level;
+}
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig);
@@ -84,79 +90,113 @@ bool XPTIInitDone = false;
 
 // Initializes all available Plugins.
 std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = [=]() {
+    // TODO: Remove this SYCL_PI_TRACE notification in the first patch release
+    // after the next ABI breaking window.
+    if (std::getenv("SYCL_PI_TRACE")) {
+      std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
+      std::exit(1);
+    }
+
     initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
-  });
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
   return GlobalHandler::instance().getPlugins();
 }
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins,
                               ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call)                                                 \
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
+#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
+
+  UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
+  auto loaderConfigCreate =
+      loaderConfigCreateInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigEnableLayer> loaderConfigEnableLayerInfo;
+  auto loaderConfigEnableLayer =
+      loaderConfigEnableLayerInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigRelease> loaderConfigReleaseInfo;
+  auto loaderConfigRelease =
+      loaderConfigReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigSetCodeLocationCallback>
+      loaderConfigSetCodeLocationCallbackInfo;
+  auto loaderConfigSetCodeLocationCallback =
+      loaderConfigSetCodeLocationCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderInit> loaderInitInfo;
+  auto loaderInit =
+      loaderInitInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGet> adapterGet_Info;
+  auto adapterGet =
+      adapterGet_Info.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
+  auto adapterGetInfo =
+      adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
-  // If we weren't provided with a custom config handle create our own and
-  // enable full validation by default.
+  // If we weren't provided with a custom config handle create our own.
   if(!LoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig,
-                                               "UR_LAYER_PARAMETER_VALIDATION"))
+    CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
 
-  auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
-  if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
-    const char *LogOptions = "level:info;output:stdout;flush:info";
+  const char *LogOptions = "level:info;output:stdout;flush:info";
+  if (trace(TraceLevel::TRACE_CALLS)) {
 #ifdef _WIN32
     _putenv_s("UR_LOG_TRACING", LogOptions);
-    _putenv_s("UR_LOG_LOADER", LogOptions);
 #else
     setenv("UR_LOG_TRACING", LogOptions, 1);
+#endif
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+  }
+
+  if (trace(TraceLevel::TRACE_BASIC)) {
+#ifdef _WIN32
+    _putenv_s("UR_LOG_LOADER", LogOptions);
+#else
     setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
   }
 
-  if (std::getenv("UR_LOG_TRACING")) {
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
-  }
-
-  CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(
+  CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
-  urLoaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                        nullptr);
+  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
+                                      nullptr);
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
   ur_device_init_flags_t device_flags = 0;
-  CHECK_UR_SUCCESS(urLoaderInit(device_flags, LoaderConfig));
+  CHECK_UR_SUCCESS(loaderInit(device_flags, LoaderConfig));
 
   if (OwnLoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigRelease(LoaderConfig));
+    CHECK_UR_SUCCESS(loaderConfigRelease(LoaderConfig));
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(urAdapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
-  CHECK_UR_SUCCESS(urAdapterGet(adapterCount, adapters.data(), nullptr));
+  CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
   auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
     switch (backend) {
@@ -179,9 +219,9 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 
   for (const auto &adapter : adapters) {
     ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
-    CHECK_UR_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                                      sizeof(adapterBackend), &adapterBackend,
-                                      nullptr));
+    CHECK_UR_SUCCESS(adapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
+                                    sizeof(adapterBackend), &adapterBackend,
+                                    nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
     Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
   }
@@ -290,7 +330,8 @@ static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
 
   // End early if we do not have the expected number of section headers or
   // if the read section string header index is out-of-range.
-  if (ImgSize < SectionHeaderOffset + SectionHeaderNum * SectionHeaderSize ||
+  if (ImgSize < SectionHeaderOffset + static_cast<uint64_t>(SectionHeaderNum) *
+                                          SectionHeaderSize ||
       SectionStringsHeaderIndex >= SectionHeaderNum)
     return false;
 
