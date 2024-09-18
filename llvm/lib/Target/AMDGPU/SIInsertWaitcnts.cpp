@@ -699,7 +699,8 @@ public:
     // these should use VM_CNT.
     if (!ST->hasVscnt() || SIInstrInfo::mayWriteLDSThroughDMA(Inst))
       return VMEM_ACCESS;
-    if (Inst.mayStore() && !SIInstrInfo::isAtomicRet(Inst)) {
+    if (Inst.mayStore() &&
+        (!Inst.mayLoad() || SIInstrInfo::isAtomicNoRet(Inst))) {
       // FLAT and SCRATCH instructions may access scratch. Other VMEM
       // instructions do not.
       if (SIInstrInfo::isFLAT(Inst) && mayAccessScratchThroughFlat(Inst))
@@ -2610,6 +2611,7 @@ bool SIInsertWaitcnts::runOnMachineFunction(MachineFunction &MF) {
     Modified = true;
   }
   ReleaseVGPRInsts.clear();
+  SLoadAddresses.clear();
 
   return Modified;
 }

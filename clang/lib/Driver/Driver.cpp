@@ -152,7 +152,7 @@ static std::optional<llvm::Triple>
 getHIPOffloadTargetTriple(const Driver &D, const ArgList &Args) {
   if (!Args.hasArg(options::OPT_offload_EQ)) {
     auto OffloadArchs = Args.getAllArgValues(options::OPT_offload_arch_EQ);
-    if (llvm::find(OffloadArchs, "amdgcnspirv") != OffloadArchs.cend()) {
+    if (llvm::is_contained(OffloadArchs, "amdgcnspirv")) {
       if (OffloadArchs.size() == 1)
         return llvm::Triple("spirv64-amd-amdhsa");
       // Mixing specific & SPIR-V compilation is not supported for now.
@@ -393,8 +393,7 @@ phases::ID Driver::getFinalPhase(const DerivedArgList &DAL,
     FinalPhase = phases::Compile;
 
   // -S only runs up to the backend.
-  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S)) ||
-             (PhaseArg = DAL.getLastArg(options::OPT_fsycl_device_only))) {
+  } else if ((PhaseArg = DAL.getLastArg(options::OPT_S))) {
     FinalPhase = phases::Backend;
 
   // -c compilation only runs up to the assembler.
@@ -841,17 +840,16 @@ static bool addSYCLDefaultTriple(Compilation &C,
     return false;
   if (C.getInputArgs().hasArg(options::OPT_fsycl_force_target_EQ))
     return false;
+  llvm::Triple DefaultTriple =
+      C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
   for (const auto &SYCLTriple : SYCLTriples) {
-    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIROrSPIRV())
+    if (SYCLTriple == DefaultTriple)
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
       return false;
   }
   // Add the default triple as it was not found.
-  llvm::Triple DefaultTriple =
-      C.getDriver().MakeSYCLDeviceTriple(getDefaultSYCLArch(C));
   SYCLTriples.insert(SYCLTriples.begin(), DefaultTriple);
   return true;
 }
@@ -876,11 +874,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                    }) ||
       C.getInputArgs().hasArg(options::OPT_hip_link) ||
       C.getInputArgs().hasArg(options::OPT_hipstdpar);
+  bool UseLLVMOffload = C.getInputArgs().hasArg(
+      options::OPT_foffload_via_llvm, options::OPT_fno_offload_via_llvm, false);
   if (IsCuda && IsHIP) {
     Diag(clang::diag::err_drv_mix_cuda_hip);
     return;
   }
-  if (IsCuda) {
+  if (IsCuda && !UseLLVMOffload) {
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     const llvm::Triple &HostTriple = HostTC->getTriple();
     auto OFK = Action::OFK_Cuda;
@@ -902,7 +902,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         CudaInstallation.WarnIfUnsupportedVersion();
     }
     C.addOffloadDeviceToolChain(CudaTC.get(), OFK);
-  } else if (IsHIP) {
+  } else if (IsHIP && !UseLLVMOffload) {
     if (auto *OMPTargetArg =
             C.getInputArgs().getLastArg(options::OPT_fopenmp_targets_EQ)) {
       Diag(clang::diag::err_drv_unsupported_opt_for_language_mode)
@@ -926,10 +926,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // We need to generate an OpenMP toolchain if the user specified targets with
   // the -fopenmp-targets option or used --offload-arch with OpenMP enabled.
   bool IsOpenMPOffloading =
-      C.getInputArgs().hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
-                               options::OPT_fno_openmp, false) &&
-      (C.getInputArgs().hasArg(options::OPT_fopenmp_targets_EQ) ||
-       C.getInputArgs().hasArg(options::OPT_offload_arch_EQ));
+      ((IsCuda || IsHIP) && UseLLVMOffload) ||
+      (C.getInputArgs().hasFlag(options::OPT_fopenmp, options::OPT_fopenmp_EQ,
+                                options::OPT_fno_openmp, false) &&
+       (C.getInputArgs().hasArg(options::OPT_fopenmp_targets_EQ) ||
+        C.getInputArgs().hasArg(options::OPT_offload_arch_EQ)));
   if (IsOpenMPOffloading) {
     // We expect that -fopenmp-targets is always used in conjunction with the
     // option -fopenmp specifying a valid runtime with offloading support, i.e.
@@ -957,7 +958,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       for (StringRef T : OpenMPTargets->getValues())
         OpenMPTriples.insert(T);
     } else if (C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) &&
-               !IsHIP && !IsCuda) {
+               ((!IsHIP && !IsCuda) || UseLLVMOffload)) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
       auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
@@ -1069,9 +1070,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   //
   // SYCL
   //
-  // We need to generate a SYCL toolchain if the user specified targets with
-  // the -fsycl-targets. If -fsycl is supplied without any of these we will
-  // assume SPIR-V.
+  // We need to generate a SYCL toolchain if the user specified -fsycl.
+  // If -fsycl is supplied without any of these we will assume SPIR-V.
   // Use of -fsycl-device-only overrides -fsycl.
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
@@ -1099,7 +1099,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   };
 
   Arg *SYCLTargets = getArgRequiringSYCLRuntime(options::OPT_fsycl_targets_EQ);
-  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
@@ -1121,8 +1120,8 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     if (!HasValidSYCLRuntime)
       return;
     if (Arg *IncompatArg = C.getInputArgs().getLastArg(OptId))
-      Diag(clang::diag::err_drv_fsycl_unsupported_with_opt)
-          << IncompatArg->getSpelling();
+      Diag(clang::diag::err_drv_argument_not_allowed_with)
+          << IncompatArg->getSpelling() << "-fsycl";
   };
   // -static-libstdc++ is not compatible with -fsycl.
   argSYCLIncompatible(options::OPT_static_libstdcxx);
@@ -1147,15 +1146,31 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     Diag(clang::diag::err_drv_invalid_argument_to_option)
         << ArgValue << A->getOption().getName();
   };
+
+  Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
+  checkSingleArgValidity(SYCLLink, {"early", "image"});
+
   Arg *DeviceCodeSplit =
       C.getInputArgs().getLastArg(options::OPT_fsycl_device_code_split_EQ);
-  checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
   Arg *RangeRoundingPreference =
       C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
   checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
+  // Evaluation of -fsycl-device-obj is slightly different, we will emit
+  // a warning and inform the user of the default behavior used.
+  // TODO: General usage of this option is to check for 'spirv' and fallthrough
+  // to using llvmir.  This can be improved to be more obvious in usage.
+  if (Arg *DeviceObj = C.getInputArgs().getLastArgNoClaim(
+          options::OPT_fsycl_device_obj_EQ)) {
+    StringRef ArgValue(DeviceObj->getValue());
+    SmallVector<StringRef, 2> DeviceObjValues = {"spirv", "llvmir"};
+    if (llvm::find(DeviceObjValues, ArgValue) == DeviceObjValues.end())
+      Diag(clang::diag::warn_ignoring_value_using_default)
+          << DeviceObj->getSpelling().split('=').first << ArgValue << "llvmir";
+  }
 
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
@@ -1276,8 +1291,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             << SYCLTargetsValues->getAsString(C.getInputArgs());
     }
   } else {
-    // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
-    // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
+    // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.
     if (HasValidSYCLRuntime) {
       StringRef SYCLTargetArch = getDefaultSYCLArch(C);
@@ -1295,10 +1309,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (auto &TT : UniqueSYCLTriplesVec) {
       if (TT.isNVPTX() || TT.isAMDGCN()) {
         Diag(diag::warn_flag_no_sycl_libspirv) << TT.getTriple();
-      } else {
-        Diag(diag::warn_drv_unsupported_option_for_target)
-            << "-fno-sycl-libspirv" << TT.getTriple();
+        continue;
       }
+      Diag(diag::warn_drv_unsupported_option_for_target)
+          << "-fno-sycl-libspirv" << TT.getTriple();
     }
   }
   // -fsycl-fp64-conv-emu is valid only for AOT compilation with an Intel GPU
@@ -1746,7 +1760,7 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
 
   if (const Arg *A = Args.getLastArg(
           options::OPT_offload_host_only, options::OPT_offload_device_only,
-          options::OPT_offload_host_device, options::OPT_fsycl_device_only)) {
+          options::OPT_fsycl_device_only, options::OPT_offload_host_device)) {
     if (A->getOption().matches(options::OPT_offload_host_only))
       Offload = OffloadHost;
     else if (A->getOption().matches(options::OPT_offload_device_only) ||
@@ -2607,7 +2621,7 @@ void Driver::HandleAutocompletions(StringRef PassedFlags) const {
   llvm::outs() << llvm::join(SuggestedCompletions, "\n") << '\n';
 }
 
-bool Driver::HandleImmediateArgs(const Compilation &C) {
+bool Driver::HandleImmediateArgs(Compilation &C) {
   // The order these options are handled in gcc is all over the place, but we
   // don't expect inconsistencies w.r.t. that to matter in practice.
 
@@ -2755,6 +2769,14 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
   if (C.getArgs().hasArg(options::OPT_print_libgcc_file_name)) {
     ToolChain::RuntimeLibType RLT = TC.GetRuntimeLibType(C.getArgs());
     const llvm::Triple Triple(TC.ComputeEffectiveClangTriple(C.getArgs()));
+    // The 'Darwin' toolchain is initialized only when its arguments are
+    // computed. Get the default arguments for OFK_None to ensure that
+    // initialization is performed before trying to access properties of
+    // the toolchain in the functions below.
+    // FIXME: Remove when darwin's toolchain is initialized during construction.
+    // FIXME: For some more esoteric targets the default toolchain is not the
+    //        correct one.
+    C.getArgsForToolChain(&TC, Triple.getArchName(), Action::OFK_None);
     RegisterEffectiveTriple TripleRAII(TC, Triple);
     switch (RLT) {
     case ToolChain::RLT_CompilerRT:
@@ -4424,7 +4446,7 @@ class OffloadingActionBuilder final {
         // a fat binary containing all the code objects for different GPU's.
         // The fat binary is then an input to the host action.
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
-          if (C.getDriver().isUsingLTO(/*IsOffload=*/true)) {
+          if (C.getDriver().isUsingOffloadLTO()) {
             // When LTO is enabled, skip the backend and assemble phases and
             // use lld to link the bitcode.
             ActionList AL;
@@ -5848,10 +5870,9 @@ class OffloadingActionBuilder final {
             ++NumOfDeviceLibLinked;
             Arg *InputArg = MakeInputArg(Args, C.getDriver().getOpts(),
                                          Args.MakeArgString(LibName));
-            if (TC->getTriple().isNVPTX() ||
-                (TC->getTriple().isSPIR() &&
-                 TC->getTriple().getSubArch() ==
-                     llvm::Triple::SPIRSubArch_fpga)) {
+            if (TC->getTriple().isSPIR() &&
+                TC->getTriple().getSubArch() ==
+                    llvm::Triple::SPIRSubArch_fpga) {
               auto *SYCLDeviceLibsInputAction =
                   C.MakeAction<InputAction>(*InputArg, types::TY_Object);
               auto *SYCLDeviceLibsUnbundleAction =
@@ -6844,6 +6865,10 @@ public:
   /// Offload deps output is then forwarded to active device action builders so
   /// they can add it to the device linker inputs.
   void addDeviceLinkDependenciesFromHost(ActionList &LinkerInputs) {
+    if (isSYCLNativeCPU(C.getArgs())) {
+      // SYCL Native CPU doesn't need deps from clang-offload-deps.
+      return;
+    }
     // Link image for reading dependencies from it.
     auto *LA = C.MakeAction<LinkJobAction>(LinkerInputs,
                                            types::TY_Host_Dependencies_Image);
@@ -7288,6 +7313,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
+      Args.hasFlag(options::OPT_foffload_via_llvm,
+                   options::OPT_fno_offload_via_llvm, false) ||
       Args.hasFlag(options::OPT_offload_new_driver,
                    options::OPT_no_offload_new_driver, false);
 
@@ -8128,12 +8155,10 @@ Action *Driver::ConstructPhaseAction(
         Output = types::TY_LTO_BC;
       return C.MakeAction<BackendJobAction>(Input, Output);
     }
-    if (isUsingLTO(/* IsOffload */ true) &&
-        TargetDeviceOffloadKind != Action::OFK_None) {
+    if (isUsingOffloadLTO() && TargetDeviceOffloadKind != Action::OFK_None) {
       types::ID Output =
           Args.hasArg(options::OPT_S) ? types::TY_LTO_IR : types::TY_LTO_BC;
-      if (getUseNewOffloadingDriver() &&
-          getLTOMode(/*IsDeviceOffloadAction=*/true) == LTOK_Thin &&
+      if (getUseNewOffloadingDriver() && getOffloadLTOMode() == LTOK_Thin &&
           TargetDeviceOffloadKind == Action::OFK_SYCL) {
         // For SYCL with thinLTO, run sycl-post-link, extract the BC files from
         // the output table, run the backend on each output table.

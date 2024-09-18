@@ -28,13 +28,18 @@ constexpr int DebugModuleProps = 0;
 #endif
 
 namespace llvm::sycl {
+
 bool isModuleUsingAsan(const Module &M) {
-  NamedMDNode *MD = M.getNamedMetadata("device.sanitizer");
-  if (MD == nullptr)
-    return false;
-  assert(MD->getNumOperands() != 0);
-  auto *MDVal = cast<MDString>(MD->getOperand(0)->getOperand(0));
-  return MDVal->getString() == "asan";
+  for (const auto &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+    if (F.arg_size() == 0)
+      continue;
+    const auto *LastArg = F.getArg(F.arg_size() - 1);
+    if (LastArg->getName() == "__asan_launch")
+      return true;
+  }
+  return false;
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -133,9 +138,7 @@ uint32_t getKernelWorkGroupNumDim(const Function &Func) {
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps,
-                                     bool SpecConstsMet,
-                                     bool IsSpecConstantDefault) {
+                                     const GlobalBinImageProps &GlobProps) {
 
   PropSetRegTy PropSet;
   {
@@ -147,18 +150,29 @@ PropSetRegTy computeModuleProperties(const Module &M,
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                 computeDeviceRequirements(M, EntryPoints).asMap());
   }
-  if (SpecConstsMet) {
-    // extract spec constant maps per each module
-    SpecIDMapTy TmpSpecIDMap;
-    SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
+
+  // extract spec constant maps per each module
+  SpecIDMapTy TmpSpecIDMap;
+  SpecConstantsPass::collectSpecConstantMetadata(M, TmpSpecIDMap);
+  if (!TmpSpecIDMap.empty()) {
     PropSet.add(PropSetRegTy::SYCL_SPECIALIZATION_CONSTANTS, TmpSpecIDMap);
 
     // Add property with the default values of spec constants
     std::vector<char> DefaultValues;
     SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(M,
                                                                 DefaultValues);
+    assert(!DefaultValues.empty() &&
+           "Expected metadata for spec constant defaults.");
     PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
                 DefaultValues);
+  } else {
+#ifndef NDEBUG
+    std::vector<char> DefaultValues;
+    SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(M,
+                                                                DefaultValues);
+    assert(DefaultValues.empty() &&
+           "Unexpected metadata for spec constant defaults.");
+#endif
   }
   if (GlobProps.EmitKernelParamInfo) {
     // extract kernel parameter optimization info per module
@@ -364,7 +378,10 @@ PropSetRegTy computeModuleProperties(const Module &M,
   if (!HostPipePropertyMap.empty()) {
     PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
   }
-
+  bool IsSpecConstantDefault =
+      M.getNamedMetadata(
+          SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING) !=
+      nullptr;
   if (IsSpecConstantDefault)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
                 1);

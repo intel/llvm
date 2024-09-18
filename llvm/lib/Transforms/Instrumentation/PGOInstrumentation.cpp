@@ -110,7 +110,6 @@
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/BlockCoverageInference.h"
 #include "llvm/Transforms/Instrumentation/CFGMST.h"
-#include "llvm/Transforms/Instrumentation/PGOCtxProfLowering.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/MisExpect.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -338,19 +337,43 @@ extern cl::opt<bool> EnableVTableProfileUse;
 extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
 } // namespace llvm
 
-bool shouldInstrumentEntryBB() {
-  return PGOInstrumentEntry ||
-         PGOCtxProfLoweringPass::isContextualIRPGOEnabled();
-}
+namespace {
+class FunctionInstrumenter final {
+  Module &M;
+  Function &F;
+  TargetLibraryInfo &TLI;
+  std::unordered_multimap<Comdat *, GlobalValue *> &ComdatMembers;
+  BranchProbabilityInfo *const BPI;
+  BlockFrequencyInfo *const BFI;
 
-// FIXME(mtrofin): re-enable this for ctx profiling, for non-indirect calls. Ctx
-// profiling implicitly captures indirect call cases, but not other values.
-// Supporting other values is relatively straight-forward - just another counter
-// range within the context.
-bool isValueProfilingDisabled() {
-  return DisableValueProfiling ||
-         PGOCtxProfLoweringPass::isContextualIRPGOEnabled();
-}
+  const PGOInstrumentationType InstrumentationType;
+
+  // FIXME(mtrofin): re-enable this for ctx profiling, for non-indirect calls.
+  // Ctx profiling implicitly captures indirect call cases, but not other
+  // values. Supporting other values is relatively straight-forward - just
+  // another counter range within the context.
+  bool isValueProfilingDisabled() const {
+    return DisableValueProfiling ||
+           InstrumentationType == PGOInstrumentationType::CTXPROF;
+  }
+
+  bool shouldInstrumentEntryBB() const {
+    return PGOInstrumentEntry ||
+           InstrumentationType == PGOInstrumentationType::CTXPROF;
+  }
+
+public:
+  FunctionInstrumenter(
+      Module &M, Function &F, TargetLibraryInfo &TLI,
+      std::unordered_multimap<Comdat *, GlobalValue *> &ComdatMembers,
+      BranchProbabilityInfo *BPI = nullptr, BlockFrequencyInfo *BFI = nullptr,
+      PGOInstrumentationType InstrumentationType = PGOInstrumentationType::FDO)
+      : M(M), F(F), TLI(TLI), ComdatMembers(ComdatMembers), BPI(BPI), BFI(BFI),
+        InstrumentationType(InstrumentationType) {}
+
+  void instrument();
+};
+} // namespace
 
 // Return a string describing the branch condition that can be
 // used in static branch probability heuristics:
@@ -392,13 +415,16 @@ static const char *ValueProfKindDescr[] = {
 
 // Create a COMDAT variable INSTR_PROF_RAW_VERSION_VAR to make the runtime
 // aware this is an ir_level profile so it can set the version flag.
-static GlobalVariable *createIRLevelProfileFlagVar(Module &M, bool IsCS) {
+static GlobalVariable *
+createIRLevelProfileFlagVar(Module &M,
+                            PGOInstrumentationType InstrumentationType) {
   const StringRef VarName(INSTR_PROF_QUOTE(INSTR_PROF_RAW_VERSION_VAR));
   Type *IntTy64 = Type::getInt64Ty(M.getContext());
   uint64_t ProfileVersion = (INSTR_PROF_RAW_VERSION | VARIANT_MASK_IR_PROF);
-  if (IsCS)
+  if (InstrumentationType == PGOInstrumentationType::CSFDO)
     ProfileVersion |= VARIANT_MASK_CSIR_PROF;
-  if (shouldInstrumentEntryBB())
+  if (PGOInstrumentEntry ||
+      InstrumentationType == PGOInstrumentationType::CTXPROF)
     ProfileVersion |= VARIANT_MASK_INSTR_ENTRY;
   if (DebugInfoCorrelate || ProfileCorrelate == InstrProfCorrelator::DEBUG_INFO)
     ProfileVersion |= VARIANT_MASK_DBG_CORRELATE;
@@ -868,11 +894,7 @@ populateEHOperandBundle(VPCandidateInfo &Cand,
 
 // Visit all edge and instrument the edges not in MST, and do value profiling.
 // Critical edges will be split.
-static void instrumentOneFunc(
-    Function &F, Module *M, TargetLibraryInfo &TLI, BranchProbabilityInfo *BPI,
-    BlockFrequencyInfo *BFI,
-    std::unordered_multimap<Comdat *, GlobalValue *> &ComdatMembers,
-    bool IsCS) {
+void FunctionInstrumenter::instrument() {
   if (!PGOBlockCoverage) {
     // Split indirectbr critical edges here before computing the MST rather than
     // later in getInstrBB() to avoid invalidating it.
@@ -880,19 +902,20 @@ static void instrumentOneFunc(
   }
 
   FuncPGOInstrumentation<PGOEdge, PGOBBInfo> FuncInfo(
-      F, TLI, ComdatMembers, true, BPI, BFI, IsCS, shouldInstrumentEntryBB(),
-      PGOBlockCoverage);
+      F, TLI, ComdatMembers, true, BPI, BFI,
+      InstrumentationType == PGOInstrumentationType::CSFDO,
+      shouldInstrumentEntryBB(), PGOBlockCoverage);
 
   auto Name = FuncInfo.FuncNameVar;
-  auto CFGHash = ConstantInt::get(Type::getInt64Ty(M->getContext()),
-                                  FuncInfo.FunctionHash);
+  auto CFGHash =
+      ConstantInt::get(Type::getInt64Ty(M.getContext()), FuncInfo.FunctionHash);
   if (PGOFunctionEntryCoverage) {
     auto &EntryBB = F.getEntryBlock();
     IRBuilder<> Builder(&EntryBB, EntryBB.getFirstInsertionPt());
     // llvm.instrprof.cover(i8* <name>, i64 <hash>, i32 <num-counters>,
     //                      i32 <index>)
     Builder.CreateCall(
-        Intrinsic::getDeclaration(M, Intrinsic::instrprof_cover),
+        Intrinsic::getDeclaration(&M, Intrinsic::instrprof_cover),
         {Name, CFGHash, Builder.getInt32(1), Builder.getInt32(0)});
     return;
   }
@@ -902,9 +925,9 @@ static void instrumentOneFunc(
   unsigned NumCounters =
       InstrumentBBs.size() + FuncInfo.SIVisitor.getNumOfSelectInsts();
 
-  if (PGOCtxProfLoweringPass::isContextualIRPGOEnabled()) {
+  if (InstrumentationType == PGOInstrumentationType::CTXPROF) {
     auto *CSIntrinsic =
-        Intrinsic::getDeclaration(M, Intrinsic::instrprof_callsite);
+        Intrinsic::getDeclaration(&M, Intrinsic::instrprof_callsite);
     // We want to count the instrumentable callsites, then instrument them. This
     // is because the llvm.instrprof.callsite intrinsic has an argument (like
     // the other instrprof intrinsics) capturing the total number of
@@ -947,7 +970,7 @@ static void instrumentOneFunc(
     // llvm.instrprof.timestamp(i8* <name>, i64 <hash>, i32 <num-counters>,
     //                          i32 <index>)
     Builder.CreateCall(
-        Intrinsic::getDeclaration(M, Intrinsic::instrprof_timestamp),
+        Intrinsic::getDeclaration(&M, Intrinsic::instrprof_timestamp),
         {Name, CFGHash, Builder.getInt32(NumCounters), Builder.getInt32(I)});
     I += PGOBlockCoverage ? 8 : 1;
   }
@@ -959,9 +982,9 @@ static void instrumentOneFunc(
     // llvm.instrprof.increment(i8* <name>, i64 <hash>, i32 <num-counters>,
     //                          i32 <index>)
     Builder.CreateCall(
-        Intrinsic::getDeclaration(M, PGOBlockCoverage
-                                         ? Intrinsic::instrprof_cover
-                                         : Intrinsic::instrprof_increment),
+        Intrinsic::getDeclaration(&M, PGOBlockCoverage
+                                          ? Intrinsic::instrprof_cover
+                                          : Intrinsic::instrprof_increment),
         {Name, CFGHash, Builder.getInt32(NumCounters), Builder.getInt32(I++)});
   }
 
@@ -1008,7 +1031,7 @@ static void instrumentOneFunc(
       SmallVector<OperandBundleDef, 1> OpBundles;
       populateEHOperandBundle(Cand, BlockColors, OpBundles);
       Builder.CreateCall(
-          Intrinsic::getDeclaration(M, Intrinsic::instrprof_value_profile),
+          Intrinsic::getDeclaration(&M, Intrinsic::instrprof_value_profile),
           {FuncInfo.FuncNameVar, Builder.getInt64(FuncInfo.FunctionHash),
            ToProfile, Builder.getInt32(Kind), Builder.getInt32(SiteIndex++)},
           OpBundles);
@@ -1096,7 +1119,7 @@ public:
       : F(Func), M(Modu), BFI(BFIin), PSI(PSI),
         FuncInfo(Func, TLI, ComdatMembers, false, BPI, BFIin, IsCS,
                  InstrumentFuncEntry, HasSingleByteCoverage),
-        FreqAttr(FFA_Normal), IsCS(IsCS) {}
+        FreqAttr(FFA_Normal), IsCS(IsCS), VPC(Func, TLI) {}
 
   void handleInstrProfError(Error Err, uint64_t MismatchedFuncSum);
 
@@ -1177,6 +1200,8 @@ private:
 
   // Is to use the context sensitive profile.
   bool IsCS;
+
+  ValueProfileCollector VPC;
 
   // Find the Instrumented BB and set the value. Return false on error.
   bool setInstrumentedCounts(const std::vector<uint64_t> &CountFromProfile);
@@ -1741,7 +1766,7 @@ static uint32_t getMaxNumAnnotations(InstrProfValueKind ValueProfKind) {
 
 // Traverse all valuesites and annotate the instructions for all value kind.
 void PGOUseFunc::annotateValueSites() {
-  if (isValueProfilingDisabled())
+  if (DisableValueProfiling)
     return;
 
   // Create the PGOFuncName meta data.
@@ -1755,8 +1780,23 @@ void PGOUseFunc::annotateValueSites() {
 void PGOUseFunc::annotateValueSites(uint32_t Kind) {
   assert(Kind <= IPVK_Last);
   unsigned ValueSiteIndex = 0;
-  auto &ValueSites = FuncInfo.ValueSites[Kind];
+
   unsigned NumValueSites = ProfileRecord.getNumValueSites(Kind);
+
+  // Since there isn't a reliable or fast way for profile reader to tell if a
+  // profile is generated with `-enable-vtable-value-profiling` on, we run the
+  // value profile collector over the function IR to find the instrumented sites
+  // iff function profile records shows the number of instrumented vtable sites
+  // is not zero. Function cfg already takes the number of instrumented
+  // indirect call sites into account so it doesn't hash the number of
+  // instrumented vtables; as a side effect it makes it easier to enable
+  // profiling and profile use in two steps if needed.
+  // TODO: Remove this if/when -enable-vtable-value-profiling is on by default.
+  if (NumValueSites > 0 && Kind == IPVK_VTableTarget &&
+      NumValueSites != FuncInfo.ValueSites[IPVK_VTableTarget].size() &&
+      MaxNumVTableAnnotations != 0)
+    FuncInfo.ValueSites[IPVK_VTableTarget] = VPC.get(IPVK_VTableTarget);
+  auto &ValueSites = FuncInfo.ValueSites[Kind];
   if (NumValueSites != ValueSites.size()) {
     auto &Ctx = M->getContext();
     Ctx.diagnose(DiagnosticInfoPGOProfile(
@@ -1841,11 +1881,12 @@ static bool skipPGOGen(const Function &F) {
 static bool InstrumentAllFunctions(
     Module &M, function_ref<TargetLibraryInfo &(Function &)> LookupTLI,
     function_ref<BranchProbabilityInfo *(Function &)> LookupBPI,
-    function_ref<BlockFrequencyInfo *(Function &)> LookupBFI, bool IsCS) {
+    function_ref<BlockFrequencyInfo *(Function &)> LookupBFI,
+    PGOInstrumentationType InstrumentationType) {
   // For the context-sensitve instrumentation, we should have a separated pass
   // (before LTO/ThinLTO linking) to create these variables.
-  if (!IsCS && !PGOCtxProfLoweringPass::isContextualIRPGOEnabled())
-    createIRLevelProfileFlagVar(M, /*IsCS=*/false);
+  if (InstrumentationType == PGOInstrumentationType::FDO)
+    createIRLevelProfileFlagVar(M, InstrumentationType);
 
   Triple TT(M.getTargetTriple());
   LLVMContext &Ctx = M.getContext();
@@ -1864,7 +1905,9 @@ static bool InstrumentAllFunctions(
     auto &TLI = LookupTLI(F);
     auto *BPI = LookupBPI(F);
     auto *BFI = LookupBFI(F);
-    instrumentOneFunc(F, &M, TLI, BPI, BFI, ComdatMembers, IsCS);
+    FunctionInstrumenter FI(M, F, TLI, ComdatMembers, BPI, BFI,
+                            InstrumentationType);
+    FI.instrument();
   }
   return true;
 }
@@ -1874,7 +1917,10 @@ PGOInstrumentationGenCreateVar::run(Module &M, ModuleAnalysisManager &MAM) {
   createProfileFileNameVar(M, CSInstrName);
   // The variable in a comdat may be discarded by LTO. Ensure the declaration
   // will be retained.
-  appendToCompilerUsed(M, createIRLevelProfileFlagVar(M, /*IsCS=*/true));
+  appendToCompilerUsed(
+      M, createIRLevelProfileFlagVar(M, PGOInstrumentationType::CSFDO));
+  if (ProfileSampling)
+    createProfileSamplingVar(M);
   PreservedAnalyses PA;
   PA.preserve<FunctionAnalysisManagerModuleProxy>();
   PA.preserveSet<AllAnalysesOn<Function>>();
@@ -1894,7 +1940,8 @@ PreservedAnalyses PGOInstrumentationGen::run(Module &M,
     return &FAM.getResult<BlockFrequencyAnalysis>(F);
   };
 
-  if (!InstrumentAllFunctions(M, LookupTLI, LookupBPI, LookupBFI, IsCS))
+  if (!InstrumentAllFunctions(M, LookupTLI, LookupBPI, LookupBFI,
+                              InstrumentationType))
     return PreservedAnalyses::all();
 
   return PreservedAnalyses::none();
@@ -2093,7 +2140,6 @@ static bool annotateAllFunctions(
   bool InstrumentFuncEntry = PGOReader->instrEntryBBEnabled();
   if (PGOInstrumentEntry.getNumOccurrences() > 0)
     InstrumentFuncEntry = PGOInstrumentEntry;
-  InstrumentFuncEntry |= PGOCtxProfLoweringPass::isContextualIRPGOEnabled();
 
   bool HasSingleByteCoverage = PGOReader->hasSingleByteCoverage();
   for (auto &F : M) {

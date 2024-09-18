@@ -1,0 +1,68 @@
+diff --git a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp b/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp
+index 147b6010228a..9173ff2ac48b 100644
+--- a/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp
++++ b/clang/tools/clang-linker-wrapper/ClangLinkerWrapper.cpp
+@@ -154,6 +154,8 @@ static std::atomic<bool> LTOError;
+ 
+ static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
+ 
++static bool UseSYCLPostLinkTool;
++
+ SmallString<128> SPIRVDumpDir;
+ 
+ using OffloadingImage = OffloadBinary::OffloadingImage;
+@@ -2392,10 +2394,10 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
+       SmallVector<StringRef> InputFilesSYCL;
+       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
+       auto SplitModulesOrErr =
+-          SYCLModuleSplitMode
+-              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
+-                                          *SYCLModuleSplitMode)
+-              : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
++          UseSYCLPostLinkTool
++              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
++              : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
++                                          *SYCLModuleSplitMode);
+       if (!SplitModulesOrErr)
+         return SplitModulesOrErr.takeError();
+ 
+@@ -2961,7 +2963,19 @@ int main(int Argc, char **Argv) {
+     timeTraceProfilerInitialize(Granularity, Argv[0]);
+   }
+ 
++  UseSYCLPostLinkTool = Args.hasFlag(OPT_use_sycl_post_link_tool,
++                                     OPT_no_use_sycl_post_link_tool, true);
++  if (!UseSYCLPostLinkTool && Args.hasArg(OPT_use_sycl_post_link_tool))
++    reportError(createStringError("-use-sycl-post-link-tool and "
++                                  "-no-use-sycl-post-link-tool options can't "
++                                  "be used together."));
++
+   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
++    if (UseSYCLPostLinkTool)
++      reportError(createStringError(
++          "-sycl-module-split-mode should be used with "
++          "the -no-use-sycl-post-link-tool command line option."));
++
+     StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
+     SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
+     if (!SYCLModuleSplitMode)
+diff --git a/clang/tools/clang-linker-wrapper/LinkerWrapperOpts.td b/clang/tools/clang-linker-wrapper/LinkerWrapperOpts.td
+index 2926a08c8759..60a13b23ba30 100644
+--- a/clang/tools/clang-linker-wrapper/LinkerWrapperOpts.td
++++ b/clang/tools/clang-linker-wrapper/LinkerWrapperOpts.td
+@@ -184,6 +184,15 @@ def sycl_module_split_mode_EQ :
+   Flags<[WrapperOnlyOption]>,
+   HelpText<"Option that turns on split library with the given split mode">;
+ 
++// TODO: Options will be removed when the sycl-post-link tool becomes removed.
++def use_sycl_post_link_tool : Flag<["--", "-"], "use-sycl-post-link-tool">,
++  Flags<[WrapperOnlyOption]>,
++  HelpText<"Use the sycl-post-link tool. On by default">;
++
++def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">,
++  Flags<[WrapperOnlyOption]>,
++  HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
++
+ // Special option to pass in llvm-spirv options
+ def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
+   Flags<[WrapperOnlyOption]>,

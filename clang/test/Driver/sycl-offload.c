@@ -69,6 +69,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
+/// -fsycl-device-obj argument check
+// RUN: %clang -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// RUN: %clang_cl -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// DEVICE_OBJ_WARN: warning: ignoring invalid '-fsycl-device-obj' value 'test', using default value 'llvmir' [-Wunused-command-line-argument]
+
 /// ###########################################################################
 
 /// Check warning for duplicate offloading targets.
@@ -507,7 +514,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
 // RUN:   not %clang -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
-// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
+// CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl --offload-new-driver should not emit IR
 // RUN:   %clang -### -fsycl --offload-new-driver -fsyntax-only %s 2>&1 \

@@ -272,52 +272,6 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.end_recording();
 }
 
-TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  device D;
-  if (!D.get_info<
-          ext::codeplay::experimental::info::device::supports_fusion>()) {
-    // Skip this test if the device does not support fusion. Otherwise, the
-    // queue construction in the next step would fail.
-    GTEST_SKIP();
-  }
-
-  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph{
-      Q.get_context(), Q.get_device()};
-
-  ext::codeplay::experimental::fusion_wrapper fw{Q};
-
-  // Test: Start fusion on a queue that is in recording mode
-  Graph.begin_recording(Q);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    fw.start_fusion();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Q);
-
-  // Test: begin recording a queue in fusion mode
-
-  fw.start_fusion();
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.begin_recording(Q);
-  } catch (exception &Exception) {
-    // Ensure fusion wrapper references are released now, otherwise we can end
-    // up trying to release backend objects after the mock backend has been
-    // unloaded.
-    fw.cancel_fusion();
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
   constexpr size_t RECT_WIDTH = 30;
   constexpr size_t RECT_HEIGHT = 21;
@@ -359,6 +313,26 @@ TEST_F(CommandGraphTest, Reductions) {
             CGH.parallel_for<class CustomTestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus<>()),
                 [=](item<1> idx, auto &Sum) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Test that using sycl streams in a graph node will throw
+TEST_F(CommandGraphTest, Streams) {
+  ASSERT_THROW(
+      {
+        size_t WorkItems = 16;
+        try {
+          Graph.add([&](handler &CGH) {
+            sycl::stream Out(WorkItems * 16, 16, CGH);
+            CGH.parallel_for<class CustomTestKernel>(
+                range<1>(WorkItems),
+                [=](item<1> id) { Out << id.get_linear_id() << sycl::endl; });
           });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));

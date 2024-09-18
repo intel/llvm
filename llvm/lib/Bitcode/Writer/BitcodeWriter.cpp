@@ -727,6 +727,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_HOT;
   case Attribute::ElementType:
     return bitc::ATTR_KIND_ELEMENTTYPE;
+  case Attribute::HybridPatchable:
+    return bitc::ATTR_KIND_HYBRID_PATCHABLE;
   case Attribute::InlineHint:
     return bitc::ATTR_KIND_INLINE_HINT;
   case Attribute::InReg:
@@ -841,6 +843,8 @@ static uint64_t getAttrKindEncoding(Attribute::AttrKind Kind) {
     return bitc::ATTR_KIND_SANITIZE_MEMORY;
   case Attribute::SanitizeNumericalStability:
     return bitc::ATTR_KIND_SANITIZE_NUMERICAL_STABILITY;
+  case Attribute::SanitizeRealtime:
+    return bitc::ATTR_KIND_SANITIZE_REALTIME;
   case Attribute::SpeculativeLoadHardening:
     return bitc::ATTR_KIND_SPECULATIVE_LOAD_HARDENING;
   case Attribute::SwiftError:
@@ -1086,8 +1090,9 @@ void ModuleBitcodeWriter::writeTypeTable() {
     case Type::FP128TyID:     Code = bitc::TYPE_CODE_FP128;     break;
     case Type::PPC_FP128TyID: Code = bitc::TYPE_CODE_PPC_FP128; break;
     case Type::LabelTyID:     Code = bitc::TYPE_CODE_LABEL;     break;
-    case Type::MetadataTyID:  Code = bitc::TYPE_CODE_METADATA;  break;
-    case Type::X86_MMXTyID:   Code = bitc::TYPE_CODE_X86_MMX;   break;
+    case Type::MetadataTyID:
+      Code = bitc::TYPE_CODE_METADATA;
+      break;
     case Type::X86_AMXTyID:   Code = bitc::TYPE_CODE_X86_AMX;   break;
     case Type::TokenTyID:     Code = bitc::TYPE_CODE_TOKEN;     break;
     case Type::IntegerTyID:
@@ -2815,9 +2820,9 @@ void ModuleBitcodeWriter::writeConstants(unsigned FirstVal, unsigned LastVal,
           Code = bitc::CST_CODE_CE_GEP_WITH_INRANGE;
           emitConstantRange(Record, *Range, /*EmitBitWidth=*/true);
         }
-        for (unsigned i = 0, e = CE->getNumOperands(); i != e; ++i) {
-          Record.push_back(VE.getTypeID(C->getOperand(i)->getType()));
-          Record.push_back(VE.getValueID(C->getOperand(i)));
+        for (const Value *Op : CE->operands()) {
+          Record.push_back(VE.getTypeID(Op->getType()));
+          Record.push_back(VE.getValueID(Op));
         }
         break;
       }
@@ -3003,8 +3008,8 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     auto &GEPInst = cast<GetElementPtrInst>(I);
     Vals.push_back(getOptimizationFlags(&I));
     Vals.push_back(VE.getTypeID(GEPInst.getSourceElementType()));
-    for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
-      pushValueAndType(I.getOperand(i), InstID, Vals);
+    for (const Value *Op : I.operands())
+      pushValueAndType(Op, InstID, Vals);
     break;
   }
   case Instruction::ExtractValue: {
@@ -3073,8 +3078,8 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
         if (!pushValueAndType(I.getOperand(0), InstID, Vals))
           AbbrevToUse = FUNCTION_INST_RET_VAL_ABBREV;
       } else {
-        for (unsigned i = 0, e = NumOperands; i != e; ++i)
-          pushValueAndType(I.getOperand(i), InstID, Vals);
+        for (const Value *Op : I.operands())
+          pushValueAndType(Op, InstID, Vals);
       }
     }
     break;
@@ -3107,8 +3112,8 @@ void ModuleBitcodeWriter::writeInstruction(const Instruction &I,
     Vals.push_back(VE.getTypeID(I.getOperand(0)->getType()));
     // Encode the address operand as relative, but not the basic blocks.
     pushValue(I.getOperand(0), InstID, Vals);
-    for (unsigned i = 1, e = I.getNumOperands(); i != e; ++i)
-      Vals.push_back(VE.getValueID(I.getOperand(i)));
+    for (const Value *Op : drop_begin(I.operands()))
+      Vals.push_back(VE.getValueID(Op));
     break;
 
   case Instruction::Invoke: {

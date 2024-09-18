@@ -17,7 +17,6 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/os_util.hpp>
-#
 #include <ur_api.h>
 
 #include <memory>
@@ -48,6 +47,54 @@ class context;
 
 namespace detail {
 
+enum class UrApiKind {
+#define _UR_API(api) api,
+#include <ur_api_funcs.def>
+#undef _UR_API
+};
+
+struct UrFuncPtrMapT {
+#define _UR_API(api) decltype(&::api) pfn_##api = nullptr;
+#include <ur_api_funcs.def>
+#undef _UR_API
+};
+
+template <UrApiKind UrApiOffset> struct UrFuncInfo {};
+
+#ifdef _WIN32
+void *GetWinProcAddress(void *module, const char *funcName);
+inline void PopulateUrFuncPtrTable(UrFuncPtrMapT *funcs, void *module) {
+#define _UR_API(api)                                                           \
+  funcs->pfn_##api = (decltype(&::api))GetWinProcAddress(module, #api);
+#include <ur_api_funcs.def>
+#undef _UR_API
+}
+
+#define _UR_API(api)                                                           \
+  template <> struct UrFuncInfo<UrApiKind::api> {                              \
+    using FuncPtrT = decltype(&::api);                                         \
+    inline const char *getFuncName() { return #api; }                          \
+    inline FuncPtrT getFuncPtr(const UrFuncPtrMapT *funcs) {                   \
+      return funcs->pfn_##api;                                                 \
+    }                                                                          \
+    inline FuncPtrT getFuncPtrFromModule(void *module) {                       \
+      return (FuncPtrT)GetWinProcAddress(module, #api);                        \
+    }                                                                          \
+  };
+#include <ur_api_funcs.def>
+#undef _UR_API
+#else
+#define _UR_API(api)                                                           \
+  template <> struct UrFuncInfo<UrApiKind::api> {                              \
+    using FuncPtrT = decltype(&::api);                                         \
+    inline const char *getFuncName() { return #api; }                          \
+    constexpr inline FuncPtrT getFuncPtr(const void *) { return &api; }        \
+    constexpr inline FuncPtrT getFuncPtrFromModule(void *) { return &api; }    \
+  };
+#include <ur_api_funcs.def>
+#undef _UR_API
+#endif
+
 namespace pi {
 // This function is deprecated and it should be removed in the next release
 // cycle (along with the definition for pi_context_extended_deleter).
@@ -76,6 +123,8 @@ int unloadOsLibrary(void *Library);
 // library, implementation is OS dependent.
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 
+void *getURLoaderLibrary();
+
 // Performs UR one-time initialization.
 std::vector<PluginPtr> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
@@ -83,8 +132,12 @@ initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 // Get the plugin serving given backend.
 template <backend BE> const PluginPtr &getPlugin();
 
+// The SYCL_UR_TRACE sets what we will trace.
+// This is a bit-mask of various things we'd want to trace.
+enum TraceLevel { TRACE_BASIC = 0x1, TRACE_CALLS = 0x2, TRACE_ALL = -1 };
+
 // Return true if we want to trace UR related activities.
-bool trace();
+bool trace(TraceLevel level);
 
 // Want all the needed casts be explicit, do not define conversion operators.
 template <class To, class From> To cast(From value);

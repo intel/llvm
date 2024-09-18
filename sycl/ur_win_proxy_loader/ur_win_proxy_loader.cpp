@@ -103,14 +103,12 @@ std::wstring getCurrentDSODir() {
 
 // ------------------------------------
 
-using MapT = std::map<std::filesystem::path, void *>;
-
-MapT &getDllMap() {
-  static MapT dllMap;
-  return dllMap;
+void *&getDllHandle() {
+  static void *dllHandle = nullptr;
+  return dllHandle;
 }
 
-/// Load the plugin libraries and store them in a map.
+/// Load the plugin libraries
 void preloadLibraries() {
   // Suppress system errors.
   // Tells the system to not display the critical-error-handler message box.
@@ -130,8 +128,6 @@ void preloadLibraries() {
   // this path duplicates sycl/detail/ur.cpp:initializePlugins
   std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
-  MapT &dllMap = getDllMap();
-
   // When searching for dependencies of the plugins limit the
   // list of directories to %windows%\system32 and the directory that contains
   // the loaded DLL (the plugin). This is necessary to avoid loading dlls from
@@ -140,9 +136,11 @@ void preloadLibraries() {
                         DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
                                       LOAD_LIBRARY_SEARCH_SYSTEM32) {
     auto path = LibSYCLDir / pluginName;
-    dllMap.emplace(path, LoadLibraryEx(path.wstring().c_str(), NULL, flags));
+    return LoadLibraryEx(path.wstring().c_str(), NULL, flags);
   };
-  loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
+  // We keep the UR Loader handle so it can be fetched by the runtime, but the
+  // adapter libraries themselves won't be used.
+  getDllHandle() = loadPlugin(__SYCL_UNIFIED_RUNTIME_LOADER_NAME);
   loadPlugin(__SYCL_OPENCL_ADAPTER_NAME);
   loadPlugin(__SYCL_LEVEL_ZERO_ADAPTER_NAME);
   loadPlugin(__SYCL_CUDA_ADAPTER_NAME);
@@ -158,63 +156,37 @@ void preloadLibraries() {
 
 /// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
 /// earlier.
-__declspec(dllexport) void *getPreloadedPlugin(
-    const std::filesystem::path &PluginPath) {
-
-  MapT &dllMap = getDllMap();
-
-  // All entries in the dllMap have the same parent directory.
-  // To avoid case sensivity issues, we don't want to do string comparison but
-  // just make sure that directory of the entires in the map and directory of
-  // the PluginPath are equivalent (point to the same physical location).
-  auto match = dllMap.end();
-  std::error_code ec;
-  if (!dllMap.empty() &&
-      std::filesystem::equivalent((dllMap.begin())->first.parent_path(),
-                                  PluginPath.parent_path(), ec)) {
-    // Now we can search only by filename. Result might be nullptr (not found),
-    // which is perfectly valid.
-    match =
-        std::find_if(dllMap.begin(), dllMap.end(),
-                     [&](const std::pair<std::filesystem::path, void *> &v) {
-                       return v.first.filename() == PluginPath.filename();
-                     });
-  }
-
-  if (match == dllMap.end()) {
-    // unit testing? return nullptr (not found) rather than risk asserting below
-    if (PluginPath.string().find("unittests") != std::string::npos)
-      return nullptr;
-
-    // Otherwise, asking for something we don't know about at all, is an issue.
-    std::cout << "unknown plugin: " << PluginPath << std::endl;
-    assert(false && "getPreloadedPlugin was given an unknown plugin path.");
-    return nullptr;
-  }
-  return match->second;
-}
+__declspec(dllexport) void *getPreloadedURLib() { return getDllHandle(); }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
                     DWORD fdwReason,    // reason for calling function
                     LPVOID lpReserved)  // reserved
 {
-  bool PrintPiTrace = false;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
-    PrintPiTrace = true;
+  bool PrintUrTrace = false;
+  static const char *UrTrace = std::getenv("SYCL_UR_TRACE");
+  static int UrTraceValue = 0;
+  if (UrTrace) {
+    try {
+      UrTraceValue = std::stoi(UrTrace);
+    } catch (...) {
+      // ignore malformed SYCL_UR_TRACE
+    }
+  }
+
+  if (UrTraceValue == -1 || UrTraceValue == 2) { // Means print all UR traces
+    PrintUrTrace = true;
   }
 
   switch (fdwReason) {
   case DLL_PROCESS_ATTACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH ur_win_proxy_loader.dll\n"
                 << std::endl;
 
     preloadLibraries();
     break;
   case DLL_PROCESS_DETACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH ur_win_proxy_loader.dll\n"
                 << std::endl;
     break;
