@@ -1,4 +1,4 @@
-//==--- joint_matrix_bf16_fill_k_cache_OOB.cpp  - DPC++ joint_matrix--------==//
+//==--- joint_matrix_bf16_fill_k_cache_arg_dim.cpp  - DPC++ joint_matrix--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,11 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-
-// https://jira.devtools.intel.com/browse/GSD-9716
 // XFAIL: arch-intel_gpu_pvc
 
-// RUN: %{build} -o %t_arg_dim.out -ffp-model=precise -DARG_DIM -DVNNI
+// RUN: %{build} -o %t_arg_dim_vnni.out -ffp-model=precise -DARG_DIM -DVNNI
 // RUN: %{run} %t_arg_dim_vnni.out
 
 // RUN: %{build} -o %t_arg_dim.out -ffp-model=precise -DARG_DIM

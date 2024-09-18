@@ -36,22 +36,19 @@ static constexpr void manually_unroll_loop(F &&f) {
 
 template <size_t TM, size_t TN, size_t TK> class MatMul;
 
-#ifdef ARG_DIM
-template <size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
-          size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
-          size_t MCache2, size_t NCache2, size_t KCache2>
-#else // ARG_DIM
-template <size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+template <
+#ifndef ARG_DIM
+          size_t rowsA, size_t colsA, size_t rowsB, size_t colsB,
+#endif // ARG_DIM
           size_t vnniFactor, typename TOperand, typename TResult, size_t TM,
           size_t TN, size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
-#endif // ARG_DIM
 
+double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 #ifdef ARG_DIM
-double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i, size_t rowsA, size_t colsA, size_t rowsB, size_t colsB) {
-#else  // ARG_DIM
-double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
-#endif // ARG_DIM
+                   , size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
+#endif // ARG_DIM                   
+                  ) {
 
   size_t sgSize = get_sg_size<MatMul<TM, TN, TK>>(q);
   range<2> global{rowsA / MCache1, (colsB / NCache1) * sgSize};
@@ -393,17 +390,20 @@ void test() {
   // run testIterations time, aggregate and calculate average run time
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
-#ifdef ARG_DIM
-    double duration =
-        joint_matmul<vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
-                     KCache1, MCache2, NCache2, KCache2>(A, B, C, q, i, 
-                     MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE);
-#else // ARG_DIM
-    double duration =
-        joint_matmul<MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
-                     vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
-                     KCache1, MCache2, NCache2, KCache2>(A, B, C, q, i);
+
+  double duration =
+        joint_matmul<        
+#ifndef ARG_DIM
+                    MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
 #endif // ARG_DIM
+                    vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
+                    KCache1, MCache2, NCache2, KCache2>
+                    (A, B, C, q, i
+#ifdef ARG_DIM
+                    , MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE
+#endif // ARG_DIM
+                    );
+
     if (i >= recordThresh) {
       totalDuration += duration;
     }
