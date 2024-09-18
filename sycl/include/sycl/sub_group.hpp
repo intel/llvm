@@ -209,6 +209,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<!std::is_same<remove_decoration_t<T>, T>::value, T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
@@ -219,6 +220,7 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<std::is_same<remove_decoration_t<T>, T>::value, T>
   load(CVT *cv_src) const {
     T *src = const_cast<T *>(cv_src);
@@ -240,6 +242,7 @@ struct sub_group {
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   T load(CVT *src) const {
     (void)src;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -249,6 +252,7 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
@@ -269,6 +273,7 @@ struct sub_group {
 
   template <typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value, T>
   load(const multi_ptr<CVT, Space, IsDecorated> cv_src) const {
@@ -286,6 +291,7 @@ struct sub_group {
 #if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
@@ -301,6 +307,7 @@ struct sub_group {
 #else  // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N != 1 && N != 3 && N != 16,
@@ -313,6 +320,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 16,
@@ -327,6 +335,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 3,
@@ -341,6 +350,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
           N == 1,
@@ -354,6 +364,7 @@ struct sub_group {
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value,
       vec<T, N>>
@@ -366,6 +377,7 @@ struct sub_group {
 
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_load instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value,
       vec<T, N>>
@@ -388,6 +400,7 @@ struct sub_group {
 #ifdef __SYCL_DEVICE_ONLY__
   // Method for decorated pointer
   template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<!std::is_same<remove_decoration_t<T>, T>::value>
   store(T *dst, const remove_decoration_t<T> &x) const {
     store(sycl::multi_ptr<remove_decoration_t<T>,
@@ -398,6 +411,7 @@ struct sub_group {
 
   // Method for raw pointer
   template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<std::is_same<remove_decoration_t<T>, T>::value>
   store(T *dst, const remove_decoration_t<T> &x) const {
 
@@ -421,7 +435,9 @@ struct sub_group {
 #endif // __NVPTX__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
-  template <typename T> void store(T *dst, const T &x) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
+  void store(T *dst, const T &x) const {
     (void)dst;
     (void)x;
     throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -431,6 +447,7 @@ struct sub_group {
 
   template <typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const {
@@ -450,6 +467,7 @@ struct sub_group {
 
   template <typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) const {
@@ -467,6 +485,7 @@ struct sub_group {
 #if defined(__NVPTX__) || defined(__AMDGCN__)
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
@@ -477,6 +496,7 @@ struct sub_group {
 #else // __NVPTX__ || __AMDGCN__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N != 1 && N != 3 && N != 16>
@@ -486,6 +506,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 1>
@@ -495,6 +516,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 3>
@@ -506,6 +528,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value &&
       N == 16>
@@ -519,6 +542,7 @@ struct sub_group {
 #else  // __SYCL_DEVICE_ONLY__
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForGlobalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
@@ -531,6 +555,7 @@ struct sub_group {
 
   template <int N, typename T, access::address_space Space,
             access::decorated DecorateAddress>
+  __SYCL_DEPRECATED("Use sycl::ext::oneapi::experimental::group_store instead.")
   std::enable_if_t<
       sycl::detail::sub_group::AcceptableForLocalLoadStore<T, Space>::value>
   store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) const {
