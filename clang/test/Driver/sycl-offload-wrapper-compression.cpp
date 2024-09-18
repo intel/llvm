@@ -3,8 +3,6 @@
 /// options are passed to the clang-offload-wrapper.
 ///
 
-// REQUIRES: zstd
-
 // RUN: %clangxx -### -fsycl --offload-compress --offload-compression-level=3 %s 2>&1 | FileCheck %s --check-prefix=CHECK-COMPRESS
 // CHECK-COMPRESS: {{.*}}clang-offload-wrapper{{.*}}"-offload-compress"{{.*}}"-offload-compression-level=3"{{.*}}
 

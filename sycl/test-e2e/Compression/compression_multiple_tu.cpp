@@ -2,8 +2,9 @@
 // translation units, one compressed and one not compressed.
 // REQUIRES: zstd
 
-// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %t_kernel1.so
-// RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %t_kernel2.so
+// DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
+// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared %{fPIC_flag} -o %t_kernel1.so
+// RUN: %{build} -DENABLE_KERNEL2 -shared %{fPIC_flag} -o %t_kernel2.so
 
 // RUN: %{build} %t_kernel1.so %t_kernel2.so -Wl,-rpath=%T -o %t_compress.out
 // RUN: %{run} %t_compress.out

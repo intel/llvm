@@ -309,32 +309,15 @@ if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
 # Check if clang is built with ZSTD and compression support.
-check_zstd_file = os.path.join(config.sycl_obj_root, "compression_available.cpp")
-with open(check_zstd_file, "w") as fp:
-    print(
-        textwrap.dedent(
-            """
-        #include <sycl/sycl.hpp>
-        using namespace sycl;
-        void kernel1(buffer<int, 1> &b, queue q) {
-            q.submit([&](sycl::handler &cgh) {
-            auto acc = sycl::accessor(b, cgh);
-            q.single_task([=] {acc[0] = acc[0] + 1;});
-            });
-        }
-        """
-        ),
-        file=fp,
-    )
-
-add_fPIC = "-fPIC " if platform.system() != "Windows" else " "
-
-sp = subprocess.getstatusoutput(
-    config.dpcpp_compiler +
-    " -fsycl --offload-compress -shared " + add_fPIC +
-    check_zstd_file
+fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+ps = subprocess.Popen(
+    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
 )
-if sp[0] == 0:
+op = ps.communicate(input=b"")
+if ps.wait() == 0:
     config.available_features.add("zstd")
 
 # Check for CUDA SDK
