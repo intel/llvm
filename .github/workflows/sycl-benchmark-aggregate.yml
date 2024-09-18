@@ -64,7 +64,7 @@ jobs:
     - name: Run aggregator on cloned data
       run: |
         for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
-          python llvm/devops/scripts/benchmarking/aggregate.py "$(basename dir)" "$CUTOFF_TIMESTAMP"
+          python llvm/devops/scripts/benchmarking/aggregate.py "$(basename $dir)" "$CUTOFF_TIMESTAMP"
         done
     - name: Upload average to the repo
       env:
