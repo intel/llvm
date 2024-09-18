@@ -161,8 +161,18 @@ PropSetRegTy computeModuleProperties(const Module &M,
     std::vector<char> DefaultValues;
     SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(M,
                                                                 DefaultValues);
+    assert(!DefaultValues.empty() &&
+           "Expected metadata for spec constant defaults.");
     PropSet.add(PropSetRegTy::SYCL_SPEC_CONSTANTS_DEFAULT_VALUES, "all",
                 DefaultValues);
+  } else {
+#ifndef NDEBUG
+    std::vector<char> DefaultValues;
+    SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(M,
+                                                                DefaultValues);
+    assert(DefaultValues.empty() &&
+           "Unexpected metadata for spec constant defaults.");
+#endif
   }
   if (GlobProps.EmitKernelParamInfo) {
     // extract kernel parameter optimization info per module
