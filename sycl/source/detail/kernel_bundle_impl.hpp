@@ -12,6 +12,7 @@
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -396,6 +397,15 @@ public:
     return SS.str();
   }
 
+  // TODO: remove duplication in kernel_compiler_sycl.cpp.
+  std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
+    return std::accumulate(UserArguments.begin(), UserArguments.end(),
+                           std::string(""),
+                           [](const std::string &A, const std::string &B) {
+                             return A.empty() ? B : A + " " + B;
+                           });
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -414,6 +424,18 @@ public:
       ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       DeviceVec.push_back(Dev);
     }
+
+    ur_program_handle_t UrProgram = nullptr;
+    // bool FetchedFromCache = false;
+    // if (Language == syclex::source_language::sycl){
+    //   auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(Device,
+    //   AllImages, SpecConsts, CompileAndLinkOptions); if (!BinProg.empty()) {
+    //     FetchedFromCache = true;
+    //     UrProgram= createBinaryProgram(getSyclObjImpl(Context), Device,
+    //                                 (const unsigned char *)BinProg[0].data(),
+    //                                 BinProg[0].size(), ProgMetadataVector);
+    //   }
+    // }
 
     const auto spirv = [&]() -> std::vector<uint8_t> {
       if (Language == syclex::source_language::opencl) {
@@ -451,7 +473,7 @@ public:
           "OpenCL C and SPIR-V are the only supported languages at this time");
     }();
 
-    ur_program_handle_t UrProgram = nullptr;
+    // CP  ur_program_handle_t UrProgram = nullptr;
     Plugin->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
                                                    spirv.data(), spirv.size(),
                                                    nullptr, &UrProgram);
@@ -495,6 +517,12 @@ public:
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         UrProgram);
     device_image_plain DevImg{DevImgImpl};
+
+    // if we didn't get this from cache then...
+    const auto &SourceStr = std::get<std::string>(this->Source);
+    PersistentDeviceCodeCache::putCompiledKernelToDisc(
+        Devices[0], userArgsAsString(BuildOptions), SourceStr, UrProgram);
+
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
   }

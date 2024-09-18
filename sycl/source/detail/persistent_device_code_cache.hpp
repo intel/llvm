@@ -169,6 +169,14 @@ public:
                    const SerializedObj &SpecConsts,
                    const std::string &BuildOptionsString);
 
+  /*  Get directory name when storing runtime compiled kernels ( via
+   * kernel_compiler ).
+   */
+  static std::string
+  getCompiledKernelItemPath(const device &Device,
+                            const std::string &BuildOptionsString,
+                            const std::string SourceString);
+
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
    * stored in vector of chars.
@@ -179,6 +187,11 @@ public:
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
+  static ur_program_handle_t
+  getCompiledKernelFromDisc(const device &Device,
+                            const std::string &BuildOptionsString,
+                            const std::string SourceStr);
+
   /* Stores build program in persistent cache
    */
   static void
@@ -187,6 +200,11 @@ public:
                 const SerializedObj &SpecConsts,
                 const std::string &BuildOptionsString,
                 const ur_program_handle_t &NativePrg);
+
+  static void putCompiledKernelToDisc(const device &Device,
+                                      const std::string &BuildOptionsString,
+                                      const std::string SourceStr,
+                                      const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
