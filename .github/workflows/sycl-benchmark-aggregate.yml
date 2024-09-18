@@ -30,7 +30,7 @@ jobs:
       with:
         path: llvm
         sparse-checkout: |
-          devops/scripts/benchmarking/**
+          devops/scripts/benchmarking
     - name: Load benchmarking configuration
       run: |
         . llvm/devops/scripts/benchmarking/benchmark-ci.conf;
