@@ -220,7 +220,6 @@ jobs:
         rm -f ${{ inputs.sycl_toolchain_archive || needs.check_build.outputs.artifact_archive_name }}
         echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
-    - run: ls
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
     - run: SYCL_UR_TRACE=1 sycl-ls
@@ -243,12 +242,7 @@ jobs:
         ls
         export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh ${{ inputs.cache_results == true && '-s' }}
-    - name: debug -- delete after
-      env:
-        SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
-      run:
-        # Is this key even a thing?
-        echo "$SSH_KEY" | head -c 4
+        echo $?
     - name: Push compute-benchmarks
       if: inputs.cache_results == true && success()
       env:

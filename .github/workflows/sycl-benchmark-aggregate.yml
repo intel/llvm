@@ -56,16 +56,16 @@ jobs:
     - name: Checkout performance results repository
       run: |
         git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
-    - name: Debug
-      run: |
-        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
-        echo "########"
-        find . -maxdepth 3 ! -name '.*'
     - name: Run aggregator on cloned data
       run: |
         for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
           python llvm/devops/scripts/benchmarking/aggregate.py "$(basename $dir)" "$CUTOFF_TIMESTAMP"
         done
+    - name: Debug
+      run: |
+        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
+        echo "########"
+        find . -maxdepth 3 ! -name '.*'
     - name: Upload average to the repo
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
