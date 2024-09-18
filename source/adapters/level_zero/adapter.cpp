@@ -188,12 +188,11 @@ void globalAdapterOnDemandCleanup() {
 }
 
 ur_result_t adapterStateTeardown() {
-  bool LeakFound = false;
-
   // Print the balance of various create/destroy native calls.
   // The idea is to verify if the number of create(+) and destroy(-) calls are
   // matched.
   if (ZeCallCount && (UrL0LeaksDebug) != 0) {
+    bool LeakFound = false;
     // clang-format off
     //
     // The format of this table is such that each row accounts for a
@@ -276,11 +275,12 @@ ur_result_t adapterStateTeardown() {
     ZeCallCount->clear();
     delete ZeCallCount;
     ZeCallCount = nullptr;
+    if (LeakFound)
+      return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
-  if (LeakFound)
-    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
-    // Due to multiple DLLMain definitions with SYCL, register to cleanup the
-    // Global Adapter after refcnt is 0
+
+  // Due to multiple DLLMain definitions with SYCL, register to cleanup the
+  // Global Adapter after refcnt is 0
 #if defined(_WIN32)
   umfTearDown();
   std::atexit(globalAdapterOnDemandCleanup);
