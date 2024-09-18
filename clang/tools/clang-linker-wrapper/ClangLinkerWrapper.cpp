@@ -44,6 +44,7 @@
 #include "llvm/Remarks/HotnessThresholdParser.h"
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLLinkedModuleProcessor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/FileOutputBuffer.h"
@@ -695,6 +696,13 @@ static bool considerOnlyKernelsAsEntryPoints(const ArgList &Args,
 bool isSYCLThinLTO(const ArgList &Args, const llvm::Triple Triple) {
   // TODO: Support CUDA/HIP
   return Triple.isSPIROrSPIRV() && Args.hasArg(OPT_sycl_thin_lto);
+}
+
+bool areSpecConstsSupported(const ArgList &Args, const llvm::Triple Triple) {
+  const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
+  bool SYCLNativeCPU = (HostTriple == Triple);
+  return (!Triple.isNVPTX() && !Triple.isAMDGCN() && !Triple.isSPIRAOT() &&
+          !SYCLNativeCPU);
 }
 
 /// Add any sycl-post-link options that rely on a specific Triple in addition
@@ -1687,6 +1695,7 @@ template <typename ModuleHook = function_ref<bool(size_t, const Module &)>>
 std::unique_ptr<lto::LTO> createLTO(
     const ArgList &Args, const std::vector<std::string> &Features,
     SmallVectorImpl<OffloadFile> &BitcodeInputFiles,
+    SmallVectorImpl<StringRef> &Files,
     std::vector<std::string> ModulesToCompile = {},
     ModuleHook Hook = [](size_t, const Module &) { return true; }) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
@@ -1780,18 +1789,16 @@ std::unique_ptr<lto::LTO> createLTO(
     // Passing Args to each thinLTO thread causes crashes, so compute everything
     // we can here.
     const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
-    bool OnlyKernelsAsEntryPoints =
-        sycl::considerOnlyKernelsAsEntryPoints(Args, Triple);
-    auto GlobalBinProps = sycl::computeGlobalBinProps(Args, Triple);
     SmallVector<StringRef, 8> SPIRVArgs;
     sycl::computeLLVMToSPIRVTranslationToolArgs(Args, SPIRVArgs);
-    Conf.PreCodeGenModuleHook = [=, &BitcodeInputFiles](unsigned Task,
-                                                        const Module &M) {
-      // This is the main part of SYCL LTO handling.
-      // Here we process the IR from each BC file, compute module
-      // properties and the module symbol table, convert to SPV (using the
-      // translator for now) and save required information for binary created
-      // inside the OffloadFile.
+    auto SpecConstArg = sycl::areSpecConstsSupported(Args, Triple)
+                            ? SpecConstantsPass::HandlingMode::native
+                            : SpecConstantsPass::HandlingMode::emulation;
+    Conf.PreCodeGenModuleHook = [=, &BitcodeInputFiles, &Files](
+                                    unsigned Task, const Module &M) mutable {
+      // Here we process the IR from each BC file, save the module for later
+      // use, convert to SPV (using the translator for now) and save the path to
+      // the output file.
 
       assert(Task != 0 && "Unexpected task");
       auto &OffloadF = BitcodeInputFiles[Task - 1];
@@ -1801,43 +1808,18 @@ std::unique_ptr<lto::LTO> createLTO(
         return true;
       }
 
-      llvm::sycl::EntryPointSet EntryPoints;
-
-      for (const Function &F : M.functions()) {
-        if (llvm::module_split::isEntryPoint(F, OnlyKernelsAsEntryPoints))
-          EntryPoints.insert(const_cast<Function *>(&F));
-      }
-      // No entry points, don't proceed
-      if (EntryPoints.empty())
-        return false;
-
       if (SaveTemps)
         PreCodeGenSaveTemps(Task, M);
 
-      // TODO: Handle spec constants.
+      // Use the legacy PM because eventually we will use the
+      // PreCodeGenPassesHook field of LTOConfig which requires the legacy PM.
+      legacy::PassManager PM;
 
-      // TODO: Handle internalization of non-entry-points, we don't do it during
-      // early split anymore.
-      // One problem is that the modules are pased in as `const Module&`, and
-      // ideally we want to delete non-entry point functions, but const-casting
-      // and modifying the module seems from here seems wrong.
+      // LTO does not continue processing the module after this
+      // function finishes, so it's safe to modify the module.
+      PM.add(createSYCLLinkedModuleProcessorPass(SpecConstArg));
+      PM.run(const_cast<Module &>(M));
 
-      auto ModuleProps = llvm::sycl::computeModuleProperties(
-          M, EntryPoints, GlobalBinProps,
-          /*SpecConstsMet=*/false, /*SpecConstsMet=*/false);
-      std::string ModulePropsStr;
-      raw_string_ostream SCOut(ModulePropsStr);
-      ModuleProps.write(SCOut);
-      std::string ModuleSyms =
-          llvm::sycl::computeModuleSymbolTable(M, EntryPoints);
-      // This part is the hackiest part of this change. However, this code is
-      // run on multiple threads, so the data structures we can use are more
-      // limited. We can't use StringRef because we would need a StringSaver to
-      // keep the values around, but StringSaver is not thread safe.
-      OffloadF.getBinary()->addTmpString(ModulePropsStr);
-      OffloadF.getBinary()->addTmpString(ModuleSyms);
-      // TODO: Use SPIR-V backend instead of SPIR-V translator once the backend
-      // is mature.
       auto IRFile = createOutputFile(sys::path::filename(ExecutableName) + "." +
                                          std::to_string(Task) + ".to.spv",
                                      "spv");
@@ -1849,15 +1831,32 @@ std::unique_ptr<lto::LTO> createLTO(
         reportError(errorCodeToError(EC));
       WriteBitcodeToFile(M, LinkedBitcode);
       LinkedBitcode.close();
-      // We need this copy to prevent data corruption of the arguments when
-      // calling llvm-spirv. Probably some multithreading thing, I didn't deeply
-      // investigate it yet.
-      SmallVector<StringRef, 8> SPIRVArgsCopy = SPIRVArgs;
+      {
+        // Overwrite the fully linked module in BitcodeInputFiles
+        // so we can compute the module properties and symbol table.
+        // We need a fully linked module to accurately compute these.
+        llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
+            llvm::MemoryBuffer::getFileOrSTDIN(*IRFile);
+        assert(ImageOrError);
+        OffloadingImage Image{};
+        Image.TheImageKind = IMG_Bitcode;
+        Image.TheOffloadKind = OffloadF.getBinary()->getOffloadKind();
+        Image.StringData["triple"] = OffloadF.getBinary()->getTriple();
+        Image.StringData["arch"] = OffloadF.getBinary()->getArch();
+        Image.Image = std::move(*ImageOrError);
+
+        std::unique_ptr<MemoryBuffer> Binary =
+            MemoryBuffer::getMemBufferCopy(OffloadBinary::write(Image));
+        auto NewBinaryOrErr = OffloadBinary::create(*Binary);
+        assert(NewBinaryOrErr);
+        BitcodeInputFiles[Task - 1] =
+            OffloadFile(std::move(*NewBinaryOrErr), std::move(Binary));
+      }
       auto SPVFile =
-          sycl::runLLVMToSPIRVTranslation(*IRFile, std::move(SPIRVArgsCopy));
+          sycl::runLLVMToSPIRVTranslation(*IRFile, std::move(SPIRVArgs));
       if (!SPVFile)
         reportError(SPVFile.takeError());
-      OffloadF.getBinary()->addTmpString((*SPVFile).str());
+      Files[Task] = *SPVFile;
       // Return false so the thinLTO backend doesn't continue to process this
       // module. We already emitted SPIR-V ourselves, so we don't need to do
       // anything else. Once the SPIR-V backend is ready, we can remove the
@@ -1981,12 +1980,15 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
   };
 
   // We assume visibility of the whole program if every input file was bitcode.
+  SmallVector<StringRef> Files;
   auto Features = getTargetFeatures(BitcodeInputFiles);
-  auto LTOBackend =
-      Args.hasArg(OPT_embed_bitcode) || Args.hasArg(OPT_builtin_bitcode_EQ) ||
-              Args.hasArg(OPT_clang_backend)
-          ? createLTO(Args, Features, BitcodeInputFiles, {}, OutputBitcode)
-          : createLTO(Args, Features, BitcodeInputFiles, ModulesToCompile);
+  auto LTOBackend = Args.hasArg(OPT_embed_bitcode) ||
+                            Args.hasArg(OPT_builtin_bitcode_EQ) ||
+                            Args.hasArg(OPT_clang_backend)
+                        ? createLTO(Args, Features, BitcodeInputFiles, Files,
+                                    {}, OutputBitcode)
+                        : createLTO(Args, Features, BitcodeInputFiles, Files,
+                                    ModulesToCompile);
 
   // We need to resolve the symbols so the LTO backend knows which symbols need
   // to be kept or can be internalized. This is a simplified symbol resolution
@@ -2067,7 +2069,7 @@ Error linkBitcodeFiles(SmallVectorImpl<OffloadFile> &InputFiles,
 
   // Run the LTO job to compile the bitcode.
   size_t MaxTasks = LTOBackend->getMaxTasks();
-  SmallVector<StringRef> Files(MaxTasks);
+  Files.resize(MaxTasks);
   auto AddStream =
       [&](size_t Task,
           const Twine &ModuleName) -> std::unique_ptr<CachedFileStream> {
@@ -2450,33 +2452,59 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       SmallVector<StringRef> InputFilesSYCL;
       std::vector<module_split::SplitModule> SplitModules;
       if (sycl::isSYCLThinLTO(Args, Triple)) {
+        size_t LastSPVFilePath = 0;
         for (size_t FileIdx = 0; FileIdx < BitcodeInputFiles.size();
              FileIdx++) {
-          // After we have run the LTO backend, extract the information computed
-          // in the backend (module props/symbol table/spv file path) and set it
-          // up to be used by SYCL image creation.
+          // After we have run the LTO backend, compute module props/symbol
+          // table/spv file path and set it up to be used by SYCL image
+          // creation.
           // TODO: Once SYCL image creation is reconsiled with the non-SYCL
           // path, we can move all of the thinLTO handling to be more in-line
           // with community code.
+
+          // This is a bit hacky but not every BitcodeInputFile will end up as a
+          // SPV file in InputFiles, for example if it is a device library file.
+          // If the file name is empty, that means we didn't generate SPV for
+          // it, so just find the next non-empty file name. Should be easy to
+          // clean this up later if we go with this overall design.
           const OffloadFile &F = BitcodeInputFiles[FileIdx];
-          const auto &SYCLInfo = F.getBinary()->getTmpStrings();
-          if (SYCLInfo.size() != 3)
+          StringRef CodegenPath;
+          for (size_t OutputNum = LastSPVFilePath;
+               OutputNum < InputFiles.size(); OutputNum++) {
+            auto SPVFilePath = InputFiles[OutputNum];
+            if (!SPVFilePath.empty()) {
+              LastSPVFilePath = OutputNum + 1;
+              CodegenPath = SPVFilePath;
+              break;
+            }
+          }
+          if (CodegenPath.empty())
             continue;
-          // The hardcoded vector indexes are very hacky,
-          // but I feel the most controversial part of this hcange is how we
-          // store the required information for later and it's likely to change
-          // based on feedback, so I didn't completely design that part yet.
-          StringRef CodegenPath = SYCLInfo[2];
-          assert(!CodegenPath.empty() && "Codegen failed");
-          const auto &Props = SYCLInfo[0];
-          auto MB = MemoryBuffer::getMemBuffer(Props);
-          auto PropSetOrErr = llvm::util::PropertySetRegistry::read(MB.get());
-          if (!PropSetOrErr)
-            return PropSetOrErr.takeError();
-          llvm::util::PropertySetRegistry Properties =
-              std::move(**PropSetOrErr);
-          const auto &Syms = SYCLInfo[1];
-          SplitModules.emplace_back(CodegenPath, std::move(Properties), Syms);
+          LLVMContext Context;
+          auto Buf = MemoryBuffer::getMemBuffer(F.getBinary()->getImage());
+          auto ModOrErr = parseBitcodeFile(*Buf, Context);
+          if (!ModOrErr)
+            return ModOrErr.takeError();
+          auto &M = **ModOrErr;
+
+          llvm::sycl::EntryPointSet EntryPoints;
+          bool OnlyKernelsAsEntryPoints =
+              sycl::considerOnlyKernelsAsEntryPoints(Args, Triple);
+          auto GlobalBinProps = sycl::computeGlobalBinProps(Args, Triple);
+          for (const Function &F : M.functions()) {
+            if (llvm::module_split::isEntryPoint(F, OnlyKernelsAsEntryPoints))
+              EntryPoints.insert(const_cast<Function *>(&F));
+          }
+          if (EntryPoints.empty())
+            continue;
+
+          auto Properties = llvm::sycl::computeModuleProperties(
+              M, EntryPoints, GlobalBinProps, true, true);
+
+          std::string ModuleSyms =
+              llvm::sycl::computeModuleSymbolTable(M, EntryPoints);
+          SplitModules.emplace_back(CodegenPath, std::move(Properties),
+                                    ModuleSyms);
         }
         // We don't need the OffloadFiles anymore, so free them from memory.
         BitcodeInputFiles.clear();

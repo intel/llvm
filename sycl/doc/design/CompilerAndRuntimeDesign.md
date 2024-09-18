@@ -550,6 +550,9 @@ unit)
 - `off` - disables device code split. If `-fno-sycl-rdc` is specified, the behavior is
    the same as `per_source`
 
+If ThinLTO is enabled, device code splitting is run during the compilation stage.
+See [here](ThinLTO.md) for more information.
+
 ##### Symbol table generation
 
 TBD
