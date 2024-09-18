@@ -1,7 +1,7 @@
 // REQUIRES: cuda
 // REQUIRES: windows
 
-// RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
+// RUN: %{build} d3d12.lib dxgi.lib dxguid.lib -o %t.out
 // RUN: %t.out
 
 #define TEST_SEMAPHORE_IMPORT
