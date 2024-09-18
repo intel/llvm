@@ -17,7 +17,7 @@
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/property_list.hpp>             // for property_list
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <sycl/ur_api.h>                      // for ur_native_handle_t
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

@@ -22,7 +22,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/platform.hpp>
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 #include <cstddef>
 #include <memory>

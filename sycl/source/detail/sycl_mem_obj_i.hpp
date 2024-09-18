@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/ur.hpp>
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {

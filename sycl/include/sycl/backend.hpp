@@ -31,7 +31,7 @@
 #include <sycl/platform.hpp>                  // for platform, get_n...
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/queue.hpp>                     // for queue, get_native
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <sycl/ur_api.h>                      // for ur_native_handle_t
 
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop

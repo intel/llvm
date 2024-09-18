@@ -25,7 +25,7 @@
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-#include <ur_api.h> // for ur_native_handle_t
+#include <sycl/ur_api.h> // for ur_native_handle_t
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function

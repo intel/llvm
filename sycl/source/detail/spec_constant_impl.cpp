@@ -12,7 +12,7 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 #include <cstring>
 

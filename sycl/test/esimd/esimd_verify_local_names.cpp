@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o /dev/null
 // Test that the ESIMD Verifier doesn't error on locally defined types
-#include <sycl.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 

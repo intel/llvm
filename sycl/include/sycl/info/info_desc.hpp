@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
 // id, range, traits, etc. We have to include some headers before including .def

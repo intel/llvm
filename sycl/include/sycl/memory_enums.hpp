@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <ur_api.h> // for ur_memory_order_capability_flags_t
+#include <sycl/ur_api.h> // for ur_memory_order_capability_flags_t
 
 #include <atomic> // for memory_order
 #include <vector> // for vector

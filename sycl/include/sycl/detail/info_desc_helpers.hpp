@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 #include <type_traits> // for true_type
 

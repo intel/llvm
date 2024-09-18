@@ -1,6 +1,6 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -ferror-limit=0 -sycl-std=2020 -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-// expected-warning@sycl/CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
+// expected-warning@CL/sycl.hpp:* {{CL/sycl.hpp is deprecated, use sycl/sycl.hpp}}
 #include <CL/sycl.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 

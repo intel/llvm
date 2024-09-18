@@ -20,7 +20,7 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

@@ -10,7 +10,7 @@
 
 #include <detail/cg.hpp>
 #include <detail/device_impl.hpp>
-#include <ur_api.h>
+#include <sycl/ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
