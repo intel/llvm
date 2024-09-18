@@ -184,6 +184,13 @@ def sycl_module_split_mode_EQ :
   Flags<[WrapperOnlyOption]>,
   HelpText<"Option that turns on split library with the given split mode">;
 
+def sycl_spec_const_handling_mode_EQ : Joined<["--", "-"], "sycl-spec-const-handling-mode=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Specialization constant's handling mode. Modes: native, emulation, default_values. "
+           "Native mode lowers specialization constants to native SPIRV instructions. "
+           "Emulation mode removes specialization constants and replaces it with emulation. "
+           "default_values mode generates new device images which are copies of output devices but contain specialization constants replaced with default values from specialization ids.">;
+
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
