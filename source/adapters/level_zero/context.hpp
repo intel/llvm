@@ -39,6 +39,13 @@ struct ur_context_handle_t_ : _ur_object {
       : ZeContext{ZeContext}, Devices{Devs, Devs + NumDevices},
         NumDevices{NumDevices} {
     OwnNativeHandle = OwnZeContext;
+    for (const auto &Device : Devices) {
+      for (int i = 0; i < EventCacheTypeCount; i++) {
+        EventCaches.emplace_back();
+        EventCachesDeviceMap[i].insert(
+            std::make_pair(Device, EventCaches.size() - 1));
+      }
+    }
   }
 
   ur_context_handle_t_(ze_context_handle_t ZeContext) : ZeContext{ZeContext} {}
@@ -333,11 +340,6 @@ private:
         auto EventCachesMap =
             WithProfiling ? &EventCachesDeviceMap[HostVisibleProfilingCacheType]
                           : &EventCachesDeviceMap[HostVisibleRegularCacheType];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
         return WithProfiling ? &EventCaches[HostVisibleProfilingCacheType]
@@ -349,11 +351,6 @@ private:
             WithProfiling
                 ? &EventCachesDeviceMap[HostInvisibleProfilingCacheType]
                 : &EventCachesDeviceMap[HostInvisibleRegularCacheType];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
         return WithProfiling ? &EventCaches[HostInvisibleProfilingCacheType]
@@ -369,11 +366,6 @@ private:
             WithProfiling
                 ? &EventCachesDeviceMap[CounterBasedImmediateProfilingCacheType]
                 : &EventCachesDeviceMap[CounterBasedImmediateCacheType];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
         return WithProfiling
@@ -386,11 +378,6 @@ private:
             WithProfiling
                 ? &EventCachesDeviceMap[CounterBasedRegularProfilingCacheType]
                 : &EventCachesDeviceMap[CounterBasedRegularCacheType];
-        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-          EventCaches.emplace_back();
-          EventCachesMap->insert(
-              std::make_pair(Device, EventCaches.size() - 1));
-        }
         return &EventCaches[(*EventCachesMap)[Device]];
       } else {
         return WithProfiling
