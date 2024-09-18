@@ -71,12 +71,10 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+  if (!PassA)
+    std::cout << "Test 0a: FAIL" << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<ff_0>();
@@ -90,11 +88,10 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+  if (!PassB)
+    std::cout << "Test 0b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -123,12 +120,10 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+  if (!PassA)
+    std::cout << "Test 1a: FAIL" << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -143,11 +138,10 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+  if (!PassB)
+    std::cout << "Test 1b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -181,12 +175,10 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+  if (!PassA)
+    std::cout << "Test 2a: FAIL" << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id =
@@ -200,11 +192,10 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+  if (!PassB)
+    std::cout << "Test 2b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
@@ -242,12 +233,10 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+  if (!PassA)
+    std::cout << "Test 3a: FAIL" << std::endl;
 
   bool PassB = false;
-  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
-#ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
   kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
@@ -261,11 +250,10 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  // TODO: Avoid printing anything if test passes to reduce I/O.
-  std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+  if (!PassB)
+    std::cout << "Test 3b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
-#endif
   return PassA && PassB;
 }
 
