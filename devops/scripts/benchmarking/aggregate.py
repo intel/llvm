@@ -40,7 +40,7 @@ def aggregate_median(benchmark: str, cutoff: str):
 		with Path(f"{common.PERF_RES_PATH}/{benchmark}") as cache_dir:
 			# TODO check for time range; What time range do I want?
 			return filter(lambda f: f.is_file() and
-						  common.valid_timestamp(str(f)[-17:-4]) and str(f)[-17:-4] > cutoff,
+						  common.valid_timestamp(str(f)[-19:-4]) and str(f)[-19:-4] > cutoff,
 						  cache_dir.glob(f"{benchmark}-*_*.csv"))
 	
 	# Calculate median of every desired metric:
