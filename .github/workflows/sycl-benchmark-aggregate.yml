@@ -40,7 +40,7 @@ jobs:
 
         if [ -z '${{ inputs.cutoff_timestamp }}' ]; then
           # No time given, use default time period
-          echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" "$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
+          echo "CUTOFF_TIMESTAMP=$(date --date="$AVERAGE_CUTOFF_RANGE" +"$TIMESTAMP_FORMAT")" >> $GITHUB_ENV
         else
           # If the provided time is a unix `date` timestamp, convert the time to our format
           _converted_timestamp="$(date --date '${{ inputs.cutoff_timestamp }}' +"$TIMESTAMP_FORMAT" 2> /dev/null)"
@@ -53,20 +53,19 @@ jobs:
             echo 'CUTOFF_TIMESTAMP=${{ inputs.cutoff_timestamp }}' >> $GITHUB_ENV
           fi
         fi
-    - uses: actions/checkout@v4
-      with:
-        # TODO populate default values before loading configuration
-        path: ${{ env.PERF_RES_PATH }}
-        repository: ianayl/llvm-ci-perf-results #${{ env.PERF_RES_GIT_REPO }}
-        ref: ${{ env.PERF_RES_BRANCH }}
+    - name: Checkout performance results repository
+      run: |
+        git clone -b $PERF_RES_BRANCH $PERF_RES_GIT_REPO $PERF_RES_PATH
+    - name: Debug
+      run: |
+        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
+        echo "########"
+        find . -maxdepth 3 ! -name '.*'
     - name: Run aggregator on cloned data
       run: |
         for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
           python llvm/devops/benchmarking/aggregate.py "$(basename dir)" "$CUTOFF_TIMESTAMP"
         done
-    - name: Debug
-      run: |
-        find "$PERF_RES_PATH" -maxdepth 3 ! -name '.*'
     - name: Upload average to the repo
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}
