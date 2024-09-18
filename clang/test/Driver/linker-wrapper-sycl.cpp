@@ -25,7 +25,7 @@
 
 // Check sycl-module-split-mode command line option.
 // This option uses split library instead of sycl-post-link tool.
-// RUN: clang-linker-wrapper -sycl-module-split-mode=auto -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPLIT-CMDS %s
+// RUN: clang-linker-wrapper -no-use-sycl-post-link-tool -sycl-module-split-mode=auto -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SPLIT-CMDS %s
 // CHK-SPLIT-CMDS: "{{.*}}spirv-to-ir-wrapper" {{.*}} -o [[FIRSTLLVMLINKIN:.*]].bc --llvm-spirv-opts --spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global
 // CHK-SPLIT-CMDS-NEXT: "{{.*}}llvm-link" [[FIRSTLLVMLINKIN]].bc -o [[FIRSTLLVMLINKOUT:.*]].bc --suppress-warnings
 // CHK-SPLIT-CMDS-NEXT: "{{.*}}llvm-link" -only-needed [[FIRSTLLVMLINKOUT]].bc {{.*}}.bc -o [[SECONDLLVMLINKOUT:.*]].bc --suppress-warnings
@@ -35,6 +35,13 @@
 // CHK-SPLIT-CMDS-NEXT: offload-wrapper: input: [[SPIRVOUT]].spv, output: [[WRAPPEROUT:.*]].bc
 // CHK-SPLIT-CMDS-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT:.*]] [[WRAPPEROUT]].bc
 // CHK-SPLIT-CMDS-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Check errors with -[no-]use-sycl-post-link-tool.
+// RUN: not clang-linker-wrapper -sycl-module-split-mode=auto -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-TOOL-ERROR %s
+// CHK-SYCL-POST-LINK-TOOL-ERROR: error: -sycl-module-split-mode should be used with the -no-use-sycl-post-link-tool command line option.
+
+// RUN: not clang-linker-wrapper -use-sycl-post-link-tool -no-use-sycl-post-link-tool -sycl-module-split-mode=auto -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SYCL-POST-LINK-TOOL-ERROR2 %s
+// CHK-SYCL-POST-LINK-TOOL-ERROR2: error: -use-sycl-post-link-tool and -no-use-sycl-post-link-tool options can't be used together.
 
 /// check for PIC for device wrap compilation when using -shared
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t.devicelib.o -sycl-post-link-options="SYCL_POST_LINK_OPTIONS" -llvm-spirv-options="LLVM_SPIRV_OPTIONS" "--host-triple=x86_64-unknown-linux-gnu" "--triple=spir64" "--linker-path=/usr/bin/ld" -shared "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" HOST_LIB_PATH HOST_STAT_LIB %t.o --dry-run 2>&1 | FileCheck -check-prefix=CHK-SHARED %s
