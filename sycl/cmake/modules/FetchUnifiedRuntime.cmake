@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cfecab08e6e6dbb694f614b4f6271a258a41fc10
-  # Merge: 10fd78c1 5bebef5d
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 17 12:26:35 2024 +0100
-  #   Merge pull request #1874 from PietroGhg/pietro/membarrier
-  #   [NATIVECPU] Support atomic fence queries
-  set(UNIFIED_RUNTIME_TAG cfecab08e6e6dbb694f614b4f6271a258a41fc10)
+  # commit 6298474e628889d3598b9416303a52e67a2b66aa
+  # Merge: 3cd6eaeb 4bb6a103
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Wed Sep 18 09:20:05 2024 +0200
+  #   Merge pull request #2093 from lslusarczyk/memleak-fix
+  #   fixed issue #1990, L0 leaks checker counts successful create/destroy only
+  set(UNIFIED_RUNTIME_TAG 6298474e628889d3598b9416303a52e67a2b66aa)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
