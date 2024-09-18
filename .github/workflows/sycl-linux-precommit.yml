@@ -92,13 +92,11 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            extra_lit_opts: --param gpu-intel-pvc=True --param matrix=1
           - name: E2E tests with dev igc on Intel Ponte Vecchio GPU
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
-            extra_lit_opts: --param gpu-intel-pvc=True --param matrix=1
             use_igc_dev: true
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
