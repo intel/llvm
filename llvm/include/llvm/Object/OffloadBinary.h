@@ -103,14 +103,6 @@ public:
 
   StringRef getString(StringRef Key) const { return StringData.lookup(Key); }
 
-  /// XXX: Hack
-  const SmallVectorImpl<std::string> &getTmpStrings() const {
-    return TmpStringData;
-  }
-
-  /// XXX: Hack
-  void addTmpString(std::string Value) { TmpStringData.push_back(Value); }
-
   static bool classof(const Binary *V) { return V->isOffloadFile(); }
 
   struct Header {
@@ -159,9 +151,6 @@ private:
   const Header *TheHeader;
   /// Location of the metadata entries within the binary.
   const Entry *TheEntry;
-
-  /// XXX: Hack
-  SmallVector<std::string, 8> TmpStringData;
 };
 
 /// A class to contain the binary information for a single OffloadBinary that

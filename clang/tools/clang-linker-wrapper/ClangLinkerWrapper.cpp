@@ -2641,13 +2641,6 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
     if (HasSYCLOffloadKind) {
       StringRef TmpOutput;
       if (!sycl::isSYCLThinLTO(Args, Triple)) {
-        // Write device inputs to an output file for the linker.
-        for (const OffloadFile &File : Input) {
-          auto FileNameOrErr = writeOffloadFile(File);
-          if (!FileNameOrErr)
-            return FileNameOrErr.takeError();
-          InputFiles.emplace_back(*FileNameOrErr);
-        }
         // Link the input device files using the device linker for SYCL
         // offload.
         auto TmpOutputOrErr = sycl::linkDevice(InputFiles, LinkerArgs);
