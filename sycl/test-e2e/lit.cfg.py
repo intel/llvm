@@ -327,9 +327,11 @@ with open(check_zstd_file, "w") as fp:
         file=fp,
     )
 
+add_fPIC = "-fPIC " if platform.system() != "Windows" else " "
+
 sp = subprocess.getstatusoutput(
     config.dpcpp_compiler +
-    " -fsycl --offload-compress -shared -fPIC " +
+    " -fsycl --offload-compress -shared " + add_fPIC +
     check_zstd_file
 )
 if sp[0] == 0:
