@@ -1187,15 +1187,6 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
 
-  if (!PP.getPreprocessorOpts().IncludeFooter.empty() &&
-      !PP.IncludeFooterProcessed) {
-    assert(PP.getLangOpts().SYCLIsHost &&
-           "The 'include-footer' is expected in host compilation only");
-    SourceLocation Loc = Tok.getLocation();
-    PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
-                       Callbacks);
-  }
-
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).
   PP.RemovePragmaHandler(MicrosoftExtHandler.get());
