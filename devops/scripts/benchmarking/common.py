@@ -3,6 +3,7 @@ import re
 import ast
 
 PERF_RES_PATH, metrics_variance, metrics_recorded = None, None, None
+BENCHMARK_SLOW_LOG, BENCHMARK_ERROR_LOG = None, None
 
 def sanitize(stat: str) -> float:
 	# Get rid of %
@@ -22,9 +23,12 @@ def load_configs():
         raise Exception(f"Please provide path to a valid BENCHMARKING_ROOT.")
 
     global PERF_RES_PATH, metrics_variance, metrics_recorded
+    global BENCHMARK_ERROR_LOG, BENCHMARK_SLOW_LOG
     perf_res_re   = re.compile(r'^PERF_RES_PATH=(.*)$', re.M)
     m_variance_re = re.compile(r'^METRICS_VARIANCE=(.*)$', re.M)
     m_recorded_re = re.compile(r'^METRICS_RECORDED=(.*)$', re.M)
+    b_slow_re     = re.compile(r'^BENCHMARK_SLOW_LOG=(.*)$', re.M)
+    b_error_re    = re.compile(r'^BENCHMARK_ERROR_LOG=(.*)$', re.M)
 
     with open(benchmarking_ci_conf_path, 'r') as configs_file:
         configs_str = configs_file.read()
@@ -41,6 +45,12 @@ def load_configs():
 
         for perf_res in perf_res_re.findall(configs_str):
             PERF_RES_PATH = str(perf_res[1:-1])
+
+        for b_slow_log in b_slow_re.findall(configs_str):
+            BENCHMARK_SLOW_LOG = str(b_slow_log[1:-1])
+
+        for b_error_log in b_error_re.findall(configs_str):
+            BENCHMARK_ERROR_LOG = str(b_error_log[1:-1])
         
 
 def valid_timestamp(timestamp: str) -> bool:

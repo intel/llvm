@@ -40,13 +40,13 @@ def aggregate_median(benchmark: str, cutoff: str):
 		with Path(f"{common.PERF_RES_PATH}/{benchmark}") as cache_dir:
 			# TODO check for time range; What time range do I want?
 			return filter(lambda f: f.is_file() and
-						  common.valid_timestamp(str(f)[-13:]) and str(f)[-13:] > cutoff,
+						  common.valid_timestamp(str(f)[-17:-4]) and str(f)[-17:-4] > cutoff,
 						  cache_dir.glob(f"{benchmark}-*_*.csv"))
 	
 	# Calculate median of every desired metric:
 	aggregate_s = dict()
 	for sample_path in csv_samples():
-		with open(sample_path, mode='r') as sample_file:
+		with open(sample_path, 'r') as sample_file:
 			for s in csv.DictReader(sample_file):
 				if s["TestCase"] not in aggregate_s:
 					aggregate_s[s["TestCase"]] = \
@@ -71,5 +71,5 @@ if __name__ == "__main__":
 	if not common.valid_timestamp(sys.argv[2]):
 		print(f"Bad cutoff timestamp, please use YYMMDD_HHMMSS.")
 		exit(1)
-
+	common.load_configs()
 	aggregate_median(sys.argv[1], sys.argv[2])

@@ -51,7 +51,7 @@ on:
       cache_results:
         type: boolean
         default: false
-        required: False
+        required: false
 
   workflow_dispatch:
     inputs:
@@ -109,7 +109,7 @@ on:
       cache_results:
         type: boolean
         default: false
-        required: False
+        required: false
 
 permissions:
   contents: write
@@ -242,8 +242,7 @@ jobs:
         clang++ --version
         ls
         export CMPLR_ROOT=$PWD/toolchain
-        ./devops/scripts/benchmarking/benchmark.sh
-        exit $?
+        ./devops/scripts/benchmarking/benchmark.sh ${{ inputs.cache_results == true && '-s' }}
     - name: debug -- delete after
       env:
         SSH_KEY: ${{secrets.ACTIONS_DEPLOY_KEY}}

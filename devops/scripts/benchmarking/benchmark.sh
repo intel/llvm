@@ -73,7 +73,7 @@ build_compute_bench() {
 
 ###
 STATUS_SUCCESS=0
-STATUS_FAILED=1
+STATUS_ERROR=1
 ###
 
 samples_under_threshold () {
@@ -89,7 +89,6 @@ check_regression() {
     fi
     BENCHMARKING_ROOT="$BENCHMARKING_ROOT" python "$BENCHMARKING_ROOT/compare.py" "$1" "$2"
     return $?
-    # return $STATUS_FAILED
 }
 
 cache() {
@@ -100,10 +99,14 @@ cache() {
 check_and_cache() {
     echo "Checking $testcase..."
     if check_regression $1 $2; then
-        echo "Caching $testcase..."
-        cache $1 $2
+        if [ "$CACHE_RESULTS" -eq "1" ]; then
+            echo "Caching $testcase..."
+            cache $1 $2
+        fi
     else
-        echo "Not caching!"
+        if [ "$CACHE_RESULTS" -eq "1" ]; then
+            echo "Not caching!"
+        fi
     fi
 }
 
@@ -113,8 +116,9 @@ process_benchmarks() {
     echo "### Running and processing selected benchmarks ###"
     if [ -z "$TESTS_CONFIG" ]; then
         echo "Setting tests to run via cli is not currently supported."
-        exit $STATUS_FAILED
+        exit $STATUS_ERROR
     else
+        rm "$BENCHMARK_ERROR_LOG" "$BENCHMARK_SLOW_LOG" 2> /dev/null
         # Ignore lines in the test config starting with #'s
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
             echo "# Running $testcase..."
@@ -124,16 +128,32 @@ process_benchmarks() {
             if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
                 check_and_cache $testcase $test_csv_output
             else
+                # TODO consider capturing error for logging
                 echo "ERROR @ $test_case"
+                echo "-- $testcase: error $?" >> "$BENCHMARK_ERROR_LOG"
             fi
         done
     fi
 }
 
+process_results() {
+    if [ -s "$BENCHMARK_SLOW_LOG" ]; then
+        printf "\n### Tests performing over acceptable range of average: ###\n"
+        cat "$BENCHMARK_SLOW_LOG"
+        echo ""
+    fi
+    if [ -s "$BENCHMARK_ERROR_LOG" ]; then
+        printf "\n### Tests that failed to run: ###\n"
+        cat "$BENCHMARK_ERROR_LOG"
+        echo ""
+    fi
+    [ ! -s "$BENCHMARKING_SLOW_LOG" ] && [ ! -s "$BENCHMARK_ERROR_LOG" ]
+}
+
 cleanup() {
     echo "### Cleaning up compute-benchmark builds from prior runs ###"
     rm -rf $COMPUTE_BENCH_PATH
-    #rm -rf $PERF_RES_PATH
+    rm -rf $PERF_RES_PATH
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
@@ -163,10 +183,11 @@ load_configs() {
 load_configs
 
 COMPUTE_BENCH_COMPILE_FLAGS=""
+CACHE_RESULTS="0"
 TIMESTAMP="$(date +"$TIMESTAMP_FORMAT")"
 
 # CLI overrides to configuration options
-while getopts "p:b:r:f:cC" opt; do
+while getopts "p:b:r:f:cCs" opt; do
     case $opt in
         p) COMPUTE_BENCH_PATH=$OPTARG ;;
         r) COMPUTE_BENCH_GIT_REPO=$OPTARG ;;
@@ -176,6 +197,7 @@ while getopts "p:b:r:f:cC" opt; do
         # performing cleanup
         c) _cleanup=1 ;;
         C) _cleanup=1 && _exit_after_cleanup=1 ;;
+        s) CACHE_RESULTS="1";;
         \?) usage ;;
     esac
 done
@@ -190,3 +212,4 @@ fi
 [ ! -d "$COMPUTE_BENCH_PATH"       ] && clone_compute_bench
 [ ! -d "$COMPUTE_BENCH_PATH/build" ] && build_compute_bench
 process_benchmarks
+process_results
