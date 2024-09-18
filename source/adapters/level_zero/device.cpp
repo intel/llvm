@@ -749,10 +749,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
     bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
     if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
-      setErrorMessage("SysMan support is unavailable on this system. Please "
-                      "check your level zero driver installation.",
-                      UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION,
-                      static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
+      logger::error("SysMan support is unavailable on this system. Please "
+                    "check your level zero driver installation.");
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     // Calculate the global memory size as the max limit that can be reported as

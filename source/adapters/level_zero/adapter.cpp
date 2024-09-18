@@ -90,7 +90,8 @@ ur_result_t initPlatforms(PlatformVec &platforms,
 
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-    bool DriverInit = false;
+    // Keep track of the first platform init for this Driver
+    bool DriverPlatformInit = false;
     ze_device_properties_t device_properties{};
     device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     uint32_t ZeDeviceCount = 0;
@@ -102,15 +103,20 @@ ur_result_t initPlatforms(PlatformVec &platforms,
     for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
       if (ZE_DEVICE_TYPE_GPU == device_properties.type) {
-        if (!DriverInit) {
+        // Check if this driver's platform has already been init.
+        if (!DriverPlatformInit) {
           // If this Driver is a GPU, save it as a usable platform.
           UR_CALL(platform->initialize());
 
           // Save a copy in the cache for future uses.
           platforms.push_back(std::move(platform));
-          DriverInit = true;
+          // Mark this driver's platform as init to prevent additional platforms
+          // from being created per driver.
+          DriverPlatformInit = true;
         }
         if (ZesResult == ZE_RESULT_SUCCESS) {
+          // Populate the Zes/Ze device mapping for this Ze Device into the last
+          // added platform which represents the current driver being queried.
           ur_zes_device_handle_data_t ZesDeviceData;
           zes_uuid_t ZesUUID;
           std::memcpy(&ZesUUID, &device_properties.uuid, sizeof(zes_uuid_t));
@@ -235,9 +241,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {
-      logger::debug("\nzesInit with flags value of {}\n", static_cast<int>(0));
-      GlobalAdapter->ZesResult =
-          ZE_CALL_NOCHECK(GlobalAdapter->sysManInitFunctionPtr, (0));
+      ze_init_flags_t L0ZesInitFlags = 0;
+      logger::debug("\nzesInit with flags value of {}\n",
+                    static_cast<int>(L0ZesInitFlags));
+      GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(
+          GlobalAdapter->sysManInitFunctionPtr, (L0ZesInitFlags));
     } else {
       GlobalAdapter->ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
     }
