@@ -5,18 +5,6 @@ Release notes for commit range
 ...
 [ebb3b4a21b3b0e](https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83e436)
 
-## TODO
-
-commit https://github.com/intel/llvm/commit/29b4d855fa1a378e89182795e0d368304c40c3f6
-    [SYCL][CUDA] Enable support of msvc math functions for nvptx target. (#14007)
-
-commit https://github.com/intel/llvm/commit/4b14d706d93891cdb5b0e6a8d4b0b027c1d54ab8
-    [SYCL][DeviceSanitizer] Use -asan-constructor-kind=none to disable ctor/dtor (#13259)
-    was the bug really user-visible?
-commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad6cad
-    [DeviceSanitizer] Disable handling no return calls (#14652)
-    // bugfix?
-
 ## New Features
 
 ### SYCL Compiler
@@ -163,7 +151,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Added `-fsystem-debug` command line option to complement existing
   `-fno-system-debug`. intel/llvm#13256
 - Improved wording of an error about implicit `this` capture in a kernel. intel/llvm#14100
-- Improved `--save-temps` to work with `-fsycl-host-compiler`. intel/llvm#114751
+- Improved `--save-temps` to work with `-fsycl-host-compiler`. intel/llvm#14751
 - Improved error message about missing AMDGPU architecture when several values
   are passed into `-fsycl-targets`. intel/llvm#13078
 - Reduced list of commands invoked to generate dependencies using `-MD` flag
@@ -340,8 +328,7 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
   performed in very limited amount of cases. intel/llvm#13088
 - Implemented new `fetch_image` overload which accepts sampled image and
   coordinates. intel/llvm#12447
-- Extended address sanitizer support to cover Intel GPU devices besides CPU
-  devices. intel/llvm#13450
+- Extended address sanitizer support to cover Intel DG2 GPUs. intel/llvm#13450
 - Updated `info::device::max_mem_alloc_size` query to return total amount of
   a device memory for CUDA devices, because they have no limit on size of
   memory allocations. intel/llvm#13344
@@ -468,6 +455,9 @@ commit https://github.com/intel/llvm/commit/2442ef047a4e9e9c135beed18a92029e1aad
 - Fixed a bug with `shift_group_[right|left]`, `permute_by_xor` and
   `select_from_group` algorithms would return invalid values if used with
   `half` data type on AMD devices. intel/llvm#13016
+- Fixed a bug where compiling a program that contains kernels which make calls
+  to standard C/C++ math functions would fail when targeting CUDA on Windows.
+  intel/llvm#14007
 
 ### SYCL Library
 
