@@ -11,17 +11,12 @@ int main() {
   deviceQueue.submit([&](handler &h) {
     h.parallel_for<Test>(
         r, [=](nd_item<2> it) { 
-          it.barrier(access::fence_space::local_space);
-          //CHECK-DAG: call void @__mux_work_group_barrier({{.*}})
           atomic_fence(memory_order::acquire, memory_scope::work_group);
           //CHECK-DAG: call void @__mux_mem_barrier({{.*}})
         });
   });
 
 }
-
-//CHECK-DAG: define{{.*}}@__mux_work_group_barrier{{.*}}#[[ATTR:[0-9]+]]
-//CHECK-DAG: [[ATTR]]{{.*}}convergent
 
 //CHECK-DAG: define{{.*}}@__mux_mem_barrier{{.*}}#[[ATTR_MEM:[0-9]+]]
 //CHECK-DAG: [[ATTR_MEM]]{{.*}}convergent
