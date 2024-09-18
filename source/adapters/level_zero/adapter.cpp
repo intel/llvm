@@ -219,25 +219,19 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
     // separately. This must be done to avoid attempting to use symbols that do
     // not exist in older loader runtimes.
 #ifdef _WIN32
-    std::string l0LoaderName = "ze_loader.dll";
+    HMODULE processHandle = GetModuleHandle(NULL);
 #else
-    std::string l0LoaderName = "libze_loader.so.1";
+    HMODULE processHandle = nullptr;
 #endif
-    GlobalAdapter->loaderHandle =
-        ur_loader::LibLoader::loadAdapterLibrary(l0LoaderName.c_str());
-    if (GlobalAdapter->loaderHandle.get() != nullptr) {
-      GlobalAdapter->getDeviceByUUIdFunctionPtr =
-          (zes_pfnDriverGetDeviceByUuidExp_t)
-              ur_loader::LibLoader::getFunctionPtr(
-                  GlobalAdapter->loaderHandle.get(),
-                  "zesDriverGetDeviceByUuidExp");
-      GlobalAdapter->getSysManDriversFunctionPtr =
-          (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
-              GlobalAdapter->loaderHandle.get(), "zesDriverGet");
-      GlobalAdapter->sysManInitFunctionPtr =
-          (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
-              GlobalAdapter->loaderHandle.get(), "zesInit");
-    }
+    GlobalAdapter->getDeviceByUUIdFunctionPtr =
+        (zes_pfnDriverGetDeviceByUuidExp_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGetDeviceByUuidExp");
+    GlobalAdapter->getSysManDriversFunctionPtr =
+        (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGet");
+    GlobalAdapter->sysManInitFunctionPtr =
+        (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
+                                                            "zesInit");
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {

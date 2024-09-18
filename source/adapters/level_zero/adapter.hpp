@@ -31,7 +31,6 @@ struct ur_adapter_handle_t_ {
   zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;
   zes_pfnDriverGet_t getSysManDriversFunctionPtr = nullptr;
   zes_pfnInit_t sysManInitFunctionPtr = nullptr;
-  std::unique_ptr<HMODULE, ur_loader::LibLoader::lib_dtor> loaderHandle;
 
   std::optional<ze_result_t> ZeResult;
   std::optional<ze_result_t> ZesResult;
