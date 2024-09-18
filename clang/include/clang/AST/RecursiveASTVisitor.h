@@ -3253,6 +3253,9 @@ DEF_TRAVERSE_STMT(OMPParallelGenericLoopDirective,
 DEF_TRAVERSE_STMT(OMPTargetParallelGenericLoopDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
+DEF_TRAVERSE_STMT(OMPAssumeDirective,
+                  { TRY_TO(TraverseOMPExecutableDirective(S)); })
+
 DEF_TRAVERSE_STMT(OMPErrorDirective,
                   { TRY_TO(TraverseOMPExecutableDirective(S)); })
 
@@ -3492,6 +3495,38 @@ bool RecursiveASTVisitor<Derived>::VisitOMPSeqCstClause(OMPSeqCstClause *) {
 
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPAcqRelClause(OMPAcqRelClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPAbsentClause(OMPAbsentClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPHoldsClause(OMPHoldsClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPContainsClause(OMPContainsClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPNoOpenMPClause(OMPNoOpenMPClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPNoOpenMPRoutinesClause(
+    OMPNoOpenMPRoutinesClause *) {
+  return true;
+}
+
+template <typename Derived>
+bool RecursiveASTVisitor<Derived>::VisitOMPNoParallelismClause(
+    OMPNoParallelismClause *) {
   return true;
 }
 
@@ -3808,16 +3843,16 @@ bool RecursiveASTVisitor<Derived>::VisitOMPMapClause(OMPMapClause *C) {
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPNumTeamsClause(
     OMPNumTeamsClause *C) {
+  TRY_TO(VisitOMPClauseList(C));
   TRY_TO(VisitOMPClauseWithPreInit(C));
-  TRY_TO(TraverseStmt(C->getNumTeams()));
   return true;
 }
 
 template <typename Derived>
 bool RecursiveASTVisitor<Derived>::VisitOMPThreadLimitClause(
     OMPThreadLimitClause *C) {
+  TRY_TO(VisitOMPClauseList(C));
   TRY_TO(VisitOMPClauseWithPreInit(C));
-  TRY_TO(TraverseStmt(C->getThreadLimit()));
   return true;
 }
 
