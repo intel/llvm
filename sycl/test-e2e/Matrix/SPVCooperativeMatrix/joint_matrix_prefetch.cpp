@@ -11,7 +11,7 @@
 
 // XFAIL: cpu
 // https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc && !dev-igc
+// XFAIL: arch-intel_gpu_pvc && !igc-dev
 
 #include "../common.hpp"
 
