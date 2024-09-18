@@ -707,7 +707,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigEnableLayer(
     ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
     const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
-                                             ///< enable.
+                                             ///< enable. Empty if none are enabled.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
