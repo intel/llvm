@@ -57,8 +57,8 @@ jobs:
       with:
         # TODO populate default values before loading configuration
         path: ${{ env.PERF_RES_PATH }}
-        repository: intel-sandbox/llvm-ci-perf-results #${{ env.PERF_RES_GIT_REPO }}
-        branch: ${{ env.PERF_RES_BRANCH }}
+        repository: ianayl/llvm-ci-perf-results #${{ env.PERF_RES_GIT_REPO }}
+        ref: ${{ env.PERF_RES_BRANCH }}
     - name: Run aggregator on cloned data
       run: |
         for dir in $(find "$PERF_RES_PATH" -mindepth 1 -maxdepth 1 -type d ! -name '.*'); do
