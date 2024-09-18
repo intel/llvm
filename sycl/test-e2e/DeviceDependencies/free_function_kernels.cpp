@@ -22,7 +22,7 @@ void printUSM(int *usmPtr, int size) {
   std::cout << "}\n";
 }
 
-bool checkUSM(int *usmPtr, int size, int *Result) {
+bool checkUSM(int *usmPtr, int size, int *Result, int line = __builtin_LINE()) {
   bool Pass = true;
   for (int i = 0; i < size; i++) {
     if (usmPtr[i] != Result[i]) {
@@ -43,6 +43,7 @@ bool checkUSM(int *usmPtr, int size, int *Result) {
     std::cout << usmPtr[i] << ", ";
   }
   std::cout << "}\n";
+  std::cout << "checkUSM failed, called from line " << line << std::endl;
   return false;
 }
 
@@ -71,8 +72,6 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  if (!PassA)
-    std::cout << "Test 0a: FAIL" << std::endl;
 
   bool PassB = false;
   kernel_bundle Bundle =
@@ -88,8 +87,6 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  if (!PassB)
-    std::cout << "Test 0b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
   return PassA && PassB;
@@ -120,8 +117,6 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  if (!PassA)
-    std::cout << "Test 1a: FAIL" << std::endl;
 
   bool PassB = false;
   kernel_bundle Bundle =
@@ -138,8 +133,6 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  if (!PassB)
-    std::cout << "Test 1b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
   return PassA && PassB;
@@ -175,8 +168,6 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  if (!PassA)
-    std::cout << "Test 2a: FAIL" << std::endl;
 
   bool PassB = false;
   kernel_bundle Bundle =
@@ -192,8 +183,6 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  if (!PassB)
-    std::cout << "Test 2b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
   return PassA && PassB;
@@ -233,8 +222,6 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  if (!PassA)
-    std::cout << "Test 3a: FAIL" << std::endl;
 
   bool PassB = false;
   kernel_bundle Bundle =
@@ -250,8 +237,6 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  if (!PassB)
-    std::cout << "Test 3b: FAIL" << std::endl;
 
   free(usmPtr, Queue);
   return PassA && PassB;
