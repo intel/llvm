@@ -137,19 +137,20 @@ process_benchmarks() {
 }
 
 process_results() {
+    fail=0
     if [ -s "$BENCHMARK_SLOW_LOG" ]; then
         printf "\n### Tests performing over acceptable range of average: ###\n"
         cat "$BENCHMARK_SLOW_LOG"
         echo ""
+        fail=1
     fi
     if [ -s "$BENCHMARK_ERROR_LOG" ]; then
         printf "\n### Tests that failed to run: ###\n"
         cat "$BENCHMARK_ERROR_LOG"
         echo ""
+        fail=2
     fi
-    if [ -s "$BENCHMARKING_SLOW_LOG" ] || [ -s "$BENCHMARK_ERROR_LOG" ]; then
-        exit 1
-    fi
+    exit fail
 }
 
 cleanup() {
