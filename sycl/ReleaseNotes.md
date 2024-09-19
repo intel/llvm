@@ -83,7 +83,7 @@ Release notes for commit range
   multiply-add operation performed. intel/llvm#13366
 - Implemented revision 2 of
   [`sycl_ext_oneapi_group_sort`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
-  extension. intel/llvm14399 intel/llvm#14185 intel/llvm#13942 intel/llvm#13908
+  extension. intel/llvm#14399 intel/llvm#14185 intel/llvm#13942 intel/llvm#13908
   intel/llvm#14591
 
 
@@ -286,7 +286,7 @@ Release notes for commit range
 - Added support for 1- and 2-byte data types to ESIMD prefetch APIs.
   intel/llvm#13452
 - Enabled `ext_intel_matrix` support for Intel GNR devices. intel/llvm#14436
-- Added support for 1x64x16 `bfloat16` matrices on PVC> intel/llvm#13391
+- Added support for 1x64x16 `bfloat16` matrices on PVC. intel/llvm#13391
 - Added new overloads of `load_2d`, `store_2d` or `prefetch_2d` ESIMD APIs that
   accept compile-time properties. intel/llvm#13046
 - Added support for `shift_group_left`, `shift_group_right`,
