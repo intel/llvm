@@ -39,16 +39,19 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
   switch (ZeImageFormat.layout) {
   case ZE_IMAGE_FORMAT_LAYOUT_8:
   case ZE_IMAGE_FORMAT_LAYOUT_8_8:
+  case ZE_IMAGE_FORMAT_LAYOUT_8_8_8:
   case ZE_IMAGE_FORMAT_LAYOUT_8_8_8_8:
     ZeImageFormatTypeSize = 8;
     break;
   case ZE_IMAGE_FORMAT_LAYOUT_16:
   case ZE_IMAGE_FORMAT_LAYOUT_16_16:
+  case ZE_IMAGE_FORMAT_LAYOUT_16_16_16:
   case ZE_IMAGE_FORMAT_LAYOUT_16_16_16_16:
     ZeImageFormatTypeSize = 16;
     break;
   case ZE_IMAGE_FORMAT_LAYOUT_32:
   case ZE_IMAGE_FORMAT_LAYOUT_32_32:
+  case ZE_IMAGE_FORMAT_LAYOUT_32_32_32:
   case ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32:
     ZeImageFormatTypeSize = 32;
     break;
@@ -100,7 +103,30 @@ ur_result_t ze2urImageFormat(const ze_image_desc_t *ZeImageDesc,
     default:
       logger::error(
           "ze2urImageFormat: unexpected image format channel y: y = {}\n",
-          ZeImageFormat.x);
+          ZeImageFormat.y);
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+    break;
+  case ZE_IMAGE_FORMAT_LAYOUT_8_8_8:
+  case ZE_IMAGE_FORMAT_LAYOUT_16_16_16:
+  case ZE_IMAGE_FORMAT_LAYOUT_32_32_32:
+    if (ZeImageFormat.x == ZE_IMAGE_FORMAT_SWIZZLE_R &&
+        ZeImageFormat.y == ZE_IMAGE_FORMAT_SWIZZLE_G) {
+      switch (ZeImageFormat.z) {
+      case ZE_IMAGE_FORMAT_SWIZZLE_B:
+        ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGB;
+        break;
+      case ZE_IMAGE_FORMAT_SWIZZLE_X:
+        ChannelOrder = UR_IMAGE_CHANNEL_ORDER_RGX;
+        break;
+      default:
+        logger::error(
+            "ze2urImageFormat: unexpected image format channel z: z = {}\n",
+            ZeImageFormat.z);
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      }
+    } else {
+      logger::error("ze2urImageFormat: unexpected image format channel");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -298,6 +324,24 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       break;
     case 32:
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
+      break;
+    default:
+      logger::error("ur2zeImageDesc: unexpected data type size");
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+    break;
+  }
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGX: {
+    switch (ZeImageFormatTypeSize) {
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
       break;
     default:
       logger::error("ur2zeImageDesc: unexpected data type size");
