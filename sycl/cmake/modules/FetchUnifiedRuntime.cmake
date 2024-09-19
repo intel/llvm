@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
-  # Merge: e26bba51 45a781f4
+  # commit 4517290650a9938537666e6409fb8e0db73ff4d8
+  # Merge: 6298474e 3dbb7a2a
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 10 12:08:57 2024 +0100
-  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
-  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
-  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
+  # Date:   Wed Sep 18 08:48:03 2024 +0100
+  #     Merge pull request #1914 from AllanZyne/review/yang/dsan_nullpointer
+  #     [DeviceSanitizer] Support nullpointer detection
+  set(UNIFIED_RUNTIME_TAG 4517290650a9938537666e6409fb8e0db73ff4d8)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
