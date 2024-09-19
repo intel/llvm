@@ -2144,7 +2144,6 @@ void ExecCGCommand::emitInstrumentationData() {
     return;
 
   std::string KernelName;
-  std::string FuncName;
   std::optional<bool> FromSource;
   switch (MCommandGroup->getType()) {
   case detail::CGType::Kernel: {
@@ -2161,6 +2160,7 @@ void ExecCGCommand::emitInstrumentationData() {
 
   // If code location is above sycl layer, use function name from code
   // location instead of kernel name in event payload
+  std::string FuncName;
   if (!MCommandGroup->MIsTopCodeLoc)
     FuncName = MCommandGroup->MFunctionName;
 

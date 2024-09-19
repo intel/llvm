@@ -15,8 +15,8 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-#include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/sycl.hpp>
 
 using ::testing::HasSubstr;
 using namespace sycl;
@@ -96,7 +96,8 @@ TEST_F(NodeCreation, QueueParallelForWithUserCodeLoc) {
   sycl::queue Q;
   try {
     sycl::buffer<int, 1> buf(sycl::range<1>(1));
-    sycl::detail::tls_code_loc_t myLoc({"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
+    sycl::detail::tls_code_loc_t myLoc(
+        {"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
     Q.submit(
         [&](handler &Cgh) {
           sycl::accessor acc(buf, Cgh, sycl::read_write);
@@ -148,16 +149,17 @@ TEST_F(NodeCreation, QueueMemsetNode) {
 TEST_F(NodeCreation, CommandGraphRecord) {
   sycl::queue Q;
   try {
-    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(), Q.get_device());
+    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(),
+                                                            Q.get_device());
 
     cmdGraph.begin_recording(Q);
 
     {
-        sycl::detail::tls_code_loc_t myLoc({"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
-        Q.submit(
-            [&](handler &Cgh) {
-              Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
-            });
+      sycl::detail::tls_code_loc_t myLoc(
+          {"LOCAL_CODELOC_FILE", "LOCAL_CODELOC_NAME", 1, 1});
+      Q.submit([&](handler &Cgh) {
+        Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
+      });
     }
 
     cmdGraph.end_recording(Q);
@@ -188,14 +190,14 @@ TEST_F(NodeCreation, CommandGraphRecord) {
 TEST_F(NodeCreation, CommandGraphAddAPI) {
   sycl::queue Q;
   try {
-    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(), Q.get_device());
+    sycl::ext::oneapi::experimental::command_graph cmdGraph(Q.get_context(),
+                                                            Q.get_device());
 
     auto doAddNode = [&](const sycl::detail::code_location &loc) {
       sycl::detail::tls_code_loc_t codeLoc(loc);
-      return cmdGraph.add(
-            [&](handler &Cgh) {
-              Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
-            });
+      return cmdGraph.add([&](handler &Cgh) {
+        Cgh.parallel_for<TestKernel<KernelSize>>(1, [=](sycl::id<1> idx) {});
+      });
     };
 
     auto node1 = doAddNode({"LOCAL_CODELOC_FILE", "LOCAL_NODE_1", 1, 1});
