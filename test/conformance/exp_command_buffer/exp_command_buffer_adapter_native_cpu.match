@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 {{OPT}}BufferFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}BufferFillCommandTest.UpdateGlobalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}BufferFillCommandTest.SeparateUpdateCalls/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

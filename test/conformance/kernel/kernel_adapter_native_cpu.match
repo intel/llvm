@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urKernelCreateTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelCreateTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelCreateTest.InvalidNullPointerName/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

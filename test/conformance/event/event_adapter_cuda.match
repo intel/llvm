@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urEventGetProfilingInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
 urEventGetProfilingInfoWithTimingComparisonTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
 urEventSetCallbackTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
