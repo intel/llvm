@@ -944,9 +944,8 @@ void CudaToolChain::addClangTargetOptions(
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
                                                   CC1Args);
 
-    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
-    }
   } else {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
