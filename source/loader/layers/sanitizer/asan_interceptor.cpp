@@ -947,6 +947,34 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     return It;
 }
 
+std::vector<AllocationIterator>
+SanitizerInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    std::vector<AllocationIterator> AllocInfos;
+    for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end(); It++) {
+        const auto &[_, AI] = *It;
+        if (AI->Context == Context) {
+            AllocInfos.emplace_back(It);
+        }
+    }
+    return AllocInfos;
+}
+
+ContextInfo::~ContextInfo() {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Context.pfnRelease(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+
+    std::vector<AllocationIterator> AllocInfos =
+        getContext()->interceptor->findAllocInfoByContext(Handle);
+    for (const auto &It : AllocInfos) {
+        const auto &[_, AI] = *It;
+        if (!AI->IsReleased) {
+            ReportMemoryLeak(AI);
+        }
+    }
+}
+
 ur_result_t USMLaunchInfo::initialize() {
     UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
     UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
