@@ -33,17 +33,19 @@ int main() {
   return 0;
 }
 [[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B();
-[[intel::reqd_sub_group_size(16)]] void A() {
+[[intel::reqd_sub_group_size(16)]] void A() // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}} 
+{ 
 }
 
-[[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() {
+[[intel::reqd_sub_group_size(16)]] SYCL_EXTERNAL void B() { // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
   A();
 }
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::reqd_sub_group_size(2)]] void sg_size2() {}
+[[intel::reqd_sub_group_size(2)]] void sg_size2() {} // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 
-// expected-note@+2 {{conflicting attribute is here}}
-// expected-error@+1 {{conflicting attributes applied to a SYCL kernel}}
+// expected-note@+3 {{conflicting attribute is here}}
+// expected-error@+2 {{conflicting attributes applied to a SYCL kernel}}
+// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[intel::reqd_sub_group_size(4)]] __attribute__((sycl_device)) void sg_size4() {
   sg_size2();
 }
@@ -67,7 +69,7 @@ int main() {
 
 // No diagnostic is emitted because the arguments match.
 [[intel::reqd_sub_group_size(12)]] void same();
-[[intel::reqd_sub_group_size(12)]] void same() {} // OK
+[[intel::reqd_sub_group_size(12)]] void same() {} // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
 [[sycl::reqd_sub_group_size(12)]] void same(); // OK
@@ -117,10 +119,12 @@ int check() {
 
 // Test that checks template parameter support on function.
 template <int N>
-// expected-error@+1{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-error@+2{{'reqd_sub_group_size' attribute requires a positive integral compile time constant expression}}
+// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[intel::reqd_sub_group_size(N)]] void func3() {}
 
 template <int N>
+// expected-warning@+1 {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 [[intel::reqd_sub_group_size(4)]] void func4(); // expected-note {{previous attribute is here}}
 
 template <int N>

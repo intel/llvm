@@ -196,7 +196,6 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
@@ -289,7 +288,7 @@ else()
 endif()
 
 # This function allows building multiple libraries with the same options.
-# Currently used by sycl and plugins library.
+# Currently used by add_sycl_library and add_sycl_rt_library.
 # Currently handles linking with libcxx support and gcc workaround
 function( add_common_options LIB_NAME)
   if (SYCL_USE_LIBCXX)

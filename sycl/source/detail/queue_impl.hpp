@@ -689,15 +689,9 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. No-op
-  // for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
-
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // tasks and host tasks is applicable for out of order queues only. Not needed
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
@@ -784,18 +778,19 @@ protected:
       if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
-      if (Deps.LastBarrier)
+      if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
+                               (!Deps.LastBarrier->isEnqueued())))
         Handler.depends_on(Deps.LastBarrier);
+
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-          Deps.LastBarrier = EventRetImpl;
-          Deps.UnenqueuedCmdEvents.clear();
-        } else
-          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.UnenqueuedCmdEvents.clear();
+      } else if (!EventRetImpl->isEnqueued()) {
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }

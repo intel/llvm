@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
-  # Merge: e26bba51 45a781f4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 10 12:08:57 2024 +0100
-  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
-  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
-  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
+  # commit 185149248dd257bd37482aac43307a136204c051
+  # Merge: 2af159d4 d619bcd1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 19 11:02:27 2024 +0200
+  #    Merge pull request #1934 from yingcong-wu/yc/0806-exclude-shadow-from-coredump
+  #    [DeviceSanitizer] Exclude shadow memory from coredump file for CPU device.
+  set(UNIFIED_RUNTIME_TAG 185149248dd257bd37482aac43307a136204c051)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
