@@ -33,7 +33,8 @@ template <> const char *get_typename<double>() { return "double"; }
 template <> const char *get_typename<float>() { return "float"; }
 template <> const char *get_typename<sycl::half>() { return "sycl::half"; }
 
-// Helper to test each complex specilization
+/// Helper to test each complex specilization
+
 // Overload for cplx_test_cases
 template <template <typename> typename action, typename... argsT>
 bool test_valid_types(sycl::queue &Q, argsT... args) {
@@ -195,8 +196,17 @@ template <> auto constexpr init_deci(sycl::half re) {
   return static_cast<float>(re);
 }
 
-// Helper for comparing SyclCPLX and standard c++ results
+template <typename Tout, typename Tin, std::size_t NumElements>
+auto constexpr convert_marray(sycl::marray<std::complex<Tin>, NumElements> c) {
+  sycl::marray<std::complex<Tout>, NumElements> rtn;
+  for (std::size_t i = 0; i < NumElements; ++i)
+    rtn[i] = c[i];
+  return rtn;
+}
 
+/// Helper for comparing SyclCPLX and standard c++ results
+
+// Complex overloads
 template <typename T>
 bool check_results(experimental::complex<T> output, std::complex<T> reference,
                    bool is_device) {
@@ -210,7 +220,19 @@ bool check_results(experimental::complex<T> output, std::complex<T> reference,
   }
   return true;
 }
+template <typename T, std::size_t NumElements>
+bool check_results(sycl::marray<experimental::complex<T>, NumElements> output,
+                   sycl::marray<std::complex<T>, NumElements> reference,
+                   bool is_device) {
+  for (std::size_t i = 0; i < NumElements; ++i) {
+    if (!check_results(output[i], reference[i], is_device)) {
+      return false;
+    }
+  }
+  return true;
+}
 
+// Scalar overloads
 template <typename T>
 bool check_results(T output, T reference, bool is_device) {
   if (!almost_equal_scalar(output, reference, SYCL_CPLX_TOL_ULP)) {
@@ -220,6 +242,16 @@ bool check_results(T output, T reference, bool is_device) {
               << " Output: " << output << " Reference: " << reference
               << std::endl;
     return false;
+  }
+  return true;
+}
+template <typename T, std::size_t NumElements>
+bool check_results(sycl::marray<T, NumElements> output,
+                   sycl::marray<T, NumElements> reference, bool is_device) {
+  for (std::size_t i = 0; i < NumElements; ++i) {
+    if (!check_results(output[i], reference[i], is_device)) {
+      return false;
+    }
   }
   return true;
 }

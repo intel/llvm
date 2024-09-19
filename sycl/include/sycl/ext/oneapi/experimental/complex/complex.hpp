@@ -12,5 +12,7 @@
 
 #include "./detail/complex.hpp"
 #include "./detail/complex_math.hpp"
+#include "./detail/marray.hpp"
+#include "./detail/marray_math.hpp"
 
 #endif // SYCL_EXT_ONEAPI_COMPLEX
