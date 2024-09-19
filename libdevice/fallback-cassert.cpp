@@ -114,9 +114,4 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
   __assertfail(expr, file, line, func, 1);
 }
 
-DEVICE_EXTERN_C void _wassert(const char *_Message, const char *_File,
-                              unsigned _Line) {
-  __assertfail(_Message, _File, _Line, 0, 1);
-}
-
 #endif
