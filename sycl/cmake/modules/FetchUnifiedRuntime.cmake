@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4517290650a9938537666e6409fb8e0db73ff4d8
-  # Merge: 6298474e 3dbb7a2a
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Wed Sep 18 08:48:03 2024 +0100
-  #     Merge pull request #1914 from AllanZyne/review/yang/dsan_nullpointer
-  #     [DeviceSanitizer] Support nullpointer detection
-  set(UNIFIED_RUNTIME_TAG 4517290650a9938537666e6409fb8e0db73ff4d8)
+  # commit 185149248dd257bd37482aac43307a136204c051
+  # Merge: 2af159d4 d619bcd1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 19 11:02:27 2024 +0200
+  #    Merge pull request #1934 from yingcong-wu/yc/0806-exclude-shadow-from-coredump
+  #    [DeviceSanitizer] Exclude shadow memory from coredump file for CPU device.
+  set(UNIFIED_RUNTIME_TAG 185149248dd257bd37482aac43307a136204c051)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
