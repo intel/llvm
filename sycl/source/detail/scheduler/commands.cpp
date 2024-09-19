@@ -1993,9 +1993,9 @@ void instrumentationAddExtraKernelMetadata(
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else if (Queue) {
-    // NOTE: Queue can be null when kerner is directly enqueued to a command
+    // NOTE: Queue can be null when kernel is directly enqueued to a command
     // buffer
-    //       by graph API, when a midifiable graph is finalized.
+    //       by graph API, when a modifiable graph is finalized.
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
@@ -2117,9 +2117,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS
-    // NOTE: Queue can be null when kerner is directly enqueued to a command
-    // buffer
-    //       by graph API, when a midifiable graph is finalized.
+    // NOTE: Queue can be null when kernel is directly enqueued to a command
+    // buffer by graph API, when a modifiable graph is finalized.
     if (Queue.get())
       xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
                                    getQueueID(Queue));

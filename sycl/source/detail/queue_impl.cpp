@@ -415,7 +415,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, {}, true);
+      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>

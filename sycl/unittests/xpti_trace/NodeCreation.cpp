@@ -167,8 +167,7 @@ TEST_F(NodeCreation, CommandGraphRecord) {
 
     auto exeGraph = cmdGraph.finalize();
 
-    // Notifications should have get generated during finalize
-    //
+    // Notifications should have been generated during finalize
     uint16_t TraceType = 0;
     std::string Message;
     ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));

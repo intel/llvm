@@ -144,7 +144,7 @@ public:
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
   /// @brief Returns true if the TLS slot was cleared when this object was
-  /// cunstructed.
+  /// constructed.
   bool isToplevel() const { return !MLocalScope; }
 
 private:
