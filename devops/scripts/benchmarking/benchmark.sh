@@ -147,7 +147,9 @@ process_results() {
         cat "$BENCHMARK_ERROR_LOG"
         echo ""
     fi
-    [ ! -s "$BENCHMARKING_SLOW_LOG" ] && [ ! -s "$BENCHMARK_ERROR_LOG" ]
+    if [ -s "$BENCHMARKING_SLOW_LOG" ] || [ -s "$BENCHMARK_ERROR_LOG" ]; then
+        exit 1
+    fi
 }
 
 cleanup() {

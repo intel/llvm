@@ -242,7 +242,6 @@ jobs:
         ls
         export CMPLR_ROOT=$PWD/toolchain
         ./devops/scripts/benchmarking/benchmark.sh ${{ inputs.cache_results == true && '-s' }}
-        echo $?
     - name: Push compute-benchmarks
       if: inputs.cache_results == true && success()
       env:
