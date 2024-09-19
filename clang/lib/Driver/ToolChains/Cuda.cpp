@@ -957,10 +957,10 @@ void CudaToolChain::addClangTargetOptions(
     if (CudaInstallation.version() >= CudaVersion::CUDA_90)
       CC1Args.push_back("-fcuda-allow-variadic-functions");
 
-    if (DriverArgs.hasArg(options::OPT_fsycl)) {
-      // Add these flags for .cu SYCL compilation.
+    // Add these flags for .cu SYCL compilation.
+    if (DeviceOffloadingKind == Action::OFK_Cuda &&
+        DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
