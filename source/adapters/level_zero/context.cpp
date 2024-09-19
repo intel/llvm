@@ -560,9 +560,12 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
     bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
-    bool CounterBasedEventEnabled) {
+    bool CounterBasedEventEnabled, bool UsingImmCmdList) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling, Device);
+  if (CounterBasedEventEnabled) {
+    Cache = getCounterBasedEventCache(WithProfiling, UsingImmCmdList, Device);
+  }
   if (Cache->empty())
     return nullptr;
 
@@ -585,9 +588,16 @@ void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
     Device = Event->UrQueue->Device;
   }
 
-  auto Cache = getEventCache(Event->isHostVisible(),
-                             Event->isProfilingEnabled(), Device);
-  Cache->emplace_back(Event);
+  if (Event->CounterBasedEventsEnabled) {
+    auto Cache = getCounterBasedEventCache(
+        Event->isProfilingEnabled(),
+        !(Event->UrQueue) || (Event->UrQueue)->UsingImmCmdLists, Device);
+    Cache->emplace_back(Event);
+  } else {
+    auto Cache = getEventCache(Event->isHostVisible(),
+                               Event->isProfilingEnabled(), Device);
+    Cache->emplace_back(Event);
+  }
 }
 
 ur_result_t
