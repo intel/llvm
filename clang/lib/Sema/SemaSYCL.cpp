@@ -2067,11 +2067,21 @@ public:
     return true;
   }
 
-  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
+  bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *PD,
+                   QualType ParamTy) final {
     // TODO manipulate struct depth once special types are supported for free
     // function kernels.
     // --StructFieldDepth;
-    return true;
+    // TODO We don't yet support special types and therefore structs that
+    // require decomposition and leaving/entering. Diagnose for better user
+    // experience.
+    CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+    if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
+    return isValid();
   }
 
   bool enterStruct(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -2177,8 +2187,9 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
+    // TODO We don't support special types in free function kernel parameters,
+    // but track them to diagnose the case properly.
+    CollectionStack.back() = true;
     return true;
   }
 
@@ -2219,9 +2230,7 @@ public:
   }
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
-    // TODO handle decomposition once special type arguments are supported
-    // for free function kernels.
-    // CollectionStack.push_back(false);
+    CollectionStack.push_back(false);
     PointerStack.push_back(false);
     return true;
   }
@@ -2252,15 +2261,13 @@ public:
                    QualType ParamTy) final {
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     assert(RD && "should not be null.");
-    // TODO handle decomposition once special type arguments are supported
-    // for free function kernels.
-    // if (CollectionStack.pop_back_val()) {
-    //   if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
-    //     RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
-    //         SemaSYCLRef.getASTContext()));
-    //   CollectionStack.back() = true;
-    //   PointerStack.pop_back();
-    if (PointerStack.pop_back_val()) {
+    if (CollectionStack.pop_back_val()) {
+      if (!RD->hasAttr<SYCLRequiresDecompositionAttr>())
+        RD->addAttr(SYCLRequiresDecompositionAttr::CreateImplicit(
+            SemaSYCLRef.getASTContext()));
+      CollectionStack.back() = true;
+      PointerStack.pop_back();
+    } else if (PointerStack.pop_back_val()) {
       PointerStack.back() = true;
       if (!RD->hasAttr<SYCLGenerateNewTypeAttr>())
         RD->addAttr(SYCLGenerateNewTypeAttr::CreateImplicit(
@@ -2864,7 +2871,7 @@ public:
 
   bool enterStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
-    unsupportedFreeFunctionParamType();
+    // ++StructDepth;
     return true;
   }
 
@@ -2875,7 +2882,7 @@ public:
 
   bool leaveStruct(const CXXRecordDecl *, ParmVarDecl *, QualType) final {
     // TODO
-    unsupportedFreeFunctionParamType();
+    // --StructDepth;
     return true;
   }
 
@@ -5534,8 +5541,8 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     DiagnosingSYCLKernel = true;
 
     // Check parameters of free function.
-    Visitor.VisitFunctionParameters(FD, FieldChecker, UnionChecker,
-                                    DecompMarker);
+    Visitor.VisitFunctionParameters(FD, DecompMarker, FieldChecker,
+                                    UnionChecker);
 
     DiagnosingSYCLKernel = false;
 
