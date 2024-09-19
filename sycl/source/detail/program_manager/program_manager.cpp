@@ -95,9 +95,11 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   Properties.pNext = nullptr;
   Properties.count = Metadata.size();
   Properties.pMetadatas = Metadata.data();
-  Plugin->call<UrApiKind::urProgramCreateWithBinary>(
+  BinaryStatus = Plugin->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
       Context->getHandleRef(), UrDevice, DataLen, Data, &Properties, &Program);
 
+  std::cout << "createBinaryProgram BinaryStatus: " << BinaryStatus
+            << std::endl;
   if (BinaryStatus != UR_RESULT_SUCCESS) {
     throw detail::set_ur_error(
         exception(make_error_code(errc::runtime),

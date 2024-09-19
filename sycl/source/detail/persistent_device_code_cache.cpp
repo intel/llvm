@@ -117,6 +117,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const ur_program_handle_t &NativePrg) {
 
+  std::cout << "putItemToDisc" << std::endl;
+
   if (!areImagesCacheable(Imgs))
     return;
 
@@ -164,6 +166,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
       std::string FullFileName = FileName + ".bin";
       writeBinaryDataToFile(FullFileName, Result);
       trace("device binary has been cached: " + FullFileName);
+      std::cout << " device binary has been cached: " << FullFileName
+                << std::endl;
       writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
                       BuildOptionsString);
     } else {
@@ -185,10 +189,12 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     const device &Device, const std::string &BuildOptionsString,
     const std::string SourceStr, const ur_program_handle_t &NativePrg) {
 
+  std::cout << "putCompiledKernelToDisc" << std::endl;
+
   // Directory
   std::string DirName =
       getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
-  std::cout << "DirName: " << DirName << std::endl;
+  std::cout << " DirName: " << DirName << std::endl;
 
   // File
   size_t i = 0;
@@ -198,7 +204,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
   } while (OSUtil::isPathPresent(FileName + ".bin") ||
            OSUtil::isPathPresent(FileName + ".lock"));
 
-  std::cout << "FileName: " << FileName << std::endl;
+  std::cout << " FileName: " << FileName << std::endl;
 
   // Number of Devices?
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
@@ -211,7 +217,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     Plugin->call<UrApiKind::urProgramGetInfo>(
         NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
         nullptr);
-    std::cout << "DeviceNum: " << DeviceNum << std::endl;
+    std::cout << " DeviceNum: " << DeviceNum << std::endl;
 
     // Actual Data
     std::vector<size_t> BinarySizes(DeviceNum);
@@ -222,7 +228,7 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     for (size_t I = 0; I < BinarySizes.size(); ++I) {
       Result.emplace_back(BinarySizes[I]);
       Pointers.push_back(Result[I].data());
-      std::cout << "BinarySizes[" << I << "]: " << BinarySizes[I] << std::endl;
+      std::cout << " BinarySizes[" << I << "]: " << BinarySizes[I] << std::endl;
     }
     Plugin->call<UrApiKind::urProgramGetInfo>(
         NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
@@ -243,6 +249,8 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
       std::string FullFileName = FileName + ".bin";
       writeBinaryDataToFile(FullFileName, Result);
       trace("device binary has been cached: " + FullFileName);
+      std::cout << " kernel_compiler device binary has been cached: "
+                << FullFileName << std::endl;
       // writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
       // BuildOptionsString);
     } else {
@@ -266,6 +274,8 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
+
+  std::cout << "getItemFromDisc" << std::endl;
 
   if (!areImagesCacheable(Imgs))
     return {};
@@ -291,6 +301,8 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
         trace("using cached device binary: " + FullFileName);
+        std::cout << " using cached device binary: " << FullFileName
+                  << std::endl;
         return res; // subject for NRVO
       } catch (...) {
         // If read was unsuccessfull try the next item
@@ -303,7 +315,9 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
 
 /*
  */
-ur_program_handle_t PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+// ur_program_handle_t
+std::vector<std::vector<char>>
+PersistentDeviceCodeCache::getCompiledKernelFromDisc(
     const device &Device, const std::string &BuildOptionsString,
     const std::string SourceStr) {
   std::cout << "getCompiledKernelFromDisc" << std::endl;
@@ -311,35 +325,35 @@ ur_program_handle_t PersistentDeviceCodeCache::getCompiledKernelFromDisc(
       getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
   std::cout << " DirName: " << DirName << std::endl;
 
-  /*
-  if (Path.empty() || !OSUtil::isPathPresent(Path))
+  if (DirName.empty() || !OSUtil::isPathPresent(DirName))
     return {};
 
   int i = 0;
 
-  std::string FileName{Path + "/" + std::to_string(i)};
+  std::string FileName{DirName + "/" + std::to_string(i)};
   while (OSUtil::isPathPresent(FileName + ".bin") ||
          OSUtil::isPathPresent(FileName + ".src")) {
 
-    if (!LockCacheItem::isLocked(FileName) &&
-        isCacheItemSrcEqual(FileName + ".src", Device, SortedImgs, SpecConsts,
-                            BuildOptionsString)) {
+    if (!LockCacheItem::isLocked(
+            FileName)) //&&
+                       // isCacheItemSrcEqual(FileName + ".src", Device,
+                       // SortedImgs, SpecConsts, BuildOptionsString))
+    {
       try {
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
         trace("using cached device binary: " + FullFileName);
+        std::cout << " kernel_compiler using cached device binary: "
+                  << FullFileName << std::endl;
         return res; // subject for NRVO
       } catch (...) {
         // If read was unsuccessfull try the next item
       }
     }
-    FileName = Path + "/" + std::to_string(++i);
+    FileName = DirName + "/" + std::to_string(++i);
   }
   return {};
-}
-
-  */
 }
 
 /* Returns string value which can be used to identify different device
