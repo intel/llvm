@@ -91,7 +91,7 @@ However, the flow is not ideal for many reasons:
 backend. We could slightly improve this issue by using a library call to the 
 SPIR-V translator instead of the tool, however the library API requires setting 
 up an object to represent the arguments while we only have strings, and it's 
-non-trivial to parse the trings to figure out how to create the argument 
+non-trivial to parse the strings to figure out how to create the argument 
 object. Since we plan to use the SPIR-V backend in the long term, this does not 
 seem to be worth the effort.
 
@@ -104,9 +104,9 @@ when we actually are going to run codegen.
 fully linked module to accurately compute metadata, see the above explanation 
 of SYCL requirement 2). We could get around storing the module by computing the 
 metadata inside the LTO framework and storing it for late use by the SYCL 
-bundling code, but doing this would require SYCL-only customizations including 
+bundling code, but doing this would require even more SYCL-only customizations including 
 even more new function arguments and modifications of the `OffloadFile` class. 
-It's also complicated because the LTO framework is multithreaded, and not all 
+There are also compliations because the LTO framework is multithreaded, and not all 
 LLVM data structures are thread safe.
 
 The proposed long-term SYCL ThinLTO flow is as follows:
@@ -117,7 +117,7 @@ The biggest difference here is that we are running codegen using the SPIR-V
 backend.
 
 Also, instead of using a lambda function in the `PreCodeGenModuleHook` 
-callback, we can take advantage of the `PreCodeGenPassesHook` field to add 
+callback to run SYCL finalization passes, we can take advantage of the `PreCodeGenPassesHook` field to add 
 passes to the pass manager that the LTO framework will run.
 
 It is possible that the number of device images in the fat executable
