@@ -18,5 +18,7 @@ int main() {
 
 }
 
+//CHECK-NOT: @__mux_work_group_barrier
+
 //CHECK-DAG: define{{.*}}@__mux_mem_barrier{{.*}}#[[ATTR_MEM:[0-9]+]]
 //CHECK-DAG: [[ATTR_MEM]]{{.*}}convergent
