@@ -10115,12 +10115,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     ArgStringList WrapperArgs;
 
     const auto &WrapperJob = *llvm::dyn_cast<OffloadWrapperJobAction>(&JA);
-    bool LlcCompileEnabled = WrapperJob.getCompileStep();
+    bool WrapperCompileEnabled = WrapperJob.getCompileStep();
     SmallString<128> OutOpt("-o=");
     std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
     const char *WrapperFileName =
         C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
-    OutOpt += LlcCompileEnabled ? WrapperFileName : Output.getFilename();
+    OutOpt += WrapperCompileEnabled ? WrapperFileName : Output.getFilename();
     WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
     SmallString<128> HostTripleOpt("-host=");
@@ -10218,28 +10218,30 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         WrapperArgs, std::nullopt);
     C.addCommand(std::move(Cmd));
 
-    if (LlcCompileEnabled) {
-      // Construct llc command.
-      // The output is an object file
-      ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                            WrapperFileName};
+    if (WrapperCompileEnabled) {
+      // TODO Use TC.SelectTool().
+      ArgStringList ClangArgs{
+          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()), "-c",
+          "-o", Output.getFilename(), WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
       std::tie(RelocationModel, PICLevel, IsPIE) =
           ParsePICArgs(getToolChain(), TCArgs);
       if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
-        LlcArgs.push_back("-relocation-model=pic");
+        if (!TC.getAuxTriple()->isOSWindows())
+          ClangArgs.push_back("-fPIC");
       }
       if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
-        LlcArgs.push_back(
-            TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
+        ClangArgs.push_back(
+            TCArgs.MakeArgString(Twine("-mcmodel=") + A->getValue()));
 
-      SmallString<128> LlcPath(C.getDriver().Dir);
-      llvm::sys::path::append(LlcPath, "llc");
-      const char *Llc = C.getArgs().MakeArgString(LlcPath);
-      C.addCommand(std::make_unique<Command>(
-          JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, std::nullopt));
+      SmallString<128> ClangPath(C.getDriver().Dir);
+      llvm::sys::path::append(ClangPath, "clang");
+      const char *Clang = C.getArgs().MakeArgString(ClangPath);
+      C.addCommand(std::make_unique<Command>(JA, *this,
+                                             ResponseFileSupport::None(), Clang,
+                                             ClangArgs, std::nullopt));
     }
     return;
   } // end of SYCL flavor of offload wrapper command creation
@@ -10791,7 +10793,7 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
-static bool supportDynamicLinking(const llvm::opt::ArgList &TCArgs) {
+static bool allowDeviceDependencies(const llvm::opt::ArgList &TCArgs) {
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
                      options::OPT_fno_sycl_allow_device_dependencies, false))
     return true;
@@ -10825,8 +10827,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
-  if (supportDynamicLinking(TCArgs))
-    addArgs(PostLinkArgs, TCArgs, {"-support-dynamic-linking"});
+  if (allowDeviceDependencies(TCArgs))
+    addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
@@ -10843,7 +10845,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
-  if (supportDynamicLinking(TCArgs))
+  if (allowDeviceDependencies(TCArgs))
     return false;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;
