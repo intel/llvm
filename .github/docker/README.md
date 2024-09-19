@@ -8,10 +8,10 @@ development environment.
 
 # How to build docker image
 
-To build docker image on local machine execute:
+To build docker image on local machine, enter the root dir of the repository and execute:
 
 ```sh
-docker build -t ur:ubuntu-22.04 -f ./ubuntu-22.04.Dockerfile .
+docker build -t ur:ubuntu-22.04 -f .github/docker/ubuntu-22.04.Dockerfile .
 ```
 
 To set any build time variable (e.g., an optional ARG from docker recipe), add to the command (after `build`), e.g.:

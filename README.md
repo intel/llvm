@@ -1,13 +1,13 @@
 # Unified Runtime
 
 [![Build and test](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/cmake.yml)
-[![E2E Cuda](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_cuda.yml)
-[![E2E OpenCL](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_opencl.yml)
-[![E2E Level Zero](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_level_zero.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/e2e_level_zero.yml)
-[![CodeQL](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml)
 [![Bandit](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/bandit.yml)
+[![CodeQL](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/codeql.yml)
 [![Coverity](https://scan.coverity.com/projects/28213/badge.svg)](https://scan.coverity.com/projects/oneapi-src-unified-runtime)
+[![Nightly](https://github.com/oneapi-src/unified-runtime/actions/workflows/nightly.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/nightly.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/unified-runtime/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/unified-runtime)
+[![Trivy](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml)
+[![Deploy documentation to Pages](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml)
 
 <!-- TODO: add general description and purpose of the project -->
 
@@ -145,7 +145,7 @@ List of options provided by CMake:
 | UR_DEVICE_CODE_EXTRACTOR | Path of the `clang-offload-extract` executable from the DPC++ package, required for CTS device binaries | File path | `"${dirname(UR_DPCXX)}/clang-offload-extract"` |
 | UR_DPCXX_BUILD_FLAGS | Build flags to pass to DPC++ when compiling device programs | Space-separated options list | `""` |
 | UR_SYCL_LIBRARY_DIR | Path of the SYCL runtime library directory to build CTS device binaries | Directory path | `""` |
-| UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `/opt/rocm` |
+| UR_HIP_ROCM_DIR | Path of the default ROCm HIP installation | Directory path | `$ENV{ROCM_PATH}` or `/opt/rocm` |
 | UR_HIP_INCLUDE_DIR | Path of the ROCm HIP include directory | Directory path | `${UR_HIP_ROCM_DIR}/include` |
 | UR_HIP_HSA_INCLUDE_DIRS | Path of the ROCm HSA include directory | Directory path | `${UR_HIP_ROCM_DIR}/hsa/include;${UR_HIP_ROCM_DIR}/include` |
 | UR_HIP_LIB_DIR | Path of the ROCm HIP library directory | Directory path | `${UR_HIP_ROCM_DIR}/lib` |

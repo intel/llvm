@@ -15,6 +15,7 @@ from argparse import ArgumentParser
 import subprocess  # nosec B404
 import signal
 import re
+from collections import OrderedDict
 
 if __name__ == '__main__':
 
@@ -31,12 +32,22 @@ if __name__ == '__main__':
 
     pat = re.compile(r'\[( )*FAILED( )*\]')
     output_list = []
+    test_cases = []
     for line in result.stdout:
         output_list.append(line)
         if pat.search(line):
             test_case = line.split(" ")[5]
             test_case = test_case.rstrip(',')
-            print(test_case)
+            test_cases.append(test_case)
+
+    # Every fail has a single corresponding match line but if there are multiple
+    # devices being tested there will be multiple lines with the same failure
+    # message. To avoid matching mismatch, remove lines that differ only by device ID.
+    test_cases = [re.sub(r'ID[0-9]ID', 'X', tc) for tc in test_cases]
+    test_cases = list(OrderedDict.fromkeys(test_cases))
+
+    for tc in test_cases:
+        print(tc)
 
     rc = result.wait()
     if rc < 0:

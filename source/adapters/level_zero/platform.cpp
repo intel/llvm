@@ -12,7 +12,9 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+namespace ur::level_zero {
+
+ur_result_t urPlatformGet(
     ur_adapter_handle_t *, uint32_t,
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
@@ -47,7 +49,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+ur_result_t urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
     size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
@@ -101,7 +103,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
+ur_result_t urPlatformGetApiVersion(
     ur_platform_handle_t Driver, ///< [in] handle of the platform
     ur_api_version_t *Version    ///< [out] api version
 ) {
@@ -110,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+ur_result_t urPlatformGetNativeHandle(
     ur_platform_handle_t Platform,     ///< [in] handle of the platform.
     ur_native_handle_t *NativePlatform ///< [out] a pointer to the native
                                        ///< handle of the platform.
@@ -120,7 +122,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+ur_result_t urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         NativePlatform, ///< [in] the native handle of the platform.
     ur_adapter_handle_t,
@@ -135,12 +137,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms));
+  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, 0, nullptr,
+                                        &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(),
-                          nullptr));
+    UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumPlatforms,
+                                          Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
     // the duration of the application's execution. We assume that we found all
@@ -157,6 +160,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=2' for frontend_option = -O1, -O2 or -O3.
+// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
+// frontend_option=-ftarget-compile-fast.
+ur_result_t urPlatformGetBackendOption(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
+    const char *FrontendOption, ///< [in] string containing the frontend option.
+    const char *
+        *PlatformOption ///< [out] returns the correct platform specific
+                        ///< compiler option based on the frontend option.
+) {
+  std::ignore = Platform;
+  using namespace std::literals;
+  if (FrontendOption == nullptr) {
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == ""sv) {
+    *PlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O0"sv) {
+    *PlatformOption = "-ze-opt-disable";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv ||
+      FrontendOption == "-O3"sv) {
+    *PlatformOption = "-ze-opt-level=2";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-ftarget-compile-fast"sv) {
+    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+} // namespace ur::level_zero
 
 ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
@@ -264,6 +307,67 @@ ur_result_t ur_platform_handle_t_::initialize() {
                      .zexCommandListUpdateMutableCommandWaitEventsExp))) == 0);
 
   return UR_RESULT_SUCCESS;
+}
+
+/// Checks the version of the level-zero driver.
+/// @param VersionMajor Major verion number to compare to.
+/// @param VersionMinor Minor verion number to compare to.
+/// @param VersionBuild Build verion number to compare to.
+/// @return true is the version of the driver is higher than or equal to the
+/// compared version
+bool ur_platform_handle_t_::isDriverVersionNewerOrSimilar(
+    uint32_t VersionMajor, uint32_t VersionMinor, uint32_t VersionBuild) {
+  uint32_t DriverVersionMajor = 0;
+  uint32_t DriverVersionMinor = 0;
+  uint32_t DriverVersionBuild = 0;
+  if (!ZeDriverVersionString.Supported) {
+    ZeStruct<ze_driver_properties_t> ZeDriverProperties;
+    ZE2UR_CALL(zeDriverGetProperties, (ZeDriver, &ZeDriverProperties));
+    uint32_t DriverVersion = ZeDriverProperties.driverVersion;
+    DriverVersionMajor = (DriverVersion & 0xFF000000) >> 24;
+    DriverVersionMinor = (DriverVersion & 0x00FF0000) >> 16;
+    DriverVersionBuild = DriverVersion & 0x0000FFFF;
+  } else {
+    std::string ZeDriverVersion;
+    size_t sizeOfDriverString = 0;
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 nullptr, &sizeOfDriverString);
+    ZeDriverVersion.resize(sizeOfDriverString);
+    ZeDriverVersionString.getDriverVersionString(ZeDriverHandleExpTranslated,
+                                                 ZeDriverVersion.data(),
+                                                 &sizeOfDriverString);
+
+    // Intel driver version string is in the format:
+    // Major.Minor.Build+Hotfix where hotfix is optional.
+    std::stringstream VersionString(ZeDriverVersion);
+
+    std::string VersionValue;
+    std::vector<std::string> VersionValues;
+    char VersionDelim = '.';
+    char HotfixDelim = '+';
+
+    while (getline(VersionString, VersionValue, VersionDelim)) {
+      VersionValues.push_back(VersionValue);
+    }
+    // If the extension exists, but the string value comes by empty or
+    // malformed, assume this is a developer driver.
+    if (VersionValues.size() >= 3) {
+      DriverVersionMajor = atoi(VersionValues[0].c_str());
+      DriverVersionMinor = atoi(VersionValues[1].c_str());
+      std::stringstream HotfixString(VersionValues[2]);
+      std::vector<std::string> BuildHotfixVersionValues;
+      // Check to see if there is a hotfix value and strip it off.
+      while (getline(HotfixString, VersionValue, HotfixDelim)) {
+        BuildHotfixVersionValues.push_back(VersionValue);
+      }
+      DriverVersionBuild = atoi(BuildHotfixVersionValues[0].c_str());
+    } else {
+      return true;
+    }
+  }
+  return std::make_tuple(DriverVersionMajor, DriverVersionMinor,
+                         DriverVersionBuild) >=
+         std::make_tuple(VersionMajor, VersionMinor, VersionBuild);
 }
 
 // Get the cached PI device created for the L0 device handle.
@@ -433,43 +537,22 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
     return UR_RESULT_ERROR_UNKNOWN;
   }
   DeviceCachePopulated = true;
+
+  size_t id = 0;
+  for (auto &dev : URDevicesCache) {
+    dev->Id = id++;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=2' for frontend_option = -O1, -O2 or -O3.
-// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
-// frontend_option=-ftarget-compile-fast.
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
-    const char *FrontendOption, ///< [in] string containing the frontend option.
-    const char *
-        *PlatformOption ///< [out] returns the correct platform specific
-                        ///< compiler option based on the frontend option.
-) {
-  std::ignore = Platform;
-  using namespace std::literals;
-  if (FrontendOption == nullptr) {
-    return UR_RESULT_SUCCESS;
+size_t ur_platform_handle_t_::getNumDevices() { return URDevicesCache.size(); }
+
+ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
+  for (auto &dev : URDevicesCache) {
+    if (dev->Id == id) {
+      return dev.get();
+    }
   }
-  if (FrontendOption == ""sv) {
-    *PlatformOption = "";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-O0"sv) {
-    *PlatformOption = "-ze-opt-disable";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv ||
-      FrontendOption == "-O3"sv) {
-    *PlatformOption = "-ze-opt-level=2";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-ftarget-compile-fast"sv) {
-    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
-    return UR_RESULT_SUCCESS;
-  }
-  return UR_RESULT_ERROR_INVALID_VALUE;
+  return nullptr;
 }

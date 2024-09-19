@@ -9,9 +9,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "command_list_cache.hpp"
-
 #include "context.hpp"
-#include "device.hpp"
+
+#include "../device.hpp"
 
 bool v2::immediate_command_list_descriptor_t::operator==(
     const immediate_command_list_descriptor_t &rhs) const {
@@ -43,7 +43,7 @@ inline size_t command_list_descriptor_hash_t::operator()(
 command_list_cache_t::command_list_cache_t(ze_context_handle_t ZeContext)
     : ZeContext{ZeContext} {}
 
-raii::ze_command_list_t
+raii::ze_command_list_handle_t
 command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   if (auto ImmCmdDesc =
           std::get_if<immediate_command_list_descriptor_t>(&desc)) {
@@ -61,7 +61,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     ZE2UR_CALL_THROWS(
         zeCommandListCreateImmediate,
         (ZeContext, ImmCmdDesc->ZeDevice, &QueueDesc, &ZeCommandList));
-    return raii::ze_command_list_t(ZeCommandList, &zeCommandListDestroy);
+    return raii::ze_command_list_handle_t(ZeCommandList);
   } else {
     auto RegCmdDesc = std::get<regular_command_list_descriptor_t>(desc);
     ZeStruct<ze_command_list_desc_t> CmdListDesc;
@@ -72,14 +72,17 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
     ze_command_list_handle_t ZeCommandList;
     ZE2UR_CALL_THROWS(zeCommandListCreate, (ZeContext, RegCmdDesc.ZeDevice,
                                             &CmdListDesc, &ZeCommandList));
-    return raii::ze_command_list_t(ZeCommandList, &zeCommandListDestroy);
+    return raii::ze_command_list_handle_t(ZeCommandList);
   }
 }
 
-raii::ze_command_list_t command_list_cache_t::getImmediateCommandList(
+raii::cache_borrowed_command_list_t
+command_list_cache_t::getImmediateCommandList(
     ze_device_handle_t ZeDevice, bool IsInOrder, uint32_t Ordinal,
     ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
     std::optional<uint32_t> Index) {
+  TRACK_SCOPE_LATENCY("command_list_cache_t::getImmediateCommandList");
+
   immediate_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
   Desc.Ordinal = Ordinal;
@@ -87,44 +90,33 @@ raii::ze_command_list_t command_list_cache_t::getImmediateCommandList(
   Desc.Mode = Mode;
   Desc.Priority = Priority;
   Desc.Index = Index;
-  return getCommandList(Desc);
+
+  auto CommandList = getCommandList(Desc).release();
+  return raii::cache_borrowed_command_list_t(
+      CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
+        Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
+      });
 }
 
-raii::ze_command_list_t
+raii::cache_borrowed_command_list_t
 command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
                                             bool IsInOrder, uint32_t Ordinal) {
+  TRACK_SCOPE_LATENCY("command_list_cache_t::getRegularCommandList");
+
   regular_command_list_descriptor_t Desc;
   Desc.ZeDevice = ZeDevice;
   Desc.IsInOrder = IsInOrder;
   Desc.Ordinal = Ordinal;
-  return getCommandList(Desc);
+
+  auto CommandList = getCommandList(Desc).release();
+
+  return raii::cache_borrowed_command_list_t(
+      CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
+        Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
+      });
 }
 
-void command_list_cache_t::addImmediateCommandList(
-    raii::ze_command_list_t cmdList, ze_device_handle_t ZeDevice,
-    bool IsInOrder, uint32_t Ordinal, ze_command_queue_mode_t Mode,
-    ze_command_queue_priority_t Priority, std::optional<uint32_t> Index) {
-  immediate_command_list_descriptor_t Desc;
-  Desc.ZeDevice = ZeDevice;
-  Desc.Ordinal = Ordinal;
-  Desc.IsInOrder = IsInOrder;
-  Desc.Mode = Mode;
-  Desc.Priority = Priority;
-  Desc.Index = Index;
-  addCommandList(Desc, std::move(cmdList));
-}
-
-void command_list_cache_t::addRegularCommandList(
-    raii::ze_command_list_t cmdList, ze_device_handle_t ZeDevice,
-    bool IsInOrder, uint32_t Ordinal) {
-  regular_command_list_descriptor_t Desc;
-  Desc.ZeDevice = ZeDevice;
-  Desc.IsInOrder = IsInOrder;
-  Desc.Ordinal = Ordinal;
-  addCommandList(Desc, std::move(cmdList));
-}
-
-raii::ze_command_list_t
+raii::ze_command_list_handle_t
 command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
   std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   auto it = ZeCommandListCache.find(desc);
@@ -135,7 +127,8 @@ command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
 
   assert(!it->second.empty());
 
-  raii::ze_command_list_t CommandListHandle = std::move(it->second.top());
+  raii::ze_command_list_handle_t CommandListHandle =
+      std::move(it->second.top());
   it->second.pop();
 
   if (it->second.empty())
@@ -144,11 +137,33 @@ command_list_cache_t::getCommandList(const command_list_descriptor_t &desc) {
   return CommandListHandle;
 }
 
-void command_list_cache_t::addCommandList(const command_list_descriptor_t &desc,
-                                          raii::ze_command_list_t cmdList) {
+void command_list_cache_t::addCommandList(
+    const command_list_descriptor_t &desc,
+    raii::ze_command_list_handle_t cmdList) {
   // TODO: add a limit?
   std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
   auto [it, _] = ZeCommandListCache.try_emplace(desc);
   it->second.emplace(std::move(cmdList));
 }
+
+size_t command_list_cache_t::getNumImmediateCommandLists() {
+  std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
+  size_t NumLists = 0;
+  for (auto &Pair : ZeCommandListCache) {
+    if (std::holds_alternative<immediate_command_list_descriptor_t>(Pair.first))
+      NumLists += Pair.second.size();
+  }
+  return NumLists;
+}
+
+size_t command_list_cache_t::getNumRegularCommandLists() {
+  std::unique_lock<ur_mutex> Lock(ZeCommandListCacheMutex);
+  size_t NumLists = 0;
+  for (auto &Pair : ZeCommandListCache) {
+    if (std::holds_alternative<regular_command_list_descriptor_t>(Pair.first))
+      NumLists += Pair.second.size();
+  }
+  return NumLists;
+}
+
 } // namespace v2

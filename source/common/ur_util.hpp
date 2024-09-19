@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2022-2023 Intel Corporation
+ * Copyright (C) 2022-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -27,6 +27,8 @@
 #include <vector>
 
 int ur_getpid(void);
+int ur_close_fd(int fd);
+int ur_duplicate_fd(int pid, int fd_in);
 
 /* for compatibility with non-clang compilers */
 #if defined(__has_feature)
@@ -58,12 +60,14 @@ int ur_getpid(void);
 ///////////////////////////////////////////////////////////////////////////////
 #if defined(_WIN32)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) NAME ".dll"
+#define STATIC_LIBRARY_EXTENSION ".lib"
 #else
 #if defined(__APPLE__)
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME "." VERSION ".dylib"
 #else
 #define MAKE_LIBRARY_NAME(NAME, VERSION) "lib" NAME ".so." VERSION
 #endif
+#define STATIC_LIBRARY_EXTENSION ".a"
 #endif
 
 inline std::string create_library_path(const char *name, const char *path) {
@@ -460,7 +464,7 @@ template <typename T> class AtomicSingleton {
 
     static int release(std::function<void(T *)> deleter) {
         auto val = instance.acquire();
-        int ret = val->release(deleter);
+        int ret = val->release(std::move(deleter));
         instance.release();
 
         return ret;
@@ -475,6 +479,25 @@ template <typename T> class AtomicSingleton {
         instance.release();
     }
 };
+
+template <typename Numeric>
+static inline std::string groupDigits(Numeric numeric) {
+    auto number = std::to_string(numeric);
+    std::string sign = numeric >= 0 ? "" : "-";
+    auto digits = number.substr(sign.size(), number.size() - sign.size());
+
+    std::string separated;
+
+    for (size_t i = 0; i < digits.size(); i++) {
+        separated.push_back(digits[i]);
+
+        if (i != digits.size() - 1 && (digits.size() - i - 1) % 3 == 0) {
+            separated.push_back('\'');
+        }
+    }
+
+    return sign + separated;
+}
 
 template <typename T> Spinlock<Rc<T>> AtomicSingleton<T>::instance;
 

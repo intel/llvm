@@ -57,8 +57,16 @@ namespace ur_validation_layer
         {
             %for key, values in sorted_param_checks:
             %for val in values:
-            if( ${val} )
+            %if 'boundsError' in val:
+            if ( getContext()->enableBoundsChecking ) {
+                if ( ${val} ) {
+                    return ${key};
+                }
+            }
+            %else:
+            if ( ${val} )
                 return ${key};
+            %endif
 
             %endfor
             %endfor
@@ -178,9 +186,13 @@ namespace ur_validation_layer
 
         if (enabledLayerNames.count(nameFullValidation)) {
             enableParameterValidation = true;
+            enableBoundsChecking = true;
             enableLeakChecking = true;
             enableLifetimeValidation = true;
         } else {
+            if (enabledLayerNames.count(nameBoundsChecking)) {
+                enableBoundsChecking = true;
+            }
             if (enabledLayerNames.count(nameParameterValidation)) {
                 enableParameterValidation = true;
             }
@@ -209,13 +221,11 @@ namespace ur_validation_layer
     }
 
     ${x}_result_t context_t::tearDown() {
-        ${x}_result_t result = ${X}_RESULT_SUCCESS;
-
         if (enableLeakChecking) {
             getContext()->refCountContext->logInvalidReferences();
-            getContext()->refCountContext->clear();
         }
-        return result;
+        
+        return ${X}_RESULT_SUCCESS;
     }
 
 } // namespace ur_validation_layer

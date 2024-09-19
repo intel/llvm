@@ -38,10 +38,21 @@ struct AsanOptions {
     uint32_t MaxQuarantineSizeMB = 0;
     bool DetectLocals = true;
     bool DetectPrivates = true;
+    bool DetectKernelArguments = true;
 
   private:
     AsanOptions(logger::Logger &logger) {
-        auto OptionsEnvMap = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
+        std::optional<EnvVarMap> OptionsEnvMap;
+        try {
+            OptionsEnvMap = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
+        } catch (const std::invalid_argument &e) {
+            std::stringstream SS;
+            SS << "<SANITIZER>[ERROR]: ";
+            SS << e.what();
+            logger.always(SS.str().c_str());
+            die("Sanitizer failed to parse options.\n");
+        }
+
         if (!OptionsEnvMap.has_value()) {
             return;
         }
@@ -73,8 +84,8 @@ struct AsanOptions {
                     Opt = false;
                 } else {
                     std::stringstream SS;
-                    SS << "<SANITIZER>[ERROR]: \"" << Name << "\" is set to \""
-                       << Value << "\", which is not an valid setting. ";
+                    SS << "\"" << Name << "\" is set to \"" << Value
+                       << "\", which is not an valid setting. ";
                     SS << "Acceptable input are: for enable, use:";
                     for (auto &S : TrueStrings) {
                         SS << " \"" << S << "\"";
@@ -85,7 +96,8 @@ struct AsanOptions {
                         SS << " \"" << S << "\"";
                     }
                     SS << ".";
-                    die(SS.str().c_str());
+                    logger.error(SS.str().c_str());
+                    die("Sanitizer failed to parse options.\n");
                 }
             }
         };
@@ -93,10 +105,11 @@ struct AsanOptions {
         SetBoolOption("debug", Debug);
         SetBoolOption("detect_locals", DetectLocals);
         SetBoolOption("detect_privates", DetectPrivates);
+        SetBoolOption("detect_kernel_arguments", DetectKernelArguments);
 
         auto KV = OptionsEnvMap->find("quarantine_size_mb");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 auto temp_long = std::stoul(Value);
                 if (temp_long > UINT32_MAX) {
@@ -104,39 +117,44 @@ struct AsanOptions {
                 }
                 MaxQuarantineSizeMB = temp_long;
             } catch (...) {
-                die("<SANITIZER>[ERROR]: \"quarantine_size_mb\" should be "
-                    "an positive integer that smaller than or equal to "
-                    "4294967295.");
+                logger.error("\"quarantine_size_mb\" should be "
+                             "an integer in range[0, {}].",
+                             UINT32_MAX);
+                die("Sanitizer failed to parse options.\n");
             }
         }
 
         KV = OptionsEnvMap->find("redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MinRZSize = std::stoul(Value);
                 if (MinRZSize < 16) {
                     MinRZSize = 16;
                     logger.warning("Trying to set redzone size to a "
-                                   "value less than 16 is ignored");
+                                   "value less than 16 is ignored.");
                 }
             } catch (...) {
-                die("<SANITIZER>[ERROR]: \"redzone\" should be an integer");
+                logger.error(
+                    "\"redzone\" should be an integer in range[0, 16].");
+                die("Sanitizer failed to parse options.\n");
             }
         }
 
         KV = OptionsEnvMap->find("max_redzone");
         if (KV != OptionsEnvMap->end()) {
-            auto Value = KV->second.front();
+            const auto &Value = KV->second.front();
             try {
                 MaxRZSize = std::stoul(Value);
                 if (MaxRZSize > 2048) {
                     MaxRZSize = 2048;
                     logger.warning("Trying to set max redzone size to a "
-                                   "value greater than 2048 is ignored");
+                                   "value greater than 2048 is ignored.");
                 }
             } catch (...) {
-                die("<SANITIZER>[ERROR]: \"max_redzone\" should be an integer");
+                logger.error(
+                    "\"max_redzone\" should be an integer in range[0, 2048].");
+                die("Sanitizer failed to parse options.\n");
             }
         }
     }

@@ -206,19 +206,14 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       // Two calls to urDeviceGetInfo are needed: the first determines the size
       // required to store the result, and the second returns the actual size
       // values.
-      ur_result_t URRet =
-          urDeviceGetInfo(hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL, 0,
-                          nullptr, &ResultSize);
-      if (URRet != UR_RESULT_SUCCESS) {
-        return URRet;
-      }
-      assert(ResultSize % sizeof(size_t) == 0);
-      std::vector<size_t> Result(ResultSize / sizeof(size_t));
-      URRet = urDeviceGetInfo(hDevice, UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
-                              ResultSize, Result.data(), nullptr);
-      if (URRet != UR_RESULT_SUCCESS) {
-        return URRet;
-      }
+      UR_RETURN_ON_FAILURE(urDeviceGetInfo(hDevice,
+                                           UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                                           0, nullptr, &ResultSize));
+      assert(ResultSize % sizeof(uint32_t) == 0);
+      std::vector<uint32_t> Result(ResultSize / sizeof(uint32_t));
+      UR_RETURN_ON_FAILURE(urDeviceGetInfo(hDevice,
+                                           UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL,
+                                           ResultSize, Result.data(), nullptr));
       RetVal = *std::max_element(Result.begin(), Result.end());
       Ret = CL_SUCCESS;
     } else if (propName == UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL) {
@@ -307,7 +302,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS: {
-    if (*(static_cast<const ur_bool_t *>(pPropValue)) == true) {
+    if (*(static_cast<const ur_bool_t *>(pPropValue))) {
       UR_RETURN_ON_FAILURE(usmSetIndirectAccess(hKernel));
     }
     return UR_RESULT_SUCCESS;

@@ -9,19 +9,22 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <functional>
 #include <stack>
 
+#include "latency_tracker.hpp"
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 
 #include "common.hpp"
 
 namespace v2 {
 namespace raii {
-using ze_command_list_t = std::unique_ptr<::_ze_command_list_handle_t,
-                                          decltype(&zeCommandListDestroy)>;
-}
+using cache_borrowed_command_list_t =
+    std::unique_ptr<::_ze_command_list_handle_t,
+                    std::function<void(::ze_command_list_handle_t)>>;
+} // namespace raii
 
 struct immediate_command_list_descriptor_t {
   ze_device_handle_t ZeDevice;
@@ -51,36 +54,32 @@ struct command_list_descriptor_hash_t {
 struct command_list_cache_t {
   command_list_cache_t(ze_context_handle_t ZeContext);
 
-  raii::ze_command_list_t
+  raii::cache_borrowed_command_list_t
   getImmediateCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
                           uint32_t Ordinal, ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
                           std::optional<uint32_t> Index = std::nullopt);
-  raii::ze_command_list_t getRegularCommandList(ze_device_handle_t ZeDevice,
-                                                bool IsInOrder,
-                                                uint32_t Ordinal);
+  raii::cache_borrowed_command_list_t
+  getRegularCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
+                        uint32_t Ordinal);
 
-  void addImmediateCommandList(raii::ze_command_list_t cmdList,
-                               ze_device_handle_t ZeDevice, bool IsInOrder,
-                               uint32_t Ordinal, ze_command_queue_mode_t Mode,
-                               ze_command_queue_priority_t Priority,
-                               std::optional<uint32_t> Index = std::nullopt);
-  void addRegularCommandList(raii::ze_command_list_t cmdList,
-                             ze_device_handle_t ZeDevice, bool IsInOrder,
-                             uint32_t Ordinal);
+  // For testing purposes
+  size_t getNumImmediateCommandLists();
+  size_t getNumRegularCommandLists();
 
 private:
   ze_context_handle_t ZeContext;
   std::unordered_map<command_list_descriptor_t,
-                     std::stack<raii::ze_command_list_t>,
+                     std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>
       ZeCommandListCache;
   ur_mutex ZeCommandListCacheMutex;
 
-  raii::ze_command_list_t getCommandList(const command_list_descriptor_t &desc);
+  raii::ze_command_list_handle_t
+  getCommandList(const command_list_descriptor_t &desc);
   void addCommandList(const command_list_descriptor_t &desc,
-                      raii::ze_command_list_t cmdList);
-  raii::ze_command_list_t
+                      raii::ze_command_list_handle_t cmdList);
+  raii::ze_command_list_handle_t
   createCommandList(const command_list_descriptor_t &desc);
 };
 } // namespace v2

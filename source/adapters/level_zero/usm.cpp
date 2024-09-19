@@ -1,6 +1,6 @@
 //===--------- usm.cpp - Level Zero Adapter -------------------------------===//
 //
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 //
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM
 // Exceptions. See LICENSE.TXT
@@ -17,7 +17,9 @@
 #include "usm.hpp"
 
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
+#include "ur_util.hpp"
 
 #include <umf_helpers.hpp>
 
@@ -295,7 +297,9 @@ static ur_result_t USMHostAllocImpl(void **ResultPtr,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
+namespace ur::level_zero {
+
+ur_result_t urUSMHostAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     const ur_usm_desc_t
         *USMDesc, ///< [in][optional] USM memory allocation descriptor
@@ -310,8 +314,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Align > 65536 || (Align & (Align - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Align > 0) {
+    if (Align > 65536 || (Align & (Align - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Context->getPlatform();
   // If indirect access tracking is enabled then lock the mutex which is
@@ -330,7 +338,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
   } else {
     ContextLock.lock();
   }
@@ -363,7 +371,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
+ur_result_t urUSMDeviceAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_device_handle_t Device,   ///< [in] handle of the device object
     const ur_usm_desc_t
@@ -380,8 +388,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -401,7 +413,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
   } else {
     ContextLock.lock();
   }
@@ -439,7 +451,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
+ur_result_t urUSMSharedAlloc(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_device_handle_t Device,   ///< [in] handle of the device object
     const ur_usm_desc_t
@@ -481,8 +493,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   // L0 supports alignment up to 64KB and silently ignores higher values.
   // We flag alignment > 64KB as an invalid value.
   // L0 spec says that alignment values that are not powers of 2 are invalid.
-  if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
-    return UR_RESULT_ERROR_INVALID_VALUE;
+  // If alignment == 0, then we are allowing the L0 driver to choose the
+  // alignment so no need to check.
+  if (Alignment > 0) {
+    if (Alignment > 65536 || (Alignment & (Alignment - 1)) != 0)
+      return UR_RESULT_ERROR_INVALID_VALUE;
+  }
 
   ur_platform_handle_t Plt = Device->Platform;
 
@@ -500,7 +516,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     // We are going to defer memory release if there are kernels with indirect
     // access, that is why explicitly retain context to be sure that it is
     // released after all memory allocations in this context are released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
   }
 
   umf_memory_pool_handle_t hPoolInternal = nullptr;
@@ -542,9 +558,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    void *Mem                    ///< [in] pointer to USM memory object
+ur_result_t
+urUSMFree(ur_context_handle_t Context, ///< [in] handle of the context object
+          void *Mem                    ///< [in] pointer to USM memory object
 ) {
   ur_platform_handle_t Plt = Context->getPlatform();
 
@@ -554,7 +570,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(
   return USMFreeHelper(Context, Mem);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
+ur_result_t urUSMGetMemAllocInfo(
     ur_context_handle_t Context, ///< [in] handle of the context object
     const void *Ptr,             ///< [in] pointer to USM memory object
     ur_usm_alloc_info_t
@@ -653,6 +669,103 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
   }
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urUSMPoolCreate(
+    ur_context_handle_t Context, ///< [in] handle of the context object
+    ur_usm_pool_desc_t
+        *PoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
+                   ///< ::ur_usm_pool_limits_desc_t
+    ur_usm_pool_handle_t *Pool ///< [out] pointer to USM memory pool
+) {
+
+  try {
+    *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
+        new ur_usm_pool_handle_t_(Context, PoolDesc));
+
+    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
+    Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
+
+  } catch (const UsmAllocationException &Ex) {
+    return Ex.getError();
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urUSMPoolRetain(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
+) {
+  Pool->RefCount.increment();
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
+) {
+  if (Pool->RefCount.decrementAndTest()) {
+    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
+    Pool->Context->UsmPoolHandles.remove(Pool);
+    delete Pool;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMPoolGetInfo(
+    ur_usm_pool_handle_t Pool,   ///< [in] handle of the USM memory pool
+    ur_usm_pool_info_t PropName, ///< [in] name of the pool property to query
+    size_t PropSize, ///< [in] size in bytes of the pool property value provided
+    void *PropValue, ///< [out][typename(propName, propSize)] value of the pool
+                     ///< property
+    size_t *PropSizeRet ///< [out] size in bytes returned in pool property value
+) {
+  UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
+
+  switch (PropName) {
+  case UR_USM_POOL_INFO_REFERENCE_COUNT: {
+    return ReturnValue(Pool->RefCount.load());
+  }
+  case UR_USM_POOL_INFO_CONTEXT: {
+    return ReturnValue(Pool->Context);
+  }
+  default: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+  }
+}
+
+ur_result_t urUSMImportExp(ur_context_handle_t Context, void *HostPtr,
+                           size_t Size) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Promote the host ptr to USM host memory.
+  if (ZeUSMImport.Supported && HostPtr != nullptr) {
+    // Query memory type of the host pointer
+    ze_device_handle_t ZeDeviceHandle;
+    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
+    ZE2UR_CALL(zeMemGetAllocProperties,
+               (Context->ZeContext, HostPtr, &ZeMemoryAllocationProperties,
+                &ZeDeviceHandle));
+
+    // If not shared of any type, we can import the ptr
+    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
+      // Promote the host ptr to USM host memory
+      ze_driver_handle_t driverHandle =
+          Context->getPlatform()->ZeDriverHandleExpTranslated;
+      ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
+    }
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urUSMReleaseExp(ur_context_handle_t Context, void *HostPtr) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+
+  // Release the imported memory.
+  if (ZeUSMImport.Supported && HostPtr != nullptr)
+    ZeUSMImport.doZeUSMRelease(
+        Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::level_zero
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
   auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
@@ -766,6 +879,97 @@ umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
   return UMF_RESULT_SUCCESS;
 }
 
+typedef struct ze_ipc_data_t {
+  int pid;
+  ze_ipc_mem_handle_t zeHandle;
+} ze_ipc_data_t;
+
+umf_result_t L0MemoryProvider::get_ipc_handle_size(size_t *Size) {
+  UR_ASSERT(Size, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  *Size = sizeof(ze_ipc_data_t);
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::get_ipc_handle(const void *Ptr, size_t Size,
+                                              void *IpcData) {
+  std::ignore = Size;
+
+  UR_ASSERT(Ptr && IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+  auto Ret = ZE_CALL_NOCHECK(zeMemGetIpcHandle,
+                             (Context->ZeContext, Ptr, &zeIpcData->zeHandle));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  zeIpcData->pid = ur_getpid();
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::put_ipc_handle(void *IpcData) {
+  UR_ASSERT(IpcData, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+  std::ignore = zeIpcData;
+
+  // zeMemPutIpcHandle was introduced in Level Zero 1.6. Before Level Zero 1.6,
+  // IPC handle was released automatically when corresponding memory buffer
+  // was freed.
+#if (ZE_API_VERSION_CURRENT >= ZE_MAKE_VERSION(1, 6))
+  auto Ret = ZE_CALL_NOCHECK(zeMemPutIpcHandle,
+                             (Context->ZeContext, zeIpcData->zeHandle));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+#endif
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::open_ipc_handle(void *IpcData, void **Ptr) {
+  UR_ASSERT(IpcData && Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  ze_ipc_data_t *zeIpcData = (ze_ipc_data_t *)IpcData;
+
+  int fdLocal = -1;
+  if (zeIpcData->pid != ur_getpid()) {
+    int fdRemote = -1;
+    memcpy(&fdRemote, &zeIpcData->zeHandle, sizeof(fdRemote));
+    fdLocal = ur_duplicate_fd(zeIpcData->pid, fdRemote);
+    if (fdLocal == -1) {
+      logger::error("duplicating file descriptor from IPC handle failed");
+      return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+    }
+
+    memcpy(&zeIpcData->zeHandle, &fdLocal, sizeof(fdLocal));
+  }
+
+  auto Ret =
+      ZE_CALL_NOCHECK(zeMemOpenIpcHandle, (Context->ZeContext, Device->ZeDevice,
+                                           zeIpcData->zeHandle, 0, Ptr));
+  if (fdLocal != -1) {
+    ur_close_fd(fdLocal);
+  }
+
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t L0MemoryProvider::close_ipc_handle(void *Ptr, size_t Size) {
+  std::ignore = Size;
+
+  UR_ASSERT(Ptr, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+  auto Ret = ZE_CALL_NOCHECK(zeMemCloseIpcHandle, (Context->ZeContext, Ptr));
+  if (Ret != ZE_RESULT_SUCCESS) {
+    return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+  }
+
+  return UMF_RESULT_SUCCESS;
+}
+
 ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
                                                  uint32_t Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, /*host flags*/ 0,
@@ -827,7 +1031,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   HostMemPool =
       umf::poolMakeUniqueFromOps(
-          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+          umfDisjointPoolOps(), std::move(MemProvider),
           &this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
@@ -838,7 +1042,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Device])
                             .second));
@@ -849,7 +1053,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(umf::poolMakeUniqueFromOps(
-                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            umfDisjointPoolOps(), std::move(MemProvider),
                             &this->DisjointPoolConfigs
                                  .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
@@ -861,72 +1065,10 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(
             umf::poolMakeUniqueFromOps(
-                &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                umfDisjointPoolOps(), std::move(MemProvider),
                 &this->DisjointPoolConfigs
                      .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));
-  }
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
-    ur_context_handle_t Context, ///< [in] handle of the context object
-    ur_usm_pool_desc_t
-        *PoolDesc, ///< [in] pointer to USM pool descriptor. Can be chained with
-                   ///< ::ur_usm_pool_limits_desc_t
-    ur_usm_pool_handle_t *Pool ///< [out] pointer to USM memory pool
-) {
-
-  try {
-    *Pool = reinterpret_cast<ur_usm_pool_handle_t>(
-        new ur_usm_pool_handle_t_(Context, PoolDesc));
-
-    std::shared_lock<ur_shared_mutex> ContextLock(Context->Mutex);
-    Context->UsmPoolHandles.insert(Context->UsmPoolHandles.cend(), *Pool);
-
-  } catch (const UsmAllocationException &Ex) {
-    return Ex.getError();
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t
-urUSMPoolRetain(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
-  Pool->RefCount.increment();
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t
-urUSMPoolRelease(ur_usm_pool_handle_t Pool ///< [in] pointer to USM memory pool
-) {
-  if (Pool->RefCount.decrementAndTest()) {
-    std::shared_lock<ur_shared_mutex> ContextLock(Pool->Context->Mutex);
-    Pool->Context->UsmPoolHandles.remove(Pool);
-    delete Pool;
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-ur_result_t urUSMPoolGetInfo(
-    ur_usm_pool_handle_t Pool,   ///< [in] handle of the USM memory pool
-    ur_usm_pool_info_t PropName, ///< [in] name of the pool property to query
-    size_t PropSize, ///< [in] size in bytes of the pool property value provided
-    void *PropValue, ///< [out][typename(propName, propSize)] value of the pool
-                     ///< property
-    size_t *PropSizeRet ///< [out] size in bytes returned in pool property value
-) {
-  UrReturnHelper ReturnValue(PropSize, PropValue, PropSizeRet);
-
-  switch (PropName) {
-  case UR_USM_POOL_INFO_REFERENCE_COUNT: {
-    return ReturnValue(Pool->RefCount.load());
-  }
-  case UR_USM_POOL_INFO_CONTEXT: {
-    return ReturnValue(Pool->Context);
-  }
-  default: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
   }
 }
 
@@ -1011,39 +1153,4 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
   if (IndirectAccessTrackingEnabled)
     UR_CALL(ContextReleaseHelper(Context));
   return umf2urResult(umfRet);
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
-                                                   void *HostPtr, size_t Size) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-
-  // Promote the host ptr to USM host memory.
-  if (ZeUSMImport.Supported && HostPtr != nullptr) {
-    // Query memory type of the host pointer
-    ze_device_handle_t ZeDeviceHandle;
-    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-    ZE2UR_CALL(zeMemGetAllocProperties,
-               (Context->ZeContext, HostPtr, &ZeMemoryAllocationProperties,
-                &ZeDeviceHandle));
-
-    // If not shared of any type, we can import the ptr
-    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-      // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle =
-          Context->getPlatform()->ZeDriverHandleExpTranslated;
-      ZeUSMImport.doZeUSMImport(driverHandle, HostPtr, Size);
-    }
-  }
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
-                                                    void *HostPtr) {
-  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
-
-  // Release the imported memory.
-  if (ZeUSMImport.Supported && HostPtr != nullptr)
-    ZeUSMImport.doZeUSMRelease(
-        Context->getPlatform()->ZeDriverHandleExpTranslated, HostPtr);
-  return UR_RESULT_SUCCESS;
 }

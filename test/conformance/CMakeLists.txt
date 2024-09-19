@@ -41,9 +41,6 @@ function(add_test_adapter name adapter)
     endif()
 
     set(TEST_ENV UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
-    if("${ARGN}" STREQUAL "v2")
-        list(APPEND TEST_ENV "UR_L0_USE_QUEUE_V2=1")
-    endif()
     if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
         list(APPEND TEST_ENV GTEST_COLOR=no)
     endif()
@@ -75,7 +72,9 @@ function(add_conformance_test name)
     endif()
     if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_level_zero)
-        add_test_adapter(${name} adapter_level_zero v2)
+    endif()
+    if(UR_BUILD_ADAPTER_L0_V2)
+        add_test_adapter(${name} adapter_level_zero_v2)
     endif()
     if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_opencl)
@@ -86,7 +85,8 @@ function(add_conformance_test name)
 
     if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
             OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
-            OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL))
+            OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
+            OR UR_BUILD_ADAPTER_ALL))
         add_test_adapter(${name} adapter_mock)
     endif()
 endfunction()
@@ -122,6 +122,19 @@ add_subdirectory(queue)
 add_subdirectory(sampler)
 add_subdirectory(virtual_memory)
 
+set(TEST_SUBDIRECTORIES_DPCXX
+    "device_code"
+    "kernel"
+    "program"
+    "enqueue"
+    "integration"
+    "exp_command_buffer"
+    "exp_enqueue_native"
+    "exp_usm_p2p"
+    "exp_launch_properties"
+    "memory-migrate"
+)
+
 if(UR_DPCXX)
     add_custom_target(generate_device_binaries)
 
@@ -130,7 +143,7 @@ if(UR_DPCXX)
     file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
 
     if("${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
-        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
+        if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2 OR UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
             list(APPEND TARGET_TRIPLES "spir64")
         endif()
         if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
@@ -143,18 +156,20 @@ if(UR_DPCXX)
         string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
     endif()
 
-    add_subdirectory(device_code)
-    add_subdirectory(kernel)
-    add_subdirectory(program)
-    add_subdirectory(enqueue)
-    add_subdirectory(integration)
-    add_subdirectory(exp_command_buffer)
-    add_subdirectory(exp_enqueue_native)
-    add_subdirectory(exp_usm_p2p)
-    add_subdirectory(exp_launch_properties)
-    add_subdirectory(memory-migrate)
+    foreach(dir ${TEST_SUBDIRECTORIES_DPCXX})
+        add_subdirectory(${dir})
+    endforeach()
 else()
+    set(DISABLED_TESTS "")
+    foreach(dir ${TEST_SUBDIRECTORIES_DPCXX})
+        if(NOT dir STREQUAL "device_code")
+            list(APPEND DISABLED_TESTS "test-${dir}")
+        endif()
+    endforeach()
+
+    string(REPLACE ";" ", " DISABLED_TESTS_STR "${DISABLED_TESTS}")
+
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \
-        are disabled: test-program, test-kernel, test-enqueue")
+        are disabled: ${DISABLED_TESTS_STR}")
 endif()

@@ -161,7 +161,7 @@ Tracing
 
 Unified Runtime loader implements tracing support through the `XPTI framework <https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md>`__.
 
-.. list-table:: UR Stream `"ur"` Notification Signatures
+.. list-table:: UR Stream `"ur.call"` Notification Signatures
    :header-rows: 1
 
    * - Trace Point Type
@@ -295,6 +295,8 @@ Layers currently included with the runtime are as follows:
      - Description
    * - UR_LAYER_PARAMETER_VALIDATION
      - Enables non-adapter-specific parameter validation (e.g. checking for null values).
+   * - UR_LAYER_BOUNDS_CHECKING
+     - Enables non-adapter-specific bounds checking of USM allocations for enqueued commands. Automatically enables UR_LAYER_PARAMETER_VALIDATION.
    * - UR_LAYER_LEAK_CHECKING
      - Performs some leak checking for API calls involving object creation/destruction.
    * - UR_LAYER_LIFETIME_VALIDATION
@@ -393,6 +395,14 @@ Specific environment variables can be set to control the behavior of unified run
     .. note::
 
     See the Layers_ section for details of the layers currently included in the runtime.
+
+.. envvar:: UR_LOADER_PRELOAD_FILTER
+
+    If set, the loader will read `ONEAPI_DEVICE_SELECTOR` before loading the UR Adapters to determine which backends should be loaded.
+
+    .. note::
+
+    This environment variable is default enabled on Linux, but default disabled on Windows.
 
 Service identifiers
 ---------------------

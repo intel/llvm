@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -193,6 +193,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Return the Platform, which is the same for all devices in the context
   ur_platform_handle_t getPlatform() const;
 
+  // Get vector of devices from this context
+  const std::vector<ur_device_handle_t> &getDevices() const;
+
   // Get index of the free slot in the available pool. If there is no available
   // pool then create new one. The HostVisible parameter tells if we need a
   // slot for a host-visible event. The ProfilingEnabled tells is we need a
@@ -294,7 +297,7 @@ struct ur_context_handle_t_ : _ur_object {
   // for executing on this device. Immediate commandlists are created only
   // once for each SYCL Queue and after that they are reused.
   ur_result_t getAvailableCommandList(
-      ur_queue_handle_legacy_t Queue, ur_command_list_ptr_t &CommandList,
+      ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
       bool UseCopyEngine, uint32_t NumEventsInWaitList,
       const ur_event_handle_t *EventWaitList, bool AllowBatching = false,
       ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
@@ -302,6 +305,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
+
+  // Get handle to the L0 context
+  ze_context_handle_t getZeHandle() const;
 
 private:
   // Get the cache of events for a provided scope and profiling mode.

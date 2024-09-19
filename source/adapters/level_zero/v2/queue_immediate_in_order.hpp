@@ -10,14 +10,63 @@
 #pragma once
 
 #include "../common.hpp"
-#include "../queue.hpp"
+#include "../device.hpp"
+
+#include "context.hpp"
+#include "event.hpp"
+#include "event_pool_cache.hpp"
+#include "queue_api.hpp"
 
 #include "ur/ur.hpp"
 
 namespace v2 {
+
+using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
+
+struct ur_command_list_handler_t {
+  ur_command_list_handler_t(ur_context_handle_t hContext,
+                            ur_device_handle_t hDevice,
+                            const ur_queue_properties_t *pProps,
+                            queue_group_type type, event_pool *eventPool);
+
+  raii::cache_borrowed_command_list_t commandList;
+  raii::cache_borrowed_event internalEvent;
+
+  // TODO: do we need to keep ref count of this for user events?
+  // For counter based events, we can reuse them safely and l0 event pool
+  // cannot be destroyed before the queue is released.
+  ze_event_handle_t lastEvent = nullptr;
+};
+
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
+private:
+  ur_context_handle_t hContext;
+  ur_device_handle_t hDevice;
+  ur_queue_flags_t flags;
+
+  raii::cache_borrowed_event_pool eventPool;
+
+  ur_command_list_handler_t copyHandler;
+  ur_command_list_handler_t computeHandler;
+  ur_command_list_handler_t *lastHandler = nullptr;
+
+  std::vector<ze_event_handle_t> waitList;
+
+  std::pair<ze_event_handle_t *, uint32_t>
+  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
+                  ur_command_list_handler_t *pHandler);
+
+  ur_command_list_handler_t *getCommandListHandlerForCompute();
+  ur_command_list_handler_t *getCommandListHandlerForCopy();
+  ur_command_list_handler_t *getCommandListHandlerForFill(size_t patternSize);
+
+  ze_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
+                                   ur_event_handle_t *hUserEvent);
+
+public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
-                                ur_queue_flags_t);
+                                const ur_queue_properties_t *);
+  ~ur_queue_immediate_in_order_t() {}
 
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,
                            void *pPropValue, size_t *pPropSizeRet) override;
@@ -162,20 +211,21 @@ struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
                                    const ur_event_handle_t *phEventWaitList,
                                    ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesImageCopyExp(
-      void *pDst, const void *pSrc, const ur_image_format_t *pImageFormat,
-      const ur_image_desc_t *pImageDesc,
-      ur_exp_image_copy_flags_t imageCopyFlags, ur_rect_offset_t srcOffset,
-      ur_rect_offset_t dstOffset, ur_rect_region_t copyExtent,
-      ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
+      const void *pSrc, void *pDst, const ur_image_desc_t *pSrcImageDesc,
+      const ur_image_desc_t *pDstImageDesc,
+      const ur_image_format_t *pSrcImageFormat,
+      const ur_image_format_t *pDstImageFormat,
+      ur_exp_image_copy_region_t *pCopyRegion,
+      ur_exp_image_copy_flags_t imageCopyFlags, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesWaitExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasWaitValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasWaitValue,
       uint64_t waitValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
   ur_result_t bindlessImagesSignalExternalSemaphoreExp(
-      ur_exp_interop_semaphore_handle_t hSemaphore, bool hasSignalValue,
+      ur_exp_external_semaphore_handle_t hSemaphore, bool hasSignalValue,
       uint64_t signalValue, uint32_t numEventsInWaitList,
       const ur_event_handle_t *phEventWaitList,
       ur_event_handle_t *phEvent) override;
