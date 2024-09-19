@@ -93,6 +93,8 @@ int main() {
     constexpr static int NUM = 23;
     uint8_t ikeys[NUM] = {1,  11, 1,   9,  3,  100, 34, 8,  121, 77,  125, 23,
                           36, 2,  111, 91, 88, 2,   51, 91, 81,  122, 22};
+    int8_t ikeys1[NUM] = {0,  1,  -2, 1, 122, -123, 99,   -91, 9,   12, 13, 46,
+                          13, 13, 9,  5, 77,  81,   -100, 35,  -64, 22, 23};
     uint8_t ivals[NUM] = {99,  32,  1,   2,   67,  123, 253, 35,
                           111, 77,  165, 145, 254, 11,  161, 96,
                           165, 100, 64,  90,  255, 147, 135};
@@ -259,6 +261,336 @@ int main() {
 #endif
 #endif
     };
+
+    auto work_group_sorter9 = [](int8_t *keys, uint8_t *vals, uint32_t n,
+                                 uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter10 = [](int8_t *keys, uint16_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1u16_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1u16_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter11 = [](int8_t *keys, uint32_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter12 = [](int8_t *keys, uint64_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter13 = [](int8_t *keys, int8_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1i8_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1i8_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter14 = [](int8_t *keys, int16_t *vals, uint32_t n,
+                                  uint8_t *scratch) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#ifdef DES
+      __devicelib_default_work_group_joint_sort_descending_p1i8_p1i16_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_joint_sort_ascending_p1i8_p1i16_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 1, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 2, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 4, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 8, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 16, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 16> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint8_t, 32, NUM,
+                                  decltype(work_group_sorter9)>(
+        q, ikeys1, ivals, work_group_sorter9);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint8_t) <NUM = 23, WG = 32> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 1, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 2, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 4, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 8, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 16, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 16> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int8_t, 32, NUM,
+                                  decltype(work_group_sorter13)>(
+        q, ikeys1, ivals2, work_group_sorter13);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int8_t) <NUM = 23, WG = 32> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 1, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 2, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 4, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 8, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 16, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = "
+                 "16> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint16_t, 32, NUM,
+                                  decltype(work_group_sorter10)>(
+        q, ikeys1, ivals3, work_group_sorter10);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint16_t) <NUM = 23, WG = "
+                 "32> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 1, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 2, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 4, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 8, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 16, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 16> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, int16_t, 32, NUM,
+                                  decltype(work_group_sorter14)>(
+        q, ikeys1, ivals4, work_group_sorter14);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: int16_t) <NUM = 23, WG = 32> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 1, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 2, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 4, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 8, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 16, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = "
+                 "16> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint32_t, 32, NUM,
+                                  decltype(work_group_sorter11)>(
+        q, ikeys1, ivals5, work_group_sorter11);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint32_t) <NUM = 23, WG = "
+                 "32> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 1, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = 1> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 2, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = 2> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 4, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = 4> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 8, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout
+        << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = 8> pass."
+        << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 16, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = "
+                 "16> pass."
+              << std::endl;
+
+    test_work_group_KV_joint_sort<int8_t, uint64_t, 32, NUM,
+                                  decltype(work_group_sorter12)>(
+        q, ikeys1, ivals7, work_group_sorter12);
+    std::cout << "KV joint sort (Key: int8_t, Val: uint64_t) <NUM = 23, WG = "
+                 "32> pass."
+              << std::endl;
 
     test_work_group_KV_joint_sort<uint8_t, uint8_t, 1, NUM,
                                   decltype(work_group_sorter)>(
