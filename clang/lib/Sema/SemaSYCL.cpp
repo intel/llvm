@@ -4289,7 +4289,7 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
         SourceLocation(), SourceLocation(), SourceRange());
   }
 
-  Expr *createStructTemporary(ParmVarDecl *OrigFunctionParameter) {
+  Expr *createCopyInitExpr(ParmVarDecl *OrigFunctionParameter) {
     Expr *DRE = createParamReferenceExpr();
 
     assert(OrigFunctionParameter && "no parameter?");
@@ -4399,7 +4399,7 @@ public:
 
   bool handleNonDecompStruct(const CXXRecordDecl *, ParmVarDecl *PD,
                              QualType) final {
-    Expr *TempCopy = createStructTemporary(PD);
+    Expr *TempCopy = createCopyInitExpr(PD);
     ArgExprs.push_back(TempCopy);
     return true;
   }
