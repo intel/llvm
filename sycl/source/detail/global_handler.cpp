@@ -381,7 +381,12 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                    // release.
 #endif
 
-    shutdown_win();
+    try {
+      shutdown_win();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
+      return FALSE;
+    }
     break;
   case DLL_PROCESS_ATTACH:
     if (PrintUrTrace)
