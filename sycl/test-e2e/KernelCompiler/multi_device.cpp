@@ -1,4 +1,6 @@
 // REQUIRES: (opencl || level_zero)
+// UNSUPPORTED: accelerator
+
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
 

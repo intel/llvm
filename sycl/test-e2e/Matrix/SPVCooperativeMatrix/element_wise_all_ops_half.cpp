@@ -7,13 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: matrix-fp16
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: gpu
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_half_impl.hpp"

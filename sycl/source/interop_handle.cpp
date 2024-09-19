@@ -35,8 +35,8 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
 
   auto Plugin = MQueue->getPlugin();
   ur_native_handle_t Handle;
-  Plugin->call(urMemGetNativeHandle, Iter->second, MDevice->getHandleRef(),
-               &Handle);
+  Plugin->call<detail::UrApiKind::urMemGetNativeHandle>(
+      Iter->second, MDevice->getHandleRef(), &Handle);
   return Handle;
 }
 

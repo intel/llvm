@@ -1,6 +1,6 @@
 ; RUN: sycl-post-link -split=auto -properties -emit-exported-symbols \
 ; RUN:     -emit-imported-symbols -emit-only-kernels-as-entry-points \
-; RUN:     -support-dynamic-linking \
+; RUN:     -allow-device-image-dependencies \
 ; RUN:     -S < %s -o %t.table
 ;
 ; Virtual functions require some special handling during module cleanup:
