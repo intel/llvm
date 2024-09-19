@@ -6,7 +6,7 @@
 // RUNx: %clang_cc1 %s -fsycl-id-queries-fit-in-int -fsycl-is-device -E -dM -fms-compatibility | FileCheck --check-prefix=CHECK-MSVC %s
 // RUN: %clang_cc1 -fno-sycl-id-queries-fit-in-int %s -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
-// RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -DARCH_CODE=800 -fsycl-is-device -E -dM | FileCheck \
+// RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-CUDA %s -DARCH_CODE=800
 // RUN: %clangxx %s -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --offload-arch=sm_80 -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-CUDA-SYCL-DRIVER %s
