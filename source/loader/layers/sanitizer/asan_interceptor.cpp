@@ -760,14 +760,14 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         }
 
         // Write global variable to program
-        auto EnqueueWriteGlobal = [Queue, Program](const char *Name,
-                                                   const void *Value,
-                                                   size_t Size) {
+        auto EnqueueWriteGlobal = [Queue, Program](
+                                      const char *Name, const void *Value,
+                                      size_t Size, bool ReportWarning = true) {
             auto Result =
                 getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
                     Queue, Program, Name, false, Size, 0, Value, 0, nullptr,
                     nullptr);
-            if (Result != UR_RESULT_SUCCESS) {
+            if (ReportWarning && Result != UR_RESULT_SUCCESS) {
                 getContext()->logger.warning(
                     "Failed to write device global \"{}\": {}", Name, Result);
                 return false;
@@ -780,7 +780,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Because EnqueueWriteGlobal is a async write, so
         // we need to extend its lifetime
         static uint64_t Debug = Options(logger).Debug ? 1 : 0;
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug), false);
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
