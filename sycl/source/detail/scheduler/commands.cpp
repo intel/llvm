@@ -3217,6 +3217,7 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
         HostTask->MHostTask->MInteropTask};
 
     ur_bool_t NativeCommandSupport = false;
+    assert(MQueue && "Native command should have an associated queue");
     MQueue->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
         detail::getSyclObjImpl(MQueue->get_device())->getHandleRef(),
         UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP,
