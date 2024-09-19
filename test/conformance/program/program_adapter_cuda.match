@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urProgramBuildTest.BuildFailure/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramCreateWithILTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}
 {{OPT}}urProgramCreateWithILTest.SuccessWithProperties/NVIDIA_CUDA_BACKEND___{{.*}}

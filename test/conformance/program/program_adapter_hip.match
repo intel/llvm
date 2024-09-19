@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urProgramBuildTest.BuildFailure/AMD_HIP_BACKEND___{{.*}}_
 # HIP hasn't implemented urProgramCreateWithNativeHandleTest
 {{OPT}}urProgramCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_

@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urUSMDeviceAllocTest.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.SuccessWithDescriptors/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.InvalidNullHandleContext/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled

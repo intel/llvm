@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urEventGetProfilingInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
 urEventGetProfilingInfoWithTimingComparisonTest.Success/AMD_HIP_BACKEND___{{.*}}_
 urEventSetCallbackTest.Success/AMD_HIP_BACKEND___{{.*}}_

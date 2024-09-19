@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urEnqueueDeviceGetGlobalVariableReadTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueKernelLaunchTest.InvalidKernelArgs/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueKernelLaunchKernelWgSizeTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
