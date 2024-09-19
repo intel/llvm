@@ -556,11 +556,19 @@ ur_result_t urEnqueueDeviceGlobalVariableRead(
 ) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
+  ze_module_handle_t ZeModule{};
+  auto It = Program->ZeModuleMap.find(Queue->Device->ZeDevice);
+  if (It != Program->ZeModuleMap.end()) {
+    ZeModule = It->second;
+  } else {
+    ZeModule = Program->ZeModule;
+  }
+
   // Find global variable pointer
   size_t GlobalVarSize = 0;
   void *GlobalVarPtr = nullptr;
   ZE2UR_CALL(zeModuleGetGlobalPointer,
-             (Program->ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
+             (ZeModule, Name, &GlobalVarSize, &GlobalVarPtr));
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
                     UR_RESULT_ERROR_INVALID_VALUE,
