@@ -22,6 +22,7 @@
 #include <optional>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace ur_sanitizer_layer {
@@ -41,22 +42,17 @@ struct DeviceInfo {
     uptr ShadowOffset = 0;
     uptr ShadowOffsetEnd = 0;
 
+    // Device features
+    bool IsSupportSharedSystemUSM = false;
+
     // lock this mutex if following fields are accessed
     ur_mutex Mutex;
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
 
-    explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
-        [[maybe_unused]] auto Result =
-            getContext()->urDdiTable.Device.pfnRetain(Device);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
-
-    ~DeviceInfo() {
-        [[maybe_unused]] auto Result =
-            getContext()->urDdiTable.Device.pfnRelease(Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
+    // Device handles are special and alive in the whole process lifetime,
+    // so we needn't retain&release here.
+    explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {}
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context);
 };
@@ -89,6 +85,8 @@ struct KernelInfo {
     // lock this mutex if following fields are accessed
     ur_shared_mutex Mutex;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
+    std::unordered_map<uint32_t, std::pair<const void *, StackTrace>>
+        PointerArgs;
 
     // Need preserve the order of local arguments
     std::map<uint32_t, LocalArgsInfo> LocalArgs;
@@ -202,6 +200,16 @@ class SanitizerInterceptor {
     ur_result_t eraseMemBuffer(ur_mem_handle_t MemHandle);
     std::shared_ptr<MemBuffer> getMemBuffer(ur_mem_handle_t MemHandle);
 
+    ur_result_t holdAdapter(ur_adapter_handle_t Adapter) {
+        std::scoped_lock<ur_shared_mutex> Guard(m_AdaptersMutex);
+        if (m_Adapters.find(Adapter) != m_Adapters.end()) {
+            return UR_RESULT_SUCCESS;
+        }
+        UR_CALL(getContext()->urDdiTable.Global.pfnAdapterRetain(Adapter));
+        m_Adapters.insert(Adapter);
+        return UR_RESULT_SUCCESS;
+    }
+
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
     std::vector<AllocationIterator>
@@ -266,6 +274,9 @@ class SanitizerInterceptor {
 
     std::unique_ptr<Quarantine> m_Quarantine;
     logger::Logger &logger;
+
+    std::unordered_set<ur_adapter_handle_t> m_Adapters;
+    ur_shared_mutex m_AdaptersMutex;
 };
 
 } // namespace ur_sanitizer_layer

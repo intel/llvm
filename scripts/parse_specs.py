@@ -21,8 +21,8 @@ from typing import Dict, List, Optional
 from version import Version
 
 
-default_version = Version("0.10")
-all_versions = [Version(ver) for ver in ["0.6", "0.7", "0.8", "0.9", "0.10"]]
+default_version = Version("0.11")
+all_versions = [Version(ver) for ver in ["0.6", "0.7", "0.8", "0.9", "0.10", "0.11"]]
 
 """
     preprocess object

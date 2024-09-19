@@ -54,7 +54,7 @@ if(UR_OPENCL_INCLUDE_DIR)
 else()
     FetchContent_Declare(OpenCL-Headers
         GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-Headers.git"
-        GIT_TAG         main
+        GIT_TAG         1e193332d02e27e15812d24ff2a3a7a908eb92a3
     )
     FetchContent_MakeAvailable(OpenCL-Headers)
     FetchContent_GetProperties(OpenCL-Headers
@@ -96,6 +96,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::umf
     Threads::Threads
     ${OpenCLICDLoaderLibrary}
 )

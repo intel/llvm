@@ -5,7 +5,6 @@ urKernelCreateTest.InvalidNullPointerKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{
 urKernelCreateTest.InvalidKernelName/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelCreateWithNativeHandleTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelCreateWithNativeHandleTest.InvalidNullHandleContext/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
-urKernelCreateWithNativeHandleTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelCreateWithNativeHandleTest.InvalidNullPointerNativeKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelGetGroupInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE
 urKernelGetGroupInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE
@@ -105,6 +104,7 @@ urKernelGetSubGroupInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU
 urKernelGetSubGroupInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_KERNEL_SUB_GROUP_INFO_SUB_GROUP_SIZE_INTEL
 urKernelGetSubGroupInfoSingleTest.CompileNumSubgroupsIsZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelReleaseTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urKernelReleaseTest.KernelReleaseAfterProgramRelease/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelReleaseTest.InvalidNullHandleKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelRetainTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelRetainTest.InvalidNullHandleKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

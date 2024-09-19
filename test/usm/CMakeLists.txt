@@ -15,6 +15,7 @@ function(add_usm_test name)
         PRIVATE
         ${PROJECT_NAME}::common
         ${PROJECT_NAME}::loader
+        ${PROJECT_NAME}::umf
         ur_testing
         GTest::gtest_main)
     add_test(NAME usm-${name}

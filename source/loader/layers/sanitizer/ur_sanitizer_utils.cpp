@@ -115,7 +115,8 @@ ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
     return Device;
 }
 
-DeviceType GetDeviceType(ur_device_handle_t Device) {
+DeviceType GetDeviceType(ur_context_handle_t Context,
+                         ur_device_handle_t Device) {
     ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
     [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
@@ -126,12 +127,46 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
         // TODO: Check fpga is fpga emulator
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
-        // TODO: Check device name
-        return DeviceType::GPU_PVC;
+        uptr Ptr;
+        [[maybe_unused]] ur_result_t Result =
+            getContext()->urDdiTable.USM.pfnDeviceAlloc(
+                Context, Device, nullptr, nullptr, 4, (void **)&Ptr);
+        getContext()->logger.debug("GetDeviceType: {}", (void *)Ptr);
+        assert(Result == UR_RESULT_SUCCESS &&
+               "getDeviceType() failed at allocating device USM");
+        // FIXME: There's no API querying the address bits of device, so we guess it by the
+        // value of device USM pointer (see "USM Allocation Range" in asan_shadow_setup.cpp)
+        auto Type = DeviceType::UNKNOWN;
+        if (Ptr >> 48 == 0xff00U) {
+            Type = DeviceType::GPU_PVC;
+        } else {
+            Type = DeviceType::GPU_DG2;
+        }
+        Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Ptr);
+        assert(Result == UR_RESULT_SUCCESS &&
+               "getDeviceType() failed at releasing device USM");
+        return Type;
     }
     default:
         return DeviceType::UNKNOWN;
     }
+}
+
+ur_device_handle_t GetParentDevice(ur_device_handle_t Device) {
+    ur_device_handle_t ParentDevice{};
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_PARENT_DEVICE, sizeof(ur_device_handle_t),
+        &ParentDevice, nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getParentDevice() failed");
+    return ParentDevice;
+}
+
+bool GetDeviceUSMCapability(ur_device_handle_t Device,
+                            ur_device_info_t USMInfo) {
+    ur_device_usm_access_capability_flags_t Flag;
+    [[maybe_unused]] auto Result = getContext()->urDdiTable.Device.pfnGetInfo(
+        Device, USMInfo, sizeof(Flag), &Flag, nullptr);
+    return (bool)Flag;
 }
 
 std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {

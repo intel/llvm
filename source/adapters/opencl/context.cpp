@@ -113,9 +113,30 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
+  // If we're reasonably sure this context is about to be detroyed we should
+  // clear the ext function pointer cache. This isn't foolproof sadly but it
+  // should drastically reduce the chances of the pathological case described
+  // in the comments in common.hpp.
+  static std::mutex contextReleaseMutex;
+  auto clContext = cl_adapter::cast<cl_context>(hContext);
 
-  cl_int Ret = clReleaseContext(cl_adapter::cast<cl_context>(hContext));
-  return mapCLErrorToUR(Ret);
+  {
+    std::lock_guard<std::mutex> lock(contextReleaseMutex);
+    size_t refCount = 0;
+    CL_RETURN_ON_FAILURE(clGetContextInfo(clContext, CL_CONTEXT_REFERENCE_COUNT,
+                                          sizeof(size_t), &refCount, nullptr));
+
+    // ExtFuncPtrCache is destroyed in an atexit() callback, so it doesn't
+    // necessarily outlive the adapter (or all the contexts).
+    if (refCount == 1 && cl_ext::ExtFuncPtrCache) {
+      cl_ext::ExtFuncPtrCache->clearCache(clContext);
+    }
+  }
+
+  CL_RETURN_ON_FAILURE(
+      clReleaseContext(cl_adapter::cast<cl_context>(hContext)));
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -133,7 +154,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext, uint32_t, const ur_device_handle_t *,
+    ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t,
+    const ur_device_handle_t *,
     const ur_context_native_properties_t *pProperties,
     ur_context_handle_t *phContext) {
 

@@ -20,7 +20,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, Success) {
         // and perform some query on it to verify that it works.
         ur_device_handle_t dev = nullptr;
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urDeviceCreateWithNativeHandle(
-            native_handle, platform, nullptr, &dev));
+            native_handle, adapter, nullptr, &dev));
         ASSERT_NE(dev, nullptr);
 
         uint32_t dev_id = 0;
@@ -41,7 +41,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
         ur_device_native_properties_t props{
             UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES, nullptr, true};
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urDeviceCreateWithNativeHandle(
-            native_handle, platform, &props, &dev));
+            native_handle, adapter, &props, &dev));
         ASSERT_NE(dev, nullptr);
 
         uint32_t ref_count = 0;
@@ -64,7 +64,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
         ur_device_native_properties_t props{
             UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES, nullptr, false};
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urDeviceCreateWithNativeHandle(
-            native_handle, platform, &props, &dev));
+            native_handle, adapter, &props, &dev));
         ASSERT_NE(dev, nullptr);
 
         uint32_t ref_count = 0;
@@ -93,7 +93,7 @@ TEST_F(urDeviceCreateWithNativeHandleTest, InvalidNullPointerDevice) {
         ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                         urDeviceCreateWithNativeHandle(native_handle, platform,
+                         urDeviceCreateWithNativeHandle(native_handle, adapter,
                                                         nullptr, nullptr));
     }
 }
