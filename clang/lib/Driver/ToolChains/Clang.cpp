@@ -10152,12 +10152,12 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     ArgStringList WrapperArgs;
 
     const auto &WrapperJob = *llvm::dyn_cast<OffloadWrapperJobAction>(&JA);
-    bool LlcCompileEnabled = WrapperJob.getCompileStep();
+    bool WrapperCompileEnabled = WrapperJob.getCompileStep();
     SmallString<128> OutOpt("-o=");
     std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
     const char *WrapperFileName =
         C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
-    OutOpt += LlcCompileEnabled ? WrapperFileName : Output.getFilename();
+    OutOpt += WrapperCompileEnabled ? WrapperFileName : Output.getFilename();
     WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
     SmallString<128> HostTripleOpt("-host=");
@@ -10255,28 +10255,30 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         WrapperArgs, std::nullopt);
     C.addCommand(std::move(Cmd));
 
-    if (LlcCompileEnabled) {
-      // Construct llc command.
-      // The output is an object file
-      ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                            WrapperFileName};
+    if (WrapperCompileEnabled) {
+      // TODO Use TC.SelectTool().
+      ArgStringList ClangArgs{
+          TCArgs.MakeArgString("--target=" + TC.getAuxTriple()->str()), "-c",
+          "-o", Output.getFilename(), WrapperFileName};
       llvm::Reloc::Model RelocationModel;
       unsigned PICLevel;
       bool IsPIE;
       std::tie(RelocationModel, PICLevel, IsPIE) =
           ParsePICArgs(getToolChain(), TCArgs);
       if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
-        LlcArgs.push_back("-relocation-model=pic");
+        if (!TC.getAuxTriple()->isOSWindows())
+          ClangArgs.push_back("-fPIC");
       }
       if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
-        LlcArgs.push_back(
-            TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
+        ClangArgs.push_back(
+            TCArgs.MakeArgString(Twine("-mcmodel=") + A->getValue()));
 
-      SmallString<128> LlcPath(C.getDriver().Dir);
-      llvm::sys::path::append(LlcPath, "llc");
-      const char *Llc = C.getArgs().MakeArgString(LlcPath);
-      C.addCommand(std::make_unique<Command>(
-          JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, std::nullopt));
+      SmallString<128> ClangPath(C.getDriver().Dir);
+      llvm::sys::path::append(ClangPath, "clang");
+      const char *Clang = C.getArgs().MakeArgString(ClangPath);
+      C.addCommand(std::make_unique<Command>(JA, *this,
+                                             ResponseFileSupport::None(), Clang,
+                                             ClangArgs, std::nullopt));
     }
     return;
   } // end of SYCL flavor of offload wrapper command creation
