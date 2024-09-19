@@ -116,8 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG detect-memory-leak)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 185149248dd257bd37482aac43307a136204c051
+  # Merge: 2af159d4 d619bcd1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 19 11:02:27 2024 +0200
+  #    Merge pull request #1934 from yingcong-wu/yc/0806-exclude-shadow-from-coredump
+  #    [DeviceSanitizer] Exclude shadow memory from coredump file for CPU device.
+  set(UNIFIED_RUNTIME_TAG 185149248dd257bd37482aac43307a136204c051)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
