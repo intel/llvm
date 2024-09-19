@@ -31,8 +31,7 @@ Release notes for commit range
   intel/llvm#13579 intel/llvm#13869 intel/llvm#14102 intel/llvm#14541
   intel/llvm#14541 intel/llvm#13898 intel/llvm#14143
   allow us to improve link time by reducing amount of external processes and
-  temporary files used by the compiler. **Do we need to list PRs here?** There
-  were many of them and some of them were merged in scope of a previous release.
+  temporary files used by the compiler.
 - Added `-fsycl-fp64-conv-emu` command line option which allows the enabling of
   partial (only conversion operations are supported) emulation of `double` data
   type. This mode is only supported by Intel GPUs. intel/llvm#13912
