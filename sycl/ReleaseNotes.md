@@ -65,8 +65,7 @@ Release notes for commit range
   Please note that the implementation exposes native block read/write HW
   capabilities only if the operation can be directly mapped to a single block
   operation. In other cases, it uses a naive implementation in form of a simple
-  'for' loop and group barriers. intel/llvm#13043 intel/llvm#13734
-  intel/llvm#13673
+  loop and group barriers. intel/llvm#13043 intel/llvm#13734 intel/llvm#13673
 - Implemented [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
 - Added initial support for [`sycl_ext_oneapi_free_function_kernels`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) extension. intel/llvm#13207 intel/llvm#13885
   Known limitations:
