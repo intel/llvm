@@ -205,35 +205,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_bfloat16_math_functions, bool,
                          PI_EXT_ONEAPI_DEVICE_INFO_BFLOAT16_MATH_FUNCTIONS)
 
-//Deprecated oneapi/intel extension
-//TODO:Remove when possible
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
-                         PI_DEVICE_INFO_PCI_ADDRESS)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count, pi_uint32,
-                         PI_DEVICE_INFO_GPU_EU_COUNT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_simd_width, pi_uint32,
-                         PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_slices, pi_uint32,
-                         PI_DEVICE_INFO_GPU_SLICES)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_subslices_per_slice, pi_uint32,
-                         PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count_per_subslice, pi_uint32,
-                         PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_hw_threads_per_eu, pi_uint32,
-                         PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
-                         PI_DEVICE_INFO_UUID)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, pi_uint64,
-                         PI_DEVICE_INFO_MAX_MEM_BANDWIDTH)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
-                         PI_EXT_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
