@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/Intel_R__OpenCL___{{.*}}_
 urEnqueueKernelLaunchKernelWgSizeTest.Success/Intel_R__OpenCL___{{.*}}_
 urEnqueueKernelLaunchKernelSubGroupTest.Success/Intel_R__OpenCL___{{.*}}_

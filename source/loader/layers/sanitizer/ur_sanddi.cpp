@@ -412,6 +412,29 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urContextRetain
+__urdlllocal ur_result_t UR_APICALL urContextRetain(
+    ur_context_handle_t
+        hContext ///< [in] handle of the context to get a reference of.
+) {
+    auto pfnRetain = getContext()->urDdiTable.Context.pfnRetain;
+
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urContextRetain");
+
+    UR_CALL(pfnRetain(hContext));
+
+    auto ContextInfo = getContext()->interceptor->getContextInfo(hContext);
+    UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    ContextInfo->RefCount++;
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urContextRelease
 __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_context_handle_t hContext ///< [in] handle of the context to release.
@@ -424,10 +447,15 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
     getContext()->logger.debug("==== urContextRelease");
 
-    UR_CALL(getContext()->interceptor->eraseContext(hContext));
-    ur_result_t result = pfnRelease(hContext);
+    UR_CALL(pfnRelease(hContext));
 
-    return result;
+    auto ContextInfo = getContext()->interceptor->getContextInfo(hContext);
+    UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    if (--ContextInfo->RefCount == 0) {
+        UR_CALL(getContext()->interceptor->eraseContext(hContext));
+    }
+
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1207,9 +1235,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     UR_CALL(pfnRetain(hKernel));
 
-    if (auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel)) {
-        KernelInfo->RefCount++;
-    }
+    auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+    UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    KernelInfo->RefCount++;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1228,10 +1256,9 @@ __urdlllocal ur_result_t urKernelRelease(
     getContext()->logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    if (auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel)) {
-        if (--KernelInfo->RefCount != 0) {
-            return UR_RESULT_SUCCESS;
-        }
+    auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+    UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    if (--KernelInfo->RefCount == 0) {
         UR_CALL(getContext()->interceptor->eraseKernel(hKernel));
     }
 
@@ -1426,6 +1453,7 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     ur_result_t result = UR_RESULT_SUCCESS;
 
     pDdiTable->pfnCreate = ur_sanitizer_layer::urContextCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::urContextRetain;
     pDdiTable->pfnRelease = ur_sanitizer_layer::urContextRelease;
 
     pDdiTable->pfnCreateWithNativeHandle =

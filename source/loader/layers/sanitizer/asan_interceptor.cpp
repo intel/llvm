@@ -438,6 +438,18 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
     }
     getContext()->logger.info("ShadowMemory(Global): {} - {}",
                               (void *)ShadowOffset, (void *)ShadowOffsetEnd);
+
+    // Set shadow memory for null pointer
+    ManagedQueue Queue(Context, Handle);
+
+    auto DI = getContext()->interceptor->getDeviceInfo(Handle);
+    auto URes =
+        enqueueMemSetShadow(Context, DI, Queue, 0, 1, kNullPointerRedzoneMagic);
+    if (URes != UR_RESULT_SUCCESS) {
+        getContext()->logger.error("enqueueMemSetShadow(NullPointerRZ): {}",
+                                   URes);
+        return URes;
+    }
     return UR_RESULT_SUCCESS;
 }
 
@@ -748,14 +760,14 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         }
 
         // Write global variable to program
-        auto EnqueueWriteGlobal = [Queue, Program](const char *Name,
-                                                   const void *Value,
-                                                   size_t Size) {
+        auto EnqueueWriteGlobal = [Queue, Program](
+                                      const char *Name, const void *Value,
+                                      size_t Size, bool ReportWarning = true) {
             auto Result =
                 getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
                     Queue, Program, Name, false, Size, 0, Value, 0, nullptr,
                     nullptr);
-            if (Result != UR_RESULT_SUCCESS) {
+            if (ReportWarning && Result != UR_RESULT_SUCCESS) {
                 getContext()->logger.warning(
                     "Failed to write device global \"{}\": {}", Name, Result);
                 return false;
@@ -768,7 +780,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Because EnqueueWriteGlobal is a async write, so
         // we need to extend its lifetime
         static uint64_t Debug = Options(logger).Debug ? 1 : 0;
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug));
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug), false);
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
@@ -933,6 +945,34 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
            Address < It->second->AllocBegin + It->second->AllocSize &&
            "Wrong AllocInfo for the address");
     return It;
+}
+
+std::vector<AllocationIterator>
+SanitizerInterceptor::findAllocInfoByContext(ur_context_handle_t Context) {
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    std::vector<AllocationIterator> AllocInfos;
+    for (auto It = m_AllocationMap.begin(); It != m_AllocationMap.end(); It++) {
+        const auto &[_, AI] = *It;
+        if (AI->Context == Context) {
+            AllocInfos.emplace_back(It);
+        }
+    }
+    return AllocInfos;
+}
+
+ContextInfo::~ContextInfo() {
+    [[maybe_unused]] auto Result =
+        getContext()->urDdiTable.Context.pfnRelease(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+
+    std::vector<AllocationIterator> AllocInfos =
+        getContext()->interceptor->findAllocInfoByContext(Handle);
+    for (const auto &It : AllocInfos) {
+        const auto &[_, AI] = *It;
+        if (!AI->IsReleased) {
+            ReportMemoryLeak(AI);
+        }
+    }
 }
 
 ur_result_t USMLaunchInfo::initialize() {

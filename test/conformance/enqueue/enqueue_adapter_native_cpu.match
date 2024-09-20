@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleQueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
