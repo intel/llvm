@@ -8,17 +8,13 @@
 // REQUIRES: aspect-ext_intel_matrix
 // XFAIL: arch-intel_gpu_pvc
 
-// RUN: %{build} -o %t_runtime_dim_vnni.out -ffp-model=precise -DVNNI
+// RUN: %{build} -o %t_runtime_dim_vnni.out -ffp-model=precise -DRUNTIME_DIM -DVNNI
 // RUN: %{run} %t_runtime_dim_vnni.out
 
-// RUN: %{build} -o %t_runtime_dim.out -ffp-model=precise
+// RUN: %{build} -o %t_runtime_dim.out -ffp-model=precise -DRUNTIME_DIM
 // RUN: %{run} %t_runtime_dim.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-#define EXCLUDE_MAIN_TEST 1
-#define ARG_DIM 1
-
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"
-#include "joint_matrix_bf16_fill_k_cache_runtime_dim_impl.hpp"
