@@ -6,8 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-
-// https://jira.devtools.intel.com/browse/GSD-9716
 // XFAIL: arch-intel_gpu_pvc
 
 // RUN: %{build} -o %t_runtime_dim_vnni.out -ffp-model=precise -DVNNI
