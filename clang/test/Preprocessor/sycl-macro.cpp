@@ -36,9 +36,9 @@
 // CHECK-SYCL-ID:#define __SYCL_ID_QUERIES_FIT_IN_INT__ 1
 
 // CHECK-CUDA:#define __SYCL_CUDA_ARCH__ [[ARCH_CODE]]
-// CHECK-CUDA-NOT:#define __CUDA_ARCH__ [[ARCH:[0-9]+]]
+// CHECK-CUDA-NOT:#define __CUDA_ARCH__ {{[0-9]+}}
 
-// CHECK-CUDA-SYCL-DRIVER-NOT: #define __CUDA_ARCH__ [[ARCH:[0-9]+]]
+// CHECK-CUDA-SYCL-DRIVER-NOT: #define __CUDA_ARCH__ {{[0-9]+}}
 
 // CHECK-HIP:#define __CUDA_ARCH__ 0
 
