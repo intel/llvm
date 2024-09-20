@@ -689,15 +689,9 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. No-op
-  // for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
-
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // tasks and host tasks is applicable for out of order queues only. Not needed
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 

@@ -47,14 +47,14 @@
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -fPIE %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_SHARED %s
-// CHECK_SHARED: llc{{.*}} "-relocation-model=pic"
+// CHECK_SHARED: clang{{.*}} "-c"{{.*}} "-fPIC"
 
-/// check for code-model settings for llc device wrap compilation
+/// check for code-model settings for clang device wrap compilation
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -mcmodel=large %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=large %s
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -target x86_64-unknown-linux-gnu -mcmodel=medium %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK_CODE_MODEL -DARG=medium %s
-// CHECK_CODE_MODEL: llc{{.*}} "--code-model=[[ARG]]"
+// CHECK_CODE_MODEL: clang{{.*}} "-c"{{.*}} "-mcmodel=[[ARG]]"
 
 /// -S -emit-llvm should generate textual IR for device.
 // RUN: %clangxx -### -fsycl --no-offload-new-driver -S -emit-llvm %s 2>&1 \

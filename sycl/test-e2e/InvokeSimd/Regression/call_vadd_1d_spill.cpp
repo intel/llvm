@@ -17,6 +17,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -108,22 +109,22 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(
-                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vb = sg.load(
-                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vp = sg.load(
-                PP.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vq = sg.load(
-                PQ.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vr = sg.load(
-                PR.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vx = sg.load(
-                PX.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vy = sg.load(
-                PY.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vz = sg.load(
-                PZ.get_multi_ptr<access::decorated::yes>().get() + offset);
+            auto Load = [&](auto Acc) {
+              float res;
+              group_load(sg,
+                         Acc.template get_multi_ptr<access::decorated::yes>() +
+                             offset,
+                         res);
+              return res;
+            };
+            float va = Load(PA);
+            float vb = Load(PB);
+            float vp = Load(PP);
+            float vq = Load(PQ);
+            float vr = Load(PR);
+            float vx = Load(PX);
+            float vy = Load(PY);
+            float vz = Load(PZ);
 
             float vc;
 
@@ -134,8 +135,9 @@ bool test(QueueTY q, float *A, float *B, float *C, float *P, float *Q, float *R,
               vc = SPMD_CALLEE_doVadd(va, vb, vx, vy, vx, vy, vx, vy, vx, vy,
                                       vp, vq, vr, vz);
             }
-            sg.store(PC.get_multi_ptr<access::decorated::yes>().get() + offset,
-                     vc);
+            group_store(sg, vc,
+                        PC.get_multi_ptr<access::decorated::yes>().get() +
+                            offset);
           });
     });
     e.wait();
