@@ -105,6 +105,8 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/SandboxIR/Tracker.h"
@@ -130,6 +132,8 @@ class GlobalValue;
 class GlobalObject;
 class GlobalIFunc;
 class GlobalVariable;
+class GlobalAlias;
+class NoCFIValue;
 class Context;
 class Function;
 class Instruction;
@@ -336,6 +340,8 @@ protected:
   friend class GlobalObject;          // For `Val`.
   friend class GlobalIFunc;           // For `Val`.
   friend class GlobalVariable;        // For `Val`.
+  friend class GlobalAlias;           // For `Val`.
+  friend class NoCFIValue;            // For `Val`.
 
   /// All values point to the context.
   Context &Ctx;
@@ -1528,6 +1534,75 @@ public:
 #endif
 };
 
+class GlobalAlias final
+    : public GlobalWithNodeAPI<GlobalAlias, llvm::GlobalAlias, GlobalValue,
+                               llvm::GlobalValue> {
+  GlobalAlias(llvm::GlobalAlias *C, Context &Ctx)
+      : GlobalWithNodeAPI(ClassID::GlobalAlias, C, Ctx) {}
+  friend class Context; // For constructor.
+
+public:
+  /// For isa/dyn_cast.
+  static bool classof(const sandboxir::Value *From) {
+    return From->getSubclassID() == ClassID::GlobalAlias;
+  }
+
+  // TODO: Missing create() due to unimplemented sandboxir::Module.
+
+  // TODO: Missing copyAttributresFrom().
+  // TODO: Missing removeFromParent(), eraseFromParent().
+
+  void setAliasee(Constant *Aliasee);
+  Constant *getAliasee() const;
+
+  const GlobalObject *getAliaseeObject() const;
+  GlobalObject *getAliaseeObject() {
+    return const_cast<GlobalObject *>(
+        static_cast<const GlobalAlias *>(this)->getAliaseeObject());
+  }
+
+  static bool isValidLinkage(LinkageTypes L) {
+    return llvm::GlobalAlias::isValidLinkage(L);
+  }
+};
+
+class NoCFIValue final : public Constant {
+  NoCFIValue(llvm::NoCFIValue *C, Context &Ctx)
+      : Constant(ClassID::NoCFIValue, C, Ctx) {}
+  friend class Context; // For constructor.
+
+  Use getOperandUseInternal(unsigned OpIdx, bool Verify) const final {
+    return getOperandUseDefault(OpIdx, Verify);
+  }
+
+public:
+  /// Return a NoCFIValue for the specified function.
+  static NoCFIValue *get(GlobalValue *GV);
+
+  GlobalValue *getGlobalValue() const;
+
+  /// NoCFIValue is always a pointer.
+  PointerType *getType() const;
+  /// For isa/dyn_cast.
+  static bool classof(const sandboxir::Value *From) {
+    return From->getSubclassID() == ClassID::NoCFIValue;
+  }
+
+  unsigned getUseOperandNo(const Use &Use) const final {
+    return getUseOperandNoDefault(Use);
+  }
+
+#ifndef NDEBUG
+  void verify() const override {
+    assert(isa<llvm::NoCFIValue>(Val) && "Expected a NoCFIValue!");
+  }
+  void dumpOS(raw_ostream &OS) const override {
+    dumpCommonPrefix(OS);
+    dumpCommonSuffix(OS);
+  }
+#endif
+};
+
 class BlockAddress final : public Constant {
   BlockAddress(llvm::BlockAddress *C, Context &Ctx)
       : Constant(ClassID::BlockAddress, C, Ctx) {}
@@ -1659,6 +1734,8 @@ public:
   /// \Returns the SBInstruction that corresponds to this iterator, or null if
   /// the instruction is not found in the IR-to-SandboxIR tables.
   pointer get() const { return getInstr(It); }
+  /// \Returns the parent BB.
+  BasicBlock *getNodeParent() const;
 };
 
 /// Contains a list of sandboxir::Instruction's.
@@ -1906,6 +1983,26 @@ public:
   /// instruction, which must be an operator which supports these flags. See
   /// LangRef.html for the meaning of these flags.
   void copyFastMathFlags(FastMathFlags FMF);
+
+  bool isStackSaveOrRestoreIntrinsic() const {
+    auto *I = cast<llvm::Instruction>(Val);
+    return match(I,
+                 PatternMatch::m_Intrinsic<llvm::Intrinsic::stackrestore>()) ||
+           match(I, PatternMatch::m_Intrinsic<llvm::Intrinsic::stacksave>());
+  }
+
+  /// We consider \p I as a Memory Dependency Candidate instruction if it
+  /// reads/write memory or if it has side-effects. This is used by the
+  /// dependency graph.
+  bool isMemDepCandidate() const {
+    auto *I = cast<llvm::Instruction>(Val);
+    return I->mayReadOrWriteMemory() &&
+           (!isa<llvm::IntrinsicInst>(I) ||
+            (cast<llvm::IntrinsicInst>(I)->getIntrinsicID() !=
+                 Intrinsic::sideeffect &&
+             cast<llvm::IntrinsicInst>(I)->getIntrinsicID() !=
+                 Intrinsic::pseudoprobe));
+  }
 
 #ifndef NDEBUG
   void dumpOS(raw_ostream &OS) const override;
