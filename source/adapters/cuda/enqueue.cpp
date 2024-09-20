@@ -666,6 +666,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
   }
   return UR_RESULT_SUCCESS;
 #else
+  [[maybe_unused]] auto _ = launchPropList;
   setErrorMessage("This feature requires cuda 11.8 or later.",
                   UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
