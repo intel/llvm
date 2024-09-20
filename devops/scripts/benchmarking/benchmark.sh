@@ -150,7 +150,7 @@ process_results() {
         echo ""
         fail=2
     fi
-    exit fail
+    exit $fail
 }
 
 cleanup() {
