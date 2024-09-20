@@ -244,7 +244,7 @@ get_native<backend::ext_oneapi_hip, context>(const context &Obj) {
                           "Backends mismatch");
   }
   throw sycl::exception(
-      make_error_code(sycl::errc::runtime),
+      make_error_code(sycl::errc::feature_not_supported),
       "Context interop is not supported for HIP. If a native context is "
       "required, use hipDevicePrimaryCtxRetain with a native device");
 }
