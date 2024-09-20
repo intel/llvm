@@ -12414,6 +12414,14 @@ def err_sycl_kernel_incorrectly_named : Error<
   "'-fsycl-unnamed-lambda' to enable unnamed kernel lambdas"
   "}0">;
 
+// SYCL free function kernels extension.
+def err_bad_free_function_kernel_param_type : Error<
+  "%0 cannot be used as the type of a free function kernel parameter">;
+def note_free_function_kernel_param_type_not_fwd_declarable : Note<
+  "%0 is not forward declarable">;
+def note_free_function_kernel_param_type_not_supported : Note<
+  "%0 is not yet supported as free function kernel parameter">;
+
 def err_sycl_kernel_not_function_object
     : Error<"kernel parameter must be a lambda or function object">;
 def err_sycl_restrict : Error<
