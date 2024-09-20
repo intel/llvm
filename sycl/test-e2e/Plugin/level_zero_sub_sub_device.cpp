@@ -2,7 +2,6 @@
 
 // https://github.com/intel/llvm/issues/14826
 // XFAIL: arch-intel_gpu_pvc
-// UNSUPPORTED: gpu-intel-pvc-1T
 
 // RUN: %{build} %level_zero_options -o %t.out
 
