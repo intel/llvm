@@ -54,6 +54,8 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_remove_if.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_map_find.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
+// CHECK-NEXT: stl_wrappers/cassert
+// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
@@ -109,6 +111,7 @@
 // CHECK-NEXT: info/ext_codeplay_device_traits.def
 // CHECK-NEXT: info/ext_intel_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
+// CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: platform.hpp
 // CHECK-NEXT: detail/string_view.hpp
@@ -143,6 +146,7 @@
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
+// CHECK-NEXT: ur_api_funcs.def
 // CHECK-NEXT: ext/intel/experimental/fp_control_kernel_properties.hpp
 // CHECK-NEXT: ext/intel/experimental/kernel_execution_properties.hpp
 // CHECK-NEXT: ext/oneapi/bindless_images_interop.hpp

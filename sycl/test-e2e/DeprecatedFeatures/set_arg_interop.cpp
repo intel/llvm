@@ -1,5 +1,8 @@
 // REQUIRES: opencl, opencl_icd
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out %opencl_lib -O3
 // RUN: %{run} %t.out
 

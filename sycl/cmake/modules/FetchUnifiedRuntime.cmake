@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b766009add8dc41ad03e2a63be9f6ed40eea4c55 (HEAD, origin/main, origin/HEAD)
-  # Merge: 608e9184 c3c57284
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 27 16:30:04 2024 +0100
-  #   Merge pull request #2011 from nrspruit/fix_opencl_usm_align_check
-  #   [OpenCL] Fix USM alignment error check to occur always and return nulllptr
-  set(UNIFIED_RUNTIME_TAG b766009add8dc41ad03e2a63be9f6ed40eea4c55)
+  # commit 185149248dd257bd37482aac43307a136204c051
+  # Merge: 2af159d4 d619bcd1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 19 11:02:27 2024 +0200
+  #    Merge pull request #1934 from yingcong-wu/yc/0806-exclude-shadow-from-coredump
+  #    [DeviceSanitizer] Exclude shadow memory from coredump file for CPU device.
+  set(UNIFIED_RUNTIME_TAG 185149248dd257bd37482aac43307a136204c051)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

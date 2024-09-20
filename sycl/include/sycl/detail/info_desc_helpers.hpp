@@ -31,6 +31,8 @@ template <typename T> struct is_queue_info_desc : std::false_type {};
 template <typename T> struct is_kernel_info_desc : std::false_type {};
 template <typename T>
 struct is_kernel_device_specific_info_desc : std::false_type {};
+template <typename T>
+struct is_kernel_queue_specific_info_desc : std::false_type {};
 template <typename T> struct is_event_info_desc : std::false_type {};
 template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 // Normally we would just use std::enable_if to limit valid get_info template
@@ -134,6 +136,16 @@ struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
   struct is_backend_info_desc<info::DescType::Desc> : std::true_type {         \
