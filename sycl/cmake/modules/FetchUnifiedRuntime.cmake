@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 897bcfb10a7e13b8e413278550e845322f6bd560 (HEAD, origin/main, origin/HEAD)
-  # Merge: 18514924 71cdf253
+  # commit 7384e2d7b908de0b2bca9f3c57827ea84698864e
+  # Merge: ed85c3e2 a32549b4
   # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Sep 19 14:35:55 2024 +0100
-  #   Merge pull request #2022 from nrspruit/add_3_channel_image_support
-  #   [L0] Add 3-channel image support
-  set(UNIFIED_RUNTIME_TAG 897bcfb10a7e13b8e413278550e845322f6bd560)
+  # Date:   Fri Sep 20 14:56:40 2024 +0100
+  #   Merge pull request #2108 from pbalcer/fix-perf-tracing-logs
+  #   fix perf regression in tracing layer
+  set(UNIFIED_RUNTIME_TAG 7384e2d7b908de0b2bca9f3c57827ea84698864e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
