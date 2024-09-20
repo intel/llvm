@@ -5,7 +5,7 @@
 // RUN: %{run} %t.out
 
 // See https://github.com/intel/llvm/issues/15398
-// UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED: gpu
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //

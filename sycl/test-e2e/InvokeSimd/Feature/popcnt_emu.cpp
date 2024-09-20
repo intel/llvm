@@ -36,6 +36,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -126,9 +127,9 @@ int main(void) {
             } else {
               res = id % 2;
             }
-            sg.store(out_accessor.get_multi_ptr<access::decorated::yes>() +
-                         offset,
-                     res);
+            group_store(sg, res,
+                        out_accessor.get_multi_ptr<access::decorated::yes>() +
+                            offset);
           });
     });
     e.wait();
