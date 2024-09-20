@@ -12358,6 +12358,8 @@ def err_bit_cast_type_size_mismatch : Error<
   "__builtin_bit_cast source size does not equal destination size (%0 vs %1)">;
 
 // SYCL-specific diagnostics
+def warn_sycl_incorrect_use_attribute_non_kernel_function : Warning<
+  "%0 attribute can only be applied to a SYCL kernel function">, InGroup<SyclStrict>;
 def warn_sycl_kernel_num_of_template_params : Warning<
   "'sycl_kernel' attribute only applies to a function template with at least"
   " two template parameters">, InGroup<IgnoredAttributes>;
