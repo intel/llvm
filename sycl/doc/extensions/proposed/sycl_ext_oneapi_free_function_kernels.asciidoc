@@ -963,6 +963,13 @@ int main() {
 ```
 +
 Where `kfp` would have some nicer name.
++
+With either form above, it seems like we have enough type information for the
+header to check that the types of the actual kernel arguments are implicitly
+convertible to the types of the formal kernel parameters, and we can raise a
+compile-time error if they are not.
+In addition, the header can perform any necessary implicit conversions when
+setting the kernel argument values.
 
 * We are debating whether we should allow a free function kernel to be defined
   with an initial "iteration index" parameter such as:
