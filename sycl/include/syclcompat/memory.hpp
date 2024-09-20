@@ -588,9 +588,6 @@ static inline T *malloc_shared(size_t count,
   return static_cast<T *>(sycl::malloc_shared(count * sizeof(T), q));
 }
 
-// Anonymous namespace to disable ADL for functions which might clash (memcpy,
-// memset, free)
-namespace {
 /// Allocate memory block for 3D array on the device.
 /// \param size Size of the memory block, in bytes.
 /// \param q Queue to execute the allocate task.
@@ -615,7 +612,6 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
                            sycl::queue q = get_default_queue()) {
   return detail::malloc(pitch, x, y, 1, q);
 }
-} // namespace
 
 /// Wait on the queue \p q and free the memory \p ptr.
 /// \param ptr Point to free.
@@ -630,6 +626,8 @@ static inline void wait_and_free(void *ptr,
   }
 }
 
+// Anonymous namespace to disable ADL for functions which might clash (memcpy,
+// memset, free)
 namespace {
 /// Free the memory \p ptr on the default queue without synchronizing
 /// \param ptr Point to free.
