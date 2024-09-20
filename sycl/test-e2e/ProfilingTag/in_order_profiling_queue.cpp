@@ -12,10 +12,6 @@
 // than the submission of the following work.
 // UNSUPPORTED: opencl && gpu
 
-// HIP backend currently returns invalid values for submission time queries.
-// https://github.com/intel/llvm/issues/12904
-// UNSUPPORTED: hip
-
 // CUDA backend seems to fail sporadically for expected profiling tag time
 // query orderings.
 // https://github.com/intel/llvm/issues/14053
