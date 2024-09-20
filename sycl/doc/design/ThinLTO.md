@@ -30,7 +30,7 @@ currently a common source of performance issues.
 
 Splitting early means that the resulting IR after splitting is not complete, it
 still may contain calls to functions (user code and/or the SYCL device
-libraries) from other object files.
+libraries) defined in other translation units.
 
 We rely on the assumption that all function definitions matching a declaration
 will be the same and we can let ThinLTO pull in any one.
@@ -50,7 +50,7 @@ part of device compilation may contain multiple device code images.
 ## Device code link time changes
 
 Before we go into the link time changes for SYCL, let's understand the device
-linking flow for community devices (AMD/NVIDIA):
+linking flow for AMD/NVIDIA devices:
 
 ![Community linking flow](images/ThinLTOCommunityFlow.svg)
 
