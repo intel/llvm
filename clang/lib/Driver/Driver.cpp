@@ -1333,9 +1333,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                      getProcessorFromTargetID(*AMDTriple, Arch)))) {
         DerivedArchs[AMDTriple->getTriple()].insert(Arch);
       } else if (IsIntelCPUOffloadArch(StringToOffloadArchIntel(Arch))) {
-        DerivedArchs["spir64_x86_64"].insert(Arch);
+        DerivedArchs[MakeSYCLDeviceTriple("spir64_x86_64").getTriple()].insert(
+            Arch);
       } else if (IsIntelGPUOffloadArch(StringToOffloadArchIntel(Arch))) {
-        DerivedArchs["spir64_gen"].insert(Arch);
+        StringRef IntelGPUArch;
+        IntelGPUArch = mapIntelGPUArchName(Arch).data();
+        DerivedArchs[MakeSYCLDeviceTriple("spir64_gen").getTriple()].insert(
+            IntelGPUArch);
       } else {
         Diag(clang::diag::err_drv_invalid_sycl_target) << Arch;
         return;

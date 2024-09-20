@@ -92,6 +92,8 @@ static inline bool IsIntelGPUOffloadArch(OffloadArchIntel Arch) {
 
 OffloadArchIntel StringToOffloadArchIntel(llvm::StringRef ArchNameAsString);
 
+StringRef mapIntelGPUArchName(StringRef ArchName);
+
 class SYCLInstallationDetector {
 public:
   SYCLInstallationDetector(const Driver &D);

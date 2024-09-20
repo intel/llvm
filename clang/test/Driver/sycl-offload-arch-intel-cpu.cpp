@@ -1,5 +1,5 @@
 /// Tests the behaviors of using -fsycl --offload-new-driver 
-//  --offload-arch=<intel-gpu/cpu-values>.
+//  --offload-arch=<intel-cpu-values>.
 
 // SYCL AOT compilation to Intel CPUs using --offload-arch
 
@@ -57,17 +57,4 @@
 // TARGET-TRIPLE-CPU: clang{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
 // TARGET-TRIPLE-CPU: "-D__SYCL_TARGET_INTEL_X86_64__"
 // CLANG-OFFLOAD-PACKAGER-CPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_x86_64-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
-
-
-// SYCL AOT compilation to Intel GPUs using --offload-arch
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=bdw %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU -DDEV_STR=bdw -DMAC_STR=BDW
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=cfl %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-GPU,CLANG-OFFLOAD-PACKAGER-GPU -DDEV_STR=cfl -DMAC_STR=CFL
-
-// TARGET-TRIPLE-GPU: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"
-// TARGET-TRIPLE-GPU: "-D__SYCL_TARGET_INTEL_GPU_[[MAC_STR]]__"
-// CLANG-OFFLOAD-PACKAGER-GPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_gen-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
 
