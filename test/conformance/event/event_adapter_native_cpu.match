@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_COMMAND_QUEUE
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_CONTEXT
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_COMMAND_TYPE

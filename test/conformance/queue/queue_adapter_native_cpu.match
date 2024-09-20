@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urQueueCreateTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urQueueCreateTest.CheckContext/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urQueueCreateWithParamTest.SuccessWithProperties/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE

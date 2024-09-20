@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/AMD_HIP_BACKEND___{{.*}}_
 urKernelGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
 urKernelSetArgLocalTest.InvalidKernelArgumentIndex/AMD_HIP_BACKEND___{{.*}}_

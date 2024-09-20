@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urMemBufferPartitionTest.InvalidValueCreateType/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urMemGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_MEM_INFO_SIZE
