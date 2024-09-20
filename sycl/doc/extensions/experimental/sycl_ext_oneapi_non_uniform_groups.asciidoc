@@ -203,8 +203,8 @@ namespace sycl::ext::oneapi::experimental {
 `is_user_constructed_group<T>::value` is `std::true_type` if `T` is one of:
 `fragment` or `chunk`.
 
-Additionally, the `is_group<T>::value` trait from SYCL 2020 is `std::true_type`
-if `T` is one of: `fragment` or `chunk`.
+Additionally, the `is_group<T>::value` trait from the core SYCL specification
+is `std::true_type` if `T` is one of: `fragment` or `chunk`.
 
 
 === Group Functions and Algorithms

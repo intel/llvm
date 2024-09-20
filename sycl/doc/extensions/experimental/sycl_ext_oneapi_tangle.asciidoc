@@ -135,8 +135,8 @@ The `is_user_constructed_group<T>::value` trait defined in the
 sycl_ext_oneapi_non_uniform_groups extension is `std::true_type` if `T` is
 `tangle`.
 
-Additionally, the `is_group<T>::value` trait from SYCL 2020 is `std::true_type`
-if `T` is `tangle`.
+Additionally, the `is_group<T>::value` trait from the core SYCL specification
+is `std::true_type` if `T` is `tangle`.
 
 
 === Group Functions and Algorithms
