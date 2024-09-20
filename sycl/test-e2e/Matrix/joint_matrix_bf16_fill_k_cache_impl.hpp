@@ -14,9 +14,9 @@
 #endif
 
 // number of test iterations
-extern constexpr unsigned int testIterations = 100;
+constexpr unsigned int testIterations = 100;
 // start recording time after X iterations
-extern constexpr unsigned int recordThresh = 10;
+constexpr unsigned int recordThresh = 10;
 
 #ifndef MATRIX_SIZE
 #define MATRIX_SIZE 256
