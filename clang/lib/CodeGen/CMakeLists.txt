@@ -148,6 +148,7 @@ add_clang_library(clangCodeGen
 
   DEPENDS
   ${codegen_deps}
+  vt_gen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.
