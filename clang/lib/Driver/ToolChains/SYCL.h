@@ -74,9 +74,6 @@ private:
                              llvm::StringRef SubArchName,
                              llvm::StringRef OutputFilePrefix,
                              const InputInfoList &InputFiles) const;
-  void constructLlcCommand(Compilation &C, const JobAction &JA,
-                           const InputInfo &Output,
-                           const char *InputFile) const;
 };
 
 /// Directly call FPGA Compiler and Linker
