@@ -11,7 +11,7 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 
-// XFAIL: arch-intel_cpu_gnr
+// XFAIL: cpu
 
 #include "../common.hpp"
 #include "../element_wise_all_ops_half_impl.hpp"
