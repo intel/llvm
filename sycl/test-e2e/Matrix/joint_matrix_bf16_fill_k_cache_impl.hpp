@@ -14,9 +14,9 @@
 #endif
 
 // number of test iterations
-constexpr unsigned int testIterations = 100;
+extern constexpr unsigned int testIterations = 100;
 // start recording time after X iterations
-constexpr unsigned int recordThresh = 10;
+extern constexpr unsigned int recordThresh = 10;
 
 #ifndef MATRIX_SIZE
 #define MATRIX_SIZE 256
@@ -46,9 +46,9 @@ template <
 
 double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 #ifdef ARG_DIM
-                   , size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
+       , size_t rowsA, size_t colsA, size_t rowsB, size_t colsB
 #endif // ARG_DIM                   
-                  ) {
+       ) {
 
   size_t sgSize = get_sg_size<MatMul<TM, TN, TK>>(q);
   range<2> global{rowsA / MCache1, (colsB / NCache1) * sgSize};
@@ -355,6 +355,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
   return duration.count();
 }
 
+#ifndef EXCLUDE_MAIN_TEST
 template <typename T, typename TResult, size_t vnniFactor, size_t TM, size_t TN,
           size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
@@ -482,3 +483,4 @@ int main() {
   }
   return 0;
 }
+#endif //EXCLUDE_MAIN_TEST

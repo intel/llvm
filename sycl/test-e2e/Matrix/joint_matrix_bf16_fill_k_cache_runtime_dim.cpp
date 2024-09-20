@@ -18,5 +18,9 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
+#define EXCLUDE_MAIN_TEST 1
+#define ARG_DIM 1
+
 #include "common.hpp"
+#include "joint_matrix_bf16_fill_k_cache_impl.hpp"
 #include "joint_matrix_bf16_fill_k_cache_runtime_dim_impl.hpp"
