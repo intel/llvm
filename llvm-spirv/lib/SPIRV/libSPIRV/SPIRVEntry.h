@@ -339,9 +339,7 @@ public:
   bool isUndef() const { return OpCode == OpUndef; }
   bool isControlBarrier() const { return OpCode == OpControlBarrier; }
   bool isMemoryBarrier() const { return OpCode == OpMemoryBarrier; }
-  bool isVariable() const {
-    return OpCode == OpVariable || OpCode == OpUntypedVariableKHR;
-  }
+  bool isVariable() const { return OpCode == OpVariable; }
   bool isEndOfBlock() const;
   virtual bool isInst() const { return false; }
   virtual bool isOperandLiteral(unsigned Index) const {

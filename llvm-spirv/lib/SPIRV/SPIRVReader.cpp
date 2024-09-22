@@ -1529,15 +1529,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
-  case OpVariable:
-  case OpUntypedVariableKHR: {
-    auto *BVar = static_cast<SPIRVVariableBase *>(BV);
-    SPIRVType *PreTransTy = BVar->getType()->getPointerElementType();
-    if (BVar->getType()->isTypeUntypedPointerKHR()) {
-      auto *UntypedVar = static_cast<SPIRVUntypedVariableKHR *>(BVar);
-      if (SPIRVType *DT = UntypedVar->getDataType())
-        PreTransTy = DT;
-    }
+  case OpVariable: {
+    auto *BVar = static_cast<SPIRVVariable *>(BV);
+    auto *PreTransTy = BVar->getType()->getPointerElementType();
     auto *Ty = transType(PreTransTy);
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
@@ -4068,7 +4062,7 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
   return true;
 }
 
-void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariableBase *BV) {
+void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
   if (BV->getName() != "llvm.global_ctors" &&
       BV->getName() != "llvm.global_dtors")
     return;
@@ -4913,17 +4907,15 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
         return GlobalValue::ExternalLinkage;
     }
     // Variable declaration
-    if (V->getOpCode() == OpVariable ||
-        V->getOpCode() == OpUntypedVariableKHR) {
-      if (static_cast<const SPIRVVariableBase *>(V)->getInitializer() == 0)
+    if (V->getOpCode() == OpVariable) {
+      if (static_cast<const SPIRVVariable *>(V)->getInitializer() == 0)
         return GlobalValue::ExternalLinkage;
     }
     // Definition
     return GlobalValue::AvailableExternallyLinkage;
   case LinkageTypeExport:
-    if (V->getOpCode() == OpVariable ||
-        V->getOpCode() == OpUntypedVariableKHR) {
-      if (static_cast<const SPIRVVariableBase *>(V)->getInitializer() == 0)
+    if (V->getOpCode() == OpVariable) {
+      if (static_cast<const SPIRVVariable *>(V)->getInitializer() == 0)
         // Tentative definition
         return GlobalValue::CommonLinkage;
     }

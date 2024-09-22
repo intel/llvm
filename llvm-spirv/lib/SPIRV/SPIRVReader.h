@@ -251,7 +251,7 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
-  void transGlobalCtorDtors(SPIRVVariableBase *BV);
+  void transGlobalCtorDtors(SPIRVVariable *BV);
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
