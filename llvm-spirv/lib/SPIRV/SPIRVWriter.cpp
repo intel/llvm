@@ -417,8 +417,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
-    auto AddrSpc = T->getPointerAddressSpace();
     auto *ET = Type::getInt8Ty(T->getContext());
+    auto AddrSpc = T->getPointerAddressSpace();
     return transPointerType(ET, AddrSpc);
   }
 
@@ -720,6 +720,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
           transType(ET)));
     }
   } else {
+    SPIRVType *ElementType = transType(ET);
     // ET, as a recursive type, may contain exactly the same pointer T, so it
     // may happen that after translation of ET we already have translated T,
     // added the translated pointer to the SPIR-V module and mapped T to this
@@ -728,17 +729,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     if (Loc != PointeeTypeMap.end()) {
       return Loc->second;
     }
-
-    SPIRVType *ElementType = nullptr;
-    SPIRVType *TranslatedTy = nullptr;
-    if (ET->isPointerTy() &&
-        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
-      TranslatedTy = BM->addUntypedPointerKHRType(
-          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
-    } else {
-      ElementType = transType(ET);
-      TranslatedTy = transPointerType(ElementType, AddrSpc);
-    }
+    SPIRVType *TranslatedTy = transPointerType(ElementType, AddrSpc);
     PointeeTypeMap[TypeKey] = TranslatedTy;
     return TranslatedTy;
   }
@@ -753,16 +744,8 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
   if (Loc != PointeeTypeMap.end())
     return Loc->second;
 
-  SPIRVType *TranslatedTy = nullptr;
-  if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
-      !(ET->isTypeArray() || ET->isTypeVector() || ET->isTypeImage() ||
-        ET->isTypeSampler() || ET->isTypePipe())) {
-    TranslatedTy = BM->addUntypedPointerKHRType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
-  } else {
-    TranslatedTy = BM->addPointerType(
-        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
-  }
+  SPIRVType *TranslatedTy = BM->addPointerType(
+      SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
   PointeeTypeMap[TypeKey] = TranslatedTy;
   return TranslatedTy;
 }
@@ -2213,13 +2196,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              MemoryAccessNoAliasINTELMaskMask);
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
-    return mapValue(
-        V,
-        BM->addLoadInst(
-            transValue(LD->getPointerOperand(), BB), MemoryAccess, BB,
-            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)
-                ? transType(LD->getType())
-                : nullptr));
+    return mapValue(V, BM->addLoadInst(transValue(LD->getPointerOperand(), BB),
+                                       MemoryAccess, BB));
   }
 
   if (BinaryOperator *B = dyn_cast<BinaryOperator>(V)) {
@@ -2429,17 +2407,14 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (auto *Phi = dyn_cast<PHINode>(V)) {
     std::vector<SPIRVValue *> IncomingPairs;
-    SPIRVType *Ty = transScavengedType(Phi);
 
     for (size_t I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
-      SPIRVValue *Val = transValue(Phi->getIncomingValue(I), BB, true,
-                                   FuncTransMode::Pointer);
-      if (Val->getType() != Ty)
-        Val = BM->addUnaryInst(OpBitcast, Ty, Val, BB);
-      IncomingPairs.push_back(Val);
+      IncomingPairs.push_back(transValue(Phi->getIncomingValue(I), BB, true,
+                                         FuncTransMode::Pointer));
       IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
     }
-    return mapValue(V, BM->addPhiInst(Ty, IncomingPairs, BB));
+    return mapValue(V,
+                    BM->addPhiInst(transScavengedType(Phi), IncomingPairs, BB));
   }
 
   if (auto *Ext = dyn_cast<ExtractValueInst>(V)) {
@@ -6696,12 +6671,9 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           assert((Pointee == Args[I] || !isa<Function>(Pointee)) &&
                  "Illegal use of a function pointer type");
         }
-        if (!SPI->isOperandLiteral(I)) {
-          SPIRVValue *Val = transValue(Args[I], BB);
-          SPArgs.push_back(Val->getId());
-        } else {
-          SPArgs.push_back(cast<ConstantInt>(Args[I])->getZExtValue());
-        }
+        SPArgs.push_back(SPI->isOperandLiteral(I)
+                             ? cast<ConstantInt>(Args[I])->getZExtValue()
+                             : transValue(Args[I], BB)->getId());
       }
       BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
       if (!SPRetTy || !SPRetTy->isTypeStruct())

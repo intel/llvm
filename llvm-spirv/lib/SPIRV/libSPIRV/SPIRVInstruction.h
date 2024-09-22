@@ -568,15 +568,9 @@ protected:
     SPIRVInstruction::validate();
     if (getSrc()->isForward() || getDst()->isForward())
       return;
-    assert(
-        (getValueType(PtrId)
-             ->getPointerElementType()
-             ->isTypeUntypedPointerKHR() ||
-         // TODO: This check should be removed once we support untyped
-         // variables.
-         getValueType(ValId)->isTypeUntypedPointerKHR() ||
-         getValueType(PtrId)->getPointerElementType() == getValueType(ValId)) &&
-        "Inconsistent operand types");
+    assert(getValueType(PtrId)->getPointerElementType() ==
+               getValueType(ValId) &&
+           "Inconsistent operand types");
   }
 
 private:
@@ -591,12 +585,11 @@ public:
   // Complete constructor
   SPIRVLoad(SPIRVId TheId, SPIRVId PointerId,
             const std::vector<SPIRVWord> &TheMemoryAccess,
-            SPIRVBasicBlock *TheBB, SPIRVType *TheType = nullptr)
+            SPIRVBasicBlock *TheBB)
       : SPIRVInstruction(
             FixedWords + TheMemoryAccess.size(), OpLoad,
-            TheType ? TheType
-                    : TheBB->getValueType(PointerId)->getPointerElementType(),
-            TheId, TheBB),
+            TheBB->getValueType(PointerId)->getPointerElementType(), TheId,
+            TheBB),
         SPIRVMemoryAccess(TheMemoryAccess), PtrId(PointerId),
         MemoryAccess(TheMemoryAccess) {
     validate();
@@ -626,12 +619,6 @@ protected:
   void validate() const override {
     SPIRVInstruction::validate();
     assert((getValue(PtrId)->isForward() ||
-            getValueType(PtrId)
-                ->getPointerElementType()
-                ->isTypeUntypedPointerKHR() ||
-            // TODO: This check should be removed once we support untyped
-            // variables.
-            Type->isTypeUntypedPointerKHR() ||
             Type == getValueType(PtrId)->getPointerElementType()) &&
            "Inconsistent types");
   }
@@ -2014,8 +2001,7 @@ protected:
     (void)Composite;
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
-           getValueType(Composite)->isTypeVector() ||
-           getValueType(Composite)->isTypeUntypedPointerKHR());
+           getValueType(Composite)->isTypeVector());
   }
 };
 
@@ -2041,8 +2027,7 @@ protected:
     (void)Composite;
     assert(getValueType(Composite)->isTypeArray() ||
            getValueType(Composite)->isTypeStruct() ||
-           getValueType(Composite)->isTypeVector() ||
-           getValueType(Composite)->isTypeUntypedPointerKHR());
+           getValueType(Composite)->isTypeVector());
     assert(Type == getValueType(Composite));
   }
 };
@@ -2389,8 +2374,7 @@ protected:
     // Signedness of 1, its sign bit cannot be set.
     if (!(ObjType->getPointerElementType()->isTypeVoid() ||
           // (void *) is i8* in LLVM IR
-          ObjType->getPointerElementType()->isTypeInt(8) ||
-          ObjType->getPointerElementType()->isTypeUntypedPointerKHR()) ||
+          ObjType->getPointerElementType()->isTypeInt(8)) ||
         !Module->hasCapability(CapabilityAddresses))
       assert(Size == 0 && "Size must be 0");
   }

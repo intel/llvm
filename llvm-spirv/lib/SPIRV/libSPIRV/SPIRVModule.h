@@ -71,7 +71,6 @@ class SPIRVTypeFunction;
 class SPIRVTypeInt;
 class SPIRVTypeOpaque;
 class SPIRVTypePointer;
-class SPIRVTypeUntypedPointerKHR;
 class SPIRVTypeImage;
 class SPIRVTypeSampler;
 class SPIRVTypeSampledImage;
@@ -258,8 +257,6 @@ public:
   virtual SPIRVTypeOpaque *addOpaqueType(const std::string &) = 0;
   virtual SPIRVTypePointer *addPointerType(SPIRVStorageClassKind,
                                            SPIRVType *) = 0;
-  virtual SPIRVTypeUntypedPointerKHR *
-      addUntypedPointerKHRType(SPIRVStorageClassKind) = 0;
   virtual SPIRVTypeStruct *openStructType(unsigned, const std::string &) = 0;
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
@@ -399,8 +396,7 @@ public:
                                SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
-                                        SPIRVBasicBlock *,
-                                        SPIRVType *TheType = nullptr) = 0;
+                                        SPIRVBasicBlock *) = 0;
   virtual SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object,
                                             SPIRVWord Size,
                                             SPIRVBasicBlock *BB) = 0;

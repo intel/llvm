@@ -86,16 +86,12 @@ SPIRVType *SPIRVType::getFunctionReturnType() const {
 }
 
 SPIRVType *SPIRVType::getPointerElementType() const {
-  assert((OpCode == OpTypePointer || OpCode == OpTypeUntypedPointerKHR) &&
-         "Not a pointer type");
-  if (OpCode == OpTypeUntypedPointerKHR)
-    return const_cast<SPIRVType *>(this);
+  assert(OpCode == OpTypePointer && "Not a pointer type");
   return static_cast<const SPIRVTypePointer *>(this)->getElementType();
 }
 
 SPIRVStorageClassKind SPIRVType::getPointerStorageClass() const {
-  assert((OpCode == OpTypePointer || OpCode == OpTypeUntypedPointerKHR) &&
-         "Not a pointer type");
+  assert(OpCode == OpTypePointer && "Not a pointer type");
   return static_cast<const SPIRVTypePointer *>(this)->getStorageClass();
 }
 
@@ -187,13 +183,7 @@ bool SPIRVType::isTypeInt(unsigned Bits) const {
   return isType<SPIRVTypeInt>(this, Bits);
 }
 
-bool SPIRVType::isTypePointer() const {
-  return OpCode == OpTypePointer || OpCode == OpTypeUntypedPointerKHR;
-}
-
-bool SPIRVType::isTypeUntypedPointerKHR() const {
-  return OpCode == OpTypeUntypedPointerKHR;
-}
+bool SPIRVType::isTypePointer() const { return OpCode == OpTypePointer; }
 
 bool SPIRVType::isTypeOpaque() const { return OpCode == OpTypeOpaque; }
 

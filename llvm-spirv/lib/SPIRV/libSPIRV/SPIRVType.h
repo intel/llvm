@@ -92,7 +92,6 @@ public:
   bool isTypeInt(unsigned Bits = 0) const;
   bool isTypeOpaque() const;
   bool isTypePointer() const;
-  bool isTypeUntypedPointerKHR() const;
   bool isTypeSampler() const;
   bool isTypeSampledImage() const;
   bool isTypeStruct() const;
@@ -234,47 +233,25 @@ private:
   unsigned BitWidth; // Bit width
 };
 
-template <Op TheOpCode = OpTypePointer, SPIRVWord WC = 3>
-class SPIRVTypePointerBase : public SPIRVType {
-public:
-  // Complete constructor
-  SPIRVTypePointerBase(SPIRVModule *M, SPIRVId TheId,
-                       SPIRVStorageClassKind TheStorageClass)
-      : SPIRVType(M, WC, TheOpCode, TheId), ElemStorageClass(TheStorageClass) {
-    validate();
-  }
-  // Incomplete constructor
-  SPIRVTypePointerBase()
-      : SPIRVType(TheOpCode), ElemStorageClass(StorageClassFunction) {}
-
-  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
-
-protected:
-  _SPIRV_DEF_ENCDEC2(Id, ElemStorageClass)
-  void validate() const override {
-    SPIRVEntry::validate();
-    assert(isValid(ElemStorageClass));
-  }
-
-  SPIRVStorageClassKind ElemStorageClass; // Storage Class
-};
-
-class SPIRVTypePointer : public SPIRVTypePointerBase<OpTypePointer, 4> {
+class SPIRVTypePointer : public SPIRVType {
 public:
   // Complete constructor
   SPIRVTypePointer(SPIRVModule *M, SPIRVId TheId,
                    SPIRVStorageClassKind TheStorageClass,
                    SPIRVType *ElementType)
-      : SPIRVTypePointerBase(M, TheId, TheStorageClass),
-        ElemTypeId(ElementType->getId()) {
+      : SPIRVType(M, 4, OpTypePointer, TheId),
+        ElemStorageClass(TheStorageClass), ElemTypeId(ElementType->getId()) {
     validate();
   }
   // Incomplete constructor
-  SPIRVTypePointer() : SPIRVTypePointerBase(), ElemTypeId(0) {}
+  SPIRVTypePointer()
+      : SPIRVType(OpTypePointer), ElemStorageClass(StorageClassFunction),
+        ElemTypeId(0) {}
 
   SPIRVType *getElementType() const {
     return static_cast<SPIRVType *>(getEntry(ElemTypeId));
   }
+  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
   SPIRVCapVec getRequiredCapability() const override {
     auto Cap = getVec(CapabilityAddresses);
     if (getElementType()->isTypeFloat(16))
@@ -289,33 +266,14 @@ public:
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ElemStorageClass, ElemTypeId)
+  void validate() const override {
+    SPIRVEntry::validate();
+    assert(isValid(ElemStorageClass));
+  }
+
 private:
+  SPIRVStorageClassKind ElemStorageClass; // Storage Class
   SPIRVId ElemTypeId;
-};
-
-class SPIRVTypeUntypedPointerKHR
-    : public SPIRVTypePointerBase<OpTypeUntypedPointerKHR, 3> {
-public:
-  // Complete constructor
-  SPIRVTypeUntypedPointerKHR(SPIRVModule *M, SPIRVId TheId,
-                             SPIRVStorageClassKind TheStorageClass)
-      : SPIRVTypePointerBase(M, TheId, TheStorageClass) {
-    validate();
-  }
-  // Incomplete constructor
-  SPIRVTypeUntypedPointerKHR() : SPIRVTypePointerBase() {}
-
-  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
-  SPIRVCapVec getRequiredCapability() const override {
-    auto Cap = getVec(CapabilityUntypedPointersKHR, CapabilityAddresses);
-    auto C = getCapability(ElemStorageClass);
-    Cap.insert(Cap.end(), C.begin(), C.end());
-    return Cap;
-  }
-
-  std::optional<ExtensionID> getRequiredExtension() const override {
-    return ExtensionID::SPV_KHR_untyped_pointers;
-  }
 };
 
 class SPIRVTypeForwardPointer : public SPIRVEntryNoId<OpTypeForwardPointer> {
