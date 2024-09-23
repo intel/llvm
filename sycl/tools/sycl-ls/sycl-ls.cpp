@@ -409,7 +409,7 @@ int main(int argc, char **argv) {
       // the device counting done here should have the same result as the
       // counting done by SYCL itself. But technically, it is not the same
       // method, as SYCL keeps a table of platforms:start_dev_index in each
-      // plugin.
+      // adapter.
 
       for (const auto &Device : Devices) {
         std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
