@@ -15,7 +15,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 2;
+  constexpr std::size_t N = 4;
   int *array = nullptr;
 
   Q.submit([&](sycl::handler &h) {
