@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
-  # commit 4d19115165b5497b647ae1b2e110488f84d1806a
-  # Merge: fb6df497 3f128d09
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Tue Sep 17 10:31:44 2024 +0200
-  #     Merge pull request #2087 from nrspruit/fix_driver_inorder_event_wait
-  #     [L0] Fix urEnqueueEventsWaitWithBarrier for driver in order lists
-  set(UNIFIED_RUNTIME_TAG 0ac56783090f481081edea84bacc236092a0f695)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
+  # Merge: 9ca3ec7 be38e567
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Sep 23 08:27:12 2024 -0700
+  #     Merge pull request #1830 from JackAKirk/hip-set-device
+  #     [hip] Remove deprecated hip APIs, simplify urContext
+  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
