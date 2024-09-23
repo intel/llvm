@@ -358,7 +358,7 @@ if cl_options:
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
     config.substitutions.append(("%no_opt", "/Od"))
-    config.substitutions.append(("%fp-model-precise", "/fp:precise"))
+    config.substitutions.append(("%fp-model-", "/fp:"))
 else:
     config.substitutions.append(
         (
@@ -384,7 +384,7 @@ else:
     )
     config.substitutions.append(("%shared_lib", "-shared"))
     config.substitutions.append(("%no_opt", "-O0"))
-    config.substitutions.append(("%fp-model-precise", "-ffp-model=precise"))
+    config.substitutions.append(("%fp-model-", "-ffp-model="))
 
 # Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
 if "verbose-print" in lit_config.params:
