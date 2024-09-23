@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -sycl-std=2020 -fno-sycl-unnamed-lambda -verify %s
 
 // This test verifies that kernel names containing unscoped enums are diagnosed correctly.
 
