@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <ur_api.h>                           // for ur_code_location_t
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -95,8 +94,6 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-
-ur_code_location_t codeLocationCallback(void *);
 
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of

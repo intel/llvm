@@ -2365,10 +2365,7 @@ public:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2401,10 +2398,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2426,10 +2420,7 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2584,6 +2575,7 @@ public:
   /// Equivalent to
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
+  // TODO(#15184) Remove this function in the next ABI-breaking window.
   bool ext_codeplay_supports_fusion() const;
 
 // Clean KERNELFUNC macros.
@@ -2778,10 +2770,7 @@ private:
       event>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2815,10 +2804,7 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2855,10 +2841,7 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
                     PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2893,6 +2876,14 @@ private:
                                size_t Offset,
                                const std::vector<event> &DepEvents);
   const property_list &getPropList() const;
+
+  template <typename KernelName>
+  static constexpr detail::code_location getCodeLocation() {
+    return {detail::getKernelFileName<KernelName>(),
+            detail::getKernelFunctionName<KernelName>(),
+            detail::getKernelLineNumber<KernelName>(),
+            detail::getKernelColumnNumber<KernelName>()};
+  }
 };
 
 } // namespace _V1
