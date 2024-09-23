@@ -1087,6 +1087,16 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
                                false) ||
       hasSYCLDeviceOnly(C.getInputArgs());
+  bool IsSYCLOffloadArchEnabled =
+      HasValidSYCLRuntime &&
+      C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
+
+  if (IsSYCLOffloadArchEnabled &&
+      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                options::OPT_no_offload_new_driver, false)) {
+    Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+    return;
+  }
 
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
@@ -7330,22 +7340,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   handleArguments(C, Args, Inputs, Actions);
-
-  bool HasValidSYCLRuntime =
-      C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
-                               false) ||
-      hasSYCLDeviceOnly(C.getInputArgs());
-  bool IsSYCLOffloadArchEnabled =
-      HasValidSYCLRuntime &&
-      C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
-  /*
-    if (IsSYCLOffloadArchEnabled &&
-        !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                  options::OPT_no_offload_new_driver, false)) {
-      Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-      return;
-    }
-  */
 
   // If '-fintelfpga' is passed, add '-fsycl' to the list of arguments
   const llvm::opt::OptTable &Opts = getOpts();

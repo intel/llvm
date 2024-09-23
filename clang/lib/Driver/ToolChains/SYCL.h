@@ -90,8 +90,13 @@ static inline bool IsIntelGPUOffloadArch(OffloadArchIntel Arch) {
   return Arch >= OffloadArchIntel::BDW && Arch <= OffloadArchIntel::LNL_M;
 }
 
+// Mapping of valid --offload-arch values for Intel CPU and GPU
+// AOT targets.
 OffloadArchIntel StringToOffloadArchIntel(llvm::StringRef ArchNameAsString);
 
+// This is a mapping between the user provided --offload-arch value for Intel
+// GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
+// AOT compiler).
 StringRef mapIntelGPUArchName(StringRef ArchName);
 
 class SYCLInstallationDetector {

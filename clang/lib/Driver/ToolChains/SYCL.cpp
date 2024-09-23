@@ -27,11 +27,15 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+// Struct that relates an AOT target value with
+// Intel CPUs and GPUs.
 struct StringToOffloadArchIntelMap {
   const char *ArchName;
   OffloadArchIntel IntelArch;
 };
 
+// Mapping of valid --offload-arch values for Intel CPU and GPU
+// AOT targets.
 static const StringToOffloadArchIntelMap StringToArchNamesMap[] = {
     {"skylake-avx512", OffloadArchIntel::SKYLAKEAVX512},
     {"core-avx2", OffloadArchIntel::COREAVX2},
@@ -91,6 +95,8 @@ static const StringToOffloadArchIntelMap StringToArchNamesMap[] = {
     {"bmg_g21", OffloadArchIntel::BMG_G21},
     {"lnl_m", OffloadArchIntel::LNL_M}};
 
+// Check if the user provided value for --offload-arch is a valid
+// Intel CPU or Intel GPU target.
 OffloadArchIntel
 clang::driver::StringToOffloadArchIntel(llvm::StringRef ArchNameAsString) {
   auto result = std::find_if(
@@ -103,6 +109,9 @@ clang::driver::StringToOffloadArchIntel(llvm::StringRef ArchNameAsString) {
   return result->IntelArch;
 }
 
+// This is a mapping between the user provided --offload-arch value for Intel
+// GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
+// AOT compiler).
 StringRef clang::driver::mapIntelGPUArchName(StringRef ArchName) {
   StringRef Arch;
   Arch = llvm::StringSwitch<StringRef>(ArchName)
