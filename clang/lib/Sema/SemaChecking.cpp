@@ -6933,7 +6933,6 @@ CheckFormatHandler::HandleInvalidConversionSpecifier(unsigned argIndex,
       OS << "\\u" << llvm::format("%04x", CodePoint);
     else
       OS << "\\U" << llvm::format("%08x", CodePoint);
-    OS.flush();
     Specifier = CodePointStr;
   }
 
