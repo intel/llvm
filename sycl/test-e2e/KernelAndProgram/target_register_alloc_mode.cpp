@@ -1,5 +1,8 @@
 // REQUIRES: arch-intel_gpu_pvc
 
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %{build} -ftarget-register-alloc-mode=pvc:auto -o %t_with.out
 // RUN: %{build} -o %t_without.out
 // RUN: %{build} -ftarget-register-alloc-mode=pvc:default -o %t_default.out

@@ -1,14 +1,7 @@
+// REQUIRES: aspect-usm_shared_allocations,aspect-usm_device_allocations,aspect-usm_host_allocations
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: gpu
-
-// E2E tests for annotated USM allocation functions with alignment arguments
-// that are not powers of 2. Note this test does not work on gpu because some
-// tests expect non-templated aligned_alloc_xxx functions to return nullptr,
-// e.g. when the alignment argument is not a power of 2, while they fail to do
-// so when run on gpu. This maybe because the gpu runtime has different
-// behavior. Therefore, GPU is unsupported until issue #12638 gets resolved.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
