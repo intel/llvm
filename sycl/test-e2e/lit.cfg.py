@@ -284,6 +284,11 @@ if sp[0] == 0:
 else:
     config.substitutions.append(("%level_zero_options", ""))
 
+dx12_options = dx12_options = (" -l d3d12 -l dxgi -l dxguid")
+if cl_options:
+    dx12_options = (" d3d12.lib dxgi.lib dxguid.lib")
+config.substitutions.append(("%dx12_options", dx12_options))
+
 # Check for sycl-preview library
 check_preview_breaking_changes_file = "preview_breaking_changes_link.cpp"
 with open_check_file(check_preview_breaking_changes_file) as fp:
