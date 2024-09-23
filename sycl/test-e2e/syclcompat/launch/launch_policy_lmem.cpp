@@ -20,9 +20,6 @@
  *     launch<F> with policy & use local memory tests
  **************************************************************************/
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
-
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -33,9 +30,9 @@
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group_barrier.hpp>
 
+#include <syclcompat/id_query.hpp>
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
-#include <syclcompat/id_query.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
@@ -47,10 +44,10 @@ using compat_exp::local_mem_size;
 
 // Kernel functions for testing
 // =======================================================================
-inline void dynamic_local_mem_empty_kernel(char *a){};
+inline void dynamic_local_mem_empty_kernel(char *a) {};
 
 template <typename T>
-inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem){};
+inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem) {};
 
 template <typename T>
 void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
@@ -58,8 +55,8 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   constexpr size_t num_elements = memsize / sizeof(T);
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
-  const int id =
-      sycl::ext::oneapi::this_work_item::get_nd_item<3>().get_global_linear_id();
+  const int id = sycl::ext::oneapi::this_work_item::get_nd_item<3>()
+                     .get_global_linear_id();
   if (id < num_elements) {
     typed_local_mem[id] = static_cast<T>(id);
   }
@@ -248,8 +245,8 @@ template <typename T> void test_memsize_no_arg_launch() {
   LaunchTest lt;
   T memsize = static_cast<T>(8);
 
-  compat_exp::launch<dynamic_local_mem_empty_kernel>(launch_policy{lt.grid_, lt.thread_,
-                                                     local_mem_size(memsize)});
+  compat_exp::launch<dynamic_local_mem_empty_kernel>(
+      launch_policy{lt.grid_, lt.thread_, local_mem_size(memsize)});
 }
 
 template <typename T> void test_memsize_no_arg_launch_q() {
@@ -258,8 +255,8 @@ template <typename T> void test_memsize_no_arg_launch_q() {
   LaunchTest lt;
   T memsize = static_cast<T>(8);
 
-  compat_exp::launch<dynamic_local_mem_empty_kernel>(launch_policy{lt.grid_, lt.thread_,
-                                                     local_mem_size(memsize)}, lt.q_);
+  compat_exp::launch<dynamic_local_mem_empty_kernel>(
+      launch_policy{lt.grid_, lt.thread_, local_mem_size(memsize)}, lt.q_);
 }
 
 int main() {
