@@ -11,8 +11,6 @@
 
 #include <sycl/detail/core.hpp>
 
-#include <sycl/ext/oneapi/experimental/address_cast.hpp>
-
 int main() {
   sycl::queue Q;
   constexpr std::size_t N = 4;
