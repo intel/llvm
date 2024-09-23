@@ -12,6 +12,7 @@
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/memory_enums.hpp>      // for memory_order
+#include <ur_api.h>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
