@@ -12486,9 +12486,8 @@ def err_sycl_function_attribute_mismatch : Error<
 def err_sycl_x_y_z_arguments_must_be_one : Error<
   "all %0 attribute arguments must be '1' when the %1 attribute argument is '0'">;
 def err_sycl_attribute_internal_decl
-    : Error<"%0 attribute cannot be applied to a "
-            "static %select{function|variable}1 or %select{function|variable}1 "
-            "in an anonymous namespace">;
+    : Error<"%0 attribute cannot be applied to a %select{function|variable}1"
+            " without external linkage">;
 def err_sycl_attribute_not_device_global
     : Error<"%0 attribute can only be applied to 'device_global' variables">;
 def err_fpga_attribute_incorrect_variable

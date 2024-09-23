@@ -6,6 +6,9 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: %{run} not %t 2>&1 | FileCheck %s
 
+// See https://github.com/intel/llvm/issues/15453
+// UNSUPPORTED: gpu-intel-dg2
+
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
