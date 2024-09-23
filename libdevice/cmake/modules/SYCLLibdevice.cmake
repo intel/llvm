@@ -451,7 +451,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
-# Add device fallback imf libraries for the CUDA and AMD targets.
+# Add device fallback imf libraries for the NVPTX and AMD targets.
 # The output files are bitcode.
 foreach(arch IN LISTS devicelib_arch)
   foreach(dtype IN ITEMS bf16 fp32 fp64)
