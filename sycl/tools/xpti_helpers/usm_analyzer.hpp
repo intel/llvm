@@ -8,7 +8,7 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include <sycl/ur_api.h>
+#include <ur_api.h>
 
 #include <iostream>
 #include <map>

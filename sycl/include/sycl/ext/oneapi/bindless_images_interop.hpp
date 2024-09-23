@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/ur_api.h>
+#include <ur_api.h>
 
 #include <stddef.h> // for size_t
 

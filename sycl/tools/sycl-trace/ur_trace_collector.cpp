@@ -12,7 +12,7 @@
 #include "xpti/xpti_trace_framework.h"
 
 #include <sycl/detail/spinlock.hpp>
-#include <sycl/ur_print.hpp>
+#include <ur_print.hpp>
 
 #include <iostream>
 #include <mutex>

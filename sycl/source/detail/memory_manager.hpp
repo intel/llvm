@@ -15,7 +15,7 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 
-#include <sycl/ur_api.h>
+#include <ur_api.h>
 
 #include <memory>
 #include <vector>

@@ -22,7 +22,7 @@
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/range.hpp>               // for range
-#include <sycl/ur_api.h>                // for ur_native_handle_t
+#include <ur_api.h>                     // for ur_native_handle_t
 #include <variant>                      // for hash
 
 namespace sycl {
