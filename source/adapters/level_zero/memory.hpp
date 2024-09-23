@@ -108,7 +108,10 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
       : ur_mem_handle_t_(Parent->UrContext),
-        Size(Size), SubBuffer{{Parent, Origin}} {}
+        Size(Size), SubBuffer{{Parent, Origin}} {
+    // Retain the Parent Buffer due to the Creation of the SubBuffer.
+    Parent->RefCount.increment();
+  }
 
   // Interop-buffer constructor
   _ur_buffer(ur_context_handle_t Context, size_t Size,
@@ -135,6 +138,9 @@ struct _ur_buffer final : ur_mem_handle_t_ {
 
   // Frees all allocations made for the buffer.
   ur_result_t free();
+
+  // Tracks if this buffer is freed already or should be considered valid.
+  bool isFreed{false};
 
   // Information about a single allocation representing this buffer.
   struct allocation_t {
