@@ -19,9 +19,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.17.39",
-      "version": "v1.17.39",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.17.39",
+      "github_tag": "v1.17.42",
+      "version": "v1.17.42",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.17.42",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {

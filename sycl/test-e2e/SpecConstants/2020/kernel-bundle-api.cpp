@@ -11,6 +11,7 @@
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: hip
+// UNSUPPORTED: native_cpu
 
 #include <cstdlib>
 #include <iostream>

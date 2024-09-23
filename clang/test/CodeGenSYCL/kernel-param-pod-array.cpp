@@ -53,8 +53,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x i32], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 
@@ -78,8 +78,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x %struct{{.*}}.foo], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 
@@ -102,8 +102,8 @@ int main() {
 // CHECK: %[[LOCAL_OBJECT:[a-zA-Z0-9_.]+]] = addrspacecast ptr %[[LOCAL_OBJECTA]] to ptr addrspace(4)
 
 // Check for Array init loop
-// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
-// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
+// CHECK: %[[LAMBDA_PTR:.+]] = getelementptr inbounds nuw %class{{.*}}.anon{{.*}}, ptr addrspace(4) %[[LOCAL_OBJECT]], i32 0, i32 0
+// CHECK: %[[WRAPPER_PTR:.+]] = getelementptr inbounds nuw %struct{{.*}}.__wrapper_class{{.*}}, ptr addrspace(4) %[[ARR_ARG]].ascast, i32 0, i32 0
 // CHECK: %[[ARRAY_BEGIN:.+]] = getelementptr inbounds [2 x [1 x i32]], ptr addrspace(4) %[[LAMBDA_PTR]], i64 0, i64 0
 // CHECK: br label %[[ARRAYINITBODY:.+]]
 

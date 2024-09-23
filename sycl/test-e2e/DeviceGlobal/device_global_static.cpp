@@ -3,7 +3,10 @@
 //
 // The OpenCL GPU backends do not currently support device_global backend
 // calls.
-// UNSUPPORTED: opencl && gpu
+//
+// UNSUPPORTED: hip_amd, opencl && gpu
+//
+// For HIP see https://github.com/intel/llvm/issues/15329
 //
 // Tests static device_global access through device kernels.
 
