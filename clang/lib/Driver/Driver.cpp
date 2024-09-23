@@ -1086,7 +1086,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   bool HasValidSYCLRuntime =
       C.getInputArgs().hasFlag(options::OPT_fsycl, options::OPT_fno_sycl,
                                false) ||
-      hasSYCLDeviceOnly(C.getInputArgs());
+      C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
   bool IsSYCLOffloadArchEnabled =
       HasValidSYCLRuntime &&
       C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
