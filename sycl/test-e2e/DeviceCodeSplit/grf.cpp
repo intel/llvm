@@ -14,6 +14,9 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: *
+
 // RUN: %{build} -o %t.out
 // Don't use SYCL_UR_TRACE as the output from the L0 adapter logging interferes
 // with the regular UR traces we are checking.

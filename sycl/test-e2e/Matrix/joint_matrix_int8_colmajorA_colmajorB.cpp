@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-dg2
-// REQUIRES: aspect-ext_intel_mtrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

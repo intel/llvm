@@ -1,5 +1,4 @@
-/= = ----------------<assert.h> wrapper around
-                       STL-- ------------------------ == //
+//== ----------------<assert.h> wrapper around STL--------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,10 +24,10 @@
 // the assert macro to call __devicelib_assert_fail directly and bypass
 // _wassert.
 #if defined(_WIN32) && defined(assert)
-     extern "C" __DPCPP_SYCL_EXTERNAL void
-     __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
-                             uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
-                             uint64_t);
+extern "C" __DPCPP_SYCL_EXTERNAL void
+__devicelib_assert_fail(const char *, const char *, int32_t, const char *,
+                        uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+                        uint64_t);
 #undef assert
 #if defined(NDEBUG)
 #define assert(e) ((void)0)

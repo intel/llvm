@@ -231,6 +231,8 @@ public:
   }
 };
 
+class SPIRVDecorateString : public SPIRVDecorate {};
+
 class SPIRVDecorateId : public SPIRVDecorateGeneric {
 public:
   static const Op OC = OpDecorateId;
@@ -382,6 +384,8 @@ public:
 protected:
   SPIRVWord MemberNumber;
 };
+
+class SPIRVMemberDecorateString : public SPIRVMemberDecorate {};
 
 class SPIRVDecorationGroup : public SPIRVEntry {
 public:

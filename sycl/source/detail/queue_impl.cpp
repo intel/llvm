@@ -59,8 +59,9 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
-                    sizeof(result), &result, nullptr);
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+      nullptr);
   return result;
 }
 
@@ -612,8 +613,8 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
     }
   }
   if (SupportsPiFinish) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call(urQueueFinish, getHandleRef());
+    const AdapterPtr &Adapter = getAdapter();
+    Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -693,22 +694,17 @@ void queue_impl::destructorNotification() {
 }
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const PluginPtr &Plugin = getPlugin();
+  const AdapterPtr &Adapter = getAdapter();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call(urQueueRetain, MQueues[0]);
+    Adapter->call<UrApiKind::urQueueRetain>(MQueues[0]);
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
-  Plugin->call(urQueueGetNativeHandle, MQueues[0], &UrNativeDesc, &Handle);
+  Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], &UrNativeDesc,
+                                                   &Handle);
   return Handle;
-}
-
-void queue_impl::cleanup_fusion_cmd() {
-  // Clean up only if a scheduler instance exits.
-  if (detail::Scheduler::isInstanceAlive())
-    detail::Scheduler::getInstance().cleanUpCmdFusion(this);
 }
 
 bool queue_impl::ext_oneapi_empty() const {
@@ -731,8 +727,8 @@ bool queue_impl::ext_oneapi_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   ur_bool_t IsReady = false;
-  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_EMPTY,
-                    sizeof(IsReady), &IsReady, nullptr);
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;
 
