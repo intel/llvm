@@ -10,9 +10,9 @@
 //===----------------------------------------------------------------------===//
 // This is basic test to verify use of bfloat16 constructor in kernel.
 
-#include <ext/intel/esimd.hpp>
 #include <iostream>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/esimd.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
