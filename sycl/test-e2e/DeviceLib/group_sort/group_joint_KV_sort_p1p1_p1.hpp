@@ -1,5 +1,4 @@
-#pragma once
-#include <sycl.hpp>
+#include "group_sort.hpp"
 
 __DPCPP_SYCL_EXTERNAL extern "C" void
 __devicelib_default_work_group_joint_sort_ascending_p1u8_p1u8_u32_p1i8(

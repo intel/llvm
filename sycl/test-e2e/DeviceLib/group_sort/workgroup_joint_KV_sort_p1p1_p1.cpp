@@ -147,7 +147,7 @@ int main() {
 
     auto work_group_sorter = [](uint8_t *keys, uint8_t *vals, uint32_t n,
                                 uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1u8_u32_p1i8(
           keys, vals, n, scratch);
@@ -160,7 +160,7 @@ int main() {
 
     auto work_group_sorter1 = [](uint8_t *keys, int8_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1i8_u32_p1i8(
           keys, vals, n, scratch);
@@ -173,7 +173,7 @@ int main() {
 
     auto work_group_sorter2 = [](uint8_t *keys, uint16_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1u16_u32_p1i8(
           keys, vals, n, scratch);
@@ -186,7 +186,7 @@ int main() {
 
     auto work_group_sorter3 = [](uint8_t *keys, int16_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1i16_u32_p1i8(
           keys, vals, n, scratch);
@@ -199,7 +199,7 @@ int main() {
 
     auto work_group_sorter4 = [](uint8_t *keys, uint32_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1u32_u32_p1i8(
           keys, vals, n, scratch);
@@ -212,7 +212,7 @@ int main() {
 
     auto work_group_sorter5 = [](uint8_t *keys, int32_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1i32_u32_p1i8(
           keys, vals, n, scratch);
@@ -225,7 +225,7 @@ int main() {
 
     auto work_group_sorter6 = [](uint8_t *keys, uint64_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1u64_u32_p1i8(
           keys, vals, n, scratch);
@@ -238,7 +238,7 @@ int main() {
 
     auto work_group_sorter7 = [](uint8_t *keys, int64_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1i64_u32_p1i8(
           keys, vals, n, scratch);
@@ -251,7 +251,7 @@ int main() {
 
     auto work_group_sorter8 = [](uint8_t *keys, float *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u8_p1f32_u32_p1i8(
           keys, vals, n, scratch);
@@ -264,7 +264,7 @@ int main() {
 
     auto work_group_sorter9 = [](int8_t *keys, uint8_t *vals, uint32_t n,
                                  uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1u8_u32_p1i8(
           keys, vals, n, scratch);
@@ -277,7 +277,7 @@ int main() {
 
     auto work_group_sorter10 = [](int8_t *keys, uint16_t *vals, uint32_t n,
                                   uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1u16_u32_p1i8(
           keys, vals, n, scratch);
@@ -290,7 +290,7 @@ int main() {
 
     auto work_group_sorter11 = [](int8_t *keys, uint32_t *vals, uint32_t n,
                                   uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1u32_u32_p1i8(
           keys, vals, n, scratch);
@@ -303,7 +303,7 @@ int main() {
 
     auto work_group_sorter12 = [](int8_t *keys, uint64_t *vals, uint32_t n,
                                   uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1u64_u32_p1i8(
           keys, vals, n, scratch);
@@ -316,7 +316,7 @@ int main() {
 
     auto work_group_sorter13 = [](int8_t *keys, int8_t *vals, uint32_t n,
                                   uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1i8_u32_p1i8(
           keys, vals, n, scratch);
@@ -329,7 +329,7 @@ int main() {
 
     auto work_group_sorter14 = [](int8_t *keys, int16_t *vals, uint32_t n,
                                   uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1i8_p1i16_u32_p1i8(
           keys, vals, n, scratch);
@@ -938,7 +938,7 @@ int main() {
                            761, 96,    765, 10000, 6364, 90,   525};
     auto work_group_sorter = [](uint32_t *keys, uint32_t *vals, uint32_t n,
                                 uint8_t *scratch) {
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
@@ -969,7 +969,7 @@ int main() {
     auto work_group_sorter = [](uint32_t *keys, uint32_t *vals, uint32_t n,
                                 uint8_t *scratch) {
 
-#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#if __DEVICE_CODE
 #ifdef DES
       __devicelib_default_work_group_joint_sort_descending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
