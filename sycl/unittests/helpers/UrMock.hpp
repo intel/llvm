@@ -8,11 +8,12 @@
 //
 // This mini-library provides facilities to test the DPC++ Runtime behavior upon
 // specific results of the underlying low-level API calls. By exploiting the
-// Plugin Interface API, the stored addresses of the actual plugin-specific
+// Adapter Interface API, the stored addresses of the actual adapter-specific
 // implementations can be overwritten to point at user-defined mock functions.
 //
-// To make testing independent of existing plugins and devices, all plugins are
-// forcefully unloaded and the mock plugin is registered as the only plugin.
+// To make testing independent of existing adapters and devices, all adapters
+// are forcefully unloaded and the mock adapter is registered as the only
+// adapter.
 //
 // While this could be done manually for each unit-testing scenario, the library
 // aims to rule out the boilerplate, providing helper APIs which can be re-used
@@ -30,9 +31,9 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
