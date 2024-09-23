@@ -284,7 +284,7 @@ if sp[0] == 0:
 else:
     config.substitutions.append(("%level_zero_options", ""))
 
-dx12_options = dx12_options = (" -l d3d12 -l dxgi -l dxguid")
+dx12_options = (" -l d3d12 -l dxgi -l dxguid")
 if cl_options:
     dx12_options = (" d3d12.lib dxgi.lib dxguid.lib")
 config.substitutions.append(("%dx12_options", dx12_options))
