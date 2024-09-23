@@ -1,4 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip || level_zero
+// UNSUPPORTED-INTENDED: Returning non-FP values from fetching fails on HIP.
+// Also, the feature is not fully implemented in the Level Zero stack.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out
@@ -127,7 +131,17 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                     unsigned int seed = 0) {
   using VecType = sycl::vec<DType, NChannels>;
 
-  sycl::device dev;
+  sycl::device dev{};
+  // skip half tests if not supported
+  if constexpr (std::is_same_v<DType, sycl::half>) {
+    if (!dev.has(sycl::aspect::fp16)) {
+#ifdef VERBOSE_PRINT
+      std::cout << "Test skipped due to lack of device support for fp16\n";
+#endif
+      return false;
+    }
+  }
+
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 

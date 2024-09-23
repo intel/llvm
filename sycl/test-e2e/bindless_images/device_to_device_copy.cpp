@@ -1,4 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in this test.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

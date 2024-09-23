@@ -1,4 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
+
+// UNSUPPORTED: hip
+// UNSUPPORTED-INTENDED: Undetermined issue in this test.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -15,9 +18,9 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 
 void copy_image_mem_handle_to_image_mem_handle(
     const syclexp::image_descriptor &dataInDesc,
-    const syclexp::image_descriptor &outDesc,
-    const std::vector<float> &dataIn1, const std::vector<float> &dataIn2,
-    sycl::device dev, sycl::queue q, std::vector<float> &out) {
+    const syclexp::image_descriptor &outDesc, const std::vector<float> &dataIn1,
+    const std::vector<float> &dataIn2, sycl::device dev, sycl::queue q,
+    std::vector<float> &out) {
 
   // Check that output image is double size of input images
   assert(outDesc.width == dataInDesc.width * 2);

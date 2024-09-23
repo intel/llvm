@@ -16,6 +16,7 @@ atomic/atomic_sub.cl
 atomic/atomic_store.cl
 conversion/GenericCastToPtrExplicit.cl
 synchronization/barrier.cl
+images/image.cl
 math/acos.cl
 math/acosh.cl
 math/asin.cl

@@ -1,7 +1,7 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_image_array
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %if !any-device-is-hip %{ %{build} -o %t.out %}
+// RUN: %if !any-device-is-hip %{ %{run} %t.out %}
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
