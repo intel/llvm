@@ -12,7 +12,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <ur_api.h>
-#include <ur_utils.hpp>
+#include "ur_utils.hpp"
 
 #include <sycl/detail/iostream_proxy.hpp>
 
