@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t_vnni.out -DVNNI%fp-model-precise
+// RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out
 
 // RUN: %{build} -o %t.out %fp-model-precise
