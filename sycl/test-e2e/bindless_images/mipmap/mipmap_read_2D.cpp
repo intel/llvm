@@ -1,11 +1,12 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -67,7 +68,7 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
 
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba, CType,
+        {width, height}, 4, CType,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes
@@ -107,12 +108,13 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
             size_t dim1 = it.get_local_id(1);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read mipmap level 1 with LOD
-            VecType px2 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
-                mipHandle, sycl::float2(fdim0, fdim1), 1.0f);
+            // Extension: sample mipmap level 1 with LOD
+            VecType px2 =
+                sycl::ext::oneapi::experimental::sample_mipmap<VecType>(
+                    mipHandle, sycl::float2(fdim0, fdim1), 1.0f);
 
             outAcc[sycl::id<2>{dim1, dim0}] = px2[0];
           });
@@ -164,13 +166,13 @@ int main() {
 
   failed += runTest<int, sycl::image_channel_type::signed_int32>();
 
-  failed += runTest<uint, sycl::image_channel_type::unsigned_int32>();
+  failed += runTest<unsigned int, sycl::image_channel_type::unsigned_int32>();
 
   failed += runTest<float, sycl::image_channel_type::fp32>();
 
   failed += runTest<short, sycl::image_channel_type::signed_int16>();
 
-  failed += runTest<ushort, sycl::image_channel_type::unsigned_int16>();
+  failed += runTest<unsigned short, sycl::image_channel_type::unsigned_int16>();
 
   failed += runTest<char, sycl::image_channel_type::signed_int8>();
 

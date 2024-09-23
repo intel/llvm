@@ -24,6 +24,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/SparseTensor/Transforms/Passes.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -60,20 +61,36 @@ class SparsificationAndBufferizationPass
     : public impl::SparsificationAndBufferizationBase<
           SparsificationAndBufferizationPass> {
 public:
+  // Private pass options only.
   SparsificationAndBufferizationPass(
       const bufferization::OneShotBufferizationOptions &bufferizationOptions,
       const SparsificationOptions &sparsificationOptions,
       bool createSparseDeallocs, bool enableRuntimeLibrary,
-      bool enableBufferInitialization, unsigned vectorLength,
-      bool enableVLAVectorization, bool enableSIMDIndex32)
+      bool enableBufferInitialization)
       : bufferizationOptions(bufferizationOptions),
         sparsificationOptions(sparsificationOptions),
         createSparseDeallocs(createSparseDeallocs),
         enableRuntimeLibrary(enableRuntimeLibrary),
-        enableBufferInitialization(enableBufferInitialization),
-        vectorLength(vectorLength),
-        enableVLAVectorization(enableVLAVectorization),
-        enableSIMDIndex32(enableSIMDIndex32) {}
+        enableBufferInitialization(enableBufferInitialization) {}
+  // Private pass options and visible pass options.
+  SparsificationAndBufferizationPass(
+      const bufferization::OneShotBufferizationOptions &bufferizationOptions,
+      const SparsificationOptions &sparsificationOptions,
+      bool createSparseDeallocs, bool enableRuntimeLibrary,
+      bool enableBufferInitialization, unsigned vl, bool vla, bool index32,
+      bool gpu, SparseEmitStrategy emitStrategy)
+      : bufferizationOptions(bufferizationOptions),
+        sparsificationOptions(sparsificationOptions),
+        createSparseDeallocs(createSparseDeallocs),
+        enableRuntimeLibrary(enableRuntimeLibrary),
+        enableBufferInitialization(enableBufferInitialization) {
+    // Set the visible pass options explicitly.
+    vectorLength = vl;
+    enableVLAVectorization = vla;
+    enableSIMDIndex32 = index32;
+    enableGPULibgen = gpu;
+    sparseEmitStrategy = emitStrategy;
+  }
 
   /// Bufferize all dense ops. This assumes that no further analysis is needed
   /// and that all required buffer copies were already inserted by
@@ -104,6 +121,9 @@ public:
   }
 
   void runOnOperation() override {
+    // Overrides the default emit strategy using user-provided value.
+    this->sparsificationOptions.sparseEmitStrategy = sparseEmitStrategy;
+
     // Run enabling transformations.
     {
       OpPassManager pm("builtin.module");
@@ -139,18 +159,24 @@ public:
     // of `bufferization.alloc_tensor` ops.
     {
       OpPassManager pm("builtin.module");
-      pm.addPass(
-          createSparseReinterpretMapPass(ReinterpretMapScope::kGenericOnly));
+      if (enableGPULibgen)
+        pm.addPass(createSparseGPUCodegenPass(0, enableRuntimeLibrary));
+      pm.addPass(createSparseReinterpretMapPass(ReinterpretMapScope::kAll));
       pm.addPass(createSparsificationPass(sparsificationOptions));
+      if (sparsificationOptions.sparseEmitStrategy ==
+          SparseEmitStrategy::kSparseIterator) {
+        pm.addNestedPass<func::FuncOp>(createSparseSpaceCollapsePass());
+        pm.addNestedPass<func::FuncOp>(createLowerSparseIterationToSCFPass());
+      }
+
       pm.addNestedPass<func::FuncOp>(createStageSparseOperationsPass());
       pm.addPass(createLowerSparseOpsToForeachPass(enableRuntimeLibrary,
                                                    /*enableConvert=*/true));
-      // Handle dim-to-lvl maps on operations other than linalg.generic.
       pm.addPass(
           createSparseReinterpretMapPass(ReinterpretMapScope::kExceptGeneric));
       pm.addNestedPass<func::FuncOp>(createLowerForeachToSCFPass());
+      pm.addPass(mlir::createLoopInvariantCodeMotionPass());
       if (vectorLength > 0) {
-        pm.addPass(mlir::createLoopInvariantCodeMotionPass());
         pm.addPass(createSparseVectorizationPass(
             vectorLength, enableVLAVectorization, enableSIMDIndex32));
       }
@@ -176,9 +202,6 @@ private:
   bool createSparseDeallocs;
   bool enableRuntimeLibrary;
   bool enableBufferInitialization;
-  unsigned vectorLength;
-  bool enableVLAVectorization;
-  bool enableSIMDIndex32;
 };
 
 } // namespace sparse_tensor
@@ -199,20 +222,24 @@ mlir::getBufferizationOptionsForSparsification(bool analysisOnly) {
     options.testAnalysisOnly = true;
     options.printConflicts = true;
   }
+  // Since this mini-pipeline may be used in alternative pipelines (viz.
+  // different from the default "sparsifier" pipeline) where unknown ops
+  // are handled by alternative bufferization methods that are downstream
+  // of this mini-pipeline, we allow unknown ops by default (failure to
+  // bufferize is eventually apparent by failing to convert to LLVM IR).
+  options.allowUnknownOps = true;
   return options;
 }
 
 std::unique_ptr<mlir::Pass> mlir::createSparsificationAndBufferizationPass() {
   SparsificationOptions sparseOptions;
-  return createSparsificationAndBufferizationPass(
+  return std::make_unique<
+      mlir::sparse_tensor::SparsificationAndBufferizationPass>(
       getBufferizationOptionsForSparsification(/*analysisOnly=*/false),
       sparseOptions,
       /*createSparseDeallocs=*/false,
       /*enableRuntimeLibrary=*/false,
-      /*enableBufferInitialization=*/false,
-      /*vectorLength=*/0,
-      /*enableVLAVectorization=*/false,
-      /*enableSIMDIndex32=*/false);
+      /*enableBufferInitialization=*/false);
 }
 
 std::unique_ptr<mlir::Pass> mlir::createSparsificationAndBufferizationPass(
@@ -220,10 +247,11 @@ std::unique_ptr<mlir::Pass> mlir::createSparsificationAndBufferizationPass(
     const SparsificationOptions &sparsificationOptions,
     bool createSparseDeallocs, bool enableRuntimeLibrary,
     bool enableBufferInitialization, unsigned vectorLength,
-    bool enableVLAVectorization, bool enableSIMDIndex32) {
+    bool enableVLAVectorization, bool enableSIMDIndex32, bool enableGPULibgen,
+    SparseEmitStrategy emitStrategy) {
   return std::make_unique<
       mlir::sparse_tensor::SparsificationAndBufferizationPass>(
       bufferizationOptions, sparsificationOptions, createSparseDeallocs,
       enableRuntimeLibrary, enableBufferInitialization, vectorLength,
-      enableVLAVectorization, enableSIMDIndex32);
+      enableVLAVectorization, enableSIMDIndex32, enableGPULibgen, emitStrategy);
 }

@@ -46,6 +46,11 @@ SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
                                                const llvm::Triple &TargetTriple,
                                                bool IsSpirvAOT);
 
+// Populates the SYCL device traits macros.
+void populateSYCLDeviceTraitsMacrosArgs(Compilation &C,
+    const llvm::opt::ArgList &Args,
+    const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -69,9 +74,6 @@ private:
                              llvm::StringRef SubArchName,
                              llvm::StringRef OutputFilePrefix,
                              const InputInfoList &InputFiles) const;
-  void constructLlcCommand(Compilation &C, const JobAction &JA,
-                           const InputInfo &Output,
-                           const char *InputFile) const;
 };
 
 /// Directly call FPGA Compiler and Linker
@@ -125,7 +127,7 @@ constexpr char AmdGPU[] = "amd_gpu_";
 template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
-  if (Target.startswith(GPUArh)) {
+  if (Target.starts_with(GPUArh)) {
     return resolveGenDevice(Target);
   }
   return  std::nullopt;
@@ -173,15 +175,18 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA) const;
+                            const JobAction &JA, const ToolChain &HostTC,
+                            StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
                                   StringRef Device = "") const;
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
-                                 llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 StringRef Device = "") const;
+  void TranslateTargetOpt(const llvm::Triple &Triple,
+                          const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs,
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
@@ -215,6 +220,8 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
+  SanitizerMask getSupportedSanitizers() const override;
+
   const ToolChain &HostTC;
   const bool IsSYCLNativeCPU;
 
@@ -230,7 +237,7 @@ private:
 
 } // end namespace toolchains
 
-template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
+inline bool isSYCLNativeCPU(const llvm::opt::ArgList &Args) {
   if (auto SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     if (SYCLTargets->containsValue("native_cpu"))
       return true;
@@ -238,12 +245,13 @@ template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
   return false;
 }
 
-inline bool isSYCLNativeCPU(const llvm::Triple HostT, const llvm::Triple DevT) {
+inline bool isSYCLNativeCPU(const llvm::Triple &HostT, const llvm::Triple &DevT) {
   return HostT == DevT;
 }
 
-inline bool isSYCLNativeCPU(const ToolChain &TC1, const ToolChain &TC2) {
-  return isSYCLNativeCPU(TC1.getTriple(), TC2.getTriple());
+inline bool isSYCLNativeCPU(const ToolChain &TC) {
+  const llvm::Triple *const AuxTriple = TC.getAuxTriple();
+  return AuxTriple && isSYCLNativeCPU(TC.getTriple(), *AuxTriple);
 }
 } // end namespace driver
 } // end namespace clang

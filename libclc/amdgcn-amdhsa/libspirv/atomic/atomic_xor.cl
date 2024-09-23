@@ -10,13 +10,8 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
-AMDGPU_ATOMIC(_Z17__spirv_AtomicXor, int, i, __hip_atomic_fetch_xor)
-AMDGPU_ATOMIC(_Z17__spirv_AtomicXor, unsigned int, j, __hip_atomic_fetch_xor)
-AMDGPU_ATOMIC(_Z17__spirv_AtomicXor, long, l, __hip_atomic_fetch_xor)
-AMDGPU_ATOMIC(_Z17__spirv_AtomicXor, unsigned long, m, __hip_atomic_fetch_xor)
+#define __CLC_OP ^
+#define __SPIRV_BUILTIN _Z17__spirv_AtomicXor
+#define __HIP_BUILTIN __hip_atomic_fetch_xor
 
-#undef AMDGPU_ATOMIC
-#undef AMDGPU_ATOMIC_IMPL
-#undef AMDGPU_ARCH_GEQ
-#undef AMDGPU_ARCH_BETWEEN
-#undef GET_ATOMIC_SCOPE_AND_ORDER
+#include "atomic_safe.def"

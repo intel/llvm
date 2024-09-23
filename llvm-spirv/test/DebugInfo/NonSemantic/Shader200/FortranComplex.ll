@@ -56,14 +56,14 @@ source_filename = "test.f90"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@0 = internal unnamed_addr constant i32 65536, align 4
-@1 = internal unnamed_addr constant i32 2, align 4
+@0 = internal unnamed_addr addrspace(1) constant i32 65536, align 4
+@1 = internal unnamed_addr addrspace(1) constant i32 2, align 4
 
 ; Function Attrs: nounwind uwtable
 define void @MAIN__() local_unnamed_addr !dbg !4 !llfort.type_idx !12 {
 alloca_0:
-  %func_result = tail call i32 @for_set_fpe_(ptr nonnull @0), !dbg !13, !llfort.type_idx !14
-  %func_result2 = tail call i32 @for_set_reentrancy(ptr nonnull @1), !dbg !13, !llfort.type_idx !14
+  %func_result = tail call i32 @for_set_fpe_(ptr addrspace(1) nonnull @0), !dbg !13, !llfort.type_idx !14
+  %func_result2 = tail call i32 @for_set_reentrancy(ptr addrspace(1) nonnull @1), !dbg !13, !llfort.type_idx !14
   call void @llvm.dbg.value(metadata float 1.000000e+00, metadata !11, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32)), !dbg !15
   call void @llvm.dbg.value(metadata float 2.000000e+00, metadata !11, metadata !DIExpression(DW_OP_LLVM_fragment, 32, 32)), !dbg !15
   call void @llvm.dbg.value(metadata float 2.000000e+00, metadata !10, metadata !DIExpression(DW_OP_LLVM_fragment, 0, 32)), !dbg !15
@@ -73,10 +73,10 @@ alloca_0:
   ret void, !dbg !16
 }
 
-declare !llfort.intrin_id !17 !llfort.type_idx !18 i32 @for_set_fpe_(ptr nocapture readonly) local_unnamed_addr
+declare !llfort.intrin_id !17 !llfort.type_idx !18 i32 @for_set_fpe_(ptr addrspace(1) nocapture readonly) local_unnamed_addr
 
 ; Function Attrs: nofree
-declare !llfort.intrin_id !19 !llfort.type_idx !20 i32 @for_set_reentrancy(ptr nocapture readonly) local_unnamed_addr
+declare !llfort.intrin_id !19 !llfort.type_idx !20 i32 @for_set_reentrancy(ptr addrspace(1) nocapture readonly) local_unnamed_addr
 
 ; Function Attrs: nocallback nofree nosync nounwind speculatable willreturn memory(none)
 declare void @llvm.dbg.value(metadata, metadata, metadata)

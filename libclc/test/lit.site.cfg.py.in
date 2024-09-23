@@ -13,7 +13,7 @@ config.host_triple = "@LLVM_HOST_TRIPLE@"
 config.target_triple = "@LLVM_TARGET_TRIPLE@"
 config.host_arch = "@HOST_ARCH@"
 config.python_executable = "@PYTHON_EXECUTABLE@"
-config.libclc_root = "@LIBCLC_ROOT_DIR@"
+config.libclc_root = "@LIBCLC_SOURCE_DIR@"
 config.test_run_dir = "@LIBCLC_BINARY_DIR@"
 
 import lit.llvm

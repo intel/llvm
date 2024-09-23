@@ -23,7 +23,7 @@
 #pragma once
 
 #include <algorithm>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat.hpp>
 
@@ -72,7 +72,7 @@ public:
                  sycl::queue q = syclcompat::get_default_queue())
       : grid_{grid}, threads_{threads}, q_{q},
         skip_{should_skip<T>(q.get_device())} {
-    data_ = (T *)syclcompat::malloc(sizeof(T));
+    data_ = (T *)syclcompat::malloc(sizeof(T), q_);
   };
   ~AtomicLauncher() { syclcompat::free(data_); }
   template <typename... Args>
@@ -80,10 +80,10 @@ public:
     if (skip_)
       return;
 
-    syclcompat::memcpy(data_, &init_val, sizeof(T));
-    syclcompat::launch<F>(grid_, threads_, data_, args...);
+    syclcompat::memcpy(data_, &init_val, sizeof(T), q_);
+    syclcompat::launch<F>(grid_, threads_, q_, data_, args...);
     T result_val;
-    syclcompat::memcpy(&result_val, data_, sizeof(T));
+    syclcompat::memcpy(&result_val, data_, sizeof(T), q_);
     syclcompat::wait();
     assert(result_val == expected_result);
   }
@@ -131,8 +131,8 @@ public:
     if (skip_)
       return; // skip
     syclcompat::launch<Kernel>(grid_, threads_, atom_arr_device_);
-    HostFunc(atom_arr_host_);
     syclcompat::wait();
+    HostFunc(atom_arr_host_);
 
     verify();
   }
@@ -170,8 +170,8 @@ public:
       return;
     syclcompat::launch<Kernel>(this->grid_, this->threads_,
                                this->atom_arr_device_, atom_arr_shared_in_);
-    HostFunc(this->atom_arr_host_, atom_arr_shared_in_);
     syclcompat::wait();
+    HostFunc(this->atom_arr_host_, atom_arr_shared_in_);
 
     this->verify();
   }

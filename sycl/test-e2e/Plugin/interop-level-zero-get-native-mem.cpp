@@ -12,8 +12,9 @@
 
 // SYCL
 #include "interop-level-zero-buffer-helpers.hpp"
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/interop_handle.hpp>
 
 using namespace sycl;
 

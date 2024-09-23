@@ -162,6 +162,60 @@ for.end:                                          ; preds = %for.body, %entry
 
 declare double @llvm.cos.f64(double)
 
+define void @tan_f32(i32 %n, ptr %y, ptr %x) {
+; CHECK-LABEL: @tan_f32(
+; CHECK: llvm.tan.v4f32
+; CHECK: ret void
+;
+entry:
+  %cmp6 = icmp sgt i32 %n, 0
+  br i1 %cmp6, label %for.body, label %for.end
+
+for.body:                                         ; preds = %entry, %for.body
+  %indvars.iv = phi i64 [ %indvars.iv.next, %for.body ], [ 0, %entry ]
+  %arrayidx = getelementptr inbounds float, ptr %y, i64 %indvars.iv
+  %0 = load float, ptr %arrayidx, align 4
+  %call = tail call float @llvm.tan.f32(float %0)
+  %arrayidx2 = getelementptr inbounds float, ptr %x, i64 %indvars.iv
+  store float %call, ptr %arrayidx2, align 4
+  %indvars.iv.next = add i64 %indvars.iv, 1
+  %lftr.wideiv = trunc i64 %indvars.iv.next to i32
+  %exitcond = icmp eq i32 %lftr.wideiv, %n
+  br i1 %exitcond, label %for.end, label %for.body
+
+for.end:                                          ; preds = %for.body, %entry
+  ret void
+}
+
+declare float @llvm.tan.f32(float)
+
+define void @tan_f64(i32 %n, ptr %y, ptr %x) {
+; CHECK-LABEL: @tan_f64(
+; CHECK: llvm.tan.v4f64
+; CHECK: ret void
+;
+entry:
+  %cmp6 = icmp sgt i32 %n, 0
+  br i1 %cmp6, label %for.body, label %for.end
+
+for.body:                                         ; preds = %entry, %for.body
+  %indvars.iv = phi i64 [ %indvars.iv.next, %for.body ], [ 0, %entry ]
+  %arrayidx = getelementptr inbounds double, ptr %y, i64 %indvars.iv
+  %0 = load double, ptr %arrayidx, align 8
+  %call = tail call double @llvm.tan.f64(double %0)
+  %arrayidx2 = getelementptr inbounds double, ptr %x, i64 %indvars.iv
+  store double %call, ptr %arrayidx2, align 8
+  %indvars.iv.next = add i64 %indvars.iv, 1
+  %lftr.wideiv = trunc i64 %indvars.iv.next to i32
+  %exitcond = icmp eq i32 %lftr.wideiv, %n
+  br i1 %exitcond, label %for.end, label %for.body
+
+for.end:                                          ; preds = %for.body, %entry
+  ret void
+}
+
+declare double @llvm.tan.f64(double)
+
 define void @exp_f32(i32 %n, ptr %y, ptr %x) {
 ; CHECK-LABEL: @exp_f32(
 ; CHECK: llvm.exp.v4f32
@@ -1602,7 +1656,7 @@ declare i32 @llvm.lrint.i32.f32(float)
 
 define void @lrint_i32_f32(ptr %x, ptr %y, i64 %n) {
 ; CHECK-LABEL: @lrint_i32_f32(
-; CHECK-NOT: llvm.lrint.v4i32.v4f32
+; CHECK: llvm.lrint.v4i32.v4f32
 ; CHECK: ret void
 ;
 entry:
@@ -1628,7 +1682,7 @@ declare i64 @llvm.llrint.i64.f32(float)
 
 define void @llrint_i64_f32(ptr %x, ptr %y, i64 %n) {
 ; CHECK-LABEL: @llrint_i64_f32(
-; CHECK-NOT: llvm.llrint.v4i32.v4f32
+; CHECK: llvm.llrint.v4i64.v4f32
 ; CHECK: ret void
 ;
 entry:

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 #include "device.h"
 #include <math.h>
@@ -195,7 +195,7 @@ short _FExp(float *px, float y,
   if (*px < -hugexp || y == 0.0F) { // certain underflow
     *px = 0.0F;
   } else if (hugexp < *px) { // certain overflow
-    *px = _FInf._Float;
+    *px = _FInf._Float * (y < 0.F ? -1.F : 1.F);
     ret = _INFCODE;
   } else { // xexp won't overflow
     float g = *px * invln2;
@@ -281,4 +281,4 @@ float _FSinh(float x, float y) { // compute y * sinh(x), |y| <= 1
     return neg ? -x : x;
   }
 }
-#endif
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__

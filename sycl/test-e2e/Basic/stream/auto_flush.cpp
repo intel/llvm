@@ -11,21 +11,33 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
 
 using namespace sycl;
 
-int main() {
-  queue Queue;
+// Test that data is flushed to the buffer at the end of kernel execution even
+// without explicit flush
 
-  // Test that data is flushed to the buffer at the end of kernel execution even
-  // without explicit flush
+void test(queue &Queue) {
   Queue.submit([&](handler &CGH) {
     stream Out(1024, 80, CGH);
     CGH.parallel_for<class auto_flush1>(
         range<1>(2), [=](id<1> i) { Out << "Hello World!\n"; });
   });
   Queue.wait();
+}
+int main() {
+  queue Queue;
+  test(Queue);
+  // CHECK: Hello World!
+  // CHECK-NEXT: Hello World!
+
+  queue InOrderQueue{{sycl::property::queue::in_order()}};
+  test(InOrderQueue);
   // CHECK: Hello World!
   // CHECK-NEXT: Hello World!
 

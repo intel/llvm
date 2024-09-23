@@ -1,11 +1,12 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -37,8 +38,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for all images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32);
+        {width, height}, 4, sycl::image_channel_type::fp32);
 
     // Allocate each image and save the device memory handles
     std::vector<std::shared_ptr<sycl::ext::oneapi::experimental::image_mem>>
@@ -83,9 +83,10 @@ int main() {
             // Sum each image by reading their handle
             float sum = 0;
             for (int i = 0; i < numImages; i++) {
-              // Extension: read image data from handle
-              sum += (sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                  imgHandleAcc[i], sycl::int2(dim0, dim1)))[0];
+              // Extension: fetch image data from handle
+              sum +=
+                  (sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                      imgHandleAcc[i], sycl::int2(dim0, dim1)))[0];
             }
             outAcc[sycl::id<2>{dim1, dim0}] = sum;
           });

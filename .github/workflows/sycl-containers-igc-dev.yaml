@@ -1,0 +1,52 @@
+name: IGC DEV CI Containers
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - sycl
+    paths:
+      - 'devops/actions/build_container/**'
+      - 'devops/dependencies-igc-dev.json'
+      - '.github/workflows/sycl-containers-igc-dev.yaml'
+  pull_request:
+    paths:
+      - 'devops/actions/build_container/**'
+      - 'devops/dependencies-igc-dev.json'
+      - '.github/workflows/sycl-containers-igc-dev.yaml'
+
+permissions: read-all
+
+jobs:
+  build_and_push_images:
+    if: github.repository == 'intel/llvm'
+    name: Build and Push IGC Dev Docker Images
+    runs-on: ubuntu-22.04
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
+            dockerfile: ubuntu2204_intel_drivers_igc_dev
+            imagefile: ubuntu2204_intel_drivers
+            tag: devigc
+            build_args: |
+                  "use_latest=false"
+                  "use_igc_dev=true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Build and Push Container
+        uses: ./devops/actions/build_container
+        with:
+          push: ${{ github.event_name != 'pull_request' }}
+          file: ${{ matrix.dockerfile }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.imagefile }}:${{ matrix.tag }}-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.imagefile }}:${{ matrix.tag }}
+          build-args: ${{ matrix.build_args }}
+

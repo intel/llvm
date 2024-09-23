@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fsyntax-only -fpreview-breaking-changes -Wno-deprecated-declarations %s%}
 
 #include <sycl/sycl.hpp>
 

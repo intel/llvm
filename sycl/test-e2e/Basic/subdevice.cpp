@@ -12,8 +12,9 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <utility>
 
 using namespace sycl;
@@ -47,8 +48,10 @@ int main() {
         assert(sycl::get_native<sycl::backend::opencl>(
                    SubDevicesEq[0].get_info<info::device::parent_device>()) ==
                sycl::get_native<sycl::backend::opencl>(dev));
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -64,8 +67,10 @@ int main() {
         assert(SubDevicesByCount[0]
                    .get_info<info::device::partition_type_property>() ==
                info::partition_property::partition_by_counts);
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -76,8 +81,10 @@ int main() {
             << "Created " << SubDevicesDomainNuma.size()
             << " subdevices using partition by numa affinity domain scheme."
             << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -87,8 +94,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL4.size()
                   << " subdevices using partition by L4 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -98,8 +107,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL3.size()
                   << " subdevices using partition by L3 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -109,8 +120,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL2.size()
                   << " subdevices using partition by L2 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -120,8 +133,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL1.size()
                   << " subdevices using partition by L1 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -132,8 +147,10 @@ int main() {
                   << " subdevices using partition by next partitionable "
                      "domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       // test exception

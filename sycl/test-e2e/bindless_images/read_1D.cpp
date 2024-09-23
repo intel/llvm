@@ -1,11 +1,12 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -34,8 +35,7 @@ int main() {
   try {
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32);
+        {width}, 4, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
@@ -66,13 +66,20 @@ int main() {
     assert(imgMem0MoveAssign != imgMem1CopyAssign);
     assert(imgMem1 == imgMem1CopyAssign);
 
+    // We can default construct image handles
+    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1;
+
     // Extension: create the image and return the handle
-    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
+    sycl::ext::oneapi::experimental::unsampled_image_handle tmpHandle =
         sycl::ext::oneapi::experimental::create_image(imgMem0MoveAssign, desc,
                                                       dev, ctxt);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle2 =
         sycl::ext::oneapi::experimental::create_image(imgMem1CopyAssign, desc,
                                                       dev, ctxt);
+
+    // Default constructed image handles are not valid until we assign a valid
+    // raw handle to the struct
+    imgHandle1.raw_handle = tmpHandle.raw_handle;
 
     // Extension: copy over data to device
     q.ext_oneapi_copy(dataIn1.data(), imgMem0MoveAssign.get_handle(), desc);
@@ -86,12 +93,12 @@ int main() {
 
       cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
         float sum = 0;
-        // Extension: read image data from handle
+        // Extension: fetch image data from handle
         sycl::float4 px1 =
-            sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                 imgHandle1, int(id[0]));
         sycl::float4 px2 =
-            sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                 imgHandle2, int(id[0]));
 
         sum = px1[0] + px2[0];

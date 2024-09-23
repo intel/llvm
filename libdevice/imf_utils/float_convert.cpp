@@ -14,7 +14,7 @@
 static inline int __float2int_rd(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<int>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rint_rtn(x);
 #endif
 }
@@ -22,7 +22,7 @@ static inline int __float2int_rd(float x) {
 static inline int __float2int_rn(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<int>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rint_rte(x);
 #endif
 }
@@ -30,7 +30,7 @@ static inline int __float2int_rn(float x) {
 static inline int __float2int_ru(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<int>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rint_rtp(x);
 #endif
 }
@@ -38,7 +38,7 @@ static inline int __float2int_ru(float x) {
 static inline int __float2int_rz(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<int>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rint_rtz(x);
 #endif
 }
@@ -60,7 +60,7 @@ static inline unsigned int __float2uint_rd(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned int>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Ruint_rtn(x);
 #endif
 }
@@ -70,7 +70,7 @@ static inline unsigned int __float2uint_rn(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned int>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Ruint_rte(x);
 #endif
 }
@@ -80,7 +80,7 @@ static inline unsigned int __float2uint_ru(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned int>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Ruint_rtp(x);
 #endif
 }
@@ -90,7 +90,7 @@ static inline unsigned int __float2uint_rz(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned int>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Ruint_rtz(x);
 #endif
 }
@@ -118,7 +118,7 @@ unsigned int __devicelib_imf_float2uint_rz(float x) {
 static inline long long int __float2ll_rd(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<long long int>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rlong_rtn(x);
 #endif
 }
@@ -126,7 +126,7 @@ static inline long long int __float2ll_rd(float x) {
 static inline long long int __float2ll_rn(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<long long int>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rlong_rte(x);
 #endif
 }
@@ -134,7 +134,7 @@ static inline long long int __float2ll_rn(float x) {
 static inline long long int __float2ll_ru(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<long long int>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rlong_rtp(x);
 #endif
 }
@@ -142,7 +142,7 @@ static inline long long int __float2ll_ru(float x) {
 static inline long long int __float2ll_rz(float x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<long long int>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToS_Rlong_rtz(x);
 #endif
 }
@@ -164,7 +164,7 @@ static inline unsigned long long int __float2ull_rd(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned long long int>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Rulong_rtn(x);
 #endif
 }
@@ -174,7 +174,7 @@ static inline unsigned long long int __float2ull_rn(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned long long int>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Rulong_rte(x);
 #endif
 }
@@ -184,7 +184,7 @@ static inline unsigned long long int __float2ull_ru(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned long long int>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Rulong_rtp(x);
 #endif
 }
@@ -194,7 +194,7 @@ static inline unsigned long long int __float2ull_rz(float x) {
     return 0;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __float2Tp_host<unsigned long long int>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertFToU_Rulong_rtz(x);
 #endif
 }
@@ -230,7 +230,7 @@ unsigned int __devicelib_imf_float_as_uint(float x) {
 static inline float __int2float_rd(int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int, float>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtn(x);
 #endif
 }
@@ -238,7 +238,7 @@ static inline float __int2float_rd(int x) {
 static inline float __int2float_rn(int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int, float>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rte(x);
 #endif
 }
@@ -246,7 +246,7 @@ static inline float __int2float_rn(int x) {
 static inline float __int2float_ru(int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int, float>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtp(x);
 #endif
 }
@@ -254,7 +254,7 @@ static inline float __int2float_ru(int x) {
 static inline float __int2float_rz(int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int, float>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtz(x);
 #endif
 }
@@ -278,7 +278,7 @@ static inline float __ll2float_rd(long long int x) {
   int64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int64_t, float>(xi64, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtn(xi64);
 #endif
 }
@@ -287,7 +287,7 @@ static inline float __ll2float_rn(long long int x) {
   int64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int64_t, float>(xi64, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rte(xi64);
 #endif
 }
@@ -296,7 +296,7 @@ static inline float __ll2float_ru(long long int x) {
   int64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int64_t, float>(xi64, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtp(xi64);
 #endif
 }
@@ -305,7 +305,7 @@ static inline float __ll2float_rz(long long int x) {
   int64_t xi64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<int64_t, float>(xi64, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertSToF_Rfloat_rtz(xi64);
 #endif
 }
@@ -325,7 +325,7 @@ float __devicelib_imf_ll2float_rz(long long int x) { return __ll2float_rz(x); }
 static inline float __uint2float_rd(unsigned int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<unsigned int, float>(x, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtn(x);
 #endif
 }
@@ -333,7 +333,7 @@ static inline float __uint2float_rd(unsigned int x) {
 static inline float __uint2float_rn(unsigned int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<unsigned int, float>(x, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rte(x);
 #endif
 }
@@ -341,7 +341,7 @@ static inline float __uint2float_rn(unsigned int x) {
 static inline float __uint2float_ru(unsigned int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<unsigned int, float>(x, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtp(x);
 #endif
 }
@@ -349,7 +349,7 @@ static inline float __uint2float_ru(unsigned int x) {
 static inline float __uint2float_rz(unsigned int x) {
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<unsigned int, float>(x, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtz(x);
 #endif
 }
@@ -384,7 +384,7 @@ float __devicelib_imf_ull2float_rd(unsigned long long int x) {
   uint64_t xui64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<uint64_t, float>(xui64, FE_DOWNWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtn(xui64);
 #endif
 }
@@ -394,7 +394,7 @@ float __devicelib_imf_ull2float_rn(unsigned long long int x) {
   uint64_t xui64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<uint64_t, float>(xui64, FE_TONEAREST);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rte(xui64);
 #endif
 }
@@ -404,7 +404,7 @@ float __devicelib_imf_ull2float_ru(unsigned long long int x) {
   uint64_t xui64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<uint64_t, float>(xui64, FE_UPWARD);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtp(xui64);
 #endif
 }
@@ -414,7 +414,7 @@ float __devicelib_imf_ull2float_rz(unsigned long long int x) {
   uint64_t xui64 = x;
 #if defined(__LIBDEVICE_HOST_IMPL__)
   return __integral2FP_host<uint64_t, float>(xui64, FE_TOWARDZERO);
-#elif defined(__SPIR__)
+#elif defined(__SPIR__) || defined(__SPIRV__)
   return __spirv_ConvertUToF_Rfloat_rtz(xui64);
 #endif
 }

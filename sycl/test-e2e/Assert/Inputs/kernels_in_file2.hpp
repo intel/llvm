@@ -1,4 +1,6 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 SYCL_EXTERNAL int calculus(int X);
 

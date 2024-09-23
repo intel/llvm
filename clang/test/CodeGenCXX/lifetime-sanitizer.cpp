@@ -1,15 +1,15 @@
-// INTEL RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
-// INTEL RUN:     -Xclang -disable-llvm-passes %s | FileCheck %s -check-prefixes=CHECK \
-// INTEL RUN:      --implicit-check-not=llvm.lifetime
-// INTEL RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
-// INTEL RUN:     -fsanitize=address -fsanitize-address-use-after-scope \
-// INTEL RUN:     -Xclang -disable-llvm-passes %s | FileCheck %s -check-prefixes=CHECK,LIFETIME
-// INTEL RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
-// INTEL RUN:     -fsanitize=memory -Xclang -disable-llvm-passes %s | \
-// INTEL RUN:     FileCheck %s -check-prefixes=CHECK,LIFETIME
-// INTEL RUN: %clang -w -target aarch64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
-// INTEL RUN:     -fsanitize=hwaddress -Xclang -disable-llvm-passes %s | \
-// INTEL RUN:     FileCheck %s -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
+// RUN:     -Xclang -disable-llvm-passes %s | FileCheck %s -check-prefixes=CHECK \
+// RUN:      --implicit-check-not=llvm.lifetime
+// RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
+// RUN:     -fsanitize=address -fsanitize-address-use-after-scope \
+// RUN:     -Xclang -disable-llvm-passes %s | FileCheck %s -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -w -target x86_64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
+// RUN:     -fsanitize=memory -Xclang -disable-llvm-passes %s | \
+// RUN:     FileCheck %s -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -w -target aarch64-linux-gnu -S -emit-llvm -o - -fno-exceptions -O0 \
+// RUN:     -fsanitize=hwaddress -Xclang -disable-llvm-passes %s | \
+// RUN:     FileCheck %s -check-prefixes=CHECK,LIFETIME
 
 extern int bar(char *A, int n);
 

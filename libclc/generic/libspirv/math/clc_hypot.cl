@@ -85,3 +85,11 @@ _CLC_DEF _CLC_OVERLOAD double __clc_hypot(double x, double y)
 
 _CLC_BINARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_hypot, double, double)
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_BINARY_BUILTIN(half, __clc_hypot, __builtin_hypot, half, half)
+
+#endif

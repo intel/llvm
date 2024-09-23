@@ -4,7 +4,9 @@
 // This test performs basic check of the SYCL property_list class.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 namespace sycl_property = sycl::property;
 
@@ -50,7 +52,7 @@ int main() {
         Failed = true;
       }
 
-    } catch (sycl::invalid_object_error &Error) {
+    } catch (sycl::exception &Error) {
       Error.what();
       std::cerr << "Error: exception was thrown in get_property method."
                 << std::endl;

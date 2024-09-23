@@ -2,14 +2,14 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip || (windows && opencl && gpu)
+// UNSUPPORTED: cuda || hip
 // CUDA does not support info::device::image3d_max_width query.
-// TODO: Irregular runtime fails on Windows/opencl:gpu require analysis.
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 void init(uint32_t *A, uint32_t *B, size_t NumI32Elts) {

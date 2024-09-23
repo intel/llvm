@@ -12,7 +12,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/Support/MathExtras.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 
@@ -363,9 +363,9 @@ void UnrankedMemRefDescriptor::computeSizes(
   // Initialize shared constants.
   Value one = createIndexAttrConstant(builder, loc, indexType, 1);
   Value two = createIndexAttrConstant(builder, loc, indexType, 2);
-  Value indexSize =
-      createIndexAttrConstant(builder, loc, indexType,
-                              ceilDiv(typeConverter.getIndexTypeBitwidth(), 8));
+  Value indexSize = createIndexAttrConstant(
+      builder, loc, indexType,
+      llvm::divideCeil(typeConverter.getIndexTypeBitwidth(), 8));
 
   sizes.reserve(sizes.size() + values.size());
   for (auto [desc, addressSpace] : llvm::zip(values, addressSpaces)) {
@@ -378,7 +378,7 @@ void UnrankedMemRefDescriptor::computeSizes(
     // to data layout) into the unranked descriptor.
     Value pointerSize = createIndexAttrConstant(
         builder, loc, indexType,
-        ceilDiv(typeConverter.getPointerBitwidth(addressSpace), 8));
+        llvm::divideCeil(typeConverter.getPointerBitwidth(addressSpace), 8));
     Value doublePointerSize =
         builder.create<LLVM::MulOp>(loc, indexType, two, pointerSize);
 
@@ -486,10 +486,10 @@ Value UnrankedMemRefDescriptor::size(OpBuilder &builder, Location loc,
                                      Value sizeBasePtr, Value index) {
 
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
   Value sizeStoreGep =
-      builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr, index);
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, index);
   return builder.create<LLVM::LoadOp>(loc, indexTy, sizeStoreGep);
 }
 
@@ -498,10 +498,10 @@ void UnrankedMemRefDescriptor::setSize(OpBuilder &builder, Location loc,
                                        Value sizeBasePtr, Value index,
                                        Value size) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
   Value sizeStoreGep =
-      builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr, index);
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, index);
   builder.create<LLVM::StoreOp>(loc, size, sizeStoreGep);
 }
 
@@ -509,10 +509,9 @@ Value UnrankedMemRefDescriptor::strideBasePtr(
     OpBuilder &builder, Location loc, const LLVMTypeConverter &typeConverter,
     Value sizeBasePtr, Value rank) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  return builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy, sizeBasePtr,
-                                     rank);
+  return builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, sizeBasePtr, rank);
 }
 
 Value UnrankedMemRefDescriptor::stride(OpBuilder &builder, Location loc,
@@ -520,10 +519,10 @@ Value UnrankedMemRefDescriptor::stride(OpBuilder &builder, Location loc,
                                        Value strideBasePtr, Value index,
                                        Value stride) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  Value strideStoreGep = builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy,
-                                                     strideBasePtr, index);
+  Value strideStoreGep =
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, strideBasePtr, index);
   return builder.create<LLVM::LoadOp>(loc, indexTy, strideStoreGep);
 }
 
@@ -532,9 +531,9 @@ void UnrankedMemRefDescriptor::setStride(OpBuilder &builder, Location loc,
                                          Value strideBasePtr, Value index,
                                          Value stride) {
   Type indexTy = typeConverter.getIndexType();
-  Type indexPtrTy = typeConverter.getPointerType(indexTy);
+  auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  Value strideStoreGep = builder.create<LLVM::GEPOp>(loc, indexPtrTy, indexTy,
-                                                     strideBasePtr, index);
+  Value strideStoreGep =
+      builder.create<LLVM::GEPOp>(loc, ptrType, indexTy, strideBasePtr, index);
   builder.create<LLVM::StoreOp>(loc, stride, strideStoreGep);
 }

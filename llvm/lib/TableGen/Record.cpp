@@ -211,8 +211,7 @@ RecordRecTy *RecordRecTy::get(RecordKeeper &RK,
 
   FoldingSet<RecordRecTy> &ThePool = RKImpl.RecordTypePool;
 
-  SmallVector<Record *, 4> Classes(UnsortedClasses.begin(),
-                                   UnsortedClasses.end());
+  SmallVector<Record *, 4> Classes(UnsortedClasses);
   llvm::sort(Classes, [](Record *LHS, Record *RHS) {
     return LHS->getNameInitAsString() < RHS->getNameInitAsString();
   });
@@ -293,7 +292,7 @@ bool RecordRecTy::typeIsA(const RecTy *RHS) const {
 
 static RecordRecTy *resolveRecordTypes(RecordRecTy *T1, RecordRecTy *T2) {
   SmallVector<Record *, 4> CommonSuperClasses;
-  SmallVector<Record *, 4> Stack(T1->classes_begin(), T1->classes_end());
+  SmallVector<Record *, 4> Stack(T1->getClasses());
 
   while (!Stack.empty()) {
     Record *R = Stack.pop_back_val();
@@ -923,15 +922,16 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
 
   case GETDAGOP:
     if (DagInit *Dag = dyn_cast<DagInit>(LHS)) {
-      DefInit *DI = DefInit::get(Dag->getOperatorAsDef({}));
-      if (!DI->getType()->typeIsA(getType())) {
+      // TI is not necessarily a def due to the late resolution in multiclasses,
+      // but has to be a TypedInit.
+      auto *TI = cast<TypedInit>(Dag->getOperator());
+      if (!TI->getType()->typeIsA(getType())) {
         PrintFatalError(CurRec->getLoc(),
-                        Twine("Expected type '") +
-                        getType()->getAsString() + "', got '" +
-                        DI->getType()->getAsString() + "' in: " +
-                        getAsString() + "\n");
+                        Twine("Expected type '") + getType()->getAsString() +
+                            "', got '" + TI->getType()->getAsString() +
+                            "' in: " + getAsString() + "\n");
       } else {
-        return DI;
+        return Dag->getOperator();
       }
     }
     break;
@@ -2282,9 +2282,9 @@ DefInit *VarDefInit::instantiate() {
     ArrayRef<Init *> TArgs = Class->getTemplateArgs();
     MapResolver R(NewRec);
 
-    for (unsigned I = 0, E = TArgs.size(); I != E; ++I) {
-      R.set(TArgs[I], NewRec->getValue(TArgs[I])->getValue());
-      NewRec->removeValue(TArgs[I]);
+    for (Init *Arg : TArgs) {
+      R.set(Arg, NewRec->getValue(Arg)->getValue());
+      NewRec->removeValue(Arg);
     }
 
     for (auto *Arg : args()) {
@@ -3250,9 +3250,7 @@ std::vector<Record *> RecordKeeper::getAllDerivedDefinitions(
       Defs.push_back(OneDef.second.get());
   }
 
-  llvm::sort(Defs, [](Record *LHS, Record *RHS) {
-    return LHS->getName().compare_numeric(RHS->getName()) < 0;
-  });
+  llvm::sort(Defs, LessRecord());
 
   return Defs;
 }

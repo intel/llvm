@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -Xclang -verify %s -Xclang -verify-ignore-unexpected=note,warning %}
 
 #include <string>
 #include <sycl/sycl.hpp>

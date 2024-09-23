@@ -39,11 +39,8 @@
 #define __SYCL_TYPE(x)
 #endif
 
-// joint matrix should only be included by default for SPIR, NVPTX or HIP(GFX90A
-// only) backends
-#if defined __SPIR__ || defined __NVPTX__ || !defined __SYCL_DEVICE_ONLY__ ||  \
-    defined __gfx90a__
-#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
-#endif // __SPIR__ || __NVPTX__ || !__SYCL_DEVICE_ONLY || __gfx90a__
+#if __has_cpp_attribute(clang::builtin_alias)
+#define __SYCL_BUILTIN_ALIAS(x) [[clang::builtin_alias(x)]]
+#else
+#define __SYCL_BUILTIN_ALIAS(x)
+#endif

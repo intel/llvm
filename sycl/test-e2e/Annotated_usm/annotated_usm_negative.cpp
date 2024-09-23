@@ -1,20 +1,18 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // Check expected runtime exception thrown for invalid input of annotated USM
 // allocations. Note this test does not work on gpu because the shared
 // allocation tests are expected to raise an error when the target device does
 // not have the corresponding aspect, while the gpu runtime has different
 // behavior
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_shared.hpp>
 
 #include <complex>
 #include <iostream>
-
-// clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;

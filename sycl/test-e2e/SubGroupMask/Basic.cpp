@@ -6,8 +6,6 @@
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: ze_debug
-
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -16,8 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
 #include <iostream>
-#include <sycl/sycl.hpp>
 using namespace sycl;
 constexpr int global_size = 128;
 constexpr int local_size = 32;

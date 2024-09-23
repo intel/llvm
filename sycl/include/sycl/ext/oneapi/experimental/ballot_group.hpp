@@ -9,9 +9,9 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
-#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for GetMask
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
@@ -29,13 +29,12 @@ template <typename ParentGroup> class ballot_group;
 
 template <typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(
-    sycl::aspect::ext_oneapi_non_uniform_groups)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_ballot_group)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        ballot_group<Group>>
-get_ballot_group(Group group, bool predicate);
+                        ballot_group<Group>> get_ballot_group(Group group,
+                                                              bool predicate);
 
 template <typename ParentGroup> class ballot_group {
 public:
@@ -49,8 +48,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return (Predicate) ? 1 : 0;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -58,8 +57,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::CallerPositionInMask(Mask);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -67,8 +66,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return 2;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -76,8 +75,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return Mask.count();
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -85,8 +84,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -94,8 +93,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -103,8 +102,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -112,8 +111,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -122,8 +121,8 @@ public:
     uint32_t Lowest = static_cast<uint32_t>(Mask.find_low()[0]);
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -147,20 +146,26 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_ballot_group(Group group, bool predicate) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
   // ballot_group partitions into two groups using the predicate
   // Membership mask for one group is negation of the other
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, predicate);
   if (predicate) {
     return ballot_group<sycl::sub_group>(mask, predicate);
   } else {
-    return ballot_group<sycl::sub_group>(~mask, predicate);
+    // To negate the mask for the false-predicate group, we also need to exclude
+    // all parts of the mask that is not part of the group.
+    sub_group_mask::BitsType participant_filter =
+        (~sub_group_mask::BitsType{0}) >>
+        (sub_group_mask::max_bits - group.get_local_linear_range());
+    return ballot_group<sycl::sub_group>((~mask) & participant_filter,
+                                         predicate);
   }
 #endif
 #else
   (void)predicate;
-  throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Non-uniform groups are not supported on host.");
 #endif
 }
 

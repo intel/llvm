@@ -29,7 +29,7 @@ source_filename = "test/DebugInfo/Generic/template-recursive-void.ll"
 
 %class.bar = type { i8 }
 
-@filters = global %class.bar zeroinitializer, align 1, !dbg !0
+@filters = addrspace(1) global %class.bar zeroinitializer, align 1, !dbg !0
 
 !llvm.dbg.cu = !{!29}
 !llvm.module.flags = !{!32, !33}

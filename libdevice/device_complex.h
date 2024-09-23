@@ -10,7 +10,7 @@
 
 #include "device.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 // TODO: This needs to be more robust.
 // clang doesn't recognize the c11 CMPLX macro, but it does have
@@ -165,5 +165,5 @@ double __complex__ __devicelib___divdc3(double a, double b, double c, double d);
 
 DEVICE_EXTERN_C
 float __complex__ __devicelib___divsc3(float a, float b, float c, float d);
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__
 #endif // __LIBDEVICE_DEVICE_COMPLEX_H_

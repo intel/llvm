@@ -53,6 +53,8 @@ class SPIRVLowerOCLBlocksPass
 public:
   llvm::PreservedAnalyses run(llvm::Module &M,
                               llvm::ModuleAnalysisManager &MAM);
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVLowerOCLBlocksLegacy : public llvm::ModulePass,

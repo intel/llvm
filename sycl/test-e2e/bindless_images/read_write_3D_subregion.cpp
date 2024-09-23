@@ -1,11 +1,12 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -45,8 +46,7 @@ int main() {
 
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::r,
-        sycl::image_channel_type::fp32);
+        {width, height, depth}, 1, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     sycl::ext::oneapi::experimental::image_mem imgMem0(desc, q);
@@ -109,28 +109,47 @@ int main() {
             size_t dim1 = it.get_global_id(1);
             size_t dim2 = it.get_global_id(2);
             float sum = 0;
-            // Extension: read image data from handle
-            float px1 = sycl::ext::oneapi::experimental::read_image<float>(
-                imgHandle1, sycl::int4(dim0, dim1, dim2, 0));
-            float px2 = sycl::ext::oneapi::experimental::read_image<float>(
-                imgHandle2, sycl::int4(dim0, dim1, dim2, 0));
+            // Extension: fetch image data from handle
+            float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle1, sycl::int3(dim0, dim1, dim2));
+            float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
+                imgHandle2, sycl::int3(dim0, dim1, dim2));
 
             sum = px1 + px2;
             // Extension: write to image with handle
             sycl::ext::oneapi::experimental::write_image<float>(
-                imgHandle3, sycl::int4(dim0, dim1, dim2, 0), sum);
+                imgHandle3, sycl::int3(dim0, dim1, dim2), sum);
           });
     });
 
     q.wait_and_throw();
 
-    // Extension: copy data from device to host (two sub-regions)
-    sycl::range copyExtent3 = {width, height, depth / 2};
-    sycl::range destExtent = {width, height, depth};
+    // Extension: copy data from device to host (8 sub-regions)
+
+    sycl::range<3> destExtent2 = srcExtent1;
+
     q.ext_oneapi_copy(imgMem2.get_handle(), {0, 0, 0}, desc, out.data(),
-                      {0, 0, 0}, destExtent, copyExtent3);
+                      {0, 0, 0}, destExtent2, copyExtent1);
+
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, 0, 0}, desc, out.data(),
+                      {width / 2, 0, 0}, destExtent2, copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {0, height / 2, 0}, desc,
+                      out.data(), {0, height / 2, 0}, destExtent2, copyExtent1);
     q.ext_oneapi_copy(imgMem2.get_handle(), {0, 0, depth / 2}, desc, out.data(),
-                      {0, 0, depth / 2}, destExtent, copyExtent3);
+                      {0, 0, depth / 2}, destExtent2, copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, height / 2, 0}, desc,
+                      out.data(), {width / 2, height / 2, 0}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {0, height / 2, depth / 2}, desc,
+                      out.data(), {0, height / 2, depth / 2}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, 0, depth / 2}, desc,
+                      out.data(), {width / 2, 0, depth / 2}, destExtent2,
+                      copyExtent1);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, height / 2, depth / 2},
+                      desc, out.data(), {width / 2, height / 2, depth / 2},
+                      destExtent2, copyExtent1);
+
     q.wait_and_throw();
 
     // Extension: cleanup
@@ -163,6 +182,7 @@ int main() {
 #endif
     }
   }
+
   if (validated) {
     std::cout << "Test passed!" << std::endl;
     return 0;

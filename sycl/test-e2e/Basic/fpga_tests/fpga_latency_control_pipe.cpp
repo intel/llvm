@@ -11,8 +11,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -61,7 +61,7 @@ int test_latency_control(queue Queue) {
 }
 
 int main() {
-  queue Queue{ext::intel::fpga_emulator_selector{}};
+  queue Queue{ext::intel::fpga_emulator_selector_v};
 
   return test_latency_control(Queue);
 }

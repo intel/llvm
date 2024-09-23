@@ -5,13 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Temporary disable everywhere until "Unsupported required sub group size" is
-// fixed in some configurations.
-// UNSUPPORTED: windows
-// UNSUPPORTED: linux
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" -o %t.sycl.out -DENABLE_SYCL=0 %s
+// TODO: Enable on other GPUs once internal ticket is fixed
+// REQUIRES: ocloc && gpu-intel-gen12
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.sycl.out -DENABLE_SYCL=0 %s
 // RUN: %{run} %t.sycl.out
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device gen9" -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device tgllp" -o %t.out %s
 // RUN: %{run} %t.out
 
 // This test checks the following ESIMD ahead-of-time compilation scenarios:
@@ -20,10 +18,6 @@
 // 2) When the application contains only ESIMD kernel.
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

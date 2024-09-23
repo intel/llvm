@@ -5,7 +5,7 @@
 
 // CHECK: This extended deleter should be called at ctx destruction.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::context c;

@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 //==-struct_kernel_param.cpp-Checks passing structs as kernel params--------==//
@@ -13,7 +13,7 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

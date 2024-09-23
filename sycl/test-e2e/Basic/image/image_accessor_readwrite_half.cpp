@@ -18,22 +18,22 @@
 #include <cassert>
 #include <iomanip>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
 
 namespace s = sycl;
 
 template <typename WriteDataT, int ImgType, int read_write> class kernel_class;
 
-void check_read_data(s::cl_float4 ReadData, s::cl_float4 ExpectedColor) {
+void check_read_data(s::float4 ReadData, s::float4 ExpectedColor) {
   // Maximum difference of 1.5 ULP is allowed.
-  s::cl_int4 PixelDataInt = ReadData.template as<s::cl_int4>();
-  s::cl_int4 ExpectedDataInt = ExpectedColor.template as<s::cl_int4>();
-  s::cl_int4 Diff = ExpectedDataInt - PixelDataInt;
+  s::int4 PixelDataInt = ReadData.template as<s::int4>();
+  s::int4 ExpectedDataInt = ExpectedColor.template as<s::int4>();
+  s::int4 Diff = ExpectedDataInt - PixelDataInt;
   bool CorrectData = false;
-  if (((s::cl_int)Diff.x() <= 1 && (s::cl_int)Diff.x() >= -1) &&
-      ((s::cl_int)Diff.y() <= 1 && (s::cl_int)Diff.y() >= -1) &&
-      ((s::cl_int)Diff.z() <= 1 && (s::cl_int)Diff.z() >= -1) &&
-      ((s::cl_int)Diff.w() <= 1 && (s::cl_int)Diff.w() >= -1))
+  if ((Diff.x() <= 1 && Diff.x() >= -1) && (Diff.y() <= 1 && Diff.y() >= -1) &&
+      (Diff.z() <= 1 && Diff.z() >= -1) && (Diff.w() <= 1 && Diff.w() >= -1))
     CorrectData = true;
 
 #if DEBUG_OUTPUT
@@ -57,9 +57,9 @@ void check_read_data(s::cl_float4 ReadData, s::cl_float4 ExpectedColor) {
 #endif
 }
 
-void check_read_data(s::cl_half4 ReadData, s::cl_half4 ExpectedColor) {
-  s::cl_float4 ReadDatafloat = ReadData.convert<float>();
-  s::cl_float4 ExpectedColorfloat = ExpectedColor.convert<float>();
+void check_read_data(s::half4 ReadData, s::half4 ExpectedColor) {
+  s::float4 ReadDatafloat = ReadData.convert<float>();
+  s::float4 ExpectedColorfloat = ExpectedColor.convert<float>();
   check_read_data(ReadDatafloat, ExpectedColorfloat);
 }
 
@@ -109,40 +109,40 @@ void check_read_type_order(char *HostPtr, const s::image_channel_order ImgOrder,
 
 void check_half4(char *HostPtr) {
 
-  // Calling only valid channel types with s::cl_half4.
+  // Calling only valid channel types with s::half4.
   // s::image_channel_type::snorm_int8,
-  write_type_order<s::cl_half4, s::image_channel_type::snorm_int8>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(2, -2, 0.375f, 0));
-  check_read_type_order<s::cl_half4, s::image_channel_type::snorm_int8>(
+  write_type_order<s::half4, s::image_channel_type::snorm_int8>(
+      HostPtr, s::image_channel_order::rgba, s::half4(2, -2, 0.375f, 0));
+  check_read_type_order<s::half4, s::image_channel_type::snorm_int8>(
       HostPtr, s::image_channel_order::rgba,
-      s::cl_half4(1, -1, ((float)48 / 127) /*0.3779527544975280762f*/, 0));
+      s::half4(1, -1, ((float)48 / 127) /*0.3779527544975280762f*/, 0));
 
   // s::image_channel_type::snorm_int16,
-  write_type_order<s::cl_half4, s::image_channel_type::snorm_int16>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(2, -2, 0.375f, 0));
-  check_read_type_order<s::cl_half4, s::image_channel_type::snorm_int16>(
+  write_type_order<s::half4, s::image_channel_type::snorm_int16>(
+      HostPtr, s::image_channel_order::rgba, s::half4(2, -2, 0.375f, 0));
+  check_read_type_order<s::half4, s::image_channel_type::snorm_int16>(
       HostPtr, s::image_channel_order::rgba,
-      s::cl_half4(1, -1, ((float)12288 / 32767) /*0.375011444091796875f*/, 0));
+      s::half4(1, -1, ((float)12288 / 32767) /*0.375011444091796875f*/, 0));
 
   // s::image_channel_type::unorm_int8,
-  write_type_order<s::cl_half4, s::image_channel_type::unorm_int8>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(2, -2, 0.375f, 0));
-  check_read_type_order<s::cl_half4, s::image_channel_type::unorm_int8>(
+  write_type_order<s::half4, s::image_channel_type::unorm_int8>(
+      HostPtr, s::image_channel_order::rgba, s::half4(2, -2, 0.375f, 0));
+  check_read_type_order<s::half4, s::image_channel_type::unorm_int8>(
       HostPtr, s::image_channel_order::rgba,
-      s::cl_half4(1, 0, ((float)96 / 255) /*0.3764705955982208252f*/, 0));
+      s::half4(1, 0, ((float)96 / 255) /*0.3764705955982208252f*/, 0));
 
   // s::image_channel_type::unorm_int16
-  write_type_order<s::cl_half4, s::image_channel_type::unorm_int16>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(1, -1, 0.375f, 0));
-  check_read_type_order<s::cl_half4, s::image_channel_type::unorm_int16>(
+  write_type_order<s::half4, s::image_channel_type::unorm_int16>(
+      HostPtr, s::image_channel_order::rgba, s::half4(1, -1, 0.375f, 0));
+  check_read_type_order<s::half4, s::image_channel_type::unorm_int16>(
       HostPtr, s::image_channel_order::rgba,
-      s::cl_half4(1, 0, ((float)24576 / 65535) /*0.3750057220458984375f*/, 0));
+      s::half4(1, 0, ((float)24576 / 65535) /*0.3750057220458984375f*/, 0));
 
   // s::image_channel_type::fp16
-  write_type_order<s::cl_half4, s::image_channel_type::fp16>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(2, -2, 0.375f, 0));
-  check_read_type_order<s::cl_half4, s::image_channel_type::fp16>(
-      HostPtr, s::image_channel_order::rgba, s::cl_half4(2, -2, 0.375f, 0));
+  write_type_order<s::half4, s::image_channel_type::fp16>(
+      HostPtr, s::image_channel_order::rgba, s::half4(2, -2, 0.375f, 0));
+  check_read_type_order<s::half4, s::image_channel_type::fp16>(
+      HostPtr, s::image_channel_order::rgba, s::half4(2, -2, 0.375f, 0));
 };
 
 int main() {

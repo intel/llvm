@@ -1,20 +1,20 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=4 %{run} %t.out wait 2>&1 | FileCheck %s
-// RUN: env ZE_DEBUG=4 %{run} %t.out nowait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out nowait 2>&1 | FileCheck %s
 //
 // RUN: %{build} %level_zero_options -DCHECK_INORDER -o %t.inorder.out
-// RUN: env ZE_DEBUG=4 %{run} %t.inorder.out wait 2>&1 | FileCheck %s
-// RUN: env ZE_DEBUG=4 %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.inorder.out wait 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.inorder.out nowait 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 
 // The test is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability. Example of a leak reported is this:
+// UR_L0_LEAKS_DEBUG=1 testing capability. Example of a leak reported is this:
 //
 // clang-format off
-// ZE_DEBUG=4: check balance of create/destroy calls
+// Check balance of create/destroy calls
 // ----------------------------------------------------------
 //               zeContextCreate = 1     \--->              zeContextDestroy = 1
 //          zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 0     ---> LEAK = 1
@@ -36,7 +36,11 @@
 // NOTE: The 1000 value below is to be larger than the "128" heuristic in
 // queue_impl::addSharedEvent.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#ifdef CHECK_INORDER
+#include <sycl/properties/all_properties.hpp>
+#endif
 
 int main(int argc, char **argv) {
   assert(argc == 2 && "Invalid number of arguments");

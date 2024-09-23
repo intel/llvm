@@ -97,6 +97,7 @@ class SPIRVTypeBufferSurfaceINTEL;
 class SPIRVTypeTokenINTEL;
 class SPIRVTypeJointMatrixINTEL;
 class SPIRVTypeCooperativeMatrixKHR;
+class SPIRVTypeTaskSequenceINTEL;
 
 typedef SPIRVBasicBlock SPIRVLabel;
 struct SPIRVTypeImageDescriptor;
@@ -156,7 +157,7 @@ public:
   virtual bool isEntryPoint(SPIRVExecutionModelKind, SPIRVId) const = 0;
   virtual unsigned short getGeneratorId() const = 0;
   virtual unsigned short getGeneratorVer() const = 0;
-  virtual SPIRVWord getSPIRVVersion() const = 0;
+  virtual VersionNumber getSPIRVVersion() const = 0;
   virtual const std::vector<SPIRVExtInst *> &getDebugInstVec() const = 0;
   virtual const std::vector<SPIRVExtInst *> &getAuxDataInstVec() const = 0;
 
@@ -176,11 +177,17 @@ public:
   virtual void setGeneratorId(unsigned short) = 0;
   virtual void setGeneratorVer(unsigned short) = 0;
   virtual void resolveUnknownStructFields() = 0;
-  virtual void setSPIRVVersion(SPIRVWord) = 0;
+  virtual void setSPIRVVersion(VersionNumber) = 0;
   virtual void insertEntryNoId(SPIRVEntry *Entry) = 0;
 
   void setMinSPIRVVersion(VersionNumber Ver) {
-    setSPIRVVersion(std::max(static_cast<SPIRVWord>(Ver), getSPIRVVersion()));
+    setSPIRVVersion(std::max(Ver, getSPIRVVersion()));
+  }
+
+  void setMaxSPIRVVersion(VersionNumber Ver) {
+    assert(Ver >= getSPIRVVersion() &&
+           "Maximum version can't be lower than minimum version!");
+    MaxVersion = std::min(Ver, MaxVersion);
   }
 
   // Object creation functions
@@ -233,7 +240,7 @@ public:
   virtual void eraseInstruction(SPIRVInstruction *, SPIRVBasicBlock *) = 0;
 
   // Type creation functions
-  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVConstant *) = 0;
+  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) = 0;
   virtual SPIRVTypeBool *addBoolType() = 0;
   virtual SPIRVTypeFloat *addFloatType(unsigned) = 0;
   virtual SPIRVTypeFunction *
@@ -258,6 +265,9 @@ public:
   addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
   virtual SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) = 0;
+  virtual SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() = 0;
+  virtual SPIRVInstruction *
+  addTaskSequenceGetINTELInst(SPIRVType *, SPIRVValue *, SPIRVBasicBlock *) = 0;
   virtual SPIRVTypeVoid *addVoidType() = 0;
   virtual SPIRVType *addOpaqueGenericType(Op) = 0;
   virtual SPIRVTypeDeviceEvent *addDeviceEventType() = 0;
@@ -487,16 +497,16 @@ public:
 
   virtual bool
   isAllowedToUseVersion(SPIRV::VersionNumber RequestedVersion) const final {
-    return TranslationOpts.isAllowedToUseVersion(RequestedVersion);
+    return RequestedVersion <= MaxVersion;
   }
 
   virtual bool isAllowedToUseVersion(SPIRVWord RequestedVersion) const final {
-    return TranslationOpts.isAllowedToUseVersion(
+    return isAllowedToUseVersion(
         static_cast<SPIRV::VersionNumber>(RequestedVersion));
   }
 
   virtual SPIRV::VersionNumber getMaximumAllowedSPIRVVersion() const final {
-    return TranslationOpts.getMaxVersion();
+    return MaxVersion;
   }
 
   virtual bool
@@ -562,6 +572,8 @@ public:
     return SPIRVEIS_Debug;
   }
 
+  ExtInst getExtInst() const { return TranslationOpts.getExtInst(); }
+
   BIsRepresentation getDesiredBIsRepresentation() const {
     return TranslationOpts.getDesiredBIsRepresentation();
   }
@@ -575,6 +587,7 @@ protected:
   bool ValidateCapability;
   bool AutoAddExtensions = true;
   SPIRV::TranslatorOpts TranslationOpts;
+  VersionNumber MaxVersion = VersionNumber::MaximumVersion;
 
 private:
   bool IsValid;

@@ -1,7 +1,9 @@
 // RUN: %{build} -fno-sycl-unnamed-lambda -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 // Second test for https://github.com/intel/llvm/issues/469. Verify that the
 // mode without unnamed lambdas support still has some limited support.

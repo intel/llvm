@@ -103,16 +103,19 @@ value to determine which of the extension's APIs the implementation supports.
 Below is a list of compile-time-constant properties which `pipe` supports.
 
 ```c++
-namespace sycl::ext::intel::experimental {
+namespace sycl {
+namespace ext {
+namespace intel {
+namespace experimental {
 
 struct ready_latency_key {
-  template <int Latency>
+  template <uint32_t Latency>
   using value_t = oneapi::experimental::property_value<
       ready_latency_key, std::integral_constant<int, Latency>>;
 };
 
 struct bits_per_symbol_key {
-  template <int Bits>
+  template <uint32_t Bits>
   using value_t =
       oneapi::experimental::property_value<bits_per_symbol_key,
                                            std::integral_constant<int, Bits>>;
@@ -123,8 +126,15 @@ struct uses_valid_key {
   using value_t =
       oneapi::experimental::property_value<uses_valid_key,
                                            std::bool_constant<Valid>>;
-};  
-    
+};
+
+struct uses_ready_key {
+  template <bool Valid>
+  using value_t =
+      oneapi::experimental::property_value<uses_ready_key,
+                                           std::bool_constant<Valid>>;
+};
+
 struct first_symbol_in_high_order_bits_key {
   template <bool HighOrder>
   using value_t =
@@ -134,9 +144,8 @@ struct first_symbol_in_high_order_bits_key {
 
 enum class protocol_name : /* unspecified */ {
   avalon_streaming = 0,
-  avalon_streaming_uses_ready = 1,
-  avalon_mm = 2,
-  avalon_mm_uses_ready = 3
+  avalon_mm = 1,
+  axi_streaming = 2
 };
 
 struct protocol_key {
@@ -145,14 +154,17 @@ struct protocol_key {
       protocol_key, std::integral_constant<protocol_name, Protocol>>;
 };
 
-template <int Latency>
+template <uint32_t Latency>
 inline constexpr ready_latency_key::value_t<Latency> ready_latency;
 
-template <int Bits>
+template <uint32_t Bits>
 inline constexpr bits_per_symbol_key::value_t<Bits> bits_per_symbol;
 
 template <bool Valid>
 inline constexpr uses_valid_key::value_t<Valid> uses_valid;
+
+template <bool Ready>
+inline constexpr uses_ready_key::value_t<Ready> uses_ready;
 
 template <bool HighOrder>
 inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
@@ -161,7 +173,24 @@ inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
 
-} // namespace sycl::ext::intel::experimental
+namespace avalon-st {
+  using sycl::ext::intel::experimental::bits_per_symbol;
+  using sycl::ext::intel::experimental::bits_per_symbol_key;
+  using sycl::ext::intel::experimental::first_symbol_in_high_order_bits;
+  using sycl::ext::intel::experimental::first_symbol_in_high_order_bits_key;
+  using sycl::ext::intel::experimental::ready_latency;
+  using sycl::ext::intel::experimental::ready_latency_key;
+  using sycl::ext::intel::experimental::uses_ready;
+  using sycl::ext::intel::experimental::uses_ready_key;
+  using sycl::ext::intel::experimental::uses_valid;
+  using sycl::ext::intel::experimental::uses_valid_key;
+} // namespace avalon-st
+
+} // namespace experimental
+} // namespace intel
+} // namespace ext
+} // namespace sycl
+
 ```
 
 --
@@ -177,11 +206,12 @@ Default value: 0
 The number of cycles between when the ready signal is deasserted and when the
 pipe can no longer accept new inputs.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+This property only applies to the externally visible end of the pipe.
+
+This property is only valid when the `protocol` property is *avalon_streaming*.
 
 |`bits_per_symbol`
-| Valid values: A positive integer value that evenly divides by the data type size. 
+| Valid values: A positive integer value that evenly divides the data type size. 
 
 Default value: 8
 
@@ -190,8 +220,9 @@ Describes how the data is broken into symbols on the data bus.
 Data is broken down according to how you set the `first_symbol_in_high_order_bits`
 property. By default, data is broken down in little endian order.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+This property only applies to the externally visible end of the pipe. 
+
+This property is only valid when the `protocol` property is *avalon_streaming*.
 
 |`uses_valid`
 | Valid values: `true` or `false`
@@ -204,11 +235,27 @@ upstream source must provide valid data on every cycle that ready is asserted.
 This is equivalent to changing the pipe read calls to a non-blocking call and assuming that
 success is always true.
 
-If set to `false`, the `min_capacity` pipe class template parameter and `ready_latency`
-property must be 0.
+This property only applies to the externally visible end of the pipe, and only valid when
+the valid signal is driven externally from the kernel, i.e., on a host-to-kernel or IO-to-kernel pipe.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+This property is only valid when the `protocol` property is *avalon_streaming*
+or *avalon_mm*.
+
+|`uses_ready`
+| Ready values: `true` or `false`
+
+Default value: `true`
+
+Controls whether a ready signal is present on the pipe interface. If `false`, the
+downstream sink cannot backpressure the pipe.
+
+This is equivalent to changing the pipe write calls to a non-blocking call and assuming that
+success is always true.
+
+This property only applies to the externally visible end of the pipe, and only valid when
+the ready signal is driven externally from the kernel, i.e., on a kernel-to-host or IO-to-host pipe.
+
+This property is only valid when the `protocol` property is *avalon_streaming*.
 
 |`first_symbol_in_high_order_bits`
 | Valid values: true or false
@@ -218,38 +265,28 @@ Default value: false
 Specifies whether the data symbols in the pipe are in big-endian
 order.
 
-This property is not guaranteed to be respected if the pipe is an inter-kernel
-pipe. The compiler is allowed to optimize the pipe if both sides are visible.
+This property only applies to the externally visible end of the pipe.
+
+This property is only valid when the `protocol` property is *avalon_streaming*
+or *avalon_mm*.
 
 |`protocol`
 | Specifies the protocol for the pipe interface. Currently, the protocols supported
-are: *avalon_streaming*, *avalon_streaming_uses_ready*, *avalon_mm*, and *avalon_mm_uses_ready*.
+are: *avalon_streaming*, *avalon_mm*, and *axi_streaming*.
 
 *avalon_streaming*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
-With this choice of protocol, no ready signal is exposed by the host pipe, and the sink cannot backpressure.
-
-*avalon_streaming_uses_ready*
-
-Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
-
-This protocol allows the sink to backpressure by deasserting the ready signal asserted. The sink signifies that it is ready to consume data by asserting the ready signal. 
-
 *avalon_mm*
 
 Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
-With this protocol, an implicit ready signal is held high, and the sink cannot backpressure.
+*axi_streaming*
 
-*avalon_mm_uses_ready*
+Provide an AXI4-Stream interface as described in https://documentation-service.arm.com/static/642583d7314e245d086bc8c9[AMBA 4 AXI4-Stream Protocol Specification].
 
-Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
-
-With this protocol, an additional memory mapped location is created to hold the ready signal. You must set the `uses_valid` property to `true`.
-
-The default protocol is *avalon_streaming_uses_ready*
+The default protocol is *avalon_streaming*
 |====
 --
 
@@ -262,6 +299,7 @@ The default protocol is *avalon_streaming_uses_ready*
 |Rev|Date|Author|Changes
 |1|2022-03-18|Peter Colberg|*Initial public working draft*
 |2|2023-04-06|Robert Ho|Removal of unused properties, update protocols
+|3|2023-08-30|Robert Ho|Add axi_streaming protocol
 |========================================
 
 //************************************************************************

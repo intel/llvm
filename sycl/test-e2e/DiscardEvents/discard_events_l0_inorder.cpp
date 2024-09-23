@@ -18,10 +18,12 @@
 // the discard_events property, if it doesn't pass then it's most likely a
 // general issue unrelated to discard_events.
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
 #include <numeric>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 static constexpr int MAGIC_NUM1 = 2;
 

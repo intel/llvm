@@ -8,17 +8,16 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                              // for aspect
+#include <array>                                             // for array
+#include <stddef.h>                                          // for size_t
+#include <stdint.h>                                          // for uint32_T
+#include <sycl/aspects.hpp>                                  // for aspect
+#include <sycl/ext/oneapi/experimental/forward_progress.hpp> // for forward_progress_guarantee enum
 #include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for SizeListToStr
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-
-#include <array>       // for array
-#include <stddef.h>    // for size_t
-#include <stdint.h>    // for uint32_t
-#include <type_traits> // for true_type
-#include <utility>     // for declval
-
+#include <type_traits>                                   // for true_type
+#include <utility>                                       // for declval
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -34,28 +33,42 @@ template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
 
 struct properties_tag {};
 
-struct work_group_size_key {
+struct work_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSize> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct work_group_size_hint_key {
+struct work_group_size_hint_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSizeHint> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_hint_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct sub_group_size_key {
+struct sub_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::SubGroupSize> {
   template <uint32_t Size>
   using value_t = property_value<sub_group_size_key,
                                  std::integral_constant<uint32_t, Size>>;
 };
 
-struct device_has_key {
+struct device_has_key
+    : detail::compile_time_property_key<detail::PropKind::DeviceHas> {
   template <aspect... Aspects>
   using value_t = property_value<device_has_key,
                                  std::integral_constant<aspect, Aspects>...>;
+};
+
+struct nd_range_kernel_key {
+  template <int Dims>
+  using value_t =
+      property_value<nd_range_kernel_key, std::integral_constant<int, Dims>>;
+};
+
+struct single_task_kernel_key {
+  using value_t = property_value<single_task_kernel_key>;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -110,6 +123,21 @@ struct property_value<device_has_key,
   static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
 };
 
+template <int Dims>
+struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
+  static_assert(
+      Dims >= 1 && Dims <= 3,
+      "nd_range_kernel_key property must use dimension of 1, 2 or 3.");
+
+  using key_t = nd_range_kernel_key;
+  using value_t = int;
+  static constexpr int dimensions = Dims;
+};
+
+template <> struct property_value<single_task_kernel_key> {
+  using key_t = single_task_kernel_key;
+};
+
 template <size_t Dim0, size_t... Dims>
 inline constexpr work_group_size_key::value_t<Dim0, Dims...> work_group_size;
 
@@ -123,33 +151,107 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
-template <> struct is_property_key<work_group_size_key> : std::true_type {};
-template <>
-struct is_property_key<work_group_size_hint_key> : std::true_type {};
-template <> struct is_property_key<sub_group_size_key> : std::true_type {};
-template <> struct is_property_key<device_has_key> : std::true_type {};
+template <int Dims>
+inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
+
+inline constexpr single_task_kernel_key::value_t single_task_kernel;
+
+struct work_group_progress_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      work_group_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct sub_group_progress_key
+    : detail::compile_time_property_key<detail::PropKind::SubGroupProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      sub_group_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+struct work_item_progress_key
+    : detail::compile_time_property_key<detail::PropKind::WorkItemProgress> {
+  template <forward_progress_guarantee Guarantee,
+            execution_scope CoordinationScope>
+  using value_t = property_value<
+      work_item_progress_key,
+      std::integral_constant<forward_progress_guarantee, Guarantee>,
+      std::integral_constant<execution_scope, CoordinationScope>>;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+struct property_value<
+    work_group_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+struct property_value<
+    sub_group_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+struct property_value<
+    work_item_progress_key,
+    std::integral_constant<forward_progress_guarantee, Guarantee>,
+    std::integral_constant<execution_scope, CoordinationScope>> {
+  using key_t = work_group_progress_key;
+  static constexpr forward_progress_guarantee guarantee = Guarantee;
+  static constexpr execution_scope coordinationScope = CoordinationScope;
+};
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr work_group_progress_key::value_t<Guarantee, CoordinationScope>
+    work_group_progress;
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr sub_group_progress_key::value_t<Guarantee, CoordinationScope>
+    sub_group_progress;
+
+template <forward_progress_guarantee Guarantee,
+          execution_scope CoordinationScope>
+inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope>
+    work_item_progress;
+
+template <> struct is_property_key<work_group_progress_key> : std::true_type {};
+template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
+template <> struct is_property_key<work_item_progress_key> : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<work_group_size_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSize;
-};
-template <> struct PropertyToKind<work_group_size_hint_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSizeHint;
-};
-template <> struct PropertyToKind<sub_group_size_key> {
-  static constexpr PropKind Kind = PropKind::SubGroupSize;
-};
-template <> struct PropertyToKind<device_has_key> {
-  static constexpr PropKind Kind = PropKind::DeviceHas;
-};
 
-template <>
-struct IsCompileTimeProperty<work_group_size_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
+template <size_t... Dims>
+struct HasCompileTimeEffect<work_group_size_key::value_t<Dims...>>
+    : std::true_type {};
+template <size_t... Dims>
+struct HasCompileTimeEffect<work_group_size_hint_key::value_t<Dims...>>
+    : std::true_type {};
+template <uint32_t Size>
+struct HasCompileTimeEffect<sub_group_size_key::value_t<Size>>
+    : std::true_type {};
+template <sycl::aspect... Aspects>
+struct HasCompileTimeEffect<device_has_key::value_t<Aspects...>>
+    : std::true_type {};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
@@ -172,6 +274,15 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
 };
+template <int Dims>
+struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
+  static constexpr const char *name = "sycl-nd-range-kernel";
+  static constexpr int value = Dims;
+};
+template <> struct PropertyMetaInfo<single_task_kernel_key::value_t> {
+  static constexpr const char *name = "sycl-single-task-kernel";
+  static constexpr int value = 0;
+};
 
 template <typename T, typename = void>
 struct HasKernelPropertiesGetMethod : std::false_type {};
@@ -193,7 +304,6 @@ struct HasKernelPropertiesGetMethod<T,
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)                                \
   [[__sycl_detail__::add_ir_attributes_function(                               \
-      {"sycl-device-has"},                                                     \
       sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
       sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \

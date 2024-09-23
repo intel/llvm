@@ -1,14 +1,15 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env ZE_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
+// RUN: env UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
 //
 // Check that queue priority is passed to Level Zero runtime
 // This is the last value in the ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC
 //
 // With immediate command lists the command lists are recycled between queues in
 // a context.
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 void test(sycl::context &C, sycl::device &D, sycl::property_list Props) {
   sycl::queue Q(C, D, Props);

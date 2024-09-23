@@ -1,5 +1,8 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//
 //
@@ -10,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 struct IdxID1 {
   int x;

@@ -7,13 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/helpers.hpp>     // for Builder
-#include <sycl/detail/memcpy.hpp>      // detail::memcpy
-#include <sycl/exception.hpp>          // for errc, exception
-#include <sycl/feature_test.hpp>       // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
-#include <sycl/id.hpp>                 // for id
-#include <sycl/marray.hpp>             // for marray
-#include <sycl/types.hpp>              // for vec
+#include <sycl/builtins.hpp>       // for assert
+#include <sycl/detail/helpers.hpp> // for Builder
+#include <sycl/detail/memcpy.hpp>  // detail::memcpy
+#include <sycl/exception.hpp>      // for errc, exception
+#include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
+#include <sycl/id.hpp>             // for id
+#include <sycl/marray.hpp>         // for marray
+#include <sycl/types.hpp>          // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -110,7 +111,7 @@ struct sub_group_mask {
       size_t RemainingBytes = sizeof(Bits) - BytesCopied;
       size_t BytesToCopy =
           RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
-      sycl::detail::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied,
+      sycl::detail::memcpy_no_adl(reinterpret_cast<char *>(&Bits) + BytesCopied,
                            &val[I], BytesToCopy);
       BytesCopied += BytesToCopy;
     }
@@ -138,10 +139,9 @@ struct sub_group_mask {
     for (int i = 0; i < 4; ++i) {
       MemberMask[i] = TmpMArray[i];
     }
-    auto OCLMask =
-        sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
     return __spirv_GroupNonUniformBallotBitCount(
-        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce, OCLMask);
+        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce,
+        sycl::detail::convertToOpenCLType(MemberMask));
 #else
     unsigned int count = 0;
     auto word = (Bits & valuable_bits(bits_num));
@@ -359,3 +359,11 @@ group_ballot(Group g, bool predicate) {
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+// We have a cyclic dependency with
+//   sub_group_mask.hpp
+//   detail/spirv.hpp
+//   non_uniform_groups.hpp
+// "Break" it by including this at the end (instead of beginning). Ideally, we
+// should refactor this somehow...
+#include <sycl/detail/spirv.hpp>

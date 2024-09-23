@@ -8,7 +8,8 @@
 
 // REQUIRES: TEMPORARY_DISABLED
 // Disable test due to flacky failures
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 class ComplexClass {
 public:

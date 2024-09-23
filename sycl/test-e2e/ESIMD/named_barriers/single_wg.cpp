@@ -6,9 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Basic case with 1 work-group and 16 threads: 4 producer and 12 consumer.
@@ -16,10 +17,9 @@
 // Producers store data to SLM, then all threads read SLM and store data to
 // surface.
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
+#define NS __ESIMD_NS
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -62,7 +62,7 @@ bool test(QueueTY q) {
             // number of ints stored to SLM by producer
             constexpr unsigned NUM = VL * (1 + scale);
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int idx = ndi.get_local_id(0);
             unsigned int off = idx * VL * sizeof(int);
@@ -85,10 +85,10 @@ bool test(QueueTY q) {
             }
 
             // signaling after data stored
-            named_barrier_signal(bid, flag, prods, cons);
+            NS::named_barrier_signal(bid, flag, prods, cons);
 
             if (is_consumer)
-              named_barrier_wait(bid); // consumers waiting for signal
+              NS::named_barrier_wait(bid); // consumers waiting for signal
 
             auto val = slm_block_load<int, VL>(off); // reading SLM
             lsc_block_store<int, VL>(acc, off,
@@ -116,11 +116,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

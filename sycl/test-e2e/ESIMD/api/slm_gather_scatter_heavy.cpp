@@ -31,9 +31,6 @@
 #include "../esimd_test_utils.hpp"
 
 #include <iomanip>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -469,6 +466,15 @@ int main() {
     passed &= test_vl1<half, 7>(q);
     passed &= test<half, 16, 2>(q);
   }
+  if (dev.has(sycl::aspect::fp64)) {
+    passed &= test<double, 8, 2>(q);
+    passed &= test<double, 16, 5>(q);
+    passed &= test<double, 32, 3>(q);
+  }
+
+  passed &= test<int64_t, 8, 2>(q);
+  passed &= test<int64_t, 16, 5>(q);
+  passed &= test<int64_t, 32, 3>(q);
 
   std::cout << (!passed ? "TEST FAILED\n" : "TEST Passed\n");
   return passed ? 0 : 1;

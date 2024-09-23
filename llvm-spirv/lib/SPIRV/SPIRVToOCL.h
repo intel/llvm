@@ -241,6 +241,9 @@ public:
   /// Transform relational builtin, e.g. __spirv_IsNan, to OpenCL builtin.
   void visitCallSPIRVRelational(CallInst *CI, Op OC);
 
+  /// Transform __spirv_ReadClockKHR to OpenCL builtin.
+  void visitCallSPIRVReadClockKHR(CallInst *CI);
+
   /// Conduct generic mutations for all atomic builtins
   virtual CallInst *mutateCommonAtomicArguments(CallInst *CI, Op OC) = 0;
 
@@ -380,6 +383,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL12Legacy : public SPIRVToOCL12Base, public SPIRVToOCLLegacy {
@@ -451,6 +456,8 @@ public:
     return runSPIRVToOCL(M) ? llvm::PreservedAnalyses::none()
                             : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 class SPIRVToOCL20Legacy : public SPIRVToOCLLegacy, public SPIRVToOCL20Base {

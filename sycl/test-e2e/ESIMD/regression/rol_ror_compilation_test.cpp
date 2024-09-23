@@ -1,4 +1,3 @@
-// REQUIRES: gpu-intel-gen11
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- rol_ror_compilation_test.cpp - Test for compilation of rol/ror functions
@@ -10,12 +9,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/sycl.hpp>
-#include <ext/intel/esimd.hpp>
-
 #include "../esimd_test_utils.hpp"
 
-using namespace cl::sycl;
+using namespace sycl;
 using namespace sycl::ext::intel::experimental::esimd;
 
 #define SIMD 16
@@ -29,7 +25,7 @@ using shared_vector = std::vector<DataT, shared_allocator<DataT>>;
 
 template <typename TRes, typename TArg1, typename TArg2,
           class Sat = __ESIMD_NS::saturation_off_tag>
-int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_rol,
+int test(sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_rol,
          TRes expected_ror) {
   shared_allocator<TArg1> allocator1(q);
   shared_vector<TArg1> input(THREAD_NUM * SIMD, allocator1);
@@ -64,13 +60,13 @@ int test(cl::sycl::queue q, TArg1 arg1, TArg2 arg2, TRes expected_rol,
       __ESIMD_NS::simd<TRes, 1> scalar_result;
       __ESIMD_NS::simd<TRes, SIMD> result;
 
-      result = rol<TArg1>(input_vec, arg2);
-      scalar_result = rol<TArg1>(arg1, arg2);
+      result = __ESIMD_NS::rol<TArg1>(input_vec, arg2);
+      scalar_result = __ESIMD_NS::rol<TArg1>(arg1, arg2);
       result.copy_to(rol_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_rol_ptr);
 
-      result = ror<TArg1>(input_vec, arg2);
-      scalar_result = ror<TArg1>(arg1, arg2);
+      result = __ESIMD_NS::ror<TArg1>(input_vec, arg2);
+      scalar_result = __ESIMD_NS::ror<TArg1>(arg1, arg2);
       result.copy_to(ror_ptr + it.get_global_id(0) * SIMD);
       scalar_result.copy_to(scalar_ror_ptr);
     });

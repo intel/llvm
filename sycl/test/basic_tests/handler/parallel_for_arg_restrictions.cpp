@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s
-// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s -DPREVIEW_BREAKING_CHANGES%}
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fpreview-breaking-changes -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning,error %s %}
 
 // Tests the requirements on the first argument in a kernel lambda.
 // TODO: Some of the behavior is currently guarded behind the
@@ -19,8 +19,6 @@ template <int Dims> struct ConvertibleFromNDItem {
 int main() {
   sycl::queue Q;
 
-// TODO: Remove this when the guarded behavior is promoted.
-#ifdef PREVIEW_BREAKING_CHANGES
   // ND-range parallel_for with item.
   Q.submit([&](sycl::handler &CGH) {
     // expected-error@sycl/handler.hpp:* {{Kernel argument of a sycl::parallel_for with sycl::nd_range must be either sycl::nd_item or be convertible from sycl::nd_item}}
@@ -71,18 +69,6 @@ int main() {
     CGH.parallel_for(sycl::nd_range{sycl::range{1, 1, 1}, sycl::range{1, 1, 1}},
                      [=](ConvertibleFromItem<3>) {});
   });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1, 1}, [=](auto &) {});
-  });
-  Q.submit([&](sycl::handler &CGH) {
-    // expected-error@sycl/handler.hpp:* {{SYCL kernel lambda/functor has an unexpected signature, it should be invocable with sycl::item and optionally sycl::kernel_handler}}
-    CGH.parallel_for(sycl::range{1, 1, 1}, [=](auto &) {});
-  });
 
   Q.submit([&](sycl::handler &CGH) {
     // expected-error@sycl/handler.hpp:* {{sycl::parallel_for(sycl::range) kernel must have the first argument of sycl::item type, or of a type which is implicitly convertible from sycl::item}}
@@ -100,7 +86,6 @@ int main() {
     CGH.parallel_for(sycl::range{1}, [=](sycl::item<1> it, sycl::item<1> it,
                                          kernel_handler kh) {});
   });
-#endif // PREVIEW_BREAKING_CHANGES
 
   // Range parallel_for with nd_item.
   Q.submit([&](sycl::handler &CGH) {

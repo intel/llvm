@@ -26,9 +26,9 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -150,8 +150,9 @@ int main(void) {
               if constexpr (use_invoke_simd) {
                 int res = invoke_simd(
                     ndi.get_sub_group(), SIMD_CALLEE_computeDotProducts,
-                    row_index, column_index, uniform{acc_a.get_pointer()},
-                    uniform{acc_b.get_pointer()});
+                    row_index, column_index,
+                    uniform{acc_a.get_multi_ptr<access::decorated::yes>()},
+                    uniform{acc_b.get_multi_ptr<access::decorated::yes>()});
                 acc_c[row_index][column_index] = res;
               } else {
                 for (int k = 0; k < N; ++k) {

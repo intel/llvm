@@ -10,8 +10,8 @@
 #include <sycl/sycl.hpp>
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -21,77 +21,73 @@ static constexpr char HARDWARE_PLATFORM_NAME[] =
     "Intel(R) FPGA SDK for OpenCL(TM)";
 
 template <const char PlatformName[]> struct RedefTemplatedWrapper {
-  static pi_result redefinedPlatformGetInfo(pi_platform platform,
-                                            pi_platform_info param_name,
-                                            size_t param_value_size,
-                                            void *param_value,
-                                            size_t *param_value_size_ret) {
-    switch (param_name) {
-    case PI_PLATFORM_INFO_NAME: {
+  static ur_result_t redefinedPlatformGetInfo(void *pParams) {
+    auto params = *static_cast<ur_platform_get_info_params_t *>(pParams);
+    switch (*params.ppropName) {
+    case UR_PLATFORM_INFO_NAME: {
       size_t PlatformNameLen = strlen(PlatformName) + 1;
-      if (param_value) {
-        assert(param_value_size == PlatformNameLen);
-        std::memcpy(param_value, PlatformName, PlatformNameLen);
+      if (*params.ppPropValue) {
+        assert(*params.ppropSize == PlatformNameLen);
+        std::memcpy(*params.ppPropValue, PlatformName, PlatformNameLen);
       }
-      if (param_value_size_ret)
-        *param_value_size_ret = PlatformNameLen;
-      return PI_SUCCESS;
+      if (*params.ppPropSizeRet)
+        **params.ppPropSizeRet = PlatformNameLen;
+      return UR_RESULT_SUCCESS;
     }
-    case PI_EXT_PLATFORM_INFO_BACKEND: {
-      constexpr auto MockPlatformBackend = PI_EXT_PLATFORM_BACKEND_UNKNOWN;
-      if (param_value) {
-        std::memcpy(param_value, &MockPlatformBackend,
+    case UR_PLATFORM_INFO_BACKEND: {
+      constexpr auto MockPlatformBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+      if (*params.ppPropValue) {
+        std::memcpy(*params.ppPropValue, &MockPlatformBackend,
                     sizeof(MockPlatformBackend));
       }
-      if (param_value_size_ret)
-        *param_value_size_ret = sizeof(MockPlatformBackend);
-      return PI_SUCCESS;
+      if (*params.ppPropSizeRet)
+        **params.ppPropSizeRet = sizeof(MockPlatformBackend);
+      return UR_RESULT_SUCCESS;
     }
     default:
-      return PI_SUCCESS;
+      return UR_RESULT_SUCCESS;
     }
   }
 };
 
-static pi_result redefinedDeviceGetInfo(pi_device device,
-                                        pi_device_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
+static ur_result_t redefinedDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   constexpr char MockDeviceName[] = "Mock FPGA device";
-  switch (param_name) {
-  case PI_DEVICE_INFO_TYPE: {
-    if (param_value)
-      *static_cast<_pi_device_type *>(param_value) = PI_DEVICE_TYPE_ACC;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(PI_DEVICE_TYPE_ACC);
-    return PI_SUCCESS;
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_TYPE: {
+    if (*params.ppPropValue)
+      *static_cast<ur_device_type_t *>(*params.ppPropValue) =
+          UR_DEVICE_TYPE_FPGA;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(UR_DEVICE_TYPE_FPGA);
+    return UR_RESULT_SUCCESS;
   }
-  case PI_DEVICE_INFO_NAME: {
-    if (param_value) {
-      assert(param_value_size == sizeof(MockDeviceName));
-      std::memcpy(param_value, MockDeviceName, sizeof(MockDeviceName));
+  case UR_DEVICE_INFO_NAME: {
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(MockDeviceName));
+      std::memcpy(*params.ppPropValue, MockDeviceName, sizeof(MockDeviceName));
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(MockDeviceName);
-    return PI_SUCCESS;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(MockDeviceName);
+    return UR_RESULT_SUCCESS;
   }
   // Mock FPGA has no sub-devices
-  case PI_DEVICE_INFO_PARTITION_PROPERTIES: {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 0;
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 0;
     }
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
-  case PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
-    assert(param_value_size == sizeof(pi_device_affinity_domain));
-    if (param_value) {
-      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    assert(*params.ppropSize == sizeof(ur_device_affinity_domain_flags_t));
+    if (*params.ppPropValue) {
+      *static_cast<ur_device_affinity_domain_flags_t *>(*params.ppPropValue) =
+          0;
     }
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   default:
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 }
 
@@ -99,11 +95,13 @@ TEST(FPGADeviceSelectorsTest, FPGASelectorTest) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
 
-  sycl::unittest::PiMock Mock;
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piPlatformGetInfo>(
-      RedefTemplatedWrapper<HARDWARE_PLATFORM_NAME>::redefinedPlatformGetInfo);
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfo);
+  mock::getCallbacks().set_replace_callback(
+      "urPlatformGetInfo",
+      &RedefTemplatedWrapper<HARDWARE_PLATFORM_NAME>::redefinedPlatformGetInfo);
+  sycl::platform Plt = sycl::platform();
   sycl::context Ctx{Plt.get_devices()};
 
   sycl::queue FPGAQueue{Ctx, sycl::ext::intel::fpga_selector_v};
@@ -123,11 +121,14 @@ TEST(FPGADeviceSelectorsTest, FPGAEmulatorSelectorTest) {
   using namespace sycl::detail;
   using namespace sycl::unittest;
 
-  sycl::unittest::PiMock Mock;
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piPlatformGetInfo>(
-      RedefTemplatedWrapper<EMULATION_PLATFORM_NAME>::redefinedPlatformGetInfo);
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfo);
+  mock::getCallbacks().set_replace_callback(
+      "urPlatformGetInfo",
+      &RedefTemplatedWrapper<
+          EMULATION_PLATFORM_NAME>::redefinedPlatformGetInfo);
+  sycl::platform Plt = sycl::platform();
   sycl::context Ctx{Plt.get_devices()};
 
   sycl::queue EmuFPGAQueue{Ctx, sycl::ext::intel::fpga_emulator_selector_v};
@@ -150,11 +151,13 @@ TEST(FPGADeviceSelectorsTest, FPGASimulatorSelectorTest) {
   constexpr char INTELFPGA_ENV[] = "CL_CONTEXT_MPSIM_DEVICE_INTELFPGA";
   ScopedEnvVar EnvVar(INTELFPGA_ENV, nullptr, []() {});
 
-  sycl::unittest::PiMock Mock;
-  Mock.redefine<detail::PiApiKind::piDeviceGetInfo>(redefinedDeviceGetInfo);
-  Mock.redefine<detail::PiApiKind::piPlatformGetInfo>(
-      RedefTemplatedWrapper<HARDWARE_PLATFORM_NAME>::redefinedPlatformGetInfo);
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfo);
+  mock::getCallbacks().set_replace_callback(
+      "urPlatformGetInfo",
+      &RedefTemplatedWrapper<HARDWARE_PLATFORM_NAME>::redefinedPlatformGetInfo);
+  sycl::platform Plt = sycl::platform();
   sycl::context Ctx{Plt.get_devices()};
 
   sycl::queue SimuFPGAQueue{Ctx, sycl::ext::intel::fpga_simulator_selector_v};
@@ -182,8 +185,8 @@ TEST(FPGADeviceSelectorsTest, NegativeFPGASelectorTest) {
   ScopedEnvVar EnvVar(INTELFPGA_ENV, nullptr, []() {});
 
   // Do not redefine any APIs. We want it to fail for all.
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::context Ctx{Plt.get_devices()};
 
   try {

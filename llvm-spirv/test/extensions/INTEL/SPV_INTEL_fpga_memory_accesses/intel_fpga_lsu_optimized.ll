@@ -64,11 +64,11 @@ target triple = "spir64-unknown-unknown"
 
 $"_ZTSZZ8test_lsuN2cl4sycl5queueEENK3$_0clERNS0_7handlerEE6kernel" = comdat any
 
-@.str = private unnamed_addr constant [26 x i8] c"{params:12}{cache-size:0}\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [14 x i8] c"<invalid loc>\00", section "llvm.metadata"
-@.str.2 = private unnamed_addr constant [28 x i8] c"{params:7}{cache-size:1024}\00", section "llvm.metadata"
-@.str.3 = private unnamed_addr constant [25 x i8] c"{params:5}{cache-size:0}\00", section "llvm.metadata"
-@.str.4 = private unnamed_addr constant [25 x i8] c"{params:0}{cache-size:0}\00", section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [26 x i8] c"{params:12}{cache-size:0}\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [14 x i8] c"<invalid loc>\00", section "llvm.metadata"
+@.str.2 = private unnamed_addr addrspace(1) constant [28 x i8] c"{params:7}{cache-size:1024}\00", section "llvm.metadata"
+@.str.3 = private unnamed_addr addrspace(1) constant [25 x i8] c"{params:5}{cache-size:0}\00", section "llvm.metadata"
+@.str.4 = private unnamed_addr addrspace(1) constant [25 x i8] c"{params:0}{cache-size:0}\00", section "llvm.metadata"
 
 ; CHECK-LLVM: [[PTR_i27_ANNOT_STR:@[a-z0-9_.]]] = {{.*}}{params:12}
 ; CHECK-LLVM: [[PTR_i15_i_ANNOT_STR:@[a-z0-9_.]]] = {{.*}}{params:7}{cache-size:1024}
@@ -85,48 +85,48 @@ entry:
   %3 = load i64, i64* %2, align 8
   %add.ptr.i = getelementptr inbounds i32, i32 addrspace(1)* %_arg_4, i64 %3
   %4 = addrspacecast i32 addrspace(1)* %add.ptr.i27 to i32 addrspace(4)*
-  %5 = tail call dereferenceable(4) i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %4, i8* getelementptr inbounds ([26 x i8], [26 x i8]* @.str, i64 0, i64 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i64 0, i64 0), i32 0, i8* null) #2
+  %5 = tail call dereferenceable(4) i32 addrspace(4)* @llvm.ptr.annotation.p4i32.p1i8(i32 addrspace(4)* %4, i8 addrspace(1)* getelementptr inbounds ([26 x i8], [26 x i8] addrspace(1)* @.str, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 0, i8 addrspace(1)* null) #2
   %6 = load i32, i32 addrspace(4)* %5, align 4, !tbaa !9
   ; CHECK-LLVM: [[PTR_i27:[%0-9a-z.]+]] = getelementptr inbounds i32, ptr addrspace(1) {{[%0-9a-z._]+}}, i64 {{[%0-9a-z.]+}}
   ; CHECK-LLVM: [[PTR_i:[%0-9a-z.]+]] = getelementptr inbounds i32, ptr addrspace(1) {{[%0-9a-z._]+}}, i64 {{[%0-9a-z.]+}}
   ; CHECK-LLVM: [[PTR_i27_AS_CAST:[%0-9a-z.]+]] = addrspacecast ptr addrspace(1) [[PTR_i27]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_i27_BIT_CAST:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_i27_AS_CAST]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i27_BIT_CAST]], ptr [[PTR_i27_ANNOT_STR]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i27_AS_CAST]], ptr [[PTR_i27_ANNOT_STR]]
   ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_RESULT_LOAD:[%0-9a-z.]+]] = load i32, ptr addrspace(4) [[PTR_ANNOT_CALL_BC]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC2:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL_BC]] to ptr addrspace(4)
+  ; CHECK-LLVM: [[PTR_RESULT_LOAD:[%0-9a-z.]+]] = load i32, ptr addrspace(4) [[PTR_ANNOT_CALL_BC2]]
   %add.ptr.i15.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i27, i64 1
   %7 = addrspacecast i32 addrspace(1)* %add.ptr.i15.i to i32 addrspace(4)*
-  %8 = tail call dereferenceable(4) i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %7, i8* getelementptr inbounds ([28 x i8], [28 x i8]* @.str.2, i64 0, i64 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i64 0, i64 0), i32 0, i8* null) #2
+  %8 = tail call dereferenceable(4) i32 addrspace(4)* @llvm.ptr.annotation.p4i32.p1i8(i32 addrspace(4)* %7, i8 addrspace(1)* getelementptr inbounds ([28 x i8], [28 x i8] addrspace(1)* @.str.2, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 0, i8 addrspace(1)* null) #2
   %9 = load i32, i32 addrspace(4)* %8, align 4, !tbaa !9
   ; CHECK-LLVM: [[PTR_i15_i:[%0-9a-z.]+]] = getelementptr inbounds i32, ptr addrspace(1) {{[%0-9a-z._]+}}, i64 {{[%0-9a-z.]+}}
   ; CHECK-LLVM: [[PTR_i15_i_AS_CAST:[%0-9a-z.]+]] = addrspacecast ptr addrspace(1) [[PTR_i15_i]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_i15_i_BIT_CAST:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_i15_i_AS_CAST]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i15_i_BIT_CAST]], ptr [[PTR_i15_i_ANNOT_STR]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i15_i_AS_CAST]], ptr [[PTR_i15_i_ANNOT_STR]]
   ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_RESULT_LOAD_1:[%0-9a-z.]+]] = load i32, ptr addrspace(4) [[PTR_ANNOT_CALL_BC]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC2:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL_BC]] to ptr addrspace(4)
+  ; CHECK-LLVM: [[PTR_RESULT_LOAD_1:[%0-9a-z.]+]] = load i32, ptr addrspace(4) [[PTR_ANNOT_CALL_BC2]]
   %10 = addrspacecast i32 addrspace(1)* %add.ptr.i to i32 addrspace(4)*
-  %11 = tail call i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %10, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.3, i64 0, i64 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i64 0, i64 0), i32 0, i8* null) #2
+  %11 = tail call i32 addrspace(4)* @llvm.ptr.annotation.p4i32.p1i8(i32 addrspace(4)* %10, i8 addrspace(1)* getelementptr inbounds ([25 x i8], [25 x i8] addrspace(1)* @.str.3, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 0, i8 addrspace(1)* null) #2
   store i32 %6, i32 addrspace(4)* %11, align 4, !tbaa !9
   ; CHECK-LLVM: [[PTR_i_AS_CAST:[%0-9a-z.]+]] = addrspacecast ptr addrspace(1) [[PTR_i]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_i_BIT_CAST:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_i_AS_CAST]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i_BIT_CAST]], ptr [[PTR_i_ANNOT_STR]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i_AS_CAST]], ptr [[PTR_i_ANNOT_STR]]
   ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL]] to ptr addrspace(4)
-  ; CHECK-LLVM: store i32 [[PTR_RESULT_LOAD]], ptr addrspace(4) [[PTR_ANNOT_CALL_BC]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC2:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL_BC]] to ptr addrspace(4)
+  ; CHECK-LLVM: store i32 [[PTR_RESULT_LOAD]], ptr addrspace(4) [[PTR_ANNOT_CALL_BC2]]
   %add.ptr.i.i = getelementptr inbounds i32, i32 addrspace(1)* %add.ptr.i, i64 1
   %12 = addrspacecast i32 addrspace(1)* %add.ptr.i.i to i32 addrspace(4)*
-  %13 = tail call i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)* %12, i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.4, i64 0, i64 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i64 0, i64 0), i32 0, i8* null) #2
+  %13 = tail call i32 addrspace(4)* @llvm.ptr.annotation.p4i32.p1i8(i32 addrspace(4)* %12, i8 addrspace(1)* getelementptr inbounds ([25 x i8], [25 x i8] addrspace(1)* @.str.4, i64 0, i64 0), i8 addrspace(1)* getelementptr inbounds ([14 x i8], [14 x i8] addrspace(1)* @.str.1, i64 0, i64 0), i32 0, i8 addrspace(1)* null) #2
   store i32 %9, i32 addrspace(4)* %13, align 4, !tbaa !9
   ; CHECK-LLVM: [[PTR_i_i:[%0-9a-z.]+]] = getelementptr inbounds i32, ptr addrspace(1) {{[%0-9a-z._]+}}, i64 {{[%0-9a-z.]+}}
   ; CHECK-LLVM: [[PTR_i_i_AS_CAST:[%0-9a-z.]+]] = addrspacecast ptr addrspace(1) [[PTR_i_i]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_i_i_BIT_CAST:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_i_i_AS_CAST]] to ptr addrspace(4)
-  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i_i_BIT_CAST]], ptr [[PTR_i_i_ANNOT_STR]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL:[%0-9a-z.]+]] = call ptr addrspace(4) @llvm.ptr.annotation.p4.p0(ptr addrspace(4) [[PTR_i_i_AS_CAST]], ptr [[PTR_i_i_ANNOT_STR]]
   ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL]] to ptr addrspace(4)
-  ; CHECK-LLVM: store i32 [[PTR_RESULT_LOAD_1]], ptr addrspace(4) [[PTR_ANNOT_CALL_BC]]
+  ; CHECK-LLVM: [[PTR_ANNOT_CALL_BC2:[%0-9a-z.]+]] = bitcast ptr addrspace(4) [[PTR_ANNOT_CALL_BC]] to ptr addrspace(4)
+  ; CHECK-LLVM: store i32 [[PTR_RESULT_LOAD_1]], ptr addrspace(4) [[PTR_ANNOT_CALL_BC2]]
   ret void
 }
 
 ; Function Attrs: nounwind willreturn
-declare i32 addrspace(4)* @llvm.ptr.annotation.p4i32(i32 addrspace(4)*, i8*, i8*, i32, i8*) #1
+declare i32 addrspace(4)* @llvm.ptr.annotation.p4i32.p1i8(i32 addrspace(4)*, i8 addrspace(1)*, i8 addrspace(1)*, i32, i8 addrspace(1)*) #1
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="fpga_lsu.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind willreturn }

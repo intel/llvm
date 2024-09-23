@@ -8,39 +8,24 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
+#include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
-#include <sycl/queue.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/sub_group.hpp>
 
-#define SYCL_EXT_ONEAPI_ROOT_GROUP 1
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/oneapi/functional.hpp>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-namespace info::kernel_queue_specific {
-// TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension once
-// #7598 is merged.
-struct max_num_work_group_sync {
-  using return_type = size_t;
-};
-} // namespace info::kernel_queue_specific
-
-struct use_root_sync_key {
-  using value_t = property_value<use_root_sync_key>;
-};
-
-inline constexpr use_root_sync_key::value_t use_root_sync;
-
-template <> struct is_property_key<use_root_sync_key> : std::true_type {};
-
-template <> struct detail::PropertyToKind<use_root_sync_key> {
-  static constexpr PropKind Kind = PropKind::UseRootSync;
-};
-
-template <>
-struct detail::IsCompileTimeProperty<use_root_sync_key> : std::true_type {};
+// See 'sycl/info/kernel_device_specific_traits.def' for the kernel
+// device-specific properties that relate to 'root_group'.
 
 template <int Dimensions> class root_group {
 public:
@@ -87,52 +72,46 @@ private:
   sycl::nd_item<Dimensions> it;
 };
 
-template <int Dimensions>
-group<Dimensions> get_child_group(root_group<Dimensions> g) {
-  (void)g;
-  return this_group<Dimensions>();
+namespace this_work_item {
+template <int Dimensions> root_group<Dimensions> get_root_group() {
+  return sycl::ext::oneapi::this_work_item::get_nd_item<Dimensions>()
+      .ext_oneapi_get_root_group();
 }
-
-template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
-  (void)g;
-  return this_sub_group();
-}
+} // namespace this_work_item
 
 namespace this_kernel {
-template <int Dimensions> root_group<Dimensions> get_root_group() {
-  return this_nd_item<Dimensions>().ext_oneapi_get_root_group();
+template <int Dimensions>
+__SYCL_DEPRECATED(
+    "use sycl::ext::oneapi::experimental::this_work_item::get_root_group() "
+    "instead")
+root_group<Dimensions> get_root_group() {
+  this_work_item::get_root_group<Dimensions>();
 }
 } // namespace this_kernel
 
 } // namespace ext::oneapi::experimental
 
-template <>
-typename ext::oneapi::experimental::info::kernel_queue_specific::
-    max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &q) const {
-  // TODO: query the backend to return a value >= 1.
-  return 1;
-}
-
 template <int dimensions>
 void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
                    memory_scope FenceScope = decltype(G)::fence_scope) {
+#ifdef __SYCL_DEVICE_ONLY__
+  // Root group barrier synchronizes using a work group barrier if there's only
+  // one work group. This allows backends to ignore the ControlBarrier with
+  // Device scope if their maximum number of work groups is 1. This is a
+  // workaround that's not intended to reduce the bar for SPIR-V modules
+  // acceptance, but rather make a pessimistic case work until we have full
+  // support for the device barrier built-in from backends.
+  const auto ChildGroup = ext::oneapi::experimental::this_group<dimensions>();
+  if (ChildGroup.get_group_linear_range() == 1) {
+    group_barrier(ChildGroup);
+  } else {
+    detail::spirv::ControlBarrier(G, FenceScope, memory_order::seq_cst);
+  }
+#else
   (void)G;
   (void)FenceScope;
-#ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Change __spv::Scope::Workgroup to __spv::Scope::Device once backends
-  // support device scope. __spv::Scope::Workgroup is only valid when
-  // max_num_work_group_sync is 1, so that all work items in a root group will
-  // also be in the same work group.
-  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
-                         __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#else
-  throw sycl::runtime_error("Barriers are not supported on host device",
-                            PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::runtime),
+                        "Barriers are not supported on host");
 #endif
 }
 

@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>    // for address_space
 #include <sycl/detail/type_list.hpp> // for type_list, address_space_list
-#include <sycl/half_type.hpp>        // for half
 
 #include <cstddef>     // for byte, size_t
 #include <type_traits> // for conditional_t, is_signed_v, is_...
@@ -21,9 +20,19 @@
 // Forward declarations
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
+template <typename T, int N> class __SYCL_EBO vec;
 template <typename Type, std::size_t NumElements> class marray;
 
+namespace detail {
+namespace half_impl {
+class half;
+}
+} // namespace detail
+using half = detail::half_impl::half;
+
+namespace ext::oneapi {
+class bfloat16;
+}
 namespace detail {
 namespace gtl {
 // floating point types
@@ -40,6 +49,28 @@ using scalar_vector_half_list = tl_append<scalar_half_list, vector_half_list>;
 
 using half_list =
     tl_append<scalar_half_list, vector_half_list, marray_half_list>;
+
+using scalar_bfloat16_list = type_list<sycl::ext::oneapi::bfloat16>;
+
+using vector_bfloat16_list = type_list<
+    vec<sycl::ext::oneapi::bfloat16, 1>, vec<sycl::ext::oneapi::bfloat16, 2>,
+    vec<sycl::ext::oneapi::bfloat16, 3>, vec<sycl::ext::oneapi::bfloat16, 4>,
+    vec<sycl::ext::oneapi::bfloat16, 8>, vec<sycl::ext::oneapi::bfloat16, 16>>;
+
+using marray_bfloat16_list = type_list<marray<sycl::ext::oneapi::bfloat16, 1>,
+                                       marray<sycl::ext::oneapi::bfloat16, 2>,
+                                       marray<sycl::ext::oneapi::bfloat16, 3>,
+                                       marray<sycl::ext::oneapi::bfloat16, 4>,
+                                       marray<sycl::ext::oneapi::bfloat16, 8>,
+                                       marray<sycl::ext::oneapi::bfloat16, 16>>;
+
+using scalar_vector_bfloat16_list =
+    tl_append<scalar_bfloat16_list, vector_bfloat16_list>;
+
+using bfloat16_list =
+    tl_append<scalar_bfloat16_list, vector_bfloat16_list, marray_bfloat16_list>;
+
+using half_bfloat16_list = tl_append<scalar_half_list, scalar_bfloat16_list>;
 
 using scalar_float_list = type_list<float>;
 
@@ -73,14 +104,14 @@ using scalar_vector_double_list =
 using double_list =
     tl_append<scalar_double_list, vector_double_list, marray_double_list>;
 
-using scalar_floating_list =
-    tl_append<scalar_float_list, scalar_double_list, scalar_half_list>;
+using scalar_floating_list = tl_append<scalar_float_list, scalar_double_list,
+                                       scalar_half_list, scalar_bfloat16_list>;
 
-using vector_floating_list =
-    tl_append<vector_float_list, vector_double_list, vector_half_list>;
+using vector_floating_list = tl_append<vector_float_list, vector_double_list,
+                                       vector_half_list, vector_bfloat16_list>;
 
-using marray_floating_list =
-    tl_append<marray_float_list, marray_double_list, marray_half_list>;
+using marray_floating_list = tl_append<marray_float_list, marray_double_list,
+                                       marray_half_list, marray_bfloat16_list>;
 
 using scalar_vector_floating_list =
     tl_append<scalar_floating_list, vector_floating_list>;
@@ -566,25 +597,12 @@ using nan_list = tl_append<gtl::unsigned_short_list, gtl::unsigned_int_list,
 } // namespace gtl
 namespace gvl {
 // address spaces
-using all_address_space_list = address_space_list<
+using nonconst_address_space_list = address_space_list<
     access::address_space::local_space, access::address_space::global_space,
-    access::address_space::private_space, access::address_space::constant_space,
+    access::address_space::private_space, access::address_space::generic_space,
     access::address_space::ext_intel_global_device_space,
     access::address_space::ext_intel_global_host_space>;
 
-using nonconst_address_space_list =
-    address_space_list<access::address_space::local_space,
-                       access::address_space::global_space,
-                       access::address_space::private_space,
-                       access::address_space::ext_intel_global_device_space,
-                       access::address_space::ext_intel_global_host_space>;
-
-using nonlocal_address_space_list =
-    address_space_list<access::address_space::global_space,
-                       access::address_space::private_space,
-                       access::address_space::constant_space,
-                       access::address_space::ext_intel_global_device_space,
-                       access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
 } // namespace _V1

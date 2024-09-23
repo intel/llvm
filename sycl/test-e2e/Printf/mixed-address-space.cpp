@@ -10,11 +10,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
-// UNSUPPORTED: gpu
 // CHECK: Constant addrspace literal
 // CHECK: Generic addrspace literal
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/builtins.hpp>
 
 #include "helper.hpp"
 

@@ -6,9 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../../esimd_test_utils.hpp"
 
 using namespace sycl;
@@ -52,3 +49,5 @@ constexpr size_t getAlignment(PropertiesT Props) {
   static_assert(RequestedAlignment >= RequiredAlignment, "Too small alignment");
   return RequestedAlignment;
 }
+
+enum class TestFeatures { Generic, DG2, PVC };

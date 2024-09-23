@@ -61,7 +61,7 @@ Expected<std::string> python::As<std::string>(Expected<PythonObject> &&obj) {
   if (!obj)
     return obj.takeError();
   PyObject *str_obj = PyObject_Str(obj.get().get());
-  if (!obj)
+  if (!str_obj)
     return llvm::make_error<PythonException>();
   auto str = Take<PythonString>(str_obj);
   auto utf8 = str.AsUTF8();
@@ -661,6 +661,20 @@ bool PythonDictionary::Check(PyObject *py_obj) {
     return false;
 
   return PyDict_Check(py_obj);
+}
+
+bool PythonDictionary::HasKey(const llvm::Twine &key) const {
+  if (!IsValid())
+    return false;
+
+  PythonString key_object(key.isSingleStringRef() ? key.getSingleStringRef()
+                                                  : key.str());
+
+  if (int res = PyDict_Contains(m_py_obj, key_object.get()) > 0)
+    return res;
+
+  PyErr_Print();
+  return false;
 }
 
 uint32_t PythonDictionary::GetSize() const {

@@ -32,9 +32,8 @@ public:
                       ArrayRef<std::string> DSYMSearchPaths,
                       StringRef PathPrefix = "", StringRef VariantSuffix = "",
                       bool Verbose = false)
-      : BinaryPath(std::string(BinaryPath)), Archs(Archs.begin(), Archs.end()),
-        DSYMSearchPaths(DSYMSearchPaths.begin(), DSYMSearchPaths.end()),
-        PathPrefix(std::string(PathPrefix)),
+      : BinaryPath(std::string(BinaryPath)), Archs(Archs),
+        DSYMSearchPaths(DSYMSearchPaths), PathPrefix(std::string(PathPrefix)),
         VariantSuffix(std::string(VariantSuffix)), BinHolder(VFS, Verbose),
         CurrentDebugMapObject(nullptr), SkipDebugMapObject(false) {}
 
@@ -186,6 +185,8 @@ void MachODebugMapParser::addCommonSymbols() {
 /// everything up to add symbols to the new one.
 void MachODebugMapParser::switchToNewDebugMapObject(
     StringRef Filename, sys::TimePoint<std::chrono::seconds> Timestamp) {
+  addCommonSymbols();
+  resetParserState();
 
   SmallString<80> Path(PathPrefix);
   sys::path::append(Path, Filename);
@@ -205,9 +206,6 @@ void MachODebugMapParser::switchToNewDebugMapObject(
             Path.str());
     return;
   }
-
-  addCommonSymbols();
-  resetParserState();
 
   CurrentDebugMapObject =
       &Result->addDebugMapObject(Path, Timestamp, MachO::N_OSO);
@@ -302,7 +300,7 @@ void MachODebugMapParser::switchToNewLibDebugMapObject(
 
     if (CurrentDebugMapObject &&
         CurrentDebugMapObject->getType() == MachO::N_LIB &&
-        CurrentDebugMapObject->getObjectFilename().compare(Path.str()) == 0) {
+        CurrentDebugMapObject->getObjectFilename() == Path) {
       return;
     }
 
@@ -550,11 +548,11 @@ static bool shouldLinkArch(SmallVectorImpl<StringRef> &Archs, StringRef Arch) {
   if (Archs.empty() || is_contained(Archs, "all") || is_contained(Archs, "*"))
     return true;
 
-  if (Arch.startswith("arm") && Arch != "arm64" && is_contained(Archs, "arm"))
+  if (Arch.starts_with("arm") && Arch != "arm64" && is_contained(Archs, "arm"))
     return true;
 
   SmallString<16> ArchName = Arch;
-  if (Arch.startswith("thumb"))
+  if (Arch.starts_with("thumb"))
     ArchName = ("arm" + Arch.substr(5)).str();
 
   return is_contained(Archs, ArchName);
@@ -729,7 +727,8 @@ void MachODebugMapParser::handleStabSymbolTableEntry(
   }
 
   if (ObjectSymIt == CurrentObjectAddresses.end()) {
-    Warning("could not find object file symbol for symbol " + Twine(Name));
+    Warning("could not find symbol '" + Twine(Name) + "' in object file '" +
+            CurrentDebugMapObject->getObjectFilename() + "'");
     return;
   }
 

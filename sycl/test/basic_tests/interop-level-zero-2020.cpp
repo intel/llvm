@@ -1,12 +1,13 @@
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // RUN: %clangxx %fsycl-host-only -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note -D__SYCL_INTERNAL_API %s
 
+// expected-no-diagnostics
+
 // Test for SYCL-2020 Level Zero interop API
 
-// clang-format off
 #include <ze_api.h>
+
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-// clang-format on
 
 #include <sycl/sycl.hpp>
 
@@ -121,19 +122,6 @@ int main() {
   kernel InteropKernel = make_kernel<backend::ext_oneapi_level_zero>(
       {KernelBundle, ZeKernel, ext::oneapi::level_zero::ownership::keep},
       Context);
-
-  // Check deprecated
-  // expected-warning@+1 {{'make<sycl::platform, nullptr>' is deprecated: Use SYCL 2020 sycl::make_platform free function}}
-  auto P = ext::oneapi::level_zero::make<platform>(ZeDriver);
-  // expected-warning@+1 {{'make<sycl::device, nullptr>' is deprecated: Use SYCL 2020 sycl::make_device free function}}
-  auto D = ext::oneapi::level_zero::make<device>(P, ZeDevice);
-  // expected-warning@+1 {{'make<sycl::context, nullptr>' is deprecated: Use SYCL 2020 sycl::make_context free function}}
-  auto C = ext::oneapi::level_zero::make<context>(
-      std::vector<device>(1, D), ZeContext,
-      ext::oneapi::level_zero::ownership::keep);
-  // expected-warning@+1 {{'make<sycl::event, nullptr>' is deprecated: Use SYCL 2020 sycl::make_event free function}}
-  auto E = ext::oneapi::level_zero::make<event>(
-      Context, ZeEvent, ext::oneapi::level_zero::ownership::keep);
 
   return 0;
 }

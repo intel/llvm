@@ -20,7 +20,6 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -30,8 +29,8 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
-#include <sycl/stl.hpp>                               // for make_unique_ptr
 #include <sycl/types.hpp>                             // for vec
+#include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -248,16 +247,20 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,
               image_channel_type Type, bool OwnNativeHandle,
               range<3> Range3WithOnes);
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
   range<3> get_range() const;
 
@@ -302,6 +305,8 @@ protected:
   void unsampledImageDestructorNotification(void *UserObj);
 
   std::shared_ptr<detail::image_impl> impl;
+
+  const property_list &getPropList() const;
 };
 
 // Common base class for image implementations
@@ -450,7 +455,7 @@ public:
   image(image_channel_order Order, image_channel_type Type,
         const range<Dimensions> &Range, const property_list &PropList = {})
       : common_base(Order, Type, detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {}
 
@@ -459,7 +464,7 @@ public:
         const property_list &PropList = {})
       : common_base(
             Order, Type, detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {}
 
@@ -471,7 +476,7 @@ public:
         const property_list &PropList = {})
       : common_base(Order, Type, detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {}
 
@@ -484,7 +489,7 @@ public:
       : common_base(
             Order, Type, detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {}
 
@@ -492,7 +497,7 @@ public:
         const range<Dimensions> &Range, const property_list &PropList = {})
       : common_base(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {}
 
@@ -501,7 +506,7 @@ public:
         const property_list &PropList = {})
       : common_base(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {}
 
@@ -510,7 +515,7 @@ public:
         const property_list &PropList = {})
       : common_base(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {}
 
@@ -519,7 +524,7 @@ public:
         AllocatorT Allocator, const property_list &PropList = {})
       : common_base(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {}
 
@@ -532,7 +537,7 @@ public:
       : common_base(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {}
 
@@ -545,7 +550,7 @@ public:
       : common_base(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {}
 
@@ -554,7 +559,7 @@ public:
         const property_list &PropList = {})
       : common_base(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {}
 
@@ -563,7 +568,7 @@ public:
         AllocatorT Allocator, const property_list &PropList = {})
       : common_base(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {}
 
@@ -576,7 +581,7 @@ public:
       : common_base(HostPointer, Order, Type,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {}
 
@@ -589,7 +594,7 @@ public:
       : common_base(
             HostPointer, Order, Type, detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {}
 
@@ -597,7 +602,7 @@ public:
   image(cl_mem ClMemObject, const context &SyclContext,
         event AvailableEvent = {})
       : common_base(ClMemObject, SyclContext, AvailableEvent,
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions) {}
 #endif
@@ -667,11 +672,11 @@ public:
   }
 
 private:
-  image(pi_native_handle MemObject, const context &SyclContext,
+  image(ur_native_handle_t MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
         image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
       : common_base(MemObject, SyclContext, AvailableEvent,
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, Order, Type, OwnNativeHandle,
                     detail::convertToArrayOfN<3, 1>(Range)) {}
@@ -711,7 +716,8 @@ private:
              const context &TargetContext, event AvailableEvent);
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder IsPlaceholder,
@@ -742,7 +748,7 @@ public:
       : common_base(detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -758,7 +764,7 @@ public:
             detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -776,7 +782,7 @@ public:
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -796,7 +802,7 @@ public:
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -811,7 +817,7 @@ public:
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -827,7 +833,7 @@ public:
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -845,7 +851,7 @@ public:
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -865,7 +871,7 @@ public:
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
     common_base::unsampledImageConstructorNotification(
@@ -880,7 +886,7 @@ public:
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {
     common_base::unsampledImageConstructorNotification(
@@ -897,7 +903,7 @@ public:
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {
     common_base::unsampledImageConstructorNotification(
@@ -916,7 +922,7 @@ public:
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {
     common_base::unsampledImageConstructorNotification(
@@ -936,7 +942,7 @@ public:
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             detail::convertToArrayOfN<2, 0>(Pitch),
-            make_unique_ptr<
+            std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {
     common_base::unsampledImageConstructorNotification(
@@ -955,7 +961,12 @@ public:
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
   ~unsampled_image() {
-    common_base::unsampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::unsampledImageDestructorNotification(
+          (void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~unsampled_image", e);
+    }
   }
 
   bool operator==(const unsampled_image &rhs) const {
@@ -992,7 +1003,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1023,7 +1035,7 @@ public:
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::sampledImageConstructorNotification(
@@ -1042,7 +1054,7 @@ public:
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::sampledImageConstructorNotification(
@@ -1058,7 +1070,7 @@ public:
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::sampledImageConstructorNotification(
@@ -1077,7 +1089,7 @@ public:
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
-                    make_unique_ptr<
+                    std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
     common_base::sampledImageConstructorNotification(
@@ -1096,7 +1108,11 @@ public:
   sampled_image &operator=(sampled_image &&rhs) = default;
 
   ~sampled_image() {
-    common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    try {
+      common_base::sampledImageDestructorNotification((void *)this->impl.get());
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sampled_image", e);
+    }
   }
 
   bool operator==(const sampled_image &rhs) const {
@@ -1123,7 +1139,8 @@ public:
 
 private:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

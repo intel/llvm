@@ -1,4 +1,9 @@
-// REQUIRES: aspect-ext_intel_free_memory
+// https://github.com/intel/llvm/issues/14244
+// sycl-ls --verbose shows the "ext_intel_free_memory" aspect only if
+// ZES_ENABLE_SYSMAN=1 is set, so this test is missed if it requires
+// aspect-ext_intel_free_memory. Since gen9 and get12 don't support this query,
+// so requiring DG2. There may be more devices in our CI supporting this aspect.
+// REQUIRES: gpu-intel-dg2
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: gpu-intel-gen9, gpu-intel-gen12
 // The query of free memory is not supported on integrated devices
@@ -12,7 +17,7 @@
 // CHECK: Root-device free memory
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 int main() {

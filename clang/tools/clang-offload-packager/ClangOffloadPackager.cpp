@@ -26,6 +26,7 @@
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/TargetParser/Host.h"
 
 using namespace llvm;
 using namespace llvm::object;
@@ -63,6 +64,26 @@ static void PrintVersion(raw_ostream &OS) {
   OS << clang::getClangToolFullVersion("clang-offload-packager") << '\n';
 }
 
+// For any response file arguments (those starting with '@'), expand them into
+// the contents of the response file, deliminated by commas.
+static StringRef expandResponseFileImageArguments(StringRef Arg,
+                                                  StringSaver &Saver) {
+  std::string FileStr = Arg.str();
+  SmallVector<const char *, 0> ExpandedFiles{FileStr.c_str()};
+  cl::ExpandResponseFiles(Saver,
+                          Triple(sys::getProcessTriple()).isOSWindows()
+                              ? cl::TokenizeWindowsCommandLine
+                              : cl::TokenizeGNUCommandLine,
+                          ExpandedFiles);
+  std::string NewValue;
+  for (size_t FileIdx = 0; FileIdx < ExpandedFiles.size(); FileIdx++) {
+    NewValue += ExpandedFiles[FileIdx];
+    if (FileIdx != ExpandedFiles.size() - 1)
+      NewValue += ',';
+  }
+  return Saver.save(NewValue);
+}
+
 // Get a map containing all the arguments for the image. Repeated arguments will
 // be placed in a comma separated list.
 static DenseMap<StringRef, StringRef> getImageArguments(StringRef Image,
@@ -70,6 +91,8 @@ static DenseMap<StringRef, StringRef> getImageArguments(StringRef Image,
   DenseMap<StringRef, StringRef> Args;
   for (StringRef Arg : llvm::split(Image, ",")) {
     auto [Key, Value] = Arg.split("=");
+    if (Key == "file" && Value[0] == '@')
+      Value = expandResponseFileImageArguments(Value, Saver);
     if (Args.count(Key))
       Args[Key] = Saver.save(Args[Key] + "," + Value);
     else
@@ -104,33 +127,36 @@ static Error bundleImages() {
           inconvertibleErrorCode(),
           "'file' and 'triple' are required image arguments");
 
-    OffloadBinary::OffloadingImage ImageBinary{};
-    std::unique_ptr<llvm::MemoryBuffer> DeviceImage;
-    for (const auto &[Key, Value] : Args) {
-      if (Key == "file") {
-        llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
-            llvm::MemoryBuffer::getFileOrSTDIN(Value);
-        if (std::error_code EC = ObjectOrErr.getError())
-          return errorCodeToError(EC);
+    // Permit using multiple instances of `file` in a single string.
+    for (auto &File : llvm::split(Args["file"], ",")) {
+      OffloadBinary::OffloadingImage ImageBinary{};
+      std::unique_ptr<llvm::MemoryBuffer> DeviceImage;
 
-        // Clang uses the '.o' suffix for LTO bitcode.
-        if (identify_magic((*ObjectOrErr)->getBuffer()) == file_magic::bitcode)
-          ImageBinary.TheImageKind = object::IMG_Bitcode;
-        else
-          ImageBinary.TheImageKind =
-              getImageKind(sys::path::extension(Value).drop_front());
-        ImageBinary.Image = std::move(*ObjectOrErr);
-      } else if (Key == "kind") {
-        ImageBinary.TheOffloadKind = getOffloadKind(Value);
-      } else {
-        ImageBinary.StringData[Key] = Value;
+      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
+          llvm::MemoryBuffer::getFileOrSTDIN(File);
+      if (std::error_code EC = ObjectOrErr.getError())
+        return errorCodeToError(EC);
+
+      // Clang uses the '.o' suffix for LTO bitcode.
+      if (identify_magic((*ObjectOrErr)->getBuffer()) == file_magic::bitcode)
+        ImageBinary.TheImageKind = object::IMG_Bitcode;
+      else
+        ImageBinary.TheImageKind =
+            getImageKind(sys::path::extension(File).drop_front());
+      ImageBinary.Image = std::move(*ObjectOrErr);
+      for (const auto &[Key, Value] : Args) {
+        if (Key == "kind") {
+          ImageBinary.TheOffloadKind = getOffloadKind(Value);
+        } else if (Key != "file") {
+          ImageBinary.StringData[Key] = Value;
+        }
       }
+      llvm::SmallString<0> Buffer = OffloadBinary::write(ImageBinary);
+      if (Buffer.size() % OffloadBinary::getAlignment() != 0)
+        return createStringError(inconvertibleErrorCode(),
+                                 "Offload binary has invalid size alignment");
+      OS << Buffer;
     }
-    llvm::SmallString<0> Buffer = OffloadBinary::write(ImageBinary);
-    if (Buffer.size() % OffloadBinary::getAlignment() != 0)
-      return createStringError(inconvertibleErrorCode(),
-                               "Offload binary has invalid size alignment");
-    OS << Buffer;
   }
 
   if (Error E = writeFile(OutputFile,
@@ -194,7 +220,7 @@ static Error unbundleImages() {
 
       if (Error E = writeArchive(
               Args["file"], Members, SymtabWritingMode::NormalSymtab,
-              Archive::getDefaultKindForHost(), true, false, nullptr))
+              Archive::getDefaultKind(), true, false, nullptr))
         return E;
     } else if (Args.count("file")) {
       if (Extracted.size() > 1)

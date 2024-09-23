@@ -37,61 +37,61 @@ using GetAnnotatedSharedPtrProperties =
 //  returned annotated_ptr of "aligned_alloc_annotated"
 ////
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_shared_annotated(
+    size_t alignment, size_t numBytes, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated(alignment, numBytes, syclDevice, syclContext,
                               sycl::usm::alloc::shared, propList);
   return annotated_ptr<void, propertyListB>(tmp.get());
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_shared_annotated(size_t alignment, size_t count,
-                               const device &syclDevice,
-                               const context &syclContext,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_shared_annotated(
+    size_t alignment, size_t count, const device &syclDevice,
+    const context &syclContext,
+    const propertyListA &propList = propertyListA{}) {
   auto tmp =
       aligned_alloc_annotated<T>(alignment, count, syclDevice, syclContext,
                                  sycl::usm::alloc::shared, propList);
   return annotated_ptr<T, propertyListB>(tmp.get());
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
-aligned_alloc_shared_annotated(size_t alignment, size_t numBytes,
-                               const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_shared_annotated(
+    size_t alignment, size_t numBytes, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated(alignment, numBytes,
                                         syclQueue.get_device(),
                                         syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
-aligned_alloc_shared_annotated(size_t alignment, size_t count,
-                               const queue &syclQueue,
-                               const propertyListA &propList = properties{}) {
+aligned_alloc_shared_annotated(
+    size_t alignment, size_t count, const queue &syclQueue,
+    const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated<T>(alignment, count,
                                            syclQueue.get_device(),
                                            syclQueue.get_context(), propList);
@@ -104,7 +104,7 @@ aligned_alloc_shared_annotated(size_t alignment, size_t count,
 //  "aligned_alloc_shared_annotated" with alignment 0
 ////
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -112,12 +112,12 @@ std::enable_if_t<
     annotated_ptr<void, propertyListB>>
 malloc_shared_annotated(size_t numBytes, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated(0, numBytes, syclDevice, syclContext,
                                         propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
@@ -125,31 +125,31 @@ std::enable_if_t<
     annotated_ptr<T, propertyListB>>
 malloc_shared_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return aligned_alloc_shared_annotated<T>(0, count, syclDevice, syclContext,
                                            propList);
 }
 
-template <typename propertyListA = detail::empty_properties_t,
+template <typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<void, propertyListA, propertyListB>::value,
     annotated_ptr<void, propertyListB>>
 malloc_shared_annotated(size_t numBytes, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_shared_annotated(numBytes, syclQueue.get_device(),
                                  syclQueue.get_context(), propList);
 }
 
-template <typename T, typename propertyListA = detail::empty_properties_t,
+template <typename T, typename propertyListA = empty_properties_t,
           typename propertyListB =
               typename GetAnnotatedSharedPtrProperties<propertyListA>::type>
 std::enable_if_t<
     CheckSharedPtrTAndPropLists<T, propertyListA, propertyListB>::value,
     annotated_ptr<T, propertyListB>>
 malloc_shared_annotated(size_t count, const queue &syclQueue,
-                        const propertyListA &propList = properties{}) {
+                        const propertyListA &propList = propertyListA{}) {
   return malloc_shared_annotated<T>(count, syclQueue.get_device(),
                                     syclQueue.get_context(), propList);
 }

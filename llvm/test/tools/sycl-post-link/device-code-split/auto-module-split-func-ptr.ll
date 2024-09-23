@@ -1,8 +1,14 @@
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefix=CHECK-SYM0
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefix=CHECK-SYM1
 ; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix=CHECK-IR0
 ; RUN: FileCheck %s -input-file=%t_1.ll --check-prefix=CHECK-IR1
+
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefix=CHECK-SYM0
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefix=CHECK-SYM1
+; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefix=CHECK-IR0
+; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefix=CHECK-IR1
 
 ; This test checkes that we can properly perform device code split by tracking
 ; all uses of functions (not only direct calls)
@@ -13,7 +19,7 @@
 ; CHECK-IR0: define dso_local spir_kernel void @kernel2
 ;
 ; CHECK-IR1: @_Z2f1iTable = weak global ptr @_Z2f1i
-; CHECK-IR1: define dso_local spir_func i32 @_Z2f1i
+; CHECK-IR1: define {{.*}} i32 @_Z2f1i
 ; CHECK-IR1: define weak_odr dso_local spir_kernel void @kernel1
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

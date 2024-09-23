@@ -38,7 +38,7 @@ __spirv_ocl_fract(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
 #define FRACT_DEF(addrspace)                                                   \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE __spirv_ocl_fract(                      \
       __CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) {                        \
-    __CLC_GENTYPE private_iptr;                                                \
+    private __CLC_GENTYPE private_iptr;                                        \
     __CLC_GENTYPE ret = __spirv_ocl_fract(x, &private_iptr);                   \
     *iptr = private_iptr;                                                      \
     return ret;                                                                \
@@ -46,6 +46,9 @@ __spirv_ocl_fract(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
 
 FRACT_DEF(local);
 FRACT_DEF(global);
+#if _CLC_DISTINCT_GENERIC_AS_SUPPORTED
+FRACT_DEF(generic);
+#endif
 
 #undef MIN_CONSTANT
 #undef ZERO

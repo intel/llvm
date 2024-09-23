@@ -76,7 +76,7 @@ class SPIRVExtInst;
   void decode(std::istream &I) override;
 
 #define _REQ_SPIRV_VER(Version)                                                \
-  SPIRVWord getRequiredSPIRVVersion() const override { return Version; }
+  VersionNumber getRequiredSPIRVVersion() const override { return Version; }
 
 // Add implementation of encode/decode functions to a class.
 // Used out side of class definition.
@@ -371,6 +371,7 @@ public:
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
   void takeMemberDecorates(SPIRVEntry *);
+  void replaceTargetIdInDecorates(SPIRVId);
 
   /// After a SPIRV entry is created during reading SPIRV binary by default
   /// constructor, this function is called to allow the SPIRV entry to resize
@@ -417,8 +418,8 @@ public:
   void validateBuiltin(SPIRVWord, SPIRVWord) const;
 
   // By default assume SPIRV 1.0 as required version
-  virtual SPIRVWord getRequiredSPIRVVersion() const {
-    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+  virtual VersionNumber getRequiredSPIRVVersion() const {
+    return VersionNumber::SPIRV_1_0;
   }
 
   virtual std::vector<SPIRVEntry *> getNonLiteralOperands() const {
@@ -521,23 +522,24 @@ protected:
   SPIRVId Target;
 };
 
-template <Op OC> class SPIRVAnnotation : public SPIRVAnnotationGeneric {
+class SPIRVAnnotation : public SPIRVAnnotationGeneric {
 public:
   // Complete constructor
-  SPIRVAnnotation(const SPIRVEntry *TheTarget, unsigned TheWordCount)
+  SPIRVAnnotation(Op OC, const SPIRVEntry *TheTarget, unsigned TheWordCount)
       : SPIRVAnnotationGeneric(TheTarget->getModule(), TheWordCount, OC,
                                TheTarget->getId()) {}
-  // Incomplete constructor
-  SPIRVAnnotation() : SPIRVAnnotationGeneric(OC) {}
+  // Incomplete constructors
+  SPIRVAnnotation(Op OC) : SPIRVAnnotationGeneric(OC) {}
+  SPIRVAnnotation() : SPIRVAnnotationGeneric(OpNop) {}
 };
 
-class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
+class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
-  SPIRVEntryPoint() {}
+  SPIRVEntryPoint() : SPIRVAnnotation(OpEntryPoint) {}
 
   _SPIRV_DCL_ENCDEC
 protected:
@@ -548,12 +550,12 @@ private:
   std::vector<SPIRVId> Variables;
 };
 
-class SPIRVName : public SPIRVAnnotation<OpName> {
+class SPIRVName : public SPIRVAnnotation {
 public:
   // Complete constructor
   SPIRVName(const SPIRVEntry *TheTarget, const std::string &TheStr);
   // Incomplete constructor
-  SPIRVName() {}
+  SPIRVName() : SPIRVAnnotation(OpName) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -562,18 +564,18 @@ protected:
   std::string Str;
 };
 
-class SPIRVMemberName : public SPIRVAnnotation<OpName> {
+class SPIRVMemberName : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVMemberName(const SPIRVEntry *TheTarget, SPIRVWord TheMemberNumber,
                   const std::string &TheStr)
-      : SPIRVAnnotation(TheTarget, FixedWC + getSizeInWords(TheStr)),
+      : SPIRVAnnotation(OpName, TheTarget, FixedWC + getSizeInWords(TheStr)),
         MemberNumber(TheMemberNumber), Str(TheStr) {
     validate();
   }
   // Incomplete constructor
-  SPIRVMemberName() : MemberNumber(SPIRVWORD_MAX) {}
+  SPIRVMemberName() : SPIRVAnnotation(OpName), MemberNumber(SPIRVWORD_MAX) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -649,47 +651,60 @@ protected:
   SPIRVWord Column;
 };
 
-class SPIRVExecutionMode : public SPIRVAnnotation<OpExecutionMode> {
+class SPIRVExecutionMode : public SPIRVAnnotation {
 public:
   // Complete constructor for LocalSize, LocalSizeHint
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord X, SPIRVWord Y, SPIRVWord Z)
-      : SPIRVAnnotation(TheTarget, 6), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                     SPIRVWord Y, SPIRVWord Z)
+      : SPIRVAnnotation(OC, TheTarget, 6), ExecMode(TheExecMode) {
     WordLiterals.push_back(X);
     WordLiterals.push_back(Y);
     WordLiterals.push_back(Z);
     updateModuleVersion();
   }
   // Complete constructor for VecTypeHint, SubgroupSize, SubgroupsPerWorkgroup
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord Code)
-      : SPIRVAnnotation(TheTarget, 4), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVAnnotation(OC, TheTarget, 4), ExecMode(TheExecMode) {
     WordLiterals.push_back(Code);
-    updateModuleVersion();
   }
   // Complete constructor for ContractionOff
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode)
-      : SPIRVAnnotation(TheTarget, 3), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode)
+      : SPIRVAnnotation(OC, TheTarget, 3), ExecMode(TheExecMode) {
     updateModuleVersion();
   }
   // Incomplete constructor
-  SPIRVExecutionMode() : ExecMode(ExecutionModeInvocations) {}
+  SPIRVExecutionMode()
+      : SPIRVAnnotation(OpExecutionMode), ExecMode(ExecutionModeInvocations) {}
   SPIRVExecutionModeKind getExecutionMode() const { return ExecMode; }
   const std::vector<SPIRVWord> &getLiterals() const { return WordLiterals; }
   SPIRVCapVec getRequiredCapability() const override {
     return getCapability(ExecMode);
   }
 
-  SPIRVWord getRequiredSPIRVVersion() const override {
+  VersionNumber getRequiredSPIRVVersion() const override {
     switch (ExecMode) {
     case ExecutionModeFinalizer:
     case ExecutionModeInitializer:
     case ExecutionModeSubgroupSize:
     case ExecutionModeSubgroupsPerWorkgroup:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+      return VersionNumber::SPIRV_1_1;
 
     default:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+      return VersionNumber::SPIRV_1_0;
+    }
+  }
+
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    switch (static_cast<unsigned>(ExecMode)) {
+    case ExecutionModeMaximumRegistersINTEL:
+    case ExecutionModeMaximumRegistersIdINTEL:
+    case ExecutionModeNamedMaximumRegistersINTEL:
+      return ExtensionID::SPV_INTEL_maximum_registers;
+    default:
+      return {};
     }
   }
 
@@ -697,6 +712,28 @@ protected:
   _SPIRV_DCL_ENCDEC
   SPIRVExecutionModeKind ExecMode;
   std::vector<SPIRVWord> WordLiterals;
+};
+
+class SPIRVExecutionModeId : public SPIRVExecutionMode {
+public:
+  // Complete constructor for LocalSizeId, LocalSizeHintId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                       SPIRVWord Y, SPIRVWord Z)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, X, Y, Z) {
+    updateModuleVersion();
+  }
+  // Complete constructor for SubgroupsPerWorkgroupId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, Code) {
+    updateModuleVersion();
+  }
+  // Incomplete constructor
+  SPIRVExecutionModeId() : SPIRVExecutionMode() {}
+  VersionNumber getRequiredSPIRVVersion() const override {
+    return VersionNumber::SPIRV_1_2;
+  }
 };
 
 class SPIRVComponentExecutionModes {
@@ -732,6 +769,11 @@ public:
       return IsDenorm(EMK) || IsRoundingMode(EMK) || IsFPMode(EMK) ||
              IsOtherFP(EMK);
     };
+    auto IsMaxRegisters = [&](auto EMK) {
+      return EMK == ExecutionModeMaximumRegistersINTEL ||
+             EMK == ExecutionModeMaximumRegistersIdINTEL ||
+             EMK == ExecutionModeNamedMaximumRegistersINTEL;
+    };
     auto IsCompatible = [&](SPIRVExecutionMode *EM0, SPIRVExecutionMode *EM1) {
       if (EM0->getTargetId() != EM1->getTargetId())
         return true;
@@ -745,7 +787,8 @@ public:
         return true;
       return !(IsDenorm(EMK0) && IsDenorm(EMK1)) &&
              !(IsRoundingMode(EMK0) && IsRoundingMode(EMK1)) &&
-             !(IsFPMode(EMK0) && IsFPMode(EMK1));
+             !(IsFPMode(EMK0) && IsFPMode(EMK1)) &&
+             !(IsMaxRegisters(EMK0) && IsMaxRegisters(EMK1));
     };
     for (auto I = ExecModes.begin(); I != ExecModes.end(); ++I) {
       assert(IsCompatible(ExecMode, (*I).second) &&
@@ -828,7 +871,7 @@ public:
   SPIRVCapability() : Kind(CapabilityMatrix) {}
   _SPIRV_DCL_ENCDEC
 
-  SPIRVWord getRequiredSPIRVVersion() const override {
+  VersionNumber getRequiredSPIRVVersion() const override {
     switch (Kind) {
     case CapabilityGroupNonUniform:
     case CapabilityGroupNonUniformVote:
@@ -837,15 +880,15 @@ public:
     case CapabilityGroupNonUniformShuffle:
     case CapabilityGroupNonUniformShuffleRelative:
     case CapabilityGroupNonUniformClustered:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_3);
+      return VersionNumber::SPIRV_1_3;
 
     case CapabilityNamedBarrier:
     case CapabilitySubgroupDispatch:
     case CapabilityPipeStorage:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+      return VersionNumber::SPIRV_1_1;
 
     default:
-      return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_0);
+      return VersionNumber::SPIRV_1_0;
     }
   }
 
@@ -860,6 +903,8 @@ public:
       return ExtensionID::SPV_INTEL_vector_compute;
     case internal::CapabilityFastCompositeINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::CapabilitySubgroupRequirementsINTEL:
+      return ExtensionID::SPV_INTEL_subgroup_requirements;
     default:
       return {};
     }
@@ -908,7 +953,7 @@ public:
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityLongConstantCompositeINTEL);
+    return getVec(CapabilityLongCompositesINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -976,8 +1021,8 @@ public:
   SPIRVModuleProcessed() { updateModuleVersion(); }
   _SPIRV_DCL_ENCDEC
   void validate() const override;
-  SPIRVWord getRequiredSPIRVVersion() const override {
-    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_1);
+  VersionNumber getRequiredSPIRVVersion() const override {
+    return VersionNumber::SPIRV_1_1;
   }
 
   std::string getProcessStr();
@@ -1009,8 +1054,6 @@ _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
 _SPIRV_OP(ArrayLength)
 _SPIRV_OP(OuterProduct)
-_SPIRV_OP(SMulExtended)
-_SPIRV_OP(UMulExtended)
 _SPIRV_OP(DPdx)
 _SPIRV_OP(DPdy)
 _SPIRV_OP(Fwidth)

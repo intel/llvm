@@ -10,10 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-// Include the generated builtins.
-#include <sycl/builtins_marray_gen.hpp>
-#include <sycl/builtins_scalar_gen.hpp>
-#include <sycl/builtins_vector_gen.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
@@ -23,6 +20,8 @@ extern __DPCPP_SYCL_EXTERNAL void *memcpy(void *dest, const void *src,
 extern __DPCPP_SYCL_EXTERNAL void *memset(void *dest, int c, size_t n);
 extern __DPCPP_SYCL_EXTERNAL int memcmp(const void *s1, const void *s2,
                                         size_t n);
+extern __DPCPP_SYCL_EXTERNAL int rand();
+extern __DPCPP_SYCL_EXTERNAL void srand(unsigned int seed);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,
@@ -111,6 +110,14 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_ru(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_frcp_rz(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rd(float x, float y, float z);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rn(float x, float y, float z);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_ru(float x, float y, float z);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rz(float x, float y, float z);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rd(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rn(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_ru(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rz(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);
@@ -312,11 +319,16 @@ extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_copysignbf16(uint16_t x,
 extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_sqrtbf16(uint16_t x);
 extern __DPCPP_SYCL_EXTERNAL uint16_t __imf_rsqrtbf16(uint16_t x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fma(double x, double y, double z);
+extern __DPCPP_SYCL_EXTERNAL double __imf_fma_rd(double x, double y, double z);
+extern __DPCPP_SYCL_EXTERNAL double __imf_fma_rn(double x, double y, double z);
+extern __DPCPP_SYCL_EXTERNAL double __imf_fma_ru(double x, double y, double z);
+extern __DPCPP_SYCL_EXTERNAL double __imf_fma_rz(double x, double y, double z);
 extern __DPCPP_SYCL_EXTERNAL double __imf_fabs(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_floor(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_ceil(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_trunc(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rint(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_rcp64h(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_nearbyint(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rsqrt(double x);
@@ -344,6 +356,10 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_ru(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rz(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rd(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rn(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_ru(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rz(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_ru(double x);
@@ -547,6 +563,74 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu2(unsigned int x,
                                                        unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vsadu4(unsigned int x,
                                                        unsigned int y);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_s16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmax_s32_relu(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_u16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmax_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_s16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_s16x2_relu(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmin_s32(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_viaddmin_s32_relu(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_u16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_viaddmin_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmax_s16x2(unsigned int x,
+                                                             unsigned int y,
+                                                             bool *pred_hi,
+                                                             bool *pred_lo);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vibmax_s32(int x, int y, bool *pred);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmax_u16x2(unsigned int x,
+                                                             unsigned int y,
+                                                             bool *pred_hi,
+                                                             bool *pred_lo);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmax_u32(unsigned int x, unsigned int y, bool *pred);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmin_s16x2(unsigned int x,
+                                                             unsigned int y,
+                                                             bool *pred_hi,
+                                                             bool *pred_lo);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vibmin_s32(int x, int y, bool *pred);
+extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_vibmin_u16x2(unsigned int x,
+                                                             unsigned int y,
+                                                             bool *pred_hi,
+                                                             bool *pred_lo);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vibmin_u32(unsigned int x, unsigned int y, bool *pred);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_s16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_s16x2_relu(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_s16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_s16x2_relu(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimax3_s32(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimax3_s32_relu(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimin3_s32(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimin3_s32_relu(int x, int y, int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_u16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_u16x2(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin3_u32(unsigned int x, unsigned int y, unsigned int z);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimax_s16x2_relu(unsigned int x, unsigned int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimax_s32_relu(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL unsigned int
+__imf_vimin_s16x2_relu(unsigned int x, unsigned int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_vimin_s32_relu(int x, int y);
 }
 #ifdef __GLIBC__
 extern "C" {

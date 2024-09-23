@@ -1,11 +1,11 @@
 // UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using dataType = sycl::opencl::cl_int;
@@ -28,7 +28,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm("mul (M1, 16) %0(0, 0)<1> %1(0, 0)<1;1,0> %2(0, 0)<1;1,0>"
               : "=rw"(C[wiID])
@@ -49,7 +49,7 @@ int main() {
   }
 
   KernelFunctor<> f(inputA, inputB);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, {16}))
     return 0;
 
   auto &C = f.getOutputBufferData();

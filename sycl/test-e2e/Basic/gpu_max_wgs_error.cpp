@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -19,9 +19,10 @@ void check(range<N> global, range<N> local, bool expect_fail = false) {
       cgh.parallel_for(nd_range<N>(global, local), [=](nd_item<N> item) {});
     });
     assert(!expect_fail && "Exception expected");
-  } catch (nd_range_error e) {
+  } catch (exception e) {
     if (expect_fail) {
       std::string msg = e.what();
+      assert(e.code() == errc::nd_range);
       assert(msg.rfind(expected_msg, 0) == 0 && "Unexpected error message");
     } else {
       throw e;

@@ -65,19 +65,6 @@
 // (1) - materialization of a PFWI object
 // (2) - "fixup" of the private variable address.
 //
-// TODO: add support for the case when there are other functions between
-// parallel_for_work_group and parallel_for_work_item in the call stack.
-// For example:
-//
-// void foo(sycl::group<1> group, ...) {
-//   group.parallel_for_work_item(range<1>(), [&](h_item<1> i) { ... });
-// }
-// ...
-//   cgh.parallel_for_work_group<class kernel>(
-//     range<1>(...), range<1>(...), [=](group<1> g) {
-//       foo(g, ...);
-//     });
-//
 // TODO The approach employed by this pass generates lots of barriers and data
 // copying between private and local memory, which might not be efficient. There
 // are optimization opportunities listed below. Also other approaches can be
@@ -97,6 +84,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifndef NDEBUG
@@ -156,7 +144,7 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(Ctx));
+  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -208,9 +196,34 @@ static bool isCallToAFuncMarkedWithMD(const Instruction *I, const char *MD) {
   return F && F->getMetadata(MD);
 }
 
-// Checks is this is a call to parallel_for_work_item.
+// Recursively searches for a call to a function with work_group
+// metadata inside F.
+static bool hasCallToAFuncWithWGMetadata(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB) {
+      if (isCallToAFuncMarkedWithMD(&I, WG_SCOPE_MD))
+        return true;
+      const CallInst *Call = dyn_cast<CallInst>(&I);
+      Function *F = dyn_cast_or_null<Function>(Call ? Call->getCalledFunction()
+                                                    : nullptr);
+      if (F && hasCallToAFuncWithWGMetadata(*F))
+        return true;
+    }
+  return false;
+}
+
+// Checks if this is a call to parallel_for_work_item.
 static bool isPFWICall(const Instruction *I) {
   return isCallToAFuncMarkedWithMD(I, PFWI_MD);
+}
+
+// Checks if F has any calls to function marked with PFWI_MD metadata.
+static bool hasPFWICall(Function &F) {
+  for (auto &BB : F)
+    for (auto &I : BB)
+      if (isPFWICall(&I))
+        return true;
+  return false;
 }
 
 // Checks if given instruction must be executed by all work items.
@@ -405,9 +418,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
   assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
-    // TODO: we should use methods which directly return MaybeAlign once such
-    // are added to LLVM for AllocaInst and GlobalVariable
-    auto ShdAlign = MaybeAlign(Shadow->getAlignment());
+    auto ShdAlign = Shadow->getAlign();
     Module &M = *Shadow->getParent();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
@@ -424,6 +435,17 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
     Value *LocalVal = Builder.CreateLoad(T, Src, "mat_ld");
     Builder.CreateStore(LocalVal, Dst);
   }
+}
+
+// Skip allocas, addrspacecasts associated with allocas and debug insts.
+static Instruction *getFirstInstToProcess(BasicBlock *BB) {
+  Instruction *I = &BB->front();
+  for (;
+       I->getOpcode() == Instruction::Alloca ||
+       I->getOpcode() == Instruction::AddrSpaceCast || I->isDebugOrPseudoInst();
+       I = I->getNextNode()) {
+  }
+  return I;
 }
 
 // Performs the following transformation for each basic block in the input map:
@@ -463,7 +485,11 @@ static void materializeLocalsInWIScopeBlocksImpl(
   for (auto &P : BB2MatLocals) {
     // generate LeaderBB and private<->shadow copies in proper BBs
     BasicBlock *LeaderBB = P.first;
-    BasicBlock *BB = LeaderBB->splitBasicBlock(&LeaderBB->front(), "LeaderMat");
+    // Skip allocas, addrspacecasts associated with allocas and debug insts.
+    // Alloca instructions and it's associated instructions must be in the
+    // beginning of the function.
+    Instruction *LeaderBBFront = getFirstInstToProcess(LeaderBB);
+    BasicBlock *BB = LeaderBB->splitBasicBlock(LeaderBBFront, "LeaderMat");
     // Add a barrier to the original block:
     Instruction *At =
         spirv::genWGBarrier(*BB->getFirstNonPHI(), TT)->getNextNode();
@@ -477,7 +503,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
       // fill the leader BB:
       // fetch data from leader's private copy (which is always up to date) into
       // the corresponding shadow variable
-      Builder.SetInsertPoint(&LeaderBB->front());
+      LeaderBBFront = getFirstInstToProcess(LeaderBB);
+      Builder.SetInsertPoint(LeaderBBFront);
       copyBetweenPrivateAndShadow(L, Shadow, Builder, true /*private->shadow*/);
       // store data to the local variable - effectively "refresh" the value of
       // the local in each work item in the work group
@@ -486,8 +513,8 @@ static void materializeLocalsInWIScopeBlocksImpl(
                                   false /*shadow->private*/);
     }
     // now generate the TestBB and the leader WI guard
-    BasicBlock *TestBB =
-        LeaderBB->splitBasicBlock(&LeaderBB->front(), "TestMat");
+    LeaderBBFront = getFirstInstToProcess(LeaderBB);
+    BasicBlock *TestBB = LeaderBB->splitBasicBlock(LeaderBBFront, "TestMat");
     std::swap(TestBB, LeaderBB);
     guardBlockWithIsLeaderCheck(TestBB, LeaderBB, BB, At->getDebugLoc(), TT);
   }
@@ -753,6 +780,10 @@ PreservedAnalyses SYCLLowerWGScopePass::run(Function &F,
                                             FunctionAnalysisManager &FAM) {
   if (!F.getMetadata(WG_SCOPE_MD))
     return PreservedAnalyses::all();
+  // If a function does not have any PFWI calls and it has calls to a function
+  // that has work_group metadata, then we do not need to lower such functions.
+  if (!hasPFWICall(F) && hasCallToAFuncWithWGMetadata(F))
+    return PreservedAnalyses::all();
   LLVM_DEBUG(llvm::dbgs() << "Function name: " << F.getName() << "\n");
   const auto &TT = llvm::Triple(F.getParent()->getTargetTriple());
   // Ranges of "side effect" instructions
@@ -900,7 +931,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN()) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || sycl::utils::isSYCLNativeCPU(M)) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 

@@ -15,13 +15,13 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 ; Check struct X for dead variable xyz from inlined function foo.
 
-; CHECK: Lsection_info
+; CHECK: .section .debug_info,"dr"
 ; CHECK:	DW_TAG_structure_type
 ; CHECK-NEXT:	info_string
 
 source_filename = "test/DebugInfo/X86/InlinedFnLocalVar.ll"
 
-@i = common global i32 0, !dbg !0
+@i = common addrspace(1) global i32 0, !dbg !0
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #0
@@ -32,11 +32,11 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) #0
 ; Function Attrs: nounwind ssp
 define i32 @bar() #1 !dbg !8 {
 entry:
-  %0 = load i32, ptr @i, align 4, !dbg !11
+  %0 = load i32, ptr addrspace(1) @i, align 4, !dbg !11
   tail call void @llvm.dbg.value(metadata i32 %0, metadata !13, metadata !24), !dbg !25
   tail call void @llvm.dbg.declare(metadata !5, metadata !18, metadata !24), !dbg !26
   %1 = mul nsw i32 %0, %0, !dbg !27
-  store i32 %1, ptr @i, align 4, !dbg !11
+  store i32 %1, ptr addrspace(1) @i, align 4, !dbg !11
   ret i32 %1, !dbg !28
 }
 

@@ -64,7 +64,7 @@ public:
 
 === Compiler API
 
-To compile a source, a user program must first construct an instance of the `sycl::ext::intel::online_compiler` class. Then pass the source as an `std::string` object to online compiler's `compile` function along with other relevant parameters. The `online_compiler` is templated by the source language, and the `compile` function is a variadic template function. Instantiations of the `online_compiler::compile` for different languages may have different sets of formal parameters. The `compile` function returns a binary blob - an `std::vector<unsigned char>` - with the device code compiled according to the compilation target specification provided at online compiler construction time.
+To compile a source, a user program must first construct an instance of the `sycl::ext::intel::online_compiler` class. Then pass the source as a `std::string` object to online compiler's `compile` function along with other relevant parameters. The `online_compiler` is templated by the source language, and the `compile` function is a variadic template function. Instantiations of the `online_compiler::compile` for different languages may have different sets of formal parameters. The `compile` function returns a binary blob - a `std::vector<unsigned char>` - with the device code compiled according to the compilation target specification provided at online compiler construction time.
 
 ==== Online compiler
 [source,c++]

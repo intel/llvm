@@ -279,6 +279,13 @@ MatchingSubsets::populateSubsetOpsAtIterArg(LoopLikeOpInterface loopLike,
 
       if (auto insertionOp =
               dyn_cast<SubsetInsertionOpInterface>(use.getOwner())) {
+        // Current implementation expects that the insertionOp implement
+        // the destinationStyleOpInterface as well. Abort if that tha is not
+        // the case
+        if (!isa<DestinationStyleOpInterface>(use.getOwner())) {
+          return failure();
+        }
+
         // The value must be used as a destination. (In case of a source, the
         // entire tensor would be read, which would prevent any hoisting.)
         if (&use != &insertionOp.getDestinationOperand())
@@ -311,12 +318,12 @@ MatchingSubsets::populateSubsetOpsAtIterArg(LoopLikeOpInterface loopLike,
 /// loop-like op and index into loop-invariant subset locations. Return the
 /// newly created loop op (that has extra iter_args) or the original loop op if
 /// nothing was hoisted.
-static LoopLikeOpInterface hoistSubsetAtIterArg(LoopLikeOpInterface loopLike,
+static LoopLikeOpInterface hoistSubsetAtIterArg(RewriterBase &rewriter,
+                                                LoopLikeOpInterface loopLike,
                                                 BlockArgument iterArg) {
   assert(iterArg.getOwner()->getParentOp() == loopLike && "invalid iter_arg");
   auto it = llvm::find(loopLike.getRegionIterArgs(), iterArg);
   int64_t iterArgIdx = std::distance(loopLike.getRegionIterArgs().begin(), it);
-  IRRewriter rewriter(loopLike.getContext());
   MatchingSubsets subsets;
   if (failed(subsets.populateSubsetOpsAtIterArg(loopLike, iterArg)))
     return loopLike;
@@ -365,13 +372,14 @@ static LoopLikeOpInterface hoistSubsetAtIterArg(LoopLikeOpInterface loopLike,
       iterArg = loopLike.getRegionIterArgs()[iterArgIdx];
       OpResult loopResult = loopLike.getTiedLoopResult(iterArg);
       OpResult newLoopResult = loopLike.getLoopResults()->back();
-      extractionOp->moveBefore(loopLike);
-      insertionOp->moveAfter(loopLike);
-      insertionOp.getUpdatedDestination().replaceAllUsesWith(
-          insertionOp.getDestinationOperand().get());
+      rewriter.moveOpBefore(extractionOp, loopLike);
+      rewriter.moveOpAfter(insertionOp, loopLike);
+      rewriter.replaceAllUsesWith(insertionOp.getUpdatedDestination(),
+                                  insertionOp.getDestinationOperand().get());
       extractionOp.getSourceOperand().set(
           loopLike.getTiedLoopInit(iterArg)->get());
-      loopResult.replaceAllUsesWith(insertionOp.getUpdatedDestination());
+      rewriter.replaceAllUsesWith(loopResult,
+                                  insertionOp.getUpdatedDestination());
       insertionOp.getSourceOperand().set(newLoopResult);
       insertionOp.getDestinationOperand().set(loopResult);
     }
@@ -381,13 +389,15 @@ static LoopLikeOpInterface hoistSubsetAtIterArg(LoopLikeOpInterface loopLike,
 }
 
 LoopLikeOpInterface
-mlir::hoistLoopInvariantSubsets(LoopLikeOpInterface loopLike) {
+mlir::hoistLoopInvariantSubsets(RewriterBase &rewriter,
+                                LoopLikeOpInterface loopLike) {
   // Note: As subset ops are getting hoisted, the number of region iter_args
   // increases. This can enable further hoisting opportunities on the new
   // iter_args.
   for (int64_t i = 0;
        i < static_cast<int64_t>(loopLike.getRegionIterArgs().size()); ++i) {
-    loopLike = hoistSubsetAtIterArg(loopLike, loopLike.getRegionIterArgs()[i]);
+    loopLike = hoistSubsetAtIterArg(rewriter, loopLike,
+                                    loopLike.getRegionIterArgs()[i]);
   }
   return loopLike;
 }

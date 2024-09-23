@@ -36,7 +36,6 @@
 // further translation to SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "clmdtospv"
 
 #include "PreprocessMetadata.h"
 #include "OCLUtil.h"
@@ -50,6 +49,8 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TargetParser/Triple.h"
+
+#define DEBUG_TYPE "clmdtospv"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -167,10 +168,19 @@ void PreprocessMetadataBase::visit(Module *M) {
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 35, i32 size}
     if (MDNode *ReqdSubgroupSize = Kernel.getMetadata(kSPIR2MD::SubgroupSize)) {
+      // A primary named subgroup size is encoded as
+      // the metadata intel_reqd_sub_group_size with value -1.
+      auto Val = getMDOperandAsInt(ReqdSubgroupSize, 0);
+      if (Val == -1U)
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::internal::ExecutionModeNamedSubgroupSizeINTEL)
+            .add(/* PrimarySubgroupSizeINTEL = */ 0U)
+            .done();
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeSubgroupSize)
-          .add(getMDOperandAsInt(ReqdSubgroupSize, 0))
+          .add(Val)
           .done();
     }
 
@@ -285,12 +295,16 @@ void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
   // !{x} = !{i32 3, i32 102000}
   B->addNamedMD(kSPIRVMD::Source)
       .addOp()
-      .add(CLVer == kOCLVer::CL21 ? spv::SourceLanguageOpenCL_CPP
-                                  : spv::SourceLanguageOpenCL_C)
+      .add(M->getNamedMetadata(kSPIR2MD::OCLCXXVer) &&
+                   (CLVer == kOCLVer::CLCXX10 || CLVer == kOCLVer::CLCXX2021)
+               ? spv::SourceLanguageCPP_for_OpenCL
+               : spv::SourceLanguageOpenCL_C)
       .add(CLVer)
       .done();
   if (EraseOCLMD)
-    B->eraseNamedMD(kSPIR2MD::OCLVer).eraseNamedMD(kSPIR2MD::SPIRVer);
+    B->eraseNamedMD(kSPIR2MD::OCLVer)
+        .eraseNamedMD(kSPIR2MD::SPIRVer)
+        .eraseNamedMD(kSPIR2MD::OCLCXXVer);
 
   // !spirv.MemoryModel = !{!x}
   // !{x} = !{i32 1, i32 2}

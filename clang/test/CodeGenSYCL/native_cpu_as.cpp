@@ -1,10 +1,10 @@
 // This test is temporarily disabled for SYCL Native CPU on Windows
 // UNSUPPORTED: system-windows
 // Checks that name mangling matches between SYCL Native CPU and OpenCL when -fsycl-is-native-cpu is set
-// RUN: %clang_cc1 -DCPP -fsycl-is-device -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t_sycl.ll %s 
+// RUN: %clang_cc1 -DCPP -fsycl-is-device -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t_sycl.ll %s 
 // RUN: FileCheck -input-file=%t_sycl.ll %s 
 
-// RUN: %clang_cc1 -x cl -DOCL -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t_ocl.ll %s 
+// RUN: %clang_cc1 -x cl -DOCL -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t_ocl.ll %s 
 // RUN: FileCheck -input-file=%t_ocl.ll %s 
 
 #ifdef CPP

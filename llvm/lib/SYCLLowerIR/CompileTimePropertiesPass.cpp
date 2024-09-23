@@ -12,6 +12,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -42,6 +43,9 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DEFAULT_VALUE = 2; // Read/Write
 constexpr uint32_t SPIRV_INITIATION_INTERVAL_DECOR = 5917;
 constexpr uint32_t SPIRV_PIPELINE_ENABLE_DECOR = 5919;
 
+constexpr uint32_t SPIRV_CACHE_CONTROL_READ_DECOR = 6442;
+constexpr uint32_t SPIRV_CACHE_CONTROL_WRITE_DECOR = 6443;
+
 enum class DecorValueTy {
   uint32,
   boolean,
@@ -61,6 +65,36 @@ const StringMap<Decor> SpirvDecorMap = {
 #include "CompileTimeProperties.def"
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
+
+// Masks defined here must be in sync with the SYCL header with fp control
+// kernel property.
+enum FloatControl {
+  RTE = 1,      // Round to nearest or even
+  RTP = 1 << 1, // Round towards +ve inf
+  RTN = 1 << 2, // Round towards -ve inf
+  RTZ = 1 << 3, // Round towards zero
+
+  DENORM_FTZ = 1 << 4,     // Denorm mode flush to zero
+  DENORM_D_ALLOW = 1 << 5, // Denorm mode double allow
+  DENORM_F_ALLOW = 1 << 6, // Denorm mode float allow
+  DENORM_HF_ALLOW = 1 << 7 // Denorm mode half allow
+};
+
+enum FloatControlMask {
+  ROUND_MASK = (RTE | RTP | RTN | RTZ),
+  DENORM_MASK = (DENORM_D_ALLOW | DENORM_F_ALLOW | DENORM_HF_ALLOW)
+};
+
+// SPIRV execution modes for FP control.
+// These opcodes are specified in SPIRV specification (SPV_KHR_float_controls
+// and SPV_INTEL_float_controls2 extensions):
+// https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.pdf
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTE = 4462;       // RoundingModeRTE
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTZ = 4463;       // RoundingModeRTZ
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTP_INTEL = 5620; // RoundingModeRTPINTEL
+constexpr uint32_t SPIRV_ROUNDING_MODE_RTN_INTEL = 5621; // RoundingModeRTNINTEL
+constexpr uint32_t SPIRV_DENORM_FLUSH_TO_ZERO = 4460;    // DenormFlushToZero
+constexpr uint32_t SPIRV_DENORM_PRESERVE = 4459;         // DenormPreserve
 
 /// Builds a metadata node for a SPIR-V decoration (decoration code is
 /// \c uint32_t integers) with no value.
@@ -94,6 +128,72 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
   MD.push_back(
       ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, Value))));
+  return MDNode::get(Ctx, MD);
+}
+
+/// Builds a metadata node for a SPIR-V decoration for cache controls
+/// where decoration code and value are both uint32_t integers.
+/// The value encodes a cache level and a cache control type.
+///
+/// @param Ctx        [in] the LLVM Context.
+/// @param Name       [in] the SPIR-V property string name.
+/// @param OpCode     [in] the SPIR-V opcode.
+/// @param CacheMode  [in] whether read or write.
+/// @param CacheLevel [in] the cache level.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+/// and its values.
+MDNode *buildSpirvDecorCacheProp(LLVMContext &Ctx, StringRef Name,
+                                 uint32_t OpCode, uint32_t CacheMode,
+                                 uint32_t CacheLevel) {
+  // SPIR-V encodings of read control
+  enum cache_control_read_type {
+    read_uncached = 0,
+    read_cached = 1,
+    read_streaming = 2,
+    read_invalidate = 3,
+    read_const_cached = 4
+  };
+  // SPIR-V encodings of write control
+  enum cache_control_write_type {
+    write_uncached = 0,
+    write_through = 1,
+    write_back = 2,
+    write_streaming = 3
+  };
+  // SYCL encodings of read/write control. Definition of cache_mode should match
+  // definition in SYCL header file cache_control_properties.hpp.
+  enum class cache_mode {
+    uncached,
+    cached,
+    streaming,
+    invalidate,
+    constant,
+    write_through,
+    write_back
+  };
+  static uint32_t SPIRVReadControl[] = {read_uncached, read_cached,
+                                        read_streaming, read_invalidate,
+                                        read_const_cached};
+  static uint32_t SPIRVWriteControl[] = {
+      write_uncached, write_uncached, write_streaming, write_uncached,
+      write_uncached, write_through,  write_back};
+
+  // Map SYCL encoding to SPIR-V
+  uint32_t CacheProp;
+  if (Name.starts_with("sycl-cache-read"))
+    CacheProp = SPIRVReadControl[CacheMode];
+  else
+    CacheProp = SPIRVWriteControl[CacheMode];
+
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 3> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, CacheLevel))));
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, CacheProp))));
   return MDNode::get(Ctx, MD);
 }
 
@@ -210,8 +310,57 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
-  if (!AttrKindStr.startswith("sycl-"))
+  if (!AttrKindStr.starts_with("sycl-"))
     return std::nullopt;
+
+  auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
+                                          int32_t Width) {
+    auto NamedMD = M.getOrInsertNamedMetadata("spirv.ExecutionMode");
+    SmallVector<Metadata *, 4> ValueVec;
+    ValueVec.push_back(ConstantAsMetadata::get(&F));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), SPIRVFPControl)));
+    ValueVec.push_back(ConstantAsMetadata::get(
+        ConstantInt::get(Type::getInt32Ty(Ctx), Width)));
+    NamedMD->addOperand(MDNode::get(Ctx, ValueVec));
+  };
+
+  auto AddFPControlMetadata = [&](int32_t SPIRVFPControl) {
+    for (int32_t Width : {64, 32, 16}) {
+      AddFPControlMetadataForWidth(SPIRVFPControl, Width);
+    }
+  };
+
+  if (AttrKindStr == "sycl-floating-point-control") {
+    uint32_t FPControl = getAttributeAsInteger<uint32_t>(Attr);
+    auto IsFPModeSet = [FPControl](FloatControl Flag) -> bool {
+      return (FPControl & Flag) == Flag;
+    };
+
+    if (IsFPModeSet(RTE))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTE);
+
+    if (IsFPModeSet(RTP))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTP_INTEL);
+
+    if (IsFPModeSet(RTN))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTN_INTEL);
+
+    if (IsFPModeSet(RTZ))
+      AddFPControlMetadata(SPIRV_ROUNDING_MODE_RTZ);
+
+    if (IsFPModeSet(DENORM_FTZ))
+      AddFPControlMetadata(SPIRV_DENORM_FLUSH_TO_ZERO);
+
+    if (IsFPModeSet(DENORM_HF_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 16);
+
+    if (IsFPModeSet(DENORM_F_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 32);
+
+    if (IsFPModeSet(DENORM_D_ALLOW))
+      AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
+  }
 
   if (AttrKindStr == "sycl-work-group-size" ||
       AttrKindStr == "sycl-work-group-size-hint") {
@@ -219,7 +368,8 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     SmallVector<StringRef, 3> ValStrs;
     Attr.getValueAsString().split(ValStrs, ',');
 
-    assert(ValStrs.size() <= 3 &&
+    size_t NumDims = ValStrs.size();
+    assert(NumDims <= 3 &&
            "sycl-work-group-size and sycl-work-group-size-hint currently only "
            "support up to three values");
 
@@ -236,6 +386,16 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     for (StringRef ValStr : ValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+    while (MDVals.size() < 3)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1, 10))));
+
+    if (NumDims < 3) {
+      if (!F.hasMetadata("work_group_num_dim"))
+        F.setMetadata("work_group_num_dim",
+                      MDNode::get(Ctx, ConstantAsMetadata::get(ConstantInt::get(
+                                           Type::getInt32Ty(Ctx), NumDims))));
+    }
 
     const char *MDName = (AttrKindStr == "sycl-work-group-size")
                              ? "reqd_work_group_size"
@@ -268,6 +428,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -280,6 +441,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -290,14 +452,30 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
                                             MDNode::get(Ctx, MD));
   }
 
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
+  }
+
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
        AttrKindStr == SYCL_GRF_SIZE_ATTR) &&
       !llvm::esimd::isESIMD(F)) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
-             "Unsupported GRF Size");
+      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+      // PropVal.
+      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+        return std::nullopt;
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
       static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
       static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
@@ -422,9 +600,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
+
   for (Function &F : M) {
     // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments
@@ -535,7 +717,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
-void CompileTimePropertiesPass::parseAlignmentAndApply(
+bool CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
@@ -545,11 +727,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
   if (!AnnotStrArgGV)
-    return;
+    return false;
 
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr)
-    return;
+    return false;
 
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
@@ -560,6 +742,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
   getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
+  bool AlignApplied = false;
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
     auto DecorValue = Property.second;
@@ -583,18 +766,26 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
           LInst->setAlignment(Align_val);
+          AlignApplied = true;
         } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
-          if (Op_num == 1)
+          if (Op_num == 1) {
             SInst->setAlignment(Align_val);
+            AlignApplied = true;
+          }
         } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
-          if (Op_num == 0)
+          if (Op_num == 0) {
             MI->setDestAlignment(Align_val);
-          else if (Op_num == 1)
+            AlignApplied = true;
+          } else if (Op_num == 1) {
             MI->setSourceAlignment(Align_val);
+            AlignApplied = true;
+          }
         }
       }
     }
   }
+
+  return AlignApplied;
 }
 
 // Returns true if the transformation changed IntrInst.
@@ -623,15 +814,18 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     return false;
 
   // check alignment annotation and apply it to load/store
-  parseAlignmentAndApply(M, IntrInst);
+  bool AlignApplied = parseAlignmentAndApply(M, IntrInst);
 
-  // Read the annotation values and create the new annotation string.
+  // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
+  SmallVector<Metadata *, 8> MDOpsCacheProp;
+  bool CacheProp = false;
+  bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
-    // sycl-alignment is converted to align on
-    // previous parseAlignmentAndApply(), dropping here
-    if (PropName == "sycl-alignment")
+    // if sycl-alignment is converted to align on IR constructs
+    // during parseAlignmentAndApply(), dropping here
+    if (PropName == "sycl-alignment" && AlignApplied)
       continue;
 
     auto DecorIt = SpirvDecorMap.find(*PropName);
@@ -639,59 +833,118 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
       continue;
     uint32_t DecorCode = DecorIt->second.Code;
 
-    // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
-    // Y is the value if present. It encloses Y in " to ensure that
-    // string values are handled correctly. Note that " around values are
-    // always valid, even if the decoration parameters are not strings.
-    NewAnnotString += "{" + std::to_string(DecorCode);
-    if (PropVal)
-      NewAnnotString += ":\"" + PropVal->str();
+    // Handle cache control properties
+    if ((*PropName).starts_with("sycl-cache-")) {
+      CacheProp = true;
+      auto DecorValue = PropVal;
+      uint32_t AttrVal;
+      DecorValue->getAsInteger(0, AttrVal);
+      // Format is:
+      // !Annot = !{!CC1, !CC2, ...}
+      // !CC1 = !{i32 Load/Store, i32 Level, i32 Control}
+      // !CC2 = !{i32 Load/Store, i32 Level, i32 Control}
+      // ...
+      LLVMContext &Ctx = M.getContext();
+      uint32_t CacheMode = 0;
+      while (AttrVal) {
+        // The attribute value encodes cache control and levels.
+        // Low-order to high-order nibbles hold cache levels specified for the
+        // enumerated SYCL cache modes. Lowest order nibble for uncached, next
+        // for cached, and so on.
+        // In each nibble cache levels are encoded as L1=1, L2=2, L3=4 and L4=8.
+        // The SPIR-V encoding of cache levels L1..L4 uses values 0..3.
+        uint32_t CacheLevel = 0;
+        uint32_t LevelMask = AttrVal & 0xf;
+        while (LevelMask) {
+          if (LevelMask & 1)
+            MDOpsCacheProp.push_back(buildSpirvDecorCacheProp(
+                Ctx, *PropName, DecorCode, CacheMode, CacheLevel));
+          ++CacheLevel;
+          LevelMask >>= 1;
+        }
+        ++CacheMode;
+        AttrVal >>= 4;
+      }
+    } else {
+      FPGAProp = true;
+      // Expected format is '{X}' or '{X:Y}' where X is decoration ID and
+      // Y is the value if present. It encloses Y in " to ensure that
+      // string values are handled correctly. Note that " around values are
+      // always valid, even if the decoration parameters are not strings.
+      NewAnnotString += "{" + std::to_string(DecorCode);
+      if (PropVal)
+        NewAnnotString += ":\"" + PropVal->str();
 
-    if (PropName == "sycl-prefetch-hint")
-      NewAnnotString += ",1"; // CachedINTEL
-    if (PropName == "sycl-prefetch-hint-nt")
-      NewAnnotString += ",3"; // InvalidateAfterReadINTEL
+      if (PropName == "sycl-prefetch-hint")
+        NewAnnotString += ",1"; // CachedINTEL
+      if (PropName == "sycl-prefetch-hint-nt")
+        NewAnnotString += ",3"; // InvalidateAfterReadINTEL
 
-    if (PropVal)
-      NewAnnotString += "\"";
-    NewAnnotString += "}";
+      if (PropVal)
+        NewAnnotString += "\"";
+      NewAnnotString += "}";
+    }
   }
 
-  // If the new annotation string is empty there is no reason to keep it, so
-  // replace it with the first operand and mark it for removal.
-  if (NewAnnotString.empty()) {
+  // If there are no other annotations (except "alignment") then there is no
+  // reason to keep the original intrinsic, so replace it with the first operand
+  // and mark it for removal.
+  if (!CacheProp && !FPGAProp) {
     IntrInst->replaceAllUsesWith(IntrInst->getOperand(0));
     RemovableAnnotations.push_back(IntrInst);
     return true;
   }
 
-  // Either reuse a previously generated one or create a new global variable
-  // with the new annotation string.
-  GlobalVariable *NewAnnotStringGV = nullptr;
-  auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
-  if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
-    NewAnnotStringGV = ExistingNewAnnotStringIt->second;
-  } else {
-    Constant *NewAnnotStringData =
-        ConstantDataArray::getString(M.getContext(), NewAnnotString);
-    NewAnnotStringGV = new GlobalVariable(
-        M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
-        NewAnnotStringData, ".str", nullptr, llvm::GlobalValue::NotThreadLocal,
-        IntrAnnotStringArg->getType()->getPointerAddressSpace());
-    NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
-    NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
+  if (FPGAProp) {
+    // Either reuse a previously generated one or create a new global variable
+    // with the new annotation string.
+    GlobalVariable *NewAnnotStringGV = nullptr;
+    auto ExistingNewAnnotStringIt = ReusableAnnotStrings.find(NewAnnotString);
+    if (ExistingNewAnnotStringIt != ReusableAnnotStrings.end()) {
+      NewAnnotStringGV = ExistingNewAnnotStringIt->second;
+    } else {
+      Constant *NewAnnotStringData =
+          ConstantDataArray::getString(M.getContext(), NewAnnotString);
+      NewAnnotStringGV = new GlobalVariable(
+          M, NewAnnotStringData->getType(), true, GlobalValue::PrivateLinkage,
+          NewAnnotStringData, ".str", nullptr,
+          llvm::GlobalValue::NotThreadLocal,
+          IntrAnnotStringArg->getType()->getPointerAddressSpace());
+      NewAnnotStringGV->setSection(AnnotStrArgGV->getSection());
+      NewAnnotStringGV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+      ReusableAnnotStrings.insert({NewAnnotString, NewAnnotStringGV});
+    }
+
+    // Replace the annotation string with a bitcast of the new global variable.
+    IntrInst->setArgOperand(
+        1, ConstantExpr::getBitCast(NewAnnotStringGV,
+                                    IntrAnnotStringArg->getType()));
+
+    // The values are now in the annotation string, so we can remove the
+    // original annotation value.
+    PointerType *Arg4PtrTy =
+        cast<PointerType>(IntrInst->getArgOperand(4)->getType());
+    IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   }
 
-  // Replace the annotation string with a bitcast of the new global variable.
-  IntrInst->setArgOperand(
-      1, ConstantExpr::getBitCast(NewAnnotStringGV,
-                                  IntrAnnotStringArg->getType()));
+  if (CacheProp) {
+    LLVMContext &Ctx = M.getContext();
+    unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
+    if (!FPGAProp) {
+      // If there are no annotations other than cache controls we can apply the
+      // controls to the pointer and remove the intrinsic.
+      auto PtrInstr = cast<Instruction>(IntrInst->getArgOperand(0));
+      PtrInstr->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+      // Replace all uses of IntrInst with first operand
+      IntrInst->replaceAllUsesWith(PtrInstr);
+      // Delete the original IntrInst
+      RemovableAnnotations.push_back(IntrInst);
+    } else {
+      // If there were FPGA annotations then we retain the original intrinsic
+      // and apply the cache control properties to its result.
+      IntrInst->setMetadata(MDKindID, MDTuple::get(Ctx, MDOpsCacheProp));
+    }
+  }
 
-  // The values are not in the annotation string, so we can remove the original
-  // annotation value.
-  PointerType *Arg4PtrTy =
-      cast<PointerType>(IntrInst->getArgOperand(4)->getType());
-  IntrInst->setArgOperand(4, ConstantPointerNull::get(Arg4PtrTy));
   return true;
 }

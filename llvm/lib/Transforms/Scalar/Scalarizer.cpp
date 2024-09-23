@@ -36,8 +36,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -342,30 +340,7 @@ private:
   const unsigned ScalarizeMinBits;
 };
 
-class ScalarizerLegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  ScalarizerLegacyPass() : FunctionPass(ID) {
-    initializeScalarizerLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnFunction(Function &F) override;
-
-  void getAnalysisUsage(AnalysisUsage& AU) const override {
-    AU.addRequired<DominatorTreeWrapperPass>();
-    AU.addPreserved<DominatorTreeWrapperPass>();
-  }
-};
-
 } // end anonymous namespace
-
-char ScalarizerLegacyPass::ID = 0;
-INITIALIZE_PASS_BEGIN(ScalarizerLegacyPass, "scalarizer",
-                      "Scalarize vector operations", false, false)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_END(ScalarizerLegacyPass, "scalarizer",
-                    "Scalarize vector operations", false, false)
 
 Scatterer::Scatterer(BasicBlock *bb, BasicBlock::iterator bbi, Value *v,
                      const VectorSplit &VS, ValueVector *cachePtr)
@@ -437,19 +412,6 @@ Value *Scatterer::operator[](unsigned Frag) {
   }
 
   return CV[Frag];
-}
-
-bool ScalarizerLegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  DominatorTree *DT = &getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  ScalarizerVisitor Impl(DT, ScalarizerPassOptions());
-  return Impl.visit(F);
-}
-
-FunctionPass *llvm::createScalarizerPass() {
-  return new ScalarizerLegacyPass();
 }
 
 bool ScalarizerVisitor::visit(Function &F) {
@@ -561,8 +523,8 @@ void ScalarizerVisitor::transferMetadataAndIRFlags(Instruction *Op,
                                                    const ValueVector &CV) {
   SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
   Op->getAllMetadataOtherThanDebugLoc(MDs);
-  for (unsigned I = 0, E = CV.size(); I != E; ++I) {
-    if (Instruction *New = dyn_cast<Instruction>(CV[I])) {
+  for (Value *V : CV) {
+    if (Instruction *New = dyn_cast<Instruction>(V)) {
       for (const auto &MD : MDs)
         if (canTransferMetadata(MD.first))
           New->setMetadata(MD.first, MD.second);
@@ -1145,7 +1107,7 @@ bool ScalarizerVisitor::visitLoadInst(LoadInst &LI) {
     return false;
 
   std::optional<VectorLayout> Layout = getVectorLayout(
-      LI.getType(), LI.getAlign(), LI.getModule()->getDataLayout());
+      LI.getType(), LI.getAlign(), LI.getDataLayout());
   if (!Layout)
     return false;
 
@@ -1171,7 +1133,7 @@ bool ScalarizerVisitor::visitStoreInst(StoreInst &SI) {
 
   Value *FullValue = SI.getValueOperand();
   std::optional<VectorLayout> Layout = getVectorLayout(
-      FullValue->getType(), SI.getAlign(), SI.getModule()->getDataLayout());
+      FullValue->getType(), SI.getAlign(), SI.getDataLayout());
   if (!Layout)
     return false;
 

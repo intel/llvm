@@ -115,3 +115,16 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_sinpi(double x)
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_sinpi, double)
 
 #endif
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEF _CLC_OVERLOAD half __spirv_ocl_sinpi(half x) {
+  float f = x;
+  return __spirv_ocl_sinpi(f);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_sinpi, half)
+
+#endif

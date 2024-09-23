@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // This test checks that compiler doesn't crash if type of kernel argument is
 // invalid.

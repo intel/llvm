@@ -4,7 +4,7 @@
 // Tests that a type with a different alignment from its size does not cause
 // the runtime to reallocate memory.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <vector>
 

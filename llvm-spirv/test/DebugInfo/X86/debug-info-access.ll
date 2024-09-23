@@ -105,9 +105,9 @@ target triple = "spir64-unknown-unknown"
 %class.B = type { i8 }
 %union.U = type { i32 }
 
-@a = global %struct.A zeroinitializer, align 1, !dbg !0
-@b = global %class.B zeroinitializer, align 1, !dbg !11
-@u = global %union.U zeroinitializer, align 4, !dbg !23
+@a = addrspace(1) global %struct.A zeroinitializer, align 1, !dbg !0
+@b = addrspace(1) global %class.B zeroinitializer, align 1, !dbg !11
+@u = addrspace(1) global %union.U zeroinitializer, align 4, !dbg !23
 
 ; Function Attrs: nounwind ssp uwtable
 define void @_Z4freev() #0 !dbg !39 {

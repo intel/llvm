@@ -11,7 +11,6 @@
 
 #include "helper.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
 using namespace sycl;
 
 void check(queue Queue, const int G, const int L, const int D, const int R) {
@@ -70,10 +69,6 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
 }
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   check(Queue, 240, 80, 3, 1);
   check(Queue, 24, 12, 3, 4);
   check(Queue, 1024, 256, 3, 1);

@@ -1,14 +1,15 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 template <typename DType, sycl::image_channel_type CType> class kernel;
 
@@ -56,7 +57,7 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
     // Extension: image descriptor -- number of levels
     unsigned int numLevels = 2;
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height, depth}, sycl::image_channel_order::rgba, CType,
+        {width, height, depth}, 4, CType,
         sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: define a sampler object -- extended mipmap attributes
@@ -95,16 +96,17 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
             size_t dim2 = it.get_local_id(2);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
-            float fdim2 = float(dim2 + 0.5) / (float)depth;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
+            float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
-            // Extension: read mipmap with anisotropic filtering with zero
+            // Extension: sample mipmap with anisotropic filtering with zero
             // viewing gradients
-            VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
-                mipHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0),
-                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f),
-                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f));
+            VecType px1 =
+                sycl::ext::oneapi::experimental::sample_mipmap<VecType>(
+                    mipHandle, sycl::float3(fdim0, fdim1, fdim2),
+                    sycl::float3(0.0f, 0.0f, 0.0f),
+                    sycl::float3(0.0f, 0.0f, 0.0f));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1[0];
           });
@@ -156,13 +158,13 @@ int main() {
 
   failed += runTest<int, sycl::image_channel_type::signed_int32>();
 
-  failed += runTest<uint, sycl::image_channel_type::unsigned_int32>();
+  failed += runTest<unsigned int, sycl::image_channel_type::unsigned_int32>();
 
   failed += runTest<float, sycl::image_channel_type::fp32>();
 
   failed += runTest<short, sycl::image_channel_type::signed_int16>();
 
-  failed += runTest<ushort, sycl::image_channel_type::unsigned_int16>();
+  failed += runTest<unsigned short, sycl::image_channel_type::unsigned_int16>();
 
   failed += runTest<char, sycl::image_channel_type::signed_int8>();
 

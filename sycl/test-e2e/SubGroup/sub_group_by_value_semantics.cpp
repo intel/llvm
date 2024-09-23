@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   bool result = true;

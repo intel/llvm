@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -30,7 +30,9 @@ int main(void) {
 
   Passed &= tests<uint32_t>();
   Passed &= tests<float>();
+#ifdef USE_PVC
   Passed &= tests<sycl::ext::intel::experimental::esimd::tfloat32>();
+#endif
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

@@ -12,7 +12,7 @@
 // RUN: %{build} -fno-sycl-instrument-device-code -DVALUE=2 -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix TWO
 // RUN: env SYCL_USE_KERNEL_SPV=%t.sycl_spir64.spv %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix ONE
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

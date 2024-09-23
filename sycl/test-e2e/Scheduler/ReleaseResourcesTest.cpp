@@ -1,7 +1,8 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
-// XFAIL: hip_nvidia
+// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
+// XFAIL: hip_nvidia, windows
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //
@@ -11,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include "../helpers.hpp"
 
@@ -33,7 +34,7 @@ int main() {
                                      [=](sycl::id<1> Id) { (void)BufAcc[Id]; });
     });
 
-    auto BufHostAcc = Buf.get_access<sycl_access_mode::read>();
+    auto BufHostAcc = Buf.get_host_access();
 
     Queue.wait_and_throw();
 
@@ -45,11 +46,11 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> piContextCreate
-// CHECK:---> piextQueueCreate
-// CHECK:---> piProgramCreate
-// CHECK:---> piKernelCreate
-// CHECK:---> piQueueRelease
-// CHECK:---> piContextRelease
-// CHECK:---> piKernelRelease
-// CHECK:---> piProgramRelease
+// CHECK:---> urContextCreate
+// CHECK:---> urQueueCreate
+// CHECK:---> urProgramCreate
+// CHECK:---> urKernelCreate
+// CHECK:---> urQueueRelease
+// CHECK:---> urContextRelease
+// CHECK:---> urKernelRelease
+// CHECK:---> urProgramRelease

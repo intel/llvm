@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -S %s -o %t
-// RUN: sycl-post-link -split-esimd -lower-esimd -S %t -o %t.table
+// RUN: sycl-post-link -properties -split-esimd -lower-esimd -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
 // The test checks that there are no unexpected extra conversions or intrinsic

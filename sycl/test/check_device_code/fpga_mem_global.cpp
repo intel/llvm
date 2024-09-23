@@ -65,18 +65,12 @@ const intel::fpga_mem<int[10],
 // CHECK: {{.*}}copies = internal addrspace(1) constant {{.*}} zeroinitializer, align 4, !spirv.Decorations ![[copies_md:[0-9]*]]
 // CHECK: {{.*}}replicates = internal addrspace(1) constant {{.*}} zeroinitializer, align 4, !spirv.Decorations ![[replicates_md:[0-9]*]]
 
-int main() {
-  queue Q;
+SYCL_EXTERNAL void fpga_mem_global() {
   int f = 5;
-
-  Q.single_task([=]() {
-    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
-                           double_pumped[f] + single_pumped[f] + mlab[f] +
-                           simple_dual_port[f] + true_dual_port[f] +
-                           block_ram[f] + banks[f] + stride[f] + word[f] +
-                           copies[f] + replicates[f];
-  });
-  return 0;
+  volatile int ReadVal =
+      empty[f] + min_ram[f] + max_fmax[f] + double_pumped[f] +
+      single_pumped[f] + mlab[f] + simple_dual_port[f] + true_dual_port[f] +
+      block_ram[f] + banks[f] + stride[f] + word[f] + copies[f] + replicates[f];
 }
 
 // CHECK: ![[empty_md]] = !{![[mem_default:[0-9]*]]}
@@ -90,13 +84,13 @@ int main() {
 // CHECK: ![[single_pumped_md]] = !{![[single_pumped:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[single_pumped]] = !{i32 5830}
 // CHECK: ![[mlab_md]] = !{![[mlab:[0-9]*]]}
-// CHECK: ![[mlab]] = !{i32 5826, !"mlab"}
+// CHECK: ![[mlab]] = !{i32 5826, !"MLAB"}
 // CHECK: ![[simple_dual_port_md]] = !{![[simple_dual_port:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[simple_dual_port]] = !{i32 5833}
 // CHECK: ![[true_dual_port_md]] = !{![[true_dual_port:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[true_dual_port]] = !{i32 5885}
 // CHECK: ![[block_ram_md]] = !{![[block_ram:[0-9]*]]}
-// CHECK: ![[block_ram]] = !{i32 5826, !"block_ram"}
+// CHECK: ![[block_ram]] = !{i32 5826, !"BLOCK_RAM"}
 // CHECK: ![[banks_md]] = !{![[banks:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[banks]] = !{i32 5827, i32 4}
 // CHECK: ![[stride_md]] = !{![[mem_default]], ![[stride:[0-9]*]]}

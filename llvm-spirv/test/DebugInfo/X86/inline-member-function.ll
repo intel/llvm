@@ -50,7 +50,7 @@ source_filename = "test/DebugInfo/X86/inline-member-function.ll"
 
 %struct.foo = type { i8 }
 
-@i = global i32 0, align 4, !dbg !0
+@i = addrspace(1) global i32 0, align 4, !dbg !0
 
 ; Function Attrs: uwtable
 define i32 @main() #0 !dbg !17 {
@@ -60,7 +60,7 @@ entry:
   %retval = alloca i32, align 4
   %tmp = alloca %struct.foo, align 1
   store i32 0, ptr %retval
-  %0 = load i32, ptr @i, align 4, !dbg !20
+  %0 = load i32, ptr addrspace(1) @i, align 4, !dbg !20
   store ptr %tmp, ptr %this.addr.i, align 8
   call void @llvm.dbg.declare(metadata ptr %this.addr.i, metadata !21, metadata !24), !dbg !25
   store i32 %0, ptr %x.addr.i, align 4

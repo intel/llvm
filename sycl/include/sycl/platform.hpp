@@ -8,26 +8,29 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                   // for aspect
-#include <sycl/backend_types.hpp>             // for backend, backend_return_t
-#include <sycl/context.hpp>                   // for context
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_platform_info_desc
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
-#include <sycl/info/info_desc.hpp>            // for device_type
+#include <sycl/aspects.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
 #endif
 
-#include <cstddef> // for size_t
-#include <memory>  // for shared_ptr, hash, opera...
-#include <string>  // for string
-#include <variant> // for hash
-#include <vector>  // for vector
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <variant>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -51,6 +54,39 @@ class platform_impl;
 ///
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
+
+template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
+    return detail::string{Info};
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
+    std::vector<detail::string> Res;
+    Res.reserve(Info.size());
+    for (std::string &Str : Info) {
+      Res.push_back(detail::string{Str});
+    }
+    return Res;
+  } else {
+    return std::forward<ParamT>(Info);
+  }
+}
+
+template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
+    return Info.c_str();
+  } else if constexpr (std::is_same_v<ParamNoRef,
+                                      std::vector<detail::string>>) {
+    std::vector<std::string> Res;
+    Res.reserve(Info.size());
+    for (detail::string &Str : Info) {
+      Res.push_back(Str.c_str());
+    }
+    return Res;
+  } else {
+    return std::forward<ParamT>(Info);
+  }
+}
 } // namespace detail
 namespace ext::oneapi {
 // Forward declaration
@@ -121,14 +157,9 @@ public:
   /// \return true if specified extension is supported by this SYCL platform.
   __SYCL2020_DEPRECATED(
       "use platform::has() function with aspects APIs instead")
-  bool has_extension(const std::string &ExtensionName) const;
-
-  /// Checks if this SYCL platform is a host platform.
-  ///
-  /// \return true if this SYCL platform is a host platform.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
+  bool has_extension(const std::string &ExtensionName) const {
+    return has_extension(detail::string_view{ExtensionName});
+  }
 
   /// Returns all SYCL devices associated with this platform.
   ///
@@ -145,7 +176,16 @@ public:
   ///
   /// The return type depends on information being queried.
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const {
+    return detail::convert_from_abi_neutral(get_info_impl<Param>());
+  }
+
+  /// Queries this SYCL platform for SYCL backend-specific info.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
 
   /// Returns all available SYCL platforms in the system.
   ///
@@ -153,6 +193,11 @@ public:
   ///
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
+
+  /// Returns all unsupported (non-SYCL) platforms in the system.
+  ///
+  /// \return a vector of all unsupported non-SYCL platforms.
+  static std::vector<platform> get_unsupported_platforms();
 
   /// Returns the backend associated with this platform.
   ///
@@ -188,8 +233,10 @@ public:
   /// \return the default context
   context ext_oneapi_get_default_context() const;
 
+  std::vector<device> ext_oneapi_get_composite_devices() const;
+
 private:
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
@@ -199,11 +246,19 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <typename Param>
+  typename detail::ABINeutralT_t<
+      typename detail::is_platform_info_desc<Param>::return_type>
+  get_info_impl() const;
+
+  bool has_extension(detail::string_view ExtensionName) const;
 }; // class platform
 } // namespace _V1
 } // namespace sycl

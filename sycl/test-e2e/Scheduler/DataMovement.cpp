@@ -12,7 +12,7 @@
 // The test checks that no additional host allocation is performed by the SYCL
 // RT if host ptr is used
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <vector>
 
@@ -71,7 +71,7 @@ int main() {
 
   Queue1.wait_and_throw();
 
-  { auto HostAcc = Buf.get_access<sycl_access_mode::read>(); }
+  { sycl::host_accessor HostAcc(Buf, sycl::read_only); }
 
   Queue2.submit([&](sycl::handler &CGH) {
     auto BufAcc = Buf.get_access<sycl_access_mode::read_write>(CGH);
@@ -80,7 +80,7 @@ int main() {
 
   Queue2.wait_and_throw();
 
-  { auto HostAcc = Buf.get_access<sycl_access_mode::read>(); }
+  { sycl::host_accessor HostAcc(Buf, sycl::read_only); }
 
   return 0;
 }

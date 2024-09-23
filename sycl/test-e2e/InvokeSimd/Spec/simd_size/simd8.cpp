@@ -1,7 +1,5 @@
-// Test not intended to run on PVC
-// UNSUPPORTED: gpu-intel-pvc
-//
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// REQUIRES: sg-8
 //
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
@@ -19,7 +17,7 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
-#include "../../invoke_simd_utils.hpp"
+#include "../../../ESIMD/esimd_test_utils.hpp"
 #include "Inputs/common.hpp"
 
 int main(void) {

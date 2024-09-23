@@ -13,10 +13,12 @@
 #ifndef LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 #define LLVM_CLANG_BASIC_CODEGENOPTIONS_H
 
+#include "clang/Basic/PointerAuthOptions.h"
 #include "clang/Basic/Sanitizers.h"
 #include "clang/Basic/XRayInstr.h"
 #include "llvm/ADT/FloatingPointMode.h"
 #include "llvm/Frontend/Debug/Options.h"
+#include "llvm/Frontend/Driver/CodeGenOptions.h"
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Target/TargetOptions.h"
@@ -26,6 +28,9 @@
 #include <string>
 #include <vector>
 
+namespace llvm {
+class PassBuilder;
+}
 namespace clang {
 
 /// Bitfields of CodeGenOptions, split out from CodeGenOptions to ensure
@@ -53,17 +58,6 @@ public:
     NormalInlining,     // Use the standard function inlining pass.
     OnlyHintInlining,   // Inline only (implicitly) hinted functions.
     OnlyAlwaysInlining  // Only run the always inlining pass.
-  };
-
-  enum VectorLibrary {
-    NoLibrary,  // Don't use any vector library.
-    Accelerate, // Use the Accelerate framework.
-    LIBMVEC,    // GLIBC vector math library.
-    MASSV,      // IBM MASS vector library.
-    SVML,       // Intel short vector math library.
-    SLEEF,      // SLEEF SIMD Library for Evaluating Elementary Functions.
-    Darwin_libsystem_m, // Use Darwin's libsytem_m vector functions.
-    ArmPL               // Arm Performance Libraries.
   };
 
   enum AltMathLibrary {
@@ -140,15 +134,18 @@ public:
   std::string BinutilsVersion;
 
   enum class FramePointerKind {
-    None,        // Omit all frame pointers.
-    NonLeaf,     // Keep non-leaf frame pointers.
-    All,         // Keep all frame pointers.
+    None,     // Omit all frame pointers.
+    Reserved, // Maintain valid frame pointer chain.
+    NonLeaf,  // Keep non-leaf frame pointers.
+    All,      // Keep all frame pointers.
   };
 
   static StringRef getFramePointerKindName(FramePointerKind Kind) {
     switch (Kind) {
     case FramePointerKind::None:
       return "none";
+    case FramePointerKind::Reserved:
+      return "reserved";
     case FramePointerKind::NonLeaf:
       return "non-leaf";
     case FramePointerKind::All:
@@ -260,9 +257,6 @@ public:
   /// in situations where the input file name does not match the original input
   /// file, for example with -save-temps.
   std::string MainFileName;
-
-  /// The user provided name for the "main file", with its full path.
-  std::string FullMainFileName;
 
   /// The name for the split debug info file used for the DW_AT_[GNU_]dwo_name
   /// attribute in the skeleton CU.
@@ -404,6 +398,9 @@ public:
 
   std::vector<std::string> Reciprocals;
 
+  /// Configuration for pointer-signing.
+  PointerAuthOptions PointerAuth;
+
   /// The preferred width for auto-vectorization transforms. This is intended to
   /// override default transforms based on the width of the architected vector
   /// registers.
@@ -416,6 +413,15 @@ public:
 
   /// List of dynamic shared object files to be loaded as pass plugins.
   std::vector<std::string> PassPlugins;
+
+  /// List of pass builder callbacks.
+  std::vector<std::function<void(llvm::PassBuilder &)>> PassBuilderCallbacks;
+
+  /// List of global variables explicitly specified by the user as toc-data.
+  std::vector<std::string> TocDataVarsUserSpecified;
+
+  /// List of global variables that over-ride the toc-data default.
+  std::vector<std::string> NoTocDataVars;
 
   /// Path to allowlist file specifying which objects
   /// (files, functions) should exclusively be instrumented
@@ -507,6 +513,9 @@ public:
     return getProfileInstr() == ProfileCSIRInstr;
   }
 
+  /// Check if any form of instrumentation is on.
+  bool hasProfileInstr() const { return getProfileInstr() != ProfileNone; }
+
   /// Check if Clang profile use is on.
   bool hasProfileClangUse() const {
     return getProfileUse() == ProfileClangInstr;
@@ -543,6 +552,10 @@ public:
     return SanitizeBinaryMetadataCovered || SanitizeBinaryMetadataAtomics ||
            SanitizeBinaryMetadataUAR;
   }
+
+  /// Reset all of the options that are not considered when building a
+  /// module.
+  void resetNonModularOptions(StringRef ModuleFormat);
 };
 
 }  // end namespace clang

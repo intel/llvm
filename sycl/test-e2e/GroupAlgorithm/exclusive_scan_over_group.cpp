@@ -7,13 +7,17 @@
 
 #include <algorithm>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
-template <typename T>
-sycl::event compiler_group_scan_impl(sycl::queue *queue, T *in_data,
-                                     T *out_data, int num_wg, int group_size) {
+template <typename T, typename AccessorT>
+sycl::event compiler_group_scan_impl(sycl::queue *queue, AccessorT &in_data,
+                                     AccessorT &out_data, int num_wg,
+                                     int group_size) {
   sycl::nd_range<1> thread_range(num_wg * group_size, group_size);
   sycl::event event = queue->submit([&](sycl::handler &cgh) {
+    cgh.require(in_data);
+    cgh.require(out_data);
     cgh.parallel_for(thread_range, [=](sycl::nd_item<1> item) {
       auto id = item.get_global_linear_id();
       auto group = item.get_group();
@@ -27,33 +31,35 @@ sycl::event compiler_group_scan_impl(sycl::queue *queue, T *in_data,
   return event;
 }
 
-template <typename T>
-void test_compiler_group_scan(sycl::queue *queue, T *in_data, T *out_data,
-                              int num_wg, int group_size) {
-  compiler_group_scan_impl(queue, in_data, out_data, num_wg, group_size);
+template <typename T, typename AccessorT>
+void test_compiler_group_scan(sycl::queue *queue, AccessorT &in_data,
+                              AccessorT &out_data, int num_wg, int group_size) {
+  compiler_group_scan_impl<T>(queue, in_data, out_data, num_wg, group_size);
 }
 
 int main(int argc, const char **argv) {
-  int num_wg = 1;
-  int group_size = 16;
+  constexpr int num_wg = 1;
+  constexpr int group_size = 16;
 
   sycl::queue queue;
-
-  typedef int T;
-  size_t nelems = num_wg * group_size;
-  T *data = sycl::malloc_shared<T>(nelems, queue);
-  T *result = sycl::malloc_shared<T>(nelems, queue);
-  queue.fill<T>(data, T(2), nelems).wait();
-  queue.memset(result, 0, nelems * sizeof(T)).wait();
-
-  test_compiler_group_scan(&queue, data, result, num_wg, group_size);
-  queue.wait();
-  T expected[] = {1,   2,   4,    8,    16,   32,   64,    128,
-                  256, 512, 1024, 2048, 4096, 8192, 16384, 32768};
-  for (int i = 0; i < sizeof(expected) / sizeof(T); ++i) {
-    assert(result[i] == expected[i]);
+  constexpr size_t nelems = num_wg * group_size;
+  int data[nelems];
+  int result[nelems];
+  for (size_t i = 0; i < nelems; ++i) {
+    data[i] = 2;
+    result[i] = 0;
   }
-  sycl::free(data, queue);
-  sycl::free(result, queue);
+  sycl::buffer<int> data_buf{&data[0], sycl::range{nelems}};
+  sycl::buffer<int> result_buf{&result[0], sycl::range{nelems}};
+  sycl::accessor data_acc{data_buf};
+  sycl::accessor result_acc{result_buf};
+  test_compiler_group_scan<int>(&queue, data_acc, result_acc, num_wg,
+                                group_size);
+  sycl::host_accessor result_host{result_buf};
+  int expected[] = {1,   2,   4,    8,    16,   32,   64,    128,
+                    256, 512, 1024, 2048, 4096, 8192, 16384, 32768};
+  for (int i = 0; i < sizeof(expected) / sizeof(int); ++i) {
+    assert(result_host[i] == expected[i]);
+  }
   return 0;
 }

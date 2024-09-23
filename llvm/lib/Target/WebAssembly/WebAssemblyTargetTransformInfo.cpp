@@ -40,11 +40,11 @@ TypeSize WebAssemblyTTIImpl::getRegisterBitWidth(
     TargetTransformInfo::RegisterKind K) const {
   switch (K) {
   case TargetTransformInfo::RGK_Scalar:
-    return TypeSize::Fixed(64);
+    return TypeSize::getFixed(64);
   case TargetTransformInfo::RGK_FixedWidthVector:
-    return TypeSize::Fixed(getST()->hasSIMD128() ? 128 : 64);
+    return TypeSize::getFixed(getST()->hasSIMD128() ? 128 : 64);
   case TargetTransformInfo::RGK_ScalableVector:
-    return TypeSize::Scalable(0);
+    return TypeSize::getScalable(0);
   }
 
   llvm_unreachable("Unsupported register kind");
@@ -92,6 +92,18 @@ WebAssemblyTTIImpl::getVectorInstrCost(unsigned Opcode, Type *Val,
     return Cost + 25 * TargetTransformInfo::TCC_Expensive;
 
   return Cost;
+}
+
+TTI::ReductionShuffle WebAssemblyTTIImpl::getPreferredExpandedReductionShuffle(
+    const IntrinsicInst *II) const {
+
+  switch (II->getIntrinsicID()) {
+  default:
+    break;
+  case Intrinsic::vector_reduce_fadd:
+    return TTI::ReductionShuffle::Pairwise;
+  }
+  return TTI::ReductionShuffle::SplitHalf;
 }
 
 bool WebAssemblyTTIImpl::areInlineCompatible(const Function *Caller,

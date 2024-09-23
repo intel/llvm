@@ -1,11 +1,12 @@
 // REQUIRES: gpu
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
-// XFAIL: hip_nvidia
+// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
+// XFAIL: hip_nvidia, windows
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   const auto GlobalRange = 1;
@@ -31,4 +32,4 @@ int main() {
   return 0;
 }
 
-// CHECK:---> piContextRelease(
+// CHECK:---> urContextRelease(

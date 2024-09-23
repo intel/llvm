@@ -1,11 +1,11 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -15,7 +15,7 @@ class image_addition;
 int main() {
 
 #if defined(SYCL_EXT_ONEAPI_BINDLESS_IMAGES)
-  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 1);
+  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 6);
 #if defined(VERBOSE_PRINT)
   std::cout << "SYCL_EXT_ONEAPI_BINDLESS_IMAGES is defined!" << std::endl;
 #endif
@@ -43,7 +43,7 @@ int main() {
   try {
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::r, sycl::image_channel_type::fp32);
+        {width}, 1, sycl::image_channel_type::fp32);
 
     sycl::ext::oneapi::experimental::bindless_image_sampler samp(
         sycl::addressing_mode::repeat,
@@ -67,10 +67,10 @@ int main() {
 
       cgh.parallel_for<image_addition>(N, [=](sycl::id<1> id) {
         // Normalize coordinate -- +0.5 to look towards centre of pixel
-        float x = float(id[0] + 0.5) / (float)N;
-        // Extension: read image data from handle
+        float x = float(id[0] + 0.5f) / (float)N;
+        // Extension: sample image data from handle
         float px1 =
-            sycl::ext::oneapi::experimental::read_image<float>(imgHandle, x);
+            sycl::ext::oneapi::experimental::sample_image<float>(imgHandle, x);
 
         outAcc[id] = px1;
       });
@@ -112,6 +112,6 @@ int main() {
     return 0;
   }
 
-  std::cout << "Test passed!" << std::endl;
+  std::cout << "Test failed!" << std::endl;
   return 3;
 }

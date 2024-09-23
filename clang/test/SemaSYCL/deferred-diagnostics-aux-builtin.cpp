@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -aux-triple x86_64-unknown-linux-gnu -Wno-sycl-2017-compat -verify -fsyntax-only  %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -aux-triple x86_64-unknown-linux-gnu -verify -fsyntax-only  %s
 
 #include "sycl.hpp"
 

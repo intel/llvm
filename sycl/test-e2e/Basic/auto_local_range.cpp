@@ -2,7 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <cstdlib>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
 
 template <size_t... Args> bool testAutoLocalRange() {
   constexpr int Dimensions = sizeof...(Args);

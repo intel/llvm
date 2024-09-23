@@ -41,3 +41,17 @@ _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_ilogb(double x) {
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, double);
 
 #endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEF _CLC_OVERLOAD int __spirv_ocl_ilogb(half x) {
+  float f = x;
+  return __spirv_ocl_ilogb(f);
+}
+
+_CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_ilogb, half)
+
+
+#endif

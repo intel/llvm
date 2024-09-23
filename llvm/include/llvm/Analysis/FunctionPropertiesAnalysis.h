@@ -14,12 +14,12 @@
 #ifndef LLVM_ANALYSIS_FUNCTIONPROPERTIESANALYSIS_H
 #define LLVM_ANALYSIS_FUNCTIONPROPERTIESANALYSIS_H
 
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/ADT/iterator_range.h"
-#include "llvm/IR/InstrTypes.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/IR/PassManager.h"
 
 namespace llvm {
+class BasicBlock;
+class CallBase;
 class DominatorTree;
 class Function;
 class LoopInfo;
@@ -158,6 +158,8 @@ public:
   explicit FunctionPropertiesPrinterPass(raw_ostream &OS) : OS(OS) {}
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
+
+  static bool isRequired() { return true; }
 };
 
 /// Correctly update FunctionPropertiesInfo post-inlining. A

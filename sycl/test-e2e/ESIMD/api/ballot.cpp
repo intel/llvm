@@ -12,14 +12,9 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <algorithm>
 #include <array>
-#include <iostream>
 #include <random>
 #include <sycl/builtins_esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel;
@@ -71,15 +66,13 @@ template <class T, int N> bool test(queue &Q) {
 template <class T> bool test(queue &Q) {
   bool Pass = true;
 
-  // TODO: uncomment calls below once simd<...>.copy_from() starts supporting
-  // sizes other than 8, 16 and 32.
-  //  Pass &= test<T, 4>(Q);
+  Pass &= test<T, 4>(Q);
   Pass &= test<T, 8>(Q);
-  //  Pass &= test<T, 12>(Q);
+  Pass &= test<T, 12>(Q);
   Pass &= test<T, 16>(Q);
-  //  Pass &= test<T, 20>(Q);
-  //  Pass &= test<T, 24>(Q);
-  //  Pass &= test<T, 28>(Q);
+  Pass &= test<T, 20>(Q);
+  Pass &= test<T, 24>(Q);
+  Pass &= test<T, 28>(Q);
   Pass &= test<T, 32>(Q);
 
   return Pass;

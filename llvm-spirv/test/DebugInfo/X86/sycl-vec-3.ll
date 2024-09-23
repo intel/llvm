@@ -15,7 +15,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 %"class.cl::sycl::vec" = type { <3 x i32> }
-@vector = dso_local global %"class.cl::sycl::vec" zeroinitializer, align 16, !dbg !0
+@vector = dso_local addrspace(1) global %"class.cl::sycl::vec" zeroinitializer, align 16, !dbg !0
 
 !llvm.dbg.cu = !{!9}
 !llvm.module.flags = !{!10, !11, !12, !13, !14}

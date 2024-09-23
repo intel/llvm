@@ -795,7 +795,6 @@ function. The operand fields are:
   * ``ccc``: code 0
   * ``fastcc``: code 8
   * ``coldcc``: code 9
-  * ``webkit_jscc``: code 12
   * ``anyregcc``: code 13
   * ``preserve_mostcc``: code 14
   * ``preserve_allcc``: code 15
@@ -1292,7 +1291,7 @@ TYPE_CODE_X86_MMX Record
 
 ``[X86_MMX]``
 
-The ``X86_MMX`` record (code 17) adds an ``x86_mmx`` type to the type table.
+The ``X86_MMX`` record (code 17) is deprecated, and imported as a <1 x i64> vector.
 
 TYPE_CODE_STRUCT_ANON Record
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

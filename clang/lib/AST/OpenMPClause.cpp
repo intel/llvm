@@ -130,6 +130,7 @@ const OMPClauseWithPreInit *OMPClauseWithPreInit::get(const OMPClause *C) {
   case OMPC_update:
   case OMPC_capture:
   case OMPC_compare:
+  case OMPC_fail:
   case OMPC_seq_cst:
   case OMPC_acq_rel:
   case OMPC_acquire:
@@ -227,6 +228,7 @@ const OMPClauseWithPostUpdate *OMPClauseWithPostUpdate::get(const OMPClause *C) 
   case OMPC_update:
   case OMPC_capture:
   case OMPC_compare:
+  case OMPC_fail:
   case OMPC_seq_cst:
   case OMPC_acq_rel:
   case OMPC_acquire:
@@ -1718,6 +1720,77 @@ const Expr *OMPDoacrossClause::getLoopData(unsigned NumLoop) const {
   return *It;
 }
 
+OMPAbsentClause *OMPAbsentClause::Create(const ASTContext &C,
+                                         ArrayRef<OpenMPDirectiveKind> DKVec,
+                                         SourceLocation Loc,
+                                         SourceLocation LLoc,
+                                         SourceLocation RLoc) {
+  void *Mem = C.Allocate(totalSizeToAlloc<OpenMPDirectiveKind>(DKVec.size()),
+                         alignof(OMPAbsentClause));
+  auto *AC = new (Mem) OMPAbsentClause(Loc, LLoc, RLoc, DKVec.size());
+  AC->setDirectiveKinds(DKVec);
+  return AC;
+}
+
+OMPAbsentClause *OMPAbsentClause::CreateEmpty(const ASTContext &C, unsigned K) {
+  void *Mem = C.Allocate(totalSizeToAlloc<OpenMPDirectiveKind>(K),
+                         alignof(OMPAbsentClause));
+  return new (Mem) OMPAbsentClause(K);
+}
+
+OMPContainsClause *OMPContainsClause::Create(
+    const ASTContext &C, ArrayRef<OpenMPDirectiveKind> DKVec,
+    SourceLocation Loc, SourceLocation LLoc, SourceLocation RLoc) {
+  void *Mem = C.Allocate(totalSizeToAlloc<OpenMPDirectiveKind>(DKVec.size()),
+                         alignof(OMPContainsClause));
+  auto *CC = new (Mem) OMPContainsClause(Loc, LLoc, RLoc, DKVec.size());
+  CC->setDirectiveKinds(DKVec);
+  return CC;
+}
+
+OMPContainsClause *OMPContainsClause::CreateEmpty(const ASTContext &C,
+                                                  unsigned K) {
+  void *Mem = C.Allocate(totalSizeToAlloc<OpenMPDirectiveKind>(K),
+                         alignof(OMPContainsClause));
+  return new (Mem) OMPContainsClause(K);
+}
+
+OMPNumTeamsClause *OMPNumTeamsClause::Create(
+    const ASTContext &C, OpenMPDirectiveKind CaptureRegion,
+    SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc,
+    ArrayRef<Expr *> VL, Stmt *PreInit) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(VL.size()));
+  OMPNumTeamsClause *Clause =
+      new (Mem) OMPNumTeamsClause(C, StartLoc, LParenLoc, EndLoc, VL.size());
+  Clause->setVarRefs(VL);
+  Clause->setPreInitStmt(PreInit, CaptureRegion);
+  return Clause;
+}
+
+OMPNumTeamsClause *OMPNumTeamsClause::CreateEmpty(const ASTContext &C,
+                                                  unsigned N) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(N));
+  return new (Mem) OMPNumTeamsClause(N);
+}
+
+OMPThreadLimitClause *OMPThreadLimitClause::Create(
+    const ASTContext &C, OpenMPDirectiveKind CaptureRegion,
+    SourceLocation StartLoc, SourceLocation LParenLoc, SourceLocation EndLoc,
+    ArrayRef<Expr *> VL, Stmt *PreInit) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(VL.size()));
+  OMPThreadLimitClause *Clause =
+      new (Mem) OMPThreadLimitClause(C, StartLoc, LParenLoc, EndLoc, VL.size());
+  Clause->setVarRefs(VL);
+  Clause->setPreInitStmt(PreInit, CaptureRegion);
+  return Clause;
+}
+
+OMPThreadLimitClause *OMPThreadLimitClause::CreateEmpty(const ASTContext &C,
+                                                        unsigned N) {
+  void *Mem = C.Allocate(totalSizeToAlloc<Expr *>(N));
+  return new (Mem) OMPThreadLimitClause(N);
+}
+
 //===----------------------------------------------------------------------===//
 //  OpenMP clauses printing methods
 //===----------------------------------------------------------------------===//
@@ -1925,6 +1998,59 @@ void OMPClausePrinter::VisitOMPCompareClause(OMPCompareClause *) {
   OS << "compare";
 }
 
+void OMPClausePrinter::VisitOMPFailClause(OMPFailClause *Node) {
+  OS << "fail";
+  if (Node) {
+    OS << "(";
+    OS << getOpenMPSimpleClauseTypeName(
+        Node->getClauseKind(), static_cast<int>(Node->getFailParameter()));
+    OS << ")";
+  }
+}
+
+void OMPClausePrinter::VisitOMPAbsentClause(OMPAbsentClause *Node) {
+  OS << "absent(";
+  bool First = true;
+  for (auto &D : Node->getDirectiveKinds()) {
+    if (!First)
+      OS << ", ";
+    OS << getOpenMPDirectiveName(D);
+    First = false;
+  }
+  OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPHoldsClause(OMPHoldsClause *Node) {
+  OS << "holds(";
+  Node->getExpr()->printPretty(OS, nullptr, Policy, 0);
+  OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPContainsClause(OMPContainsClause *Node) {
+  OS << "contains(";
+  bool First = true;
+  for (auto &D : Node->getDirectiveKinds()) {
+    if (!First)
+      OS << ", ";
+    OS << getOpenMPDirectiveName(D);
+    First = false;
+  }
+  OS << ")";
+}
+
+void OMPClausePrinter::VisitOMPNoOpenMPClause(OMPNoOpenMPClause *) {
+  OS << "no_openmp";
+}
+
+void OMPClausePrinter::VisitOMPNoOpenMPRoutinesClause(
+    OMPNoOpenMPRoutinesClause *) {
+  OS << "no_openmp_routines";
+}
+
+void OMPClausePrinter::VisitOMPNoParallelismClause(OMPNoParallelismClause *) {
+  OS << "no_parallelism";
+}
+
 void OMPClausePrinter::VisitOMPSeqCstClause(OMPSeqCstClause *) {
   OS << "seq_cst";
 }
@@ -1945,6 +2071,8 @@ void OMPClausePrinter::VisitOMPRelaxedClause(OMPRelaxedClause *) {
   OS << "relaxed";
 }
 
+void OMPClausePrinter::VisitOMPWeakClause(OMPWeakClause *) { OS << "weak"; }
+
 void OMPClausePrinter::VisitOMPThreadsClause(OMPThreadsClause *) {
   OS << "threads";
 }
@@ -1963,15 +2091,19 @@ void OMPClausePrinter::VisitOMPDeviceClause(OMPDeviceClause *Node) {
 }
 
 void OMPClausePrinter::VisitOMPNumTeamsClause(OMPNumTeamsClause *Node) {
-  OS << "num_teams(";
-  Node->getNumTeams()->printPretty(OS, nullptr, Policy, 0);
-  OS << ")";
+  if (!Node->varlist_empty()) {
+    OS << "num_teams";
+    VisitOMPClauseList(Node, '(');
+    OS << ")";
+  }
 }
 
 void OMPClausePrinter::VisitOMPThreadLimitClause(OMPThreadLimitClause *Node) {
-  OS << "thread_limit(";
-  Node->getThreadLimit()->printPretty(OS, nullptr, Policy, 0);
-  OS << ")";
+  if (!Node->varlist_empty()) {
+    OS << "thread_limit";
+    VisitOMPClauseList(Node, '(');
+    OS << ")";
+  }
 }
 
 void OMPClausePrinter::VisitOMPPriorityClause(OMPPriorityClause *Node) {

@@ -6,10 +6,12 @@
 // UNSUPPORTED: gpu-intel-gen9 && windows
 
 // RUN: %{build} -o %t.out
-// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::experimental;

@@ -16,13 +16,13 @@ target triple = "spir"
 ; SPV-DAG: EntryPoint 6 [[K_RTE:[0-9]+]] "k_rte"
 ; SPV-DAG: Decorate [[K_RTE]] SIMTCallINTEL 5
 
-@in = internal global <256 x i8> undef, align 256 #0
-declare <256 x i8> @llvm.genx.vload(ptr nonnull %aaa)
+@in = internal addrspace(1) global <256 x i8> undef, align 256 #0
+declare <256 x i8> @llvm.genx.vload(ptr addrspace(1) nonnull %aaa)
 
 ; Function Attrs: noinline norecurse nounwind readnone
 define dso_local dllexport spir_kernel void @k_rte(i32 %ibuf, i32 %obuf) local_unnamed_addr #1 {
 entry:
-  %gload53 = tail call <256 x i8> @llvm.genx.vload(ptr nonnull @in)
+  %gload53 = tail call <256 x i8> @llvm.genx.vload(ptr addrspace(1) nonnull @in)
   ret void
 }
 

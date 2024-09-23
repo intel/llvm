@@ -6,7 +6,5 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Temporarily disabled due to flaky behavior
-// REQUIRES: TEMPORARY_DISABLED
 // RUN: %clangxx -fsycl -Xs "-stateless-stack-mem-size=131072" -I%S/.. %S/Inputs/pm_common.cpp -o %t.out
 // RUN: %{run} %t.out 2

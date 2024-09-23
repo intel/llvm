@@ -1,17 +1,15 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // This e2e test checks the alignment of the annotated USM allocation (host &
 // device) in various cases
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_device.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_host.hpp>
 
 #include <complex>
 #include <numeric>
-
-// clang-format on
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;
@@ -375,10 +373,10 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       // 2),
       // nullptr is returned
       ,
-      [&]() { return TDevice(q, properties{alignment<5>}); },
-      [&]() { return TDevice(dev, Ctx, properties{alignment<10>}); },
-      [&]() { return THost(q, properties{alignment<25>}); },
-      [&]() { return THost(Ctx, properties{alignment<50>}); },
+      [&]() { return TDevice(q, properties{alignment<75>}); },
+      [&]() { return TDevice(dev, Ctx, properties{alignment<100>}); },
+      [&]() { return THost(q, properties{alignment<205>}); },
+      [&]() { return THost(Ctx, properties{alignment<500>}); },
       [&]() {
         return TAnnotated(q, alloc::device, properties{alignment<127>});
       },
@@ -405,18 +403,23 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       // alignment
       // argument is not a power of 2, the result is nullptr
       ,
-      [&]() { return ATDevice(3, q); },
-      [&]() { return ATDevice(7, dev, Ctx); },
-      [&]() { return ATHost(7, q); },
-      [&]() { return ATHost(9, Ctx); },
-      [&]() { return ATAnnotated(15, q, alloc::device); },
-      [&]() { return ATAnnotated(17, dev, Ctx, alloc::host); }});
+      [&]() { return ATDevice(65, q); },
+      [&]() { return ATDevice(70, dev, Ctx); },
+      [&]() { return ATHost(174, q); },
+      [&]() { return ATHost(299, Ctx); },
+      [&]() { return ATAnnotated(550, q, alloc::device); },
+      [&]() { return ATAnnotated(1700, dev, Ctx, alloc::host); }});
 }
+
+struct alignas(64) MyStruct {
+  int x;
+};
 
 int main() {
   sycl::queue q;
   testAlign<char>(q, 4);
   testAlign<int>(q, 128);
   testAlign<std::complex<double>>(q, 4);
+  testAlign<MyStruct>(q, 4);
   return 0;
 }

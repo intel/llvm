@@ -113,19 +113,7 @@ public:
                             eCommandRequiresThread | eCommandTryTargetAPILock |
                                 eCommandProcessMustBeLaunched |
                                 eCommandProcessMustBePaused) {
-    CommandArgumentEntry arg;
-    CommandArgumentData index_arg;
-
-    // Define the first (and only) variant of this arg.
-    index_arg.arg_type = eArgTypeFrameIndex;
-    index_arg.arg_repetition = eArgRepeatOptional;
-
-    // There is only one variant this argument could be; put it into the
-    // argument entry.
-    arg.push_back(index_arg);
-
-    // Push the data for the first argument into the m_arguments vector.
-    m_arguments.push_back(arg);
+    AddSimpleArgumentList(eArgTypeFrameIndex, eArgRepeatOptional);
   }
 
   ~CommandObjectFrameDiagnose() override = default;
@@ -177,9 +165,13 @@ protected:
 
     DumpValueObjectOptions options;
     options.SetDeclPrintingHelper(helper);
-    ValueObjectPrinter printer(valobj_sp.get(), &result.GetOutputStream(),
+    // We've already handled the case where the value object sp is null, so
+    // this is just to make sure future changes don't skip that:
+    assert(valobj_sp.get() && "Must have a valid ValueObject to print");
+    ValueObjectPrinter printer(*valobj_sp, &result.GetOutputStream(),
                                options);
-    printer.PrintValueObject();
+    if (llvm::Error error = printer.PrintValueObject())
+      result.AppendError(toString(std::move(error)));
   }
 
   CommandOptions m_options;
@@ -266,32 +258,10 @@ public:
                             eCommandRequiresThread | eCommandTryTargetAPILock |
                                 eCommandProcessMustBeLaunched |
                                 eCommandProcessMustBePaused) {
-    CommandArgumentEntry arg;
-    CommandArgumentData index_arg;
-
-    // Define the first (and only) variant of this arg.
-    index_arg.arg_type = eArgTypeFrameIndex;
-    index_arg.arg_repetition = eArgRepeatOptional;
-
-    // There is only one variant this argument could be; put it into the
-    // argument entry.
-    arg.push_back(index_arg);
-
-    // Push the data for the first argument into the m_arguments vector.
-    m_arguments.push_back(arg);
+    AddSimpleArgumentList(eArgTypeFrameIndex, eArgRepeatOptional);
   }
 
   ~CommandObjectFrameSelect() override = default;
-
-  void
-  HandleArgumentCompletion(CompletionRequest &request,
-                           OptionElementVector &opt_element_vector) override {
-    if (request.GetCursorIndex() != 0)
-      return;
-
-    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), lldb::eFrameIndexCompletion, request, nullptr);
-  }
 
   Options *GetOptions() override { return &m_options; }
 
@@ -416,19 +386,7 @@ However, 'frame variable' is more efficient, since it uses debug information and
 memory reads directly, rather than parsing and evaluating an expression, which
 may even involve JITing and running code in the target program.)");
 
-    CommandArgumentEntry arg;
-    CommandArgumentData var_name_arg;
-
-    // Define the first (and only) variant of this arg.
-    var_name_arg.arg_type = eArgTypeVarName;
-    var_name_arg.arg_repetition = eArgRepeatStar;
-
-    // There is only one variant this argument could be; put it into the
-    // argument entry.
-    arg.push_back(var_name_arg);
-
-    // Push the data for the first argument into the m_arguments vector.
-    m_arguments.push_back(arg);
+    AddSimpleArgumentList(eArgTypeVarName, eArgRepeatStar);
 
     m_option_group.Append(&m_option_variable, LLDB_OPT_SET_ALL, LLDB_OPT_SET_1);
     m_option_group.Append(&m_option_format,
@@ -442,15 +400,6 @@ may even involve JITing and running code in the target program.)");
   ~CommandObjectFrameVariable() override = default;
 
   Options *GetOptions() override { return &m_option_group; }
-
-  void
-  HandleArgumentCompletion(CompletionRequest &request,
-                           OptionElementVector &opt_element_vector) override {
-    // Arguments are the standard source file completer.
-    lldb_private::CommandCompletions::InvokeCommonCompletionCallbacks(
-        GetCommandInterpreter(), lldb::eVariablePathCompletion, request,
-        nullptr);
-  }
 
 protected:
   llvm::StringRef GetScopeString(VariableSP var_sp) {
@@ -494,6 +443,7 @@ protected:
     case eValueTypeVTableEntry:
       return false;
     }
+    llvm_unreachable("Unexpected scope value");
   }
 
   /// Finds all the variables in `all_variables` whose name matches `regex`,
@@ -606,7 +556,9 @@ protected:
                                                 show_module))
                       s.PutCString(": ");
                   }
-                  valobj_sp->Dump(result.GetOutputStream(), options);
+                  auto &strm = result.GetOutputStream();
+                  if (llvm::Error error = valobj_sp->Dump(strm, options))
+                    result.AppendError(toString(std::move(error)));
                 }
               }
             } else {
@@ -648,7 +600,8 @@ protected:
               Stream &output_stream = result.GetOutputStream();
               options.SetRootValueObjectName(
                   valobj_sp->GetParent() ? entry.c_str() : nullptr);
-              valobj_sp->Dump(output_stream, options);
+              if (llvm::Error error = valobj_sp->Dump(output_stream, options))
+                result.AppendError(toString(std::move(error)));
             } else {
               if (auto error_cstr = error.AsCString(nullptr))
                 result.AppendError(error_cstr);
@@ -699,7 +652,9 @@ protected:
                     valobj_sp->GetPreferredDisplayLanguage());
                 options.SetRootValueObjectName(
                     var_sp ? var_sp->GetName().AsCString() : nullptr);
-                valobj_sp->Dump(result.GetOutputStream(), options);
+                if (llvm::Error error =
+                        valobj_sp->Dump(result.GetOutputStream(), options))
+                  result.AppendError(toString(std::move(error)));
               }
             }
           }
@@ -720,7 +675,9 @@ protected:
             options.SetVariableFormatDisplayLanguage(
                 rec_value_sp->GetPreferredDisplayLanguage());
             options.SetRootValueObjectName(rec_value_sp->GetName().AsCString());
-            rec_value_sp->Dump(result.GetOutputStream(), options);
+            if (llvm::Error error =
+                    rec_value_sp->Dump(result.GetOutputStream(), options))
+              result.AppendError(toString(std::move(error)));
           }
         }
       }
@@ -730,7 +687,7 @@ protected:
                                            m_cmd_name);
 
     // Increment statistics.
-    TargetStats &target_stats = GetSelectedOrDummyTarget().GetStatistics();
+    TargetStats &target_stats = GetTarget().GetStatistics();
     if (result.Succeeded())
       target_stats.GetFrameVariableStats().NotifySuccess();
     else
@@ -917,13 +874,13 @@ void CommandObjectFrameRecognizerAdd::DoExecute(Args &command,
         RegularExpressionSP(new RegularExpression(m_options.m_module));
     auto func =
         RegularExpressionSP(new RegularExpression(m_options.m_symbols.front()));
-    GetSelectedOrDummyTarget().GetFrameRecognizerManager().AddRecognizer(
+    GetTarget().GetFrameRecognizerManager().AddRecognizer(
         recognizer_sp, module, func, m_options.m_first_instruction_only);
   } else {
     auto module = ConstString(m_options.m_module);
     std::vector<ConstString> symbols(m_options.m_symbols.begin(),
                                      m_options.m_symbols.end());
-    GetSelectedOrDummyTarget().GetFrameRecognizerManager().AddRecognizer(
+    GetTarget().GetFrameRecognizerManager().AddRecognizer(
         recognizer_sp, module, symbols, m_options.m_first_instruction_only);
   }
 #endif
@@ -941,9 +898,7 @@ public:
 
 protected:
   void DoExecute(Args &command, CommandReturnObject &result) override {
-    GetSelectedOrDummyTarget()
-        .GetFrameRecognizerManager()
-        .RemoveAllRecognizers();
+    GetTarget().GetFrameRecognizerManager().RemoveAllRecognizers();
     result.SetStatus(eReturnStatusSuccessFinishResult);
   }
 };
@@ -954,8 +909,7 @@ public:
       : CommandObjectParsed(interpreter, "frame recognizer delete",
                             "Delete an existing frame recognizer by id.",
                             nullptr) {
-    CommandArgumentData thread_arg{eArgTypeRecognizerID, eArgRepeatPlain};
-    m_arguments.push_back({thread_arg});
+    AddSimpleArgumentList(eArgTypeRecognizerID);
   }
 
   ~CommandObjectFrameRecognizerDelete() override = default;
@@ -966,7 +920,7 @@ public:
     if (request.GetCursorIndex() != 0)
       return;
 
-    GetSelectedOrDummyTarget().GetFrameRecognizerManager().ForEach(
+    GetTarget().GetFrameRecognizerManager().ForEach(
         [&request](uint32_t rid, std::string rname, std::string module,
                    llvm::ArrayRef<lldb_private::ConstString> symbols,
                    bool regexp) {
@@ -997,9 +951,7 @@ protected:
         return;
       }
 
-      GetSelectedOrDummyTarget()
-          .GetFrameRecognizerManager()
-          .RemoveAllRecognizers();
+      GetTarget().GetFrameRecognizerManager().RemoveAllRecognizers();
       result.SetStatus(eReturnStatusSuccessFinishResult);
       return;
     }
@@ -1017,9 +969,8 @@ protected:
       return;
     }
 
-    if (!GetSelectedOrDummyTarget()
-             .GetFrameRecognizerManager()
-             .RemoveRecognizerWithID(recognizer_id)) {
+    if (!GetTarget().GetFrameRecognizerManager().RemoveRecognizerWithID(
+            recognizer_id)) {
       result.AppendErrorWithFormat("'%s' is not a valid recognizer id.\n",
                                    command.GetArgumentAtIndex(0));
       return;
@@ -1040,7 +991,7 @@ public:
 protected:
   void DoExecute(Args &command, CommandReturnObject &result) override {
     bool any_printed = false;
-    GetSelectedOrDummyTarget().GetFrameRecognizerManager().ForEach(
+    GetTarget().GetFrameRecognizerManager().ForEach(
         [&result, &any_printed](
             uint32_t recognizer_id, std::string name, std::string module,
             llvm::ArrayRef<ConstString> symbols, bool regexp) {
@@ -1080,19 +1031,7 @@ public:
             interpreter, "frame recognizer info",
             "Show which frame recognizer is applied a stack frame (if any).",
             nullptr) {
-    CommandArgumentEntry arg;
-    CommandArgumentData index_arg;
-
-    // Define the first (and only) variant of this arg.
-    index_arg.arg_type = eArgTypeFrameIndex;
-    index_arg.arg_repetition = eArgRepeatPlain;
-
-    // There is only one variant this argument could be; put it into the
-    // argument entry.
-    arg.push_back(index_arg);
-
-    // Push the data for the first argument into the m_arguments vector.
-    m_arguments.push_back(arg);
+    AddSimpleArgumentList(eArgTypeFrameIndex);
   }
 
   ~CommandObjectFrameRecognizerInfo() override = default;
@@ -1129,9 +1068,8 @@ protected:
       return;
     }
 
-    auto recognizer = GetSelectedOrDummyTarget()
-                          .GetFrameRecognizerManager()
-                          .GetRecognizerForFrame(frame_sp);
+    auto recognizer =
+        GetTarget().GetFrameRecognizerManager().GetRecognizerForFrame(frame_sp);
 
     Stream &output_stream = result.GetOutputStream();
     output_stream.Printf("frame %d ", frame_index);

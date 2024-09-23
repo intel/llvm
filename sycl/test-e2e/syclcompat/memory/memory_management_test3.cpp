@@ -29,11 +29,10 @@
 //
 //
 // ===----------------------------------------------------------------------===//
-
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 
@@ -63,6 +62,29 @@ void test_free_memory_q() {
   syclcompat::free(0, q);
   syclcompat::free(NULL, q);
   syclcompat::free(nullptr, q);
+}
+
+void test_wait_and_free_memory() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  float *d_A = (float *)syclcompat::malloc(sizeof(float));
+  syclcompat::wait_and_free((void *)d_A);
+
+  syclcompat::wait_and_free(0);
+  syclcompat::wait_and_free(NULL);
+  syclcompat::wait_and_free(nullptr);
+}
+
+void test_wait_and_free_memory_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::queue q{{sycl::property::queue::in_order()}};
+  float *d_A = (float *)syclcompat::malloc(sizeof(float), q);
+  syclcompat::wait_and_free((void *)d_A, q);
+
+  syclcompat::wait_and_free(0, q);
+  syclcompat::wait_and_free(NULL, q);
+  syclcompat::wait_and_free(nullptr, q);
 }
 
 void test_memcpy_async() {
@@ -244,25 +266,36 @@ void test_memcpy_async_pitched_q() {
   syclcompat::free((void *)d_data, q);
 }
 
-void test_memset_async() {
+template <size_t memset_size_bits = 8> void test_memset_async_impl() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  // ValueT -> int for memset and memset_d32, short for memset_d16.
+  using ValueT = std::conditional_t<
+      memset_size_bits == 8 || memset_size_bits == 32, int,
+      std::conditional_t<memset_size_bits == 16, short, void>>;
+  static_assert(!std::is_void_v<ValueT>,
+                "memset tests only work for 8, 16 and 32 bits");
 
   int Num = 10;
-  int *h_A = (int *)malloc(Num * sizeof(int));
+  ValueT *h_A = (ValueT *)malloc(Num * sizeof(ValueT));
 
   for (int i = 0; i < Num; i++) {
     h_A[i] = 4;
   }
 
-  int *d_A = (int *)syclcompat::malloc(Num * sizeof(int));
+  ValueT *d_A = (ValueT *)syclcompat::malloc(Num * sizeof(ValueT));
   // hostA -> deviceA
-  syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(int));
+  syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(ValueT));
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(int));
+  if constexpr (memset_size_bits == 8)
+    syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(ValueT));
+  else if constexpr (memset_size_bits == 16)
+    syclcompat::memset_d16_async((void *)d_A, 0, (Num - 3));
+  else if constexpr (memset_size_bits == 32)
+    syclcompat::memset_d32_async((void *)d_A, 0, (Num - 3));
 
   // deviceA -> hostA
-  syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(int));
+  syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(ValueT));
 
   syclcompat::get_default_queue().wait_and_throw();
 
@@ -281,26 +314,37 @@ void test_memset_async() {
   free(h_A);
 }
 
-void test_memset_async_q() {
+template <size_t bits = 8> void test_memset_async_q_impl() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  // int for memset and memset_d32, short for memset_d16.
+  using ValueT =
+      std::conditional_t<bits == 8 || bits == 32, int,
+                         std::conditional_t<bits == 16, short, void>>;
+  static_assert(!std::is_void_v<ValueT>,
+                "memset tests only work for 8, 16 and 32 bits");
 
   sycl::queue q{{sycl::property::queue::in_order()}};
   int Num = 10;
-  int *h_A = (int *)malloc(Num * sizeof(int));
+  ValueT *h_A = (ValueT *)malloc(Num * sizeof(ValueT));
 
   for (int i = 0; i < Num; i++) {
     h_A[i] = 4;
   }
 
-  int *d_A = (int *)syclcompat::malloc(Num * sizeof(int), q);
+  ValueT *d_A = (ValueT *)syclcompat::malloc(Num * sizeof(ValueT), q);
   // hostA -> deviceA
-  syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(int), q);
+  syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(ValueT), q);
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(int), q);
+  if constexpr (bits == 8)
+    syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(ValueT), q);
+  else if constexpr (bits == 16)
+    syclcompat::memset_d16_async((void *)d_A, 0, (Num - 3), q);
+  else if constexpr (bits == 32)
+    syclcompat::memset_d32_async((void *)d_A, 0, (Num - 3), q);
 
   // deviceA -> hostA
-  syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(int), q);
+  syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(ValueT), q);
   q.wait_and_throw();
   syclcompat::free((void *)d_A, q);
 
@@ -315,6 +359,42 @@ void test_memset_async_q() {
   }
 
   free(h_A);
+}
+
+void test_memset_async() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 8;
+  test_memset_async_impl<memset_size_in_bits>();
+}
+
+void test_memset_d16_async() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 16;
+  test_memset_async_impl<memset_size_in_bits>();
+}
+
+void test_memset_d32_async() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 32;
+  test_memset_async_impl<memset_size_in_bits>();
+}
+
+void test_memset_async_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 8;
+  test_memset_async_q_impl<memset_size_in_bits>();
+}
+
+void test_memset_d16_async_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 16;
+  test_memset_async_q_impl<memset_size_in_bits>();
+}
+
+void test_memset_d32_async_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr size_t memset_size_in_bits = 32;
+  test_memset_async_q_impl<memset_size_in_bits>();
 }
 
 template <typename T> void test_memcpy_async_t_q() {
@@ -604,12 +684,18 @@ void test_constant_memcpy_async_q() {
 int main() {
   test_free_memory();
   test_free_memory_q();
+  test_wait_and_free_memory();
+  test_wait_and_free_memory_q();
   test_memcpy_async();
   test_memcpy_async_q();
   test_memcpy_async_pitched();
   test_memcpy_async_pitched_q();
   test_memset_async();
   test_memset_async_q();
+  test_memset_d16_async();
+  test_memset_d16_async_q();
+  test_memset_d32_async();
+  test_memset_d32_async_q();
   test_constant_memcpy_async();
   test_constant_memcpy_async_q();
 

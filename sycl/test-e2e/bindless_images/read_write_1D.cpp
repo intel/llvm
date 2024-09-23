@@ -1,11 +1,12 @@
-// REQUIRES: linux
-// REQUIRES: cuda
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -34,8 +35,7 @@ int main() {
   try {
     // Extension: image descriptor - can use the same for both images
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width}, sycl::image_channel_order::rgba,
-        sycl::image_channel_type::fp32);
+        {width}, 4, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
     // Input images memory
@@ -62,12 +62,12 @@ int main() {
     q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
         float sum = 0;
-        // Extension: read image data from handle
+        // Extension: fetch image data from handle
         sycl::float4 px1 =
-            sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                 imgIn1, int(id[0]));
         sycl::float4 px2 =
-            sycl::ext::oneapi::experimental::read_image<sycl::float4>(
+            sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
                 imgIn2, int(id[0]));
 
         sum = px1[0] + px2[0];

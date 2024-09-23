@@ -47,20 +47,26 @@ and not recommended to use in production environment.
     Special target values specific to Intel, NVIDIA and AMD Processor Graphics
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
-    * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
-    * intel_gpu_acm_g12, intel_gpu_dg2_g12 - Alchemist G12 Intel graphics architecture
-    * intel_gpu_acm_g11, intel_gpu_dg2_g11 - Alchemist G11 Intel graphics architecture
-    * intel_gpu_acm_g10, intel_gpu_dg2_g10 - Alchemist G10 Intel graphics architecture
+    * intel_gpu_lnl_m, intel_gpu_20_4_4 - Lunar Lake Intel graphics architecture
+    * intel_gpu_bmg_g21, intel_gpu_20_1_4 - Battlemage G21 Intel graphics architecture
+    * intel_gpu_arl_h, intel_gpu_12_74_4 - Arrow Lake H Intel graphics architecture
+    * intel_gpu_mtl_h, intel_gpu_12_71_4 - Meteor Lake H Intel graphics architecture
+    * intel_gpu_mtl_u, intel_gpu_mtl_s, intel_gpu_arl_u, intel_gpu_arl_s, intel_gpu_12_70_4 - Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture
+    * intel_gpu_pvc_vg, intel_gpu_12_61_7 - Ponte Vecchio VG Intel graphics architecture
+    * intel_gpu_pvc, intel_gpu_12_60_7 - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_acm_g12, intel_gpu_dg2_g12, intel_gpu_12_57_0 - Alchemist G12 Intel graphics architecture
+    * intel_gpu_acm_g11, intel_gpu_dg2_g11, intel_gpu_12_56_5 - Alchemist G11 Intel graphics architecture
+    * intel_gpu_acm_g10, intel_gpu_dg2_g10, intel_gpu_12_55_8 - Alchemist G10 Intel graphics architecture
     * intel_gpu_dg1, intel_gpu_12_10_0 - DG1 Intel graphics architecture
     * intel_gpu_adl_n - Alder Lake N Intel graphics architecture
     * intel_gpu_adl_p - Alder Lake P Intel graphics architecture
     * intel_gpu_rpl_s - Raptor Lake Intel graphics architecture (equal to intel_gpu_adl_s)
     * intel_gpu_adl_s - Alder Lake S Intel graphics architecture
     * intel_gpu_rkl - Rocket Lake Intel graphics architecture
-    * intel_gpu_tgllp, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
+    * intel_gpu_tgllp, intel_gpu_tgl, intel_gpu_12_0_0 - Tiger Lake Intel graphics architecture
     * intel_gpu_jsl - Jasper Lake Intel graphics architecture (equal to intel_gpu_ehl)
     * intel_gpu_ehl - Elkhart Lake Intel graphics architecture
-    * intel_gpu_icllp, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
+    * intel_gpu_icllp, intel_gpu_icl, intel_gpu_11_0_0 - Ice Lake Intel graphics architecture
     * intel_gpu_cml, intel_gpu_9_7_0 - Comet Lake Intel graphics architecture
     * intel_gpu_aml, intel_gpu_9_6_0 - Amber Lake Intel graphics architecture
     * intel_gpu_whl, intel_gpu_9_5_0 - Whiskey Lake Intel graphics architecture
@@ -69,8 +75,8 @@ and not recommended to use in production environment.
     * intel_gpu_apl, intel_gpu_9_3_0 - Apollo Lake Intel graphics architecture
     * intel_gpu_cfl, intel_gpu_9_2_9 - Coffee Lake Intel graphics architecture
     * intel_gpu_kbl, intel_gpu_9_1_9 - Kaby Lake Intel graphics architecture
-    * intel_gpu_skl, intel_gpu_9_0_9 - Skylake Intel graphics architecture
-    * intel_gpu_bdw, intel_gpu_8_0_0 - Broadwell Intel graphics architecture
+    * intel_gpu_skl, intel_gpu_9_0_9 - Intel(R) microarchitecture code name Skylake Intel graphics architecture
+    * intel_gpu_bdw, intel_gpu_8_0_0 - Intel(R) microarchitecture code name Broadwell Intel graphics architecture
     * nvidia_gpu_sm_50 - NVIDIA Maxwell architecture (compute capability 5.0)
     * nvidia_gpu_sm_52 - NVIDIA Maxwell architecture (compute capability 5.2)
     * nvidia_gpu_sm_53 - NVIDIA Maxwell architecture (compute capability 5.3)
@@ -85,6 +91,7 @@ and not recommended to use in production environment.
     * nvidia_gpu_sm_87 - NVIDIA Jetson/Drive AGX Orin architecture
     * nvidia_gpu_sm_89 - NVIDIA Ada Lovelace architecture
     * nvidia_gpu_sm_90 - NVIDIA Hopper architecture
+    * nvidia_gpu_sm_90a - NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
@@ -98,7 +105,12 @@ and not recommended to use in production environment.
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -106,15 +118,25 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1033 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1035 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1036 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1100 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1101 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1102 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1103 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1150 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1151 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1200 - GCN GFX12 (RDNA 4) architecture
+    * amd_gpu_gfx1201 - GCN GFX12 (RDNA 4) architecture
 
 ## Language options
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
-    SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1 [DEPRECATED]
-    * 2020 - SYCL 2020
+    SYCL language standard to compile for. Currently the possible value is:
+    * 2020 - for SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
     It is under development and not recommended to use in production
@@ -125,7 +147,7 @@ and not recommended to use in production environment.
 
     Enables/Disables unnamed SYCL lambda kernels support.
     The default value depends on the SYCL language standard: it is enabled
-    by default for SYCL 2020, and disabled for SYCL 1.2.1.
+    by default for SYCL 2020.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -206,44 +228,6 @@ and not recommended to use in production environment.
     module that can be linked later by any standard host linker into the final
     fat binary.
 
-**`-fsycl-link-targets=<T1,...,Tn>`** [DEPRECATED]
-
-    Specify comma-separated list of triples SYCL offloading targets to produce
-    linked device images. Used in a link step to link device code for given
-    targets and output multiple linked device code images, whose names consist
-    of the common prefix taken from the -o option and the triple string.
-    Does not produce fat binary and must be used together with -fsycl.
-
-**`-fsycl-add-targets=<T1:file1...Tn:filen>`** [DEPRECATED]
-
-    Add arbitrary device images to the fat binary being linked
-
-    Specify comma-separated list of triple and device binary image file name
-    pairs to add to the final SYCL binary. Tells clang to include given set of
-    device binaries into the fat SYCL binary when linking; the option value is
-    a set of pairs triple,filename - filename is treated as the device binary
-    image for the target triple it is paired with, and offload bundler is
-    invoked to do the actual bundling.
-
-**`-foffload-static-lib=<lib>`** [DEPRECATED]
-
-    Link with fat static library.
-
-    Link with <lib>, which is a fat static archive containing fat objects which
-    correspond to the target device. When linking clang will extract the device
-    code from the objects contained in the library and link it with other
-    device objects coming from the individual fat objects passed on the command
-    line.
-    NOTE:  Any libraries that are passed on the command line which are not
-    specified with `-foffload-static-lib` are treated as host libraries and are
-    only used during the final host link.
-
-**`-foffload-whole-static-lib=<lib>`** [DEPRECATED]
-
-    Similar to `-foffload-static-lib` but uses the whole archive when
-    performing the device code extraction.  This is helpful when creating
-    shared objects from fat static archives.
-
 **`-fsycl-device-code-split=<mode>`**
 
     Specifies SYCL device code module assembly. Mode is one of the following:
@@ -299,16 +283,6 @@ and not recommended to use in production environment.
     device libraries for VTune(R). This provides annotations to intercept
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
-
-**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
-
-    Place device code later in the linked binary in order to avoid precluding
-    32-bit PC relative relocations between surrounding ELF sections when device
-    code is larger than 2GiB. This is disabled by default.
-
-    Deprecated in favor of `-f[no-]link-huge-device-code`.
-
-    NOTE: This option is currently only supported on Linux.
 
 **`-fsycl-force-target=<T>`**
 

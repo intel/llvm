@@ -15,38 +15,6 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-extern "C" {
-unsigned __imf_brev(unsigned);
-unsigned long long __imf_brevll(unsigned long long);
-unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
-long long __imf_llmax(long long x, long long y);
-long long __imf_llmin(long long x, long long y);
-int __imf_max(int x, int y);
-int __imf_min(int x, int y);
-unsigned long long __imf_ullmax(unsigned long long x, unsigned long long y);
-unsigned long long __imf_ullmin(unsigned long long x, unsigned long long y);
-unsigned __imf_umax(unsigned x, unsigned y);
-unsigned __imf_umin(unsigned x, unsigned y);
-int __imf_clz(int);
-int __imf_clzll(long long);
-int __imf_ffs(int);
-int __imf_ffsll(long long);
-int __imf_mul24(int, int);
-int __imf_mulhi(int, int);
-long long __imf_mul64hi(long long, long long);
-int __imf_popc(unsigned);
-int __imf_popcll(unsigned long long);
-int __imf_rhadd(int, int);
-int __imf_hadd(int, int);
-unsigned __imf_sad(int, int, unsigned);
-unsigned __imf_uhadd(unsigned, unsigned);
-unsigned __imf_umul24(unsigned, unsigned);
-unsigned __imf_umulhi(unsigned, unsigned);
-unsigned long long __imf_umul64hi(unsigned long long, unsigned long long);
-unsigned __imf_urhadd(unsigned, unsigned);
-unsigned __imf_usad(unsigned, unsigned, unsigned);
-}
-
 int main(int, char **) {
   s::queue device_queue(s::default_selector_v);
   std::cout << "Running on "
@@ -368,7 +336,7 @@ int main(int, char **) {
     std::initializer_list<unsigned> ref_vals = {
         0,          0x80000000, 0x24c19000, 0xFFFFFFFF,
         0x19D57B7F, 0x1E6A2C48, 0xE49933DD, 0x6E83D905};
-    test(device_queue, input_vals, ref_vals, F(__imf_brev));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::brev));
     std::cout << "brev passes." << std::endl;
   }
 
@@ -389,7 +357,7 @@ int main(int, char **) {
                                                           0xC9091E6A2C4826C6,
                                                           0x77BBE49933DDFF55,
                                                           0xE1776E83D90533AC};
-    test(device_queue, input_vals, ref_vals, F(__imf_brevll));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::brevll));
     std::cout << "brevll passes." << std::endl;
   }
 
@@ -397,7 +365,7 @@ int main(int, char **) {
     std::initializer_list<int> input_vals = {
         0, 1, 98737322, -102838382, 2147483647, -2147483648, 840193321, 36361};
     std::initializer_list<int> ref_vals = {32, 31, 5, 0, 1, 0, 2, 16};
-    test(device_queue, input_vals, ref_vals, F(__imf_clz));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::clz));
     std::cout << "clz passes." << std::endl;
   }
 
@@ -411,7 +379,7 @@ int main(int, char **) {
                                                    840193321938383338,
                                                    36361};
     std::initializer_list<int> ref_vals = {64, 63, 1, 0, 26, 21, 4, 48};
-    test(device_queue, input_vals, ref_vals, F(__imf_clzll));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::clzll));
     std::cout << "clzll passes." << std::endl;
   }
 
@@ -419,7 +387,7 @@ int main(int, char **) {
     std::initializer_list<int> input_vals = {
         0, 1, 98737328, -102838382, -2147483648, -2047441324, 840193321, 36360};
     std::initializer_list<int> ref_vals = {0, 1, 5, 2, 32, 3, 1, 4};
-    test(device_queue, input_vals, ref_vals, F(__imf_ffs));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::ffs));
     std::cout << "ffs passes." << std::endl;
   }
 
@@ -433,7 +401,7 @@ int main(int, char **) {
                                                    840193321938383338,
                                                    -92233720368547808};
     std::initializer_list<int> ref_vals = {0, 1, 1, 2, 7, 13, 2, 6};
-    test(device_queue, input_vals, ref_vals, F(__imf_ffsll));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::ffsll));
     std::cout << "ffsll passes." << std::endl;
   }
 
@@ -441,7 +409,7 @@ int main(int, char **) {
     std::initializer_list<unsigned> input_vals = {
         0, 1, 98737328, 102838382, 3147483648, 2947441324, 840193321, 36360};
     std::initializer_list<int> ref_vals = {0, 1, 13, 11, 14, 18, 12, 5};
-    test(device_queue, input_vals, ref_vals, F(__imf_popc));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::popc));
     std::cout << "popc passes." << std::endl;
   }
 
@@ -456,7 +424,7 @@ int main(int, char **) {
         840193321938383338,
         92233720368547808};
     std::initializer_list<int> ref_vals = {0, 1, 42, 11, 5, 17, 37, 28};
-    test(device_queue, input_vals, ref_vals, F(__imf_popcll));
+    test(device_queue, input_vals, ref_vals, F(s::ext::intel::math::popcll));
     std::cout << "popcll passes." << std::endl;
   }
 
@@ -468,7 +436,8 @@ int main(int, char **) {
     std::initializer_list<int> ref_vals = {0,           819113067, 1627571460,
                                            -1134165452, 735208976, 682645588,
                                            697772188,   -65421200};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_mul24));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::mul24));
     std::cout << "mul24 passes." << std::endl;
   }
 
@@ -479,7 +448,8 @@ int main(int, char **) {
         100, 819933, -99222322, 6832322, 88324, 6666483, 92212, 100};
     std::initializer_list<int> ref_vals = {0, 0,     -22705530, -1,
                                            0, -1744, 164,       -4};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_mulhi));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::mulhi));
     std::cout << "mulhi passes." << std::endl;
   }
 
@@ -503,11 +473,14 @@ int main(int, char **) {
     std::initializer_list<long long> ref_vals2 = {
         0,         999,      -99222322,         -1668897765548765876,
         788321204, -1123492, 76462116766547976, -54541165421294};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_mul64hi));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::mul64hi));
     std::cout << "mul64hi passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_llmax));
+    test2(device_queue, input_vals1, input_vals2, ref_vals1,
+          F2(s::ext::intel::math::llmax));
     std::cout << "llmax passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_llmin));
+    test2(device_queue, input_vals1, input_vals2, ref_vals2,
+          F2(s::ext::intel::math::llmin));
     std::cout << "llmin passes." << std::endl;
   }
 
@@ -528,13 +501,17 @@ int main(int, char **) {
     std::initializer_list<int> ref_vals4 = {49,          410466,     4141756,
                                             3416078,     1912741434, 2771495,
                                             -1558824203, 2147483646};
-    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_max));
+    test2(device_queue, input_vals1, input_vals2, ref_vals1,
+          F2(s::ext::intel::math::max));
     std::cout << "max passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_min));
+    test2(device_queue, input_vals1, input_vals2, ref_vals2,
+          F2(s::ext::intel::math::min));
     std::cout << "min passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals3, F2(__imf_rhadd));
+    test2(device_queue, input_vals1, input_vals2, ref_vals3,
+          F2(s::ext::intel::math::rhadd));
     std::cout << "rhadd passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals4, F2(__imf_hadd));
+    test2(device_queue, input_vals1, input_vals2, ref_vals4,
+          F2(s::ext::intel::math::hadd));
     std::cout << "hadd passes." << std::endl;
   }
 
@@ -554,11 +531,14 @@ int main(int, char **) {
     std::initializer_list<unsigned int> ref_vals2 = {
         0,          999,        8283835,    6832322,
         1832499282, 3896666483, 1117646211, 2147483646};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_uhadd));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::uhadd));
     std::cout << "uhadd passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_umax));
+    test2(device_queue, input_vals1, input_vals2, ref_vals1,
+          F2(s::ext::intel::math::umax));
     std::cout << "umax passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_umin));
+    test2(device_queue, input_vals1, input_vals2, ref_vals2,
+          F2(s::ext::intel::math::umin));
     std::cout << "umin passes." << std::endl;
   }
 
@@ -570,7 +550,8 @@ int main(int, char **) {
     std::initializer_list<unsigned> ref_vals = {
         0,         819113067,  1033396844, 36558902,
         735208976, 3612321708, 697772188,  1677721500};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_umul24));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::umul24));
     std::cout << "umul24 passes." << std::endl;
   }
 
@@ -581,7 +562,8 @@ int main(int, char **) {
         100, 78199338, 99222322, 796832322, 88324, 6666483, 92212, 4294967295};
     std::initializer_list<unsigned> ref_vals = {0, 18,   22705529, 1700,
                                                 0, 1743, 164,      165421293};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_umulhi));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::umulhi));
     std::cout << "umulhi passes." << std::endl;
   }
 
@@ -607,11 +589,14 @@ int main(int, char **) {
     std::initializer_list<unsigned long long> ref_vals2 = {
         0,         999,     1199217699222322,  911268323228583722,
         788321204, 1123492, 76462116766547976, 910008700};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_umul64hi));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::umul64hi));
     std::cout << "umul64hi passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_ullmax));
+    test2(device_queue, input_vals1, input_vals2, ref_vals1,
+          F2(s::ext::intel::math::ullmax));
     std::cout << "ullmax passes." << std::endl;
-    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_ullmin));
+    test2(device_queue, input_vals1, input_vals2, ref_vals2,
+          F2(s::ext::intel::math::ullmin));
     std::cout << "ullmin passes." << std::endl;
   }
 
@@ -625,7 +610,8 @@ int main(int, char **) {
     std::initializer_list<unsigned> ref_vals = {
         50,         410466,  1575196693, 2155899809,
         2912741435, 3894988, 2558824203, 3647483647};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_urhadd));
+    test2(device_queue, input_vals1, input_vals2, ref_vals,
+          F2(s::ext::intel::math::urhadd));
     std::cout << "urhadd passes." << std::endl;
   }
 
@@ -643,7 +629,7 @@ int main(int, char **) {
         0,          0,          0x24242424, 0xFFFFFFFF,
         0xFEDE92AB, 0x56341283, 0x9aa32799, 0x7821273};
     test3(device_queue, input_vals1, input_vals2, input_vals3, ref_vals,
-          F3(__imf_byte_perm));
+          F3(s::ext::intel::math::byte_perm));
     std::cout << "byte_perm passes." << std::endl;
   }
 
@@ -659,7 +645,7 @@ int main(int, char **) {
         2147483747, 3000819034, 8284357,   6842712,
         3360484306, 4007899846, 882355983, 2};
     test3(device_queue, input_vals1, input_vals2, input_vals3, ref_vals,
-          F3(__imf_sad));
+          F3(s::ext::intel::math::sad));
     std::cout << "sad passes." << std::endl;
   }
 
@@ -676,7 +662,7 @@ int main(int, char **) {
         2147483747, 4294966308, 8283713,   3980832068,
         3360484306, 4005652862, 882355983, 1000000002};
     test3(device_queue, input_vals1, input_vals2, input_vals3, ref_vals,
-          F3(__imf_usad));
+          F3(s::ext::intel::math::usad));
     std::cout << "usad passes." << std::endl;
   }
 

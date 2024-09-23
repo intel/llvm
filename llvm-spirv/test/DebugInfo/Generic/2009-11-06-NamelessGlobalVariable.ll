@@ -8,7 +8,7 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 source_filename = "test/DebugInfo/Generic/2009-11-06-NamelessGlobalVariable.ll"
 
-@0 = internal constant i32 1, !dbg !0
+@0 = internal addrspace(1) constant i32 1, !dbg !0
 
 !llvm.dbg.cu = !{!4}
 !llvm.module.flags = !{!7}

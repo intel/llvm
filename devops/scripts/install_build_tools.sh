@@ -22,7 +22,9 @@ apt update && apt install -yqq \
       zip \
       unzip \
       jq \
-      curl
+      curl \
+      libhwloc-dev \
+      libzstd-dev
 
 pip3 install psutil
 

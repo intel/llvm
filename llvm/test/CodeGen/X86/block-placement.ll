@@ -318,8 +318,7 @@ define void @unnatural_cfg1() {
 ; CHECK-LABEL: unnatural_cfg1
 ; CHECK: %entry
 ; CHECK: %loop.header
-; CHECK: %loop.body2
-; CHECK: %loop.body3
+; CHECK: %loop.body5
 
 entry:
   br label %loop.header
@@ -359,7 +358,6 @@ define void @unnatural_cfg2(ptr %p0, i32 %a0) {
 ; CHECK: %loop.body1
 ; CHECK: %loop.body2
 ; CHECK: %loop.body4
-; CHECK: %loop.inner2.begin
 ; CHECK: %loop.inner2.begin
 ; CHECK: %loop.body3
 ; CHECK: %loop.inner1.begin
@@ -552,7 +550,7 @@ exit:
 
 declare i32 @__gxx_personality_v0(...)
 
-define void @test_eh_lpad_successor() personality ptr bitcast (i32 (...)* @__gxx_personality_v0 to ptr) {
+define void @test_eh_lpad_successor() personality ptr @__gxx_personality_v0 {
 ; Some times the landing pad ends up as the first successor of an invoke block.
 ; When this happens, a strange result used to fall out of updateTerminators: we
 ; didn't correctly locate the fallthrough successor, assuming blindly that the
@@ -580,7 +578,7 @@ loop:
 
 declare void @fake_throw() noreturn
 
-define void @test_eh_throw() personality ptr bitcast (i32 (...)* @__gxx_personality_v0 to ptr) {
+define void @test_eh_throw() personality ptr @__gxx_personality_v0 {
 ; For blocks containing a 'throw' (or similar functionality), we have
 ; a no-return invoke. In this case, only EH successors will exist, and
 ; fallthrough simply won't occur. Make sure we don't crash trying to update
@@ -1097,7 +1095,7 @@ declare i32 @foo();
 
 declare i32 @bar();
 
-define i32 @test_lp(i32 %a) personality i32 (...)* @pers {
+define i32 @test_lp(i32 %a) personality ptr @pers {
 ; CHECK-LABEL: test_lp:
 ; CHECK: %entry
 ; CHECK: %hot
@@ -1144,7 +1142,7 @@ lpret:
 ; to the most probable one. See selectBestCandidateBlock as to why.
 declare void @clean();
 
-define void @test_flow_unwind() personality i32 (...)* @pers {
+define void @test_flow_unwind() personality ptr @pers {
 ; CHECK-LABEL: test_flow_unwind:
 ; CHECK: %entry
 ; CHECK: %then

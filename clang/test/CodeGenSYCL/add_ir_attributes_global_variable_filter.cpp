@@ -1,5 +1,5 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
-// RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
+// RUN:    -triple spir64-unknown-unknown -fsycl-is-device \
 // RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the optional filter parameter of

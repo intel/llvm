@@ -295,7 +295,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rootn(double x, int ny) {
     double y_tail = y - y_head;
 
     double fnyh = as_double(as_long(dny) & 0xfffffffffff00000);
-    double fnyt = (double)(ny - (int)fnyh);
+    double fnyt = (double)(ny - (int)(long)fnyh);
     y_tail =
         __spirv_ocl_fma(-fnyt, y_head, __spirv_ocl_fma(-fnyh, y_head, 1.0)) /
         dny;
@@ -317,7 +317,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_rootn(double x, int ny) {
     const double lnof2_by_64_tail = -4.359010638708991e-10;
 
     double temp = v * sixtyfour_by_lnof2;
-    int n = (int)temp;
+    int n = (int)(long)temp;
     double dn = (double)n;
     int j = n & 0x0000003f;
     int m = n >> 6;

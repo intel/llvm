@@ -1,6 +1,6 @@
 // This test checks presence of macros for available extensions.
 // RUN: %clangxx -fsycl -fsyntax-only %s
-// REQUIRES: cuda_be
+// REQUIRES: cuda
 
 #include <sycl/sycl.hpp>
 

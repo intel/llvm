@@ -7,24 +7,35 @@ include(AddMLIRPython)
 declare_mlir_python_sources(MLIRPythonSources)
 declare_mlir_python_sources(MLIRPythonSources.Dialects
   ADD_TO_PARENT MLIRPythonSources)
+declare_mlir_python_sources(MLIRPythonSources.Core
+  ADD_TO_PARENT MLIRPythonSources)
 
 ################################################################################
 # Pure python sources and generated code
 ################################################################################
 
-declare_mlir_python_sources(MLIRPythonSources.Core
+declare_mlir_python_sources(MLIRPythonSources.Core.Python
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
-  ADD_TO_PARENT MLIRPythonSources
+  ADD_TO_PARENT MLIRPythonSources.Core
   SOURCES
     _mlir_libs/__init__.py
     ir.py
     passmanager.py
+    rewrite.py
     dialects/_ods_common.py
 
     # The main _mlir module has submodules: include stubs from each.
     _mlir_libs/_mlir/__init__.pyi
     _mlir_libs/_mlir/ir.pyi
     _mlir_libs/_mlir/passmanager.pyi
+)
+
+declare_mlir_python_sources(MLIRPythonSources.Core.Python.Extras
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  ADD_TO_PARENT MLIRPythonSources.Core.Python
+  SOURCES
+    extras/types.py
+    extras/meta.py
 )
 
 declare_mlir_python_sources(MLIRPythonSources.ExecutionEngine
@@ -69,7 +80,7 @@ declare_mlir_dialect_python_bindings(
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
   TD_FILE dialects/AsyncOps.td
   SOURCES_GLOB dialects/async_dialect/*.py
-  DIALECT_NAME async_dialect)
+  DIALECT_NAME async)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -97,6 +108,15 @@ declare_mlir_dialect_python_bindings(
   SOURCES
     dialects/complex.py
   DIALECT_NAME complex)
+
+declare_mlir_dialect_python_bindings(
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  TD_FILE dialects/IndexOps.td
+  SOURCES
+    dialects/index.py
+  DIALECT_NAME index
+  GEN_ENUM_BINDINGS)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -162,6 +182,21 @@ declare_mlir_dialect_python_bindings(
   GEN_ENUM_BINDINGS_TD_FILE
     "../../include/mlir/Dialect/Transform/IR/TransformAttrs.td"
 )
+
+declare_mlir_python_sources(
+  MLIRPythonSources.Dialects.transform.extras
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  GEN_ENUM_BINDINGS
+  SOURCES
+    dialects/transform/extras/__init__.py)
+
+declare_mlir_python_sources(
+  MLIRPythonSources.Dialects.transform.interpreter
+  ADD_TO_PARENT MLIRPythonSources.Dialects
+  ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+  SOURCES
+    dialects/transform/interpreter/__init__.py)
 
 declare_mlir_dialect_extension_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -332,7 +367,8 @@ declare_mlir_dialect_python_bindings(
   TD_FILE dialects/OpenMPOps.td
   SOURCES
     dialects/openmp.py
-  DIALECT_NAME omp)
+  DIALECT_NAME omp
+  DEPENDS omp_common_td)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -358,6 +394,13 @@ declare_mlir_dialect_python_bindings(
   GEN_ENUM_BINDINGS_TD_FILE
     "../../include/mlir/Dialect/SparseTensor/IR/SparseTensorAttrDefs.td"
 )
+
+declare_mlir_dialect_python_bindings(
+    ADD_TO_PARENT MLIRPythonSources.Dialects
+    ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/mlir"
+    TD_FILE dialects/SPIRVOps.td
+    SOURCES dialects/spirv.py
+    DIALECT_NAME spirv)
 
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT MLIRPythonSources.Dialects
@@ -406,12 +449,14 @@ declare_mlir_python_extension(MLIRPythonExtension.Core
     IRModule.cpp
     IRTypes.cpp
     Pass.cpp
+    Rewrite.cpp
 
     # Headers must be included explicitly so they are installed.
     Globals.h
     IRModule.h
     Pass.h
     PybindUtils.h
+    Rewrite.h
   PRIVATE_LINK_LIBS
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
@@ -456,6 +501,32 @@ declare_mlir_python_extension(MLIRPythonExtension.Dialects.Linalg.Pybind
     MLIRCAPILinalg
 )
 
+declare_mlir_python_extension(MLIRPythonExtension.Dialects.GPU.Pybind
+  MODULE_NAME _mlirDialectsGPU
+  ADD_TO_PARENT MLIRPythonSources.Dialects.gpu
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  SOURCES
+    DialectGPU.cpp
+  PRIVATE_LINK_LIBS
+    LLVMSupport
+  EMBED_CAPI_LINK_LIBS
+    MLIRCAPIIR
+    MLIRCAPIGPU
+)
+
+declare_mlir_python_extension(MLIRPythonExtension.Dialects.LLVM.Pybind
+  MODULE_NAME _mlirDialectsLLVM
+  ADD_TO_PARENT MLIRPythonSources.Dialects.llvm
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  SOURCES
+    DialectLLVM.cpp
+  PRIVATE_LINK_LIBS
+    LLVMSupport
+  EMBED_CAPI_LINK_LIBS
+    MLIRCAPIIR
+    MLIRCAPILLVM
+)
+
 declare_mlir_python_extension(MLIRPythonExtension.Dialects.Quant.Pybind
   MODULE_NAME _mlirDialectsQuant
   ADD_TO_PARENT MLIRPythonSources.Dialects.quant
@@ -467,6 +538,19 @@ declare_mlir_python_extension(MLIRPythonExtension.Dialects.Quant.Pybind
   EMBED_CAPI_LINK_LIBS
     MLIRCAPIIR
     MLIRCAPIQuant
+)
+
+declare_mlir_python_extension(MLIRPythonExtension.Dialects.NVGPU.Pybind
+  MODULE_NAME _mlirDialectsNVGPU
+  ADD_TO_PARENT MLIRPythonSources.Dialects.nvgpu
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  SOURCES
+    DialectNVGPU.cpp
+  PRIVATE_LINK_LIBS
+    LLVMSupport
+  EMBED_CAPI_LINK_LIBS
+    MLIRCAPIIR
+    MLIRCAPINVGPU
 )
 
 declare_mlir_python_extension(MLIRPythonExtension.Dialects.PDL.Pybind
@@ -510,7 +594,7 @@ declare_mlir_python_extension(MLIRPythonExtension.Dialects.Transform.Pybind
 
 declare_mlir_python_extension(MLIRPythonExtension.AsyncDialectPasses
   MODULE_NAME _mlirAsyncPasses
-  ADD_TO_PARENT MLIRPythonSources.Dialects.async_dialect
+  ADD_TO_PARENT MLIRPythonSources.Dialects.async
   ROOT_DIR "${PYTHON_SOURCE_DIR}"
   SOURCES
     AsyncPasses.cpp
@@ -568,6 +652,18 @@ declare_mlir_python_extension(MLIRPythonExtension.SparseTensorDialectPasses
     LLVMSupport
   EMBED_CAPI_LINK_LIBS
     MLIRCAPISparseTensor
+)
+
+declare_mlir_python_extension(MLIRPythonExtension.TransformInterpreter
+  MODULE_NAME _mlirTransformInterpreter
+  ADD_TO_PARENT MLIRPythonSources.Dialects.transform
+  ROOT_DIR "${PYTHON_SOURCE_DIR}"
+  SOURCES
+    TransformInterpreter.cpp
+  PRIVATE_LINK_LIBS
+    LLVMSupport
+  EMBED_CAPI_LINK_LIBS
+    MLIRCAPITransformDialectTransforms
 )
 
 # TODO: Figure out how to put this in the test tree.

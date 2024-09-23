@@ -1,0 +1,25 @@
+; Check support of OpCopyLogical instruction that was added in SPIR-V 1.4
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.4 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+               OpCapability Addresses
+               OpCapability Kernel
+               OpMemoryModel Physical32 OpenCL
+               OpEntryPoint Kernel %1 "test"
+               OpName %entry "entry"
+       %void = OpTypeVoid
+  %_struct_4 = OpTypeStruct
+  %_struct_5 = OpTypeStruct
+          %6 = OpConstantComposite %_struct_4
+          %7 = OpTypeFunction %void
+          %1 = OpFunction %void None %7
+      %entry = OpLabel
+          %8 = OpCopyLogical %_struct_5 %6
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-LLVM: @_Z19__spirv_CopyLogical12structtype.0(ptr sret(%structtype) %[[#]], %structtype.0 zeroinitializer)

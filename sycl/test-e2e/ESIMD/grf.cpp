@@ -13,22 +13,21 @@
 // - ESIMD device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu-intel-pvc
-//             invokes 'piProgramBuild'/'piKernelCreate'
+// REQUIRES: arch-intel_gpu_pvc
+//             invokes 'urProgramBuild'/'urKernelCreate'
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// Don't use SYCL_UR_TRACE as the output from the L0 adapter logging interferes
+// with the regular UR traces we are checking.
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_AUTO -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: env UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" UR_LOG_TRACING="level:info;output:stdout;flush:info" UR_ENABLE_LAYERS=UR_LAYER_TRACING %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 #if defined(USE_NEW_API) || defined(USE_AUTO)
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #else
@@ -71,13 +70,10 @@ int main(void) {
     A[i] = i;
   }
 
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(gpu_selector{}, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class SyclKernel>(Size,
@@ -98,11 +94,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(Size, [=](id<1> i) SYCL_ESIMD_KERNEL {
@@ -128,7 +119,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 #ifdef USE_AUTO
     sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
 #elif defined(USE_NEW_API)
@@ -137,9 +127,6 @@ int main(void) {
     sycl::ext::oneapi::experimental::properties prop{
         register_alloc_mode<register_alloc_mode_enum::large>};
 #endif
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernelSpecifiedGRF>(
@@ -169,35 +156,24 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NOT: -vc-codegen
-// CHECK-WITH-VAR: -g
-// CHECK-NOT: -vc-codegen
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SyclKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-NOT: ---> urProgramBuild{{.*}}-vc-codegen
+// CHECK-WITH-VAR: ---> urProgramBuild{{.*}}-g
+// CHECK: ---> urKernelCreate({{.*}}{{.*}}SyclKernel
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NO-VAR: -vc-codegen -disable-finalizer-msg
+// CHECK-NO-VAR-LABEL: -vc-codegen -disable-finalizer-msg
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernel
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // Kernels requesting GRF are grouped into separate module and compiled
 // with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
-// CHECK-LABEL: ---> piProgramBuild(
 // CHECK-NO-VAR: -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}EsimdKernelSpecifiedGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: ---> urKernelCreate(
+// CHECK-SAME: EsimdKernelSpecifiedGRF
+// CHECK-SAME: -> UR_RESULT_SUCCESS

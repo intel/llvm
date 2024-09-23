@@ -35,14 +35,14 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@_ZN5Outer5Inner6globalE = dso_local global i32 0, align 4, !dbg !0
+@_ZN5Outer5Inner6globalE = dso_local addrspace(1) global i32 0, align 4, !dbg !0
 
 ; Function Attrs: noinline nounwind optnone uwtable mustprogress
 define dso_local void @_Z3foov() #0 !dbg !11 {
 entry:
-  %0 = load i32, ptr @_ZN5Outer5Inner6globalE, align 4, !dbg !14
+  %0 = load i32, ptr addrspace(1) @_ZN5Outer5Inner6globalE, align 4, !dbg !14
   %inc = add nsw i32 %0, 1, !dbg !14
-  store i32 %inc, ptr @_ZN5Outer5Inner6globalE, align 4, !dbg !14
+  store i32 %inc, ptr addrspace(1) @_ZN5Outer5Inner6globalE, align 4, !dbg !14
   ret void, !dbg !15
 }
 

@@ -2,7 +2,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 #define TEST_ON_DEVICE(TEST_BODY)                                              \
   {                                                                            \

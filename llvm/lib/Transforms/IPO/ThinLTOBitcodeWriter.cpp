@@ -186,7 +186,7 @@ void simplifyExternals(Module &M) {
 
     if (!F.isDeclaration() || F.getFunctionType() == EmptyFT ||
         // Changing the type of an intrinsic may invalidate the IR.
-        F.getName().startswith("llvm."))
+        F.getName().starts_with("llvm."))
       continue;
 
     Function *NewF =
@@ -198,7 +198,7 @@ void simplifyExternals(Module &M) {
                                            AttributeList::FunctionIndex,
                                            F.getAttributes().getFnAttrs()));
     NewF->takeName(&F);
-    F.replaceAllUsesWith(ConstantExpr::getBitCast(NewF, F.getType()));
+    F.replaceAllUsesWith(NewF);
     F.eraseFromParent();
   }
 
@@ -575,16 +575,23 @@ bool writeThinLTOBitcode(raw_ostream &OS, raw_ostream *ThinLinkOS,
 }
 
 } // anonymous namespace
-
+extern bool WriteNewDbgInfoFormatToBitcode;
 PreservedAnalyses
 llvm::ThinLTOBitcodeWriterPass::run(Module &M, ModuleAnalysisManager &AM) {
   FunctionAnalysisManager &FAM =
       AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
+
+  ScopedDbgInfoFormatSetter FormatSetter(M, M.IsNewDbgInfoFormat &&
+                                                WriteNewDbgInfoFormatToBitcode);
+  if (M.IsNewDbgInfoFormat)
+    M.removeDebugIntrinsicDeclarations();
+
   bool Changed = writeThinLTOBitcode(
       OS, ThinLinkOS,
       [&FAM](Function &F) -> AAResults & {
         return FAM.getResult<AAManager>(F);
       },
       M, &AM.getResult<ModuleSummaryIndexAnalysis>(M));
+
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

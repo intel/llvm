@@ -6,20 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+
 // Test checks support of named barrier in ESIMD kernel.
 // Threads are executed in ascending order of their local ID and each thread
 // stores data to addresses that partially overlap with addresses used by
 // previous thread. Same as "exec_in_order.cpp", but each thread in separate
 // 'if' branch.
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
+#define NS __ESIMD_NS
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -63,7 +62,7 @@ bool test(QueueTY q) {
           Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
             // Threads - 1 named barriers required
             // but id 0 reserved for unnamed
-            named_barrier_init<Threads>();
+            NS::named_barrier_init<Threads>();
 
             unsigned int idx = ndi.get_local_id(0);
             // overlaping offset
@@ -89,67 +88,67 @@ bool test(QueueTY q) {
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T0 signals barrier 1 and locks
               // waiting for first signal from T1
               const int barrier_id = 1;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
             } else if (idx == 1) {
               // T1 signals barrier 1 and locks, waiting for signal from T0
               const int barrier_id = 1;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
 
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T1 signals barrier 2 and locks
               // waiting for first signal from T2
               const int barrier_id2 = 2;
-              named_barrier_signal(barrier_id2, flag, producers, consumers);
-              named_barrier_wait(barrier_id2);
+              NS::named_barrier_signal(barrier_id2, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id2);
             } else if (idx == 2) {
               // T2 signals barrier 2 and locks
               // waiting for second signal from T1
               const int barrier_id = 2;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
 
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T2 signals barrier 3 and locks, waiting for signal from T3
               const int barrier_id2 = 3;
-              named_barrier_signal(barrier_id2, flag, producers, consumers);
-              named_barrier_wait(barrier_id2);
+              NS::named_barrier_signal(barrier_id2, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id2);
             } else {
               // T3 signals barrier 3 and locks
               // waiting for second signal from T2
               const int barrier_id = 3;
-              named_barrier_signal(barrier_id, flag, producers, consumers);
-              named_barrier_wait(barrier_id);
+              NS::named_barrier_signal(barrier_id, flag, producers, consumers);
+              NS::named_barrier_wait(barrier_id);
 
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
             }
 
@@ -184,11 +183,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

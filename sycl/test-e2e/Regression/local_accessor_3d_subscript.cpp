@@ -12,7 +12,8 @@
 // compiles and runs.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 int main() {
   size_t Result = 0;

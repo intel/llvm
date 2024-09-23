@@ -73,7 +73,7 @@ Linkage MachOLinkGraphBuilder::getLinkage(uint16_t Desc) {
 
 Scope MachOLinkGraphBuilder::getScope(StringRef Name, uint8_t Type) {
   if (Type & MachO::N_EXT) {
-    if ((Type & MachO::N_PEXT) || Name.startswith("l"))
+    if ((Type & MachO::N_PEXT) || Name.starts_with("l"))
       return Scope::Hidden;
     else
       return Scope::Default;
@@ -366,7 +366,7 @@ Error MachOLinkGraphBuilder::graphifyRegularSymbols() {
                                    orc::ExecutorAddrDiff(NSym.Value),
                                    orc::ExecutorAddr(),
                                    1ull << MachO::GET_COMM_ALIGN(NSym.Desc), 0),
-            0, *NSym.Name, orc::ExecutorAddrDiff(NSym.Value), Linkage::Strong,
+            0, *NSym.Name, orc::ExecutorAddrDiff(NSym.Value), Linkage::Weak,
             NSym.S, false, NSym.Desc & MachO::N_NO_DEAD_STRIP);
       } else {
         if (!NSym.Name)

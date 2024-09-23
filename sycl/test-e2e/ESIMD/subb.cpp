@@ -7,16 +7,14 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// https://github.com/intel/llvm/issues/14868
+// UNSUPPORTED: windows
 
 // The test verifies ESIMD API that substracts 2 32-bit integer scalars/vectors
 // with borrow returning the result as 2 parts: borrow flag the input modified
 // operand and substraction result as return from function.
 
 #include "esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

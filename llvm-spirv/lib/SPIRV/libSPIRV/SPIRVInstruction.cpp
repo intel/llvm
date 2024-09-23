@@ -40,6 +40,7 @@
 #include "SPIRVInstruction.h"
 #include "SPIRVBasicBlock.h"
 #include "SPIRVFunction.h"
+#include "SPIRVInternal.h"
 
 #include <unordered_set>
 
@@ -145,6 +146,8 @@ SPIRVInstruction::getOperandTypes(const std::vector<SPIRVValue *> &Ops) {
     SPIRVType *Ty = nullptr;
     if (I->getOpCode() == OpFunction)
       Ty = reinterpret_cast<SPIRVFunction *>(I)->getFunctionType();
+    else if (I->getOpCode() == OpTypeCooperativeMatrixKHR)
+      Ty = reinterpret_cast<SPIRVType *>(I);
     else
       Ty = I->getType();
 
@@ -153,29 +156,13 @@ SPIRVInstruction::getOperandTypes(const std::vector<SPIRVValue *> &Ops) {
   return Tys;
 }
 
-std::vector<SPIRVType *> SPIRVInstruction::getOperandTypes() {
-  return getOperandTypes(getOperands());
-}
-
-size_t SPIRVImageInstBase::getImageOperandsIndex() const {
-  switch (OpCode) {
-  case OpImageRead:
-  case OpImageSampleExplicitLod:
-    return 2;
-  case OpImageWrite:
-    return 3;
-  default:
-    return ~0U;
-  }
-}
-
 void SPIRVImageInstBase::setOpWords(const std::vector<SPIRVWord> &OpsArg) {
   std::vector<SPIRVWord> Ops = OpsArg;
 
   // If the Image Operands field has the SignExtend or ZeroExtend bit set,
   // either raise the minimum SPIR-V version to 1.4, or drop the operand
   // if SPIR-V 1.4 cannot be emitted.
-  size_t ImgOpsIndex = getImageOperandsIndex();
+  size_t ImgOpsIndex = getImageOperandsIndex(OpCode);
   if (ImgOpsIndex != ~0U && ImgOpsIndex < Ops.size()) {
     SPIRVWord ImgOps = Ops[ImgOpsIndex];
     unsigned SignZeroExtMasks = ImageOperandsMask::ImageOperandsSignExtendMask |

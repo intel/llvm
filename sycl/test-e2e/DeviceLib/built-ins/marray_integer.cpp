@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #define TEST(FUNC, MARRAY_RET_TYPE, DIM, EXPECTED, ...)                        \
   {                                                                            \

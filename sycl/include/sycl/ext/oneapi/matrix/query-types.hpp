@@ -46,6 +46,7 @@ struct combination {
 
 } // namespace ext::oneapi::experimental::matrix
 
+// Type to matrix type string conversion used in compile-time
 namespace detail {
 template <typename T> constexpr const char *convertTypeToMatrixTypeString() {
   return "";

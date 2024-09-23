@@ -1,4 +1,5 @@
 // RUN: mlir-opt %s --transform-interpreter | FileCheck %s
+// RUN: mlir-opt %s --gpu-eliminate-barriers | FileCheck %s
 
 module attributes {transform.with_named_sequence} {
   transform.named_sequence @__transform_main(%arg0: !transform.any_op {transform.readonly}) {
@@ -60,7 +61,7 @@ func.func @write_in_a_loop(%arg0: memref<?xf32>, %arg1: f32) attributes {__paral
   return
 }
 
-// CHECK-LABEL @read_read_write_loop
+// CHECK-LABEL: @read_read_write_loop
 func.func @read_read_write_loop(%arg0: memref<?xf32>, %arg1: f32) attributes {__parallel_region_boundary_for_test} {
   %c0 = arith.constant 0 : index
   %c42 = arith.constant 42 : index

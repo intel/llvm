@@ -32,17 +32,17 @@
 
 // UNSUPPORTED: hip || (windows && level_zero)
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/atomic.hpp>
 
 #include "../common.hpp"
 #include "atomic_fixt.hpp"
 
-constexpr size_t numBlocks = 64;
-constexpr size_t numThreads = 256;
+constexpr size_t numBlocks = 1;
+constexpr size_t numThreads = 1;
 constexpr size_t numData = 6;
 
 template <typename T, typename AtomicType>

@@ -42,16 +42,24 @@
 #include <utility>
 
 #include <sycl/builtins.hpp>
-#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
+#include <sycl/group.hpp>
 #include <sycl/usm.hpp>
 
+#ifdef SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#endif
+
 #include <syclcompat/device.hpp>
+#include <syclcompat/traits.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
 #elif defined(_WIN64)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #else
 #error "Only support Windows and Linux."
@@ -61,13 +69,14 @@ namespace syclcompat {
 
 template <typename AllocT> auto *local_mem() {
   sycl::multi_ptr<AllocT, sycl::access::address_space::local_space>
-      As_multi_ptr = sycl::ext::oneapi::group_local_memory<AllocT>(
-          sycl::ext::oneapi::experimental::this_nd_item<3>().get_group());
+      As_multi_ptr =
+          sycl::ext::oneapi::group_local_memory_for_overwrite<AllocT>(
+              sycl::ext::oneapi::this_work_item::get_work_group<3>());
   auto *As = *As_multi_ptr;
   return As;
 }
 
-namespace detail {
+namespace experimental {
 enum memcpy_direction {
   host_to_host,
   host_to_device,
@@ -75,7 +84,7 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
-} // namespace detail
+}
 
 enum class memory_region {
   global = 0, // device global memory
@@ -112,6 +121,42 @@ private:
   size_t _pitch, _x, _y;
 };
 
+namespace experimental {
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+class image_mem_wrapper;
+namespace detail {
+static sycl::event memcpy(const image_mem_wrapper *src,
+                          const sycl::id<3> &src_id, pitched_data &dest,
+                          const sycl::id<3> &dest_id,
+                          const sycl::range<3> &copy_extend, sycl::queue q);
+static sycl::event memcpy(const pitched_data src, const sycl::id<3> &src_id,
+                          image_mem_wrapper *dest, const sycl::id<3> &dest_id,
+                          const sycl::range<3> &copy_extend, sycl::queue q);
+} // namespace detail
+#endif
+class image_matrix;
+namespace detail {
+static pitched_data to_pitched_data(image_matrix *image);
+}
+
+/// Memory copy parameters for 2D/3D memory data.
+struct memcpy_parameter {
+  struct data_wrapper {
+    pitched_data pitched{};
+    sycl::id<3> pos{};
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+    experimental::image_mem_wrapper *image_bindless{nullptr};
+#endif
+    image_matrix *image{nullptr};
+  };
+  data_wrapper from{};
+  data_wrapper to{};
+  sycl::range<3> size{};
+  syclcompat::experimental::memcpy_direction direction{
+      syclcompat::experimental::memcpy_direction::automatic};
+};
+} // namespace experimental
+
 namespace detail {
 
 template <class T, memory_region Memory, size_t Dimension> class accessor;
@@ -121,9 +166,8 @@ public:
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr syclcompat::target target = (Memory == memory_region::local)
-                                                   ? syclcompat::target::local
-                                                   : syclcompat::target::device;
+  static constexpr target target =
+      (Memory == memory_region::local) ? target::local : target::device;
   static constexpr sycl::access_mode mode = (Memory == memory_region::constant)
                                                 ? sycl::access_mode::read
                                                 : sycl::access_mode::read_write;
@@ -134,7 +178,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t =
-      typename std::conditional_t<target == syclcompat::target::local,
+      typename std::conditional_t<target == target::local,
                                   sycl::local_accessor<T, Dimension>,
                                   sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
@@ -146,20 +190,27 @@ static inline void *malloc(size_t size, sycl::queue q) {
 
 /// Calculate pitch (padded length of major dimension \p x) by rounding up to
 /// multiple of 32.
-/// \param x The dimension to be padded
-/// \returns size_t representing pitched length of dimension x.
+/// \param x The dimension to be padded (in bytes)
+/// \returns size_t representing pitched length of dimension x (in bytes).
 static inline constexpr size_t get_pitch(size_t x) {
   return ((x) + 31) & ~(0x1F);
 }
 
+/// \brief Malloc pitched 3D data
+/// \param [out] pitch returns the calculated pitch (in bytes)
+/// \param [in] x width of the allocation (in bytes)
+/// \param [in] y height of the allocation
+/// \param [in] z depth of the allocation
+/// \param [in] q The queue in which the operation is done.
+/// \returns A pointer to the allocated memory
 static inline void *malloc(size_t &pitch, size_t x, size_t y, size_t z,
                            sycl::queue q) {
   pitch = get_pitch(x);
   return malloc(pitch * y * z, q);
 }
 
-/// Set \p pattern to the first \p count elements of type \p T starting from \p
-/// dev_ptr.
+/// \brief Set \p pattern to the first \p count elements of type \p T
+/// starting from \p dev_ptr.
 ///
 /// \tparam T Datatype of the pattern to be set.
 /// \param q The queue in which the operation is done.
@@ -185,23 +236,23 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
   return q.memset(dev_ptr, value, size);
 }
 
-/// Set \p value to the 3D memory region pointed by \p data in \p q. \p size
-/// specifies the 3D memory size to set.
-///
-/// \param q The queue in which the operation is done.
-/// \param data Pointer to the device memory region.
-/// \param value Value to be set.
-/// \param size Memory region size.
-/// \returns An event list representing the memset operations.
-static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
-                                              int value, sycl::range<3> size) {
+/// \brief Sets \p value to the 3D memory region pointed by \p data in \p q.
+/// \tparam T The type of the element to be set.
+/// \param [in] q The queue in which the operation is done.
+/// \param [in] data Pointer to the pitched device memory region.
+/// \param [in] value The value to be set.
+/// \param [in] size 3D memory region by number of elements.
+/// \return An event list representing the memset operations.
+template <typename T>
+static inline std::vector<sycl::event>
+memset(sycl::queue q, pitched_data data, const T &value, sycl::range<3> size) {
   std::vector<sycl::event> event_list;
   size_t slice = data.get_pitch() * data.get_y();
   unsigned char *data_surface = (unsigned char *)data.get_data_ptr();
   for (size_t z = 0; z < size.get(2); ++z) {
     unsigned char *data_ptr = data_surface;
     for (size_t y = 0; y < size.get(1); ++y) {
-      event_list.push_back(memset(q, data_ptr, value, size.get(0)));
+      event_list.push_back(detail::fill<T>(q, data_ptr, value, size.get(0)));
       data_ptr += data.get_pitch();
     }
     data_surface += slice;
@@ -209,10 +260,21 @@ static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
   return event_list;
 }
 
-/// memset 2D matrix with pitch.
-static inline std::vector<sycl::event>
-memset(sycl::queue q, void *ptr, size_t pitch, int val, size_t x, size_t y) {
-  return memset(q, pitched_data(ptr, pitch, x, 1), val,
+/// \brief Sets \p val to the pitched 2D memory region pointed by \p ptr in \p
+/// q.
+/// \tparam T The type of the element to be set.
+/// \param [in] q The queue in which the operation is done.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] value The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \return An event list representing the memset operations.
+template <typename T>
+static inline std::vector<sycl::event> memset(sycl::queue q, void *ptr,
+                                              size_t pitch, const T &value,
+                                              size_t x, size_t y) {
+  return memset(q, pitched_data(ptr, pitch, x, 1), value,
                 sycl::range<3>(x, y, 1));
 }
 
@@ -236,21 +298,16 @@ static pointer_access_attribute get_pointer_attribute(sycl::queue q,
   }
 }
 
-static memcpy_direction deduce_memcpy_direction(sycl::queue q, void *to_ptr,
-                                                const void *from_ptr) {
+static experimental::memcpy_direction
+deduce_memcpy_direction(sycl::queue q, void *to_ptr, const void *from_ptr) {
   // table[to_attribute][from_attribute]
+  using namespace experimental; // for memcpy_direction
   static const memcpy_direction
       direction_table[static_cast<unsigned>(pointer_access_attribute::end)]
                      [static_cast<unsigned>(pointer_access_attribute::end)] = {
-                         {memcpy_direction::host_to_host,
-                          memcpy_direction::device_to_host,
-                          memcpy_direction::host_to_host},
-                         {memcpy_direction::host_to_device,
-                          memcpy_direction::device_to_device,
-                          memcpy_direction::device_to_device},
-                         {memcpy_direction::host_to_host,
-                          memcpy_direction::device_to_device,
-                          memcpy_direction::device_to_device}};
+                         {host_to_host, device_to_host, host_to_host},
+                         {host_to_device, device_to_device, device_to_device},
+                         {host_to_host, device_to_device, device_to_device}};
   return direction_table[static_cast<unsigned>(get_pointer_attribute(
       q, to_ptr))][static_cast<unsigned>(get_pointer_attribute(q, from_ptr))];
 }
@@ -273,6 +330,28 @@ static inline size_t get_offset(sycl::id<3> id, size_t slice, size_t pitch) {
   return slice * id.get(2) + pitch * id.get(1) + id.get(0);
 }
 
+// RAII for host pointer
+class host_buffer {
+  void *_buf;
+  size_t _size;
+  sycl::queue _q;
+  const std::vector<sycl::event> &_deps; // free operation depends
+
+public:
+  host_buffer(size_t size, sycl::queue q, const std::vector<sycl::event> &deps)
+      : _buf(std::malloc(size)), _size(size), _q(q), _deps(deps) {}
+  void *get_ptr() const { return _buf; }
+  size_t get_size() const { return _size; }
+  ~host_buffer() {
+    if (_buf) {
+      _q.submit([&](sycl::handler &cgh) {
+        cgh.depends_on(_deps);
+        cgh.host_task([buf = _buf] { std::free(buf); });
+      });
+    }
+  }
+};
+
 /// copy 3D matrix specified by \p size from 3D matrix specified by \p from_ptr
 /// and \p from_range to another specified by \p to_ptr and \p to_range.
 static inline std::vector<sycl::event>
@@ -280,28 +359,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
        sycl::range<3> to_range, sycl::range<3> from_range, sycl::id<3> to_id,
        sycl::id<3> from_id, sycl::range<3> size,
        const std::vector<sycl::event> &dep_events = {}) {
-  // RAII for host pointer
-  class host_buffer {
-    void *_buf;
-    size_t _size;
-    sycl::queue _q;
-    const std::vector<sycl::event> &_deps; // free operation depends
 
-  public:
-    host_buffer(size_t size, sycl::queue q,
-                const std::vector<sycl::event> &deps)
-        : _buf(std::malloc(size)), _size(size), _q(q), _deps(deps) {}
-    void *get_ptr() const { return _buf; }
-    size_t get_size() const { return _size; }
-    ~host_buffer() {
-      if (_buf) {
-        _q.submit([&](sycl::handler &cgh) {
-          cgh.depends_on(_deps);
-          cgh.host_task([buf = _buf] { std::free(buf); });
-        });
-      }
-    }
-  };
   std::vector<sycl::event> event_list;
 
   size_t to_slice = to_range.get(1) * to_range.get(0);
@@ -316,6 +374,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     return {memcpy(q, to_surface, from_surface, to_slice * size.get(2),
                    dep_events)};
   }
+  using namespace experimental; // for memcpy_direction
   memcpy_direction direction = deduce_memcpy_direction(q, to_ptr, from_ptr);
   size_t size_slice = size.get(1) * size.get(0);
   switch (direction) {
@@ -385,8 +444,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     }));
     break;
   default:
-    throw std::runtime_error("syclcompat::"
-                             "memcpy: invalid direction value");
+    throw std::runtime_error("[SYCLcompat] memcpy: invalid direction value");
   }
   return event_list;
 }
@@ -421,6 +479,56 @@ static sycl::event combine_events(std::vector<sycl::event> &events,
 }
 
 } // namespace detail
+
+namespace experimental {
+namespace detail {
+static inline std::vector<sycl::event>
+memcpy(sycl::queue q, const experimental::memcpy_parameter &param) {
+  auto to = param.to.pitched;
+  auto from = param.from.pitched;
+#ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
+  if (param.to.image_bindless != nullptr &&
+      param.from.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
+    // TODO: Need change logic when sycl support image_mem to image_mem copy.
+    std::vector<sycl::event> event_list;
+    syclcompat::detail::host_buffer buf(param.size.size(), q, event_list);
+    to.set_data_ptr(buf.get_ptr());
+    experimental::detail::memcpy(param.from.image_bindless, param.from.pos, to,
+                                 sycl::id<3>(0, 0, 0), param.size, q);
+    from.set_data_ptr(buf.get_ptr());
+    event_list.push_back(experimental::detail::memcpy(
+        from, sycl::id<3>(0, 0, 0), param.to.image_bindless, param.to.pos,
+        param.size, q));
+    return event_list;
+  } else if (param.to.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
+    return {experimental::detail::memcpy(from, param.from.pos,
+                                         param.to.image_bindless, param.to.pos,
+                                         param.size, q)};
+  } else if (param.from.image_bindless != nullptr) {
+    throw std::runtime_error(
+        "[SYCLcompat] memcpy: Unsupported bindless_image API.");
+    return {experimental::detail::memcpy(param.from.image_bindless,
+                                         param.from.pos, to, param.to.pos,
+                                         param.size, q)};
+  }
+#endif
+  if (param.to.image != nullptr) {
+    throw std::runtime_error("[SYCLcompat] memcpy: Unsupported image API.");
+    to = experimental::detail::to_pitched_data(param.to.image);
+  }
+  if (param.from.image != nullptr) {
+    throw std::runtime_error("[SYCLcompat] memcpy: Unsupported image API.");
+    from = experimental::detail::to_pitched_data(param.from.image);
+  }
+  return syclcompat::detail::memcpy(q, to, param.to.pos, from, param.from.pos,
+                                    param.size);
+}
+} // namespace detail
+} // namespace experimental
 
 /// Allocate memory block on the device.
 /// \param num_bytes Number of bytes to allocate.
@@ -505,25 +613,40 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
   return detail::malloc(pitch, x, y, 1, q);
 }
 
-/// free
+/// Wait on the queue \p q and free the memory \p ptr.
 /// \param ptr Point to free.
 /// \param q Queue to execute the free task.
 /// \returns no return value.
-static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
+static inline void wait_and_free(void *ptr,
+                                 sycl::queue q = get_default_queue()) {
+  get_current_device().queues_wait_and_throw();
+  q.wait();
   if (ptr) {
-    sycl::free(ptr, q.get_context());
+    sycl::free(ptr, q);
   }
 }
 
-/// Free the device memory pointed by a batch of pointers in \p pointers which
-/// are related to \p q after \p events completed.
+/// Free the memory \p ptr on the default queue without synchronizing
+/// \param ptr Point to free.
+/// \returns no return value.
+static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
+  if (ptr) {
+    sycl::free(ptr, q);
+  }
+}
+
+/// Enqueues the release of all pointers in /p pointers on the /p q.
+/// The command waits on all passed /p events and returns an event that
+/// track the commands execution on the queue.
 ///
 /// \param pointers The pointers point to the device memory requested to be
-/// freed. \param events The events to be waited. \param q The sycl::queue the
-/// memory relates to.
-inline sycl::event free_async(const std::vector<void *> &pointers,
-                              const std::vector<sycl::event> &events,
-                              sycl::queue q = get_default_queue()) {
+/// freed.
+/// \param events The events to be waited on.
+/// \param q The sycl::queue the memory relates to.
+// Can't be static due to the friend declaration in the memory header.
+inline sycl::event enqueue_free(const std::vector<void *> &pointers,
+                                const std::vector<sycl::event> &events,
+                                sycl::queue q = get_default_queue()) {
   auto event = q.submit(
       [&pointers, &events, ctxt = q.get_context()](sycl::handler &cgh) {
         cgh.depends_on(events);
@@ -564,13 +687,6 @@ static sycl::event memcpy_async(void *to_ptr, const void *from_ptr, size_t size,
   return detail::memcpy(q, to_ptr, from_ptr, size);
 }
 
-namespace detail {
-template <class T> struct dont_deduce {
-  using type = T;
-};
-template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
-} // namespace detail
-
 /// Asynchronously copies \p count T's from the address specified by \p
 /// from_ptr to the address specified by \p to_ptr. The return of the function
 /// does NOT guarantee the copy is completed.
@@ -582,10 +698,9 @@ template <class T> using dont_deduce_t = typename dont_deduce<T>::type;
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
-                                const detail::dont_deduce_t<T> *from_ptr,
-                                size_t count,
-                                sycl::queue q = get_default_queue()) {
+static sycl::event
+memcpy_async(type_identity_t<T> *to_ptr, const type_identity_t<T> *from_ptr,
+             size_t count, sycl::queue q = get_default_queue()) {
   return detail::memcpy(q, static_cast<void *>(to_ptr),
                         static_cast<const void *>(from_ptr), count * sizeof(T));
 }
@@ -601,8 +716,8 @@ static sycl::event memcpy_async(detail::dont_deduce_t<T> *to_ptr,
 /// \param q Queue to execute the copy task.
 /// \returns no return value.
 template <typename T>
-static void memcpy(detail::dont_deduce_t<T> *to_ptr,
-                   const detail::dont_deduce_t<T> *from_ptr, size_t count,
+static void memcpy(type_identity_t<T> *to_ptr,
+                   const type_identity_t<T> *from_ptr, size_t count,
                    sycl::queue q = get_default_queue()) {
   detail::memcpy(q, static_cast<void *>(to_ptr),
                  static_cast<const void *>(from_ptr), count * sizeof(T))
@@ -643,7 +758,7 @@ static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
 /// \param x Range of dim x of matrix to be copied.
 /// \param y Range of dim y of matrix to be copied.
 /// \param q Queue to execute the copy task.
-/// \returns no return value.
+/// \returns An event representing the memcpy operation.
 static inline sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
                                        const void *from_ptr, size_t from_pitch,
                                        size_t x, size_t y,
@@ -682,7 +797,7 @@ static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
 /// \param from_pos Position of destination.
 /// \param size Range of the submatrix to be copied.
 /// \param q Queue to execute the copy task.
-/// \returns no return value.
+/// \returns An event representing the memcpy operation.
 static inline sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
                                        pitched_data from, sycl::id<3> from_pos,
                                        sycl::range<3> size,
@@ -716,13 +831,38 @@ static void inline fill(void *dev_ptr, const T &pattern, size_t count,
 /// \param pattern Pattern of type \p T to be set.
 /// \param count Number of elements to be set to the patten.
 /// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \returns An event representing the fill operation.
 template <class T>
 static sycl::event inline fill_async(void *dev_ptr, const T &pattern,
                                      size_t count,
                                      sycl::queue q = get_default_queue()) {
   return detail::fill(q, dev_ptr, pattern, count);
 }
+
+namespace experimental {
+
+/// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
+/// The function will return after the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy(const memcpy_parameter &param,
+                          sycl::queue q = get_default_queue()) {
+  sycl::event::wait(syclcompat::experimental::detail::memcpy(q, param));
+}
+
+/// [UNSUPPORTED] Asynchronously copies 2D/3D memory data specified by \p param
+/// . The return of the function does NOT guarantee the copy is completed.
+///
+/// \param param Memory copy parameters.
+/// \param q Queue to execute the copy task.
+/// \returns no return value.
+static inline void memcpy_async(const memcpy_parameter &param,
+                                sycl::queue q = get_default_queue()) {
+  syclcompat::experimental::detail::memcpy(q, param);
+}
+} // namespace experimental
 
 /// Synchronously sets \p value to the first \p size bytes starting from \p
 /// dev_ptr. The function will return after the memset operation is completed.
@@ -737,51 +877,151 @@ static void memset(void *dev_ptr, int value, size_t size,
   detail::memset(q, dev_ptr, value, size).wait();
 }
 
-/// Asynchronously sets \p value to the first \p size bytes starting from \p
-/// dev_ptr. The return of the function does NOT guarantee the memset operation
-/// is completed.
-///
+/// \brief Sets 2 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q synchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d16(void *dev_ptr, unsigned short value, size_t size,
+                              sycl::queue q = get_default_queue()) {
+  detail::fill<unsigned short>(q, dev_ptr, value, size).wait();
+}
+
+/// \brief Sets 4 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q synchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d32(void *dev_ptr, unsigned int value, size_t size,
+                              sycl::queue q = get_default_queue()) {
+  detail::fill<unsigned int>(q, dev_ptr, value, size).wait();
+}
+
+/// \brief Sets 1 byte data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
 /// \param dev_ptr Pointer to the device memory address.
 /// \param value Value to be set.
 /// \param size Number of bytes to be set to the value.
-/// \returns no return value.
-static sycl::event memset_async(void *dev_ptr, int value, size_t size,
-                                sycl::queue q = get_default_queue()) {
+/// \returns An event representing the memset operation.
+static inline sycl::event memset_async(void *dev_ptr, int value, size_t size,
+                                       sycl::queue q = get_default_queue()) {
   return detail::memset(q, dev_ptr, value, size);
 }
 
-/// Sets \p value to the 2D memory region pointed by \p ptr in \p q. \p x and
-/// \p y specify the setted 2D memory size. \p pitch is the bytes in linear
-/// dimension, including padding bytes. The function will return after the
-/// memset operation is completed.
-///
-/// \param ptr Pointer to the device memory region.
-/// \param pitch Bytes in linear dimension, including padding bytes.
-/// \param value Value to be set.
-/// \param x The setted memory size in linear dimension.
-/// \param y The setted memory size in second dimension.
-/// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \brief Sets 2 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d16_async(void *dev_ptr, unsigned short value, size_t size,
+                 sycl::queue q = get_default_queue()) {
+  return detail::fill<unsigned short>(q, dev_ptr, value, size);
+}
+
+/// \brief Sets 4 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d32_async(void *dev_ptr, unsigned int value, size_t size,
+                 sycl::queue q = get_default_queue()) {
+  return detail::fill<unsigned int>(q, dev_ptr, value, size);
+}
+
+/// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
 static inline void memset(void *ptr, size_t pitch, int val, size_t x, size_t y,
                           sycl::queue q = get_default_queue()) {
+  sycl::event::wait(detail::memset<unsigned char>(q, ptr, pitch, val, x, y));
+}
+
+/// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d16(void *ptr, size_t pitch, unsigned short val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue()) {
   sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
 }
 
-/// Sets \p value to the 2D memory region pointed by \p ptr in \p q. \p x and
-/// \p y specify the setted 2D memory size. \p pitch is the bytes in linear
-/// dimension, including padding bytes. The return of the function does NOT
-/// guarantee the memset operation is completed.
-///
-/// \param ptr Pointer to the device memory region.
-/// \param pitch Bytes in linear dimension, including padding bytes.
-/// \param value Value to be set.
-/// \param x The setted memory size in linear dimension.
-/// \param y The setted memory size in second dimension.
-/// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d32(void *ptr, size_t pitch, unsigned int val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue()) {
+  sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
+}
+
+/// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
+/// ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
 static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
                                        size_t x, size_t y,
                                        sycl::queue q = get_default_queue()) {
+
+  auto events = detail::memset<unsigned char>(q, ptr, pitch, val, x, y);
+  return detail::combine_events(events, q);
+}
+
+/// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
+/// \p ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d16_async(void *ptr, size_t pitch, unsigned short val, size_t x,
+                 size_t y, sycl::queue q = get_default_queue()) {
+  auto events = detail::memset(q, ptr, pitch, val, x, y);
+  return detail::combine_events(events, q);
+}
+
+/// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
+/// \p ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d32_async(void *ptr, size_t pitch, unsigned int val, size_t x, size_t y,
+                 sycl::queue q = get_default_queue()) {
   auto events = detail::memset(q, ptr, pitch, val, x, y);
   return detail::combine_events(events, q);
 }
@@ -797,7 +1037,7 @@ static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
 /// \returns no return value.
 static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
                           sycl::queue q = get_default_queue()) {
-  sycl::event::wait(detail::memset(q, pitch, val, size));
+  sycl::event::wait(detail::memset<unsigned char>(q, pitch, val, size));
 }
 
 /// Sets \p value to the 3D memory region specified by \p pitch in \p q. \p size
@@ -808,11 +1048,11 @@ static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
 /// \param value Value to be set.
 /// \param size The setted 3D memory size.
 /// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \returns An event representing the memset operation.
 static inline sycl::event memset_async(pitched_data pitch, int val,
                                        sycl::range<3> size,
                                        sycl::queue q = get_default_queue()) {
-  auto events = detail::memset(q, pitch, val, size);
+  auto events = detail::memset<unsigned char>(q, pitch, val, size);
   return detail::combine_events(events, q);
 }
 
@@ -851,8 +1091,8 @@ public:
   using accessor_t = typename memory_t::template accessor_t<2>;
   accessor(pointer_t data, const sycl::range<2> &in_range)
       : _data(data), _range(in_range) {}
-  template <memory_region M = Memory>
-  accessor(typename std::enable_if<M != memory_region::local,
+  template <memory_region Mem = Memory>
+  accessor(typename std::enable_if<Mem != memory_region::local,
                                    const accessor_t>::type &acc)
       : accessor(acc, acc.get_range()) {}
   accessor(const accessor_t &acc, const sycl::range<2> &in_range)
@@ -875,7 +1115,7 @@ public:
   using accessor_t =
       typename detail::memory_traits<Memory, T>::template accessor_t<Dimension>;
   using value_t = typename detail::memory_traits<Memory, T>::value_t;
-  using compat_accessor_t = syclcompat::accessor<T, Memory, Dimension>;
+  using syclcompat_accessor_t = syclcompat::accessor<T, Memory, Dimension>;
 
   device_memory(sycl::queue q = get_default_queue())
       : device_memory(sycl::range<Dimension>(1), q) {}
@@ -892,9 +1132,9 @@ public:
   }
 
   /// Constructor of 2-D array with initializer list
-  template <size_t D = Dimension>
+  template <size_t Dim = Dimension>
   device_memory(
-      const typename std::enable_if<D == 2, sycl::range<2>>::type &in_range,
+      const typename std::enable_if<Dim == 2, sycl::range<2>>::type &in_range,
       std::initializer_list<std::initializer_list<value_t>> &&init_list,
       sycl::queue q = get_default_queue())
       : device_memory(in_range, q) {
@@ -925,8 +1165,8 @@ public:
   /// Constructor with range
   // enable_if_t SFINAE to avoid ambiguity with
   // device_memory(Args... Arguments, sycl::queue q)
-  template <class... Args, size_t D = Dimension,
-            typename = std::enable_if_t<sizeof...(Args) == D>>
+  template <class... Args, size_t Dim = Dimension,
+            typename = std::enable_if_t<sizeof...(Args) == Dim>>
   device_memory(Args... Arguments)
       : device_memory(sycl::range<Dimension>(Arguments...),
                       get_default_queue()) {}
@@ -943,7 +1183,8 @@ public:
       std::free(_host_ptr);
   }
 
-  /// Allocate memory with default queue, and init memory if has initial value.
+  /// Allocate memory with the queue specified in the constuctor, and init
+  /// memory if has initial value
   void init() { init(_q); }
   /// Allocate memory with specified queue, and init memory if has initial
   /// value.
@@ -963,11 +1204,10 @@ public:
     new (this) device_memory(src, size, _q);
   }
 
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+  // Get memory pointer of the memory object, a device USM pointer.
   value_t *get_ptr() { return get_ptr(_q); }
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+
+  // Get memory pointer of the memory object, a device USM pointer.
   value_t *get_ptr(sycl::queue q) {
     init(q);
     return _device_ptr;
@@ -976,18 +1216,18 @@ public:
   /// Get the device memory object size in bytes.
   size_t get_size() { return _size; }
 
-  template <size_t D = Dimension>
-  typename std::enable_if<D == 1, T>::type &operator[](size_t index) {
+  template <size_t Dim = Dimension>
+  typename std::enable_if<Dim == 1, T>::type &operator[](size_t index) {
     init();
     return _device_ptr[index];
   }
 
   /// Get compat_accessor with dimension info for the device memory object
   /// when usm is used and dimension is greater than 1.
-  template <size_t D = Dimension>
-  typename std::enable_if<D != 1, compat_accessor_t>::type
+  template <size_t Dim = Dimension>
+  typename std::enable_if<Dim != 1, syclcompat_accessor_t>::type
   get_access(sycl::handler &cgh) {
-    return compat_accessor_t((T *)_device_ptr, _range);
+    return syclcompat_accessor_t((T *)_device_ptr, _range);
   }
 
 private:
@@ -1029,10 +1269,11 @@ public:
       typename detail::memory_traits<Memory, T>::template accessor_t<0>;
 
   /// Constructor with initial value.
-  device_memory(const value_t &val) : base(sycl::range<1>(1), {val}) {}
+  device_memory(const value_t &val, sycl::queue q = get_default_queue())
+      : base(sycl::range<1>(1), {val}, q) {}
 
   /// Default constructor
-  device_memory() : base(1) {}
+  device_memory(sycl::queue q = get_default_queue()) : base(1, q) {}
 };
 
 template <class T, size_t Dimension>

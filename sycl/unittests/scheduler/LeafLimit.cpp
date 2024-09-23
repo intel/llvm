@@ -11,8 +11,8 @@
 
 #include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -28,16 +28,14 @@ inline constexpr auto DisableCleanupName =
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.
   unittest::ScopedEnvVar DisabledCleanup{
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
-  sycl::queue HQueue(detail::createSyclObjFromImpl<device>(
-      detail::device_impl::getHostDeviceImpl()));
   MockScheduler MS;
   std::vector<std::unique_ptr<MockCommand>> LeavesToAdd;
   std::unique_ptr<MockCommand> MockDepCmd;
@@ -47,9 +45,8 @@ TEST_F(SchedulerTest, LeafLimit) {
 
   MockDepCmd =
       std::make_unique<MockCommand>(detail::getSyclObjImpl(Q), MockReq);
-  std::vector<detail::Command *> AuxCmds;
   detail::MemObjRecord *Rec =
-      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq, AuxCmds);
+      MS.getOrInsertMemObjRecord(detail::getSyclObjImpl(Q), &MockReq);
 
   // Create commands that will be added as leaves exceeding the limit by 1
   for (std::size_t i = 0; i < Rec->MWriteLeaves.genericCommandsCapacity() + 1;

@@ -17,6 +17,10 @@
 
 #include "llvm/IR/PassManager.h"
 
+namespace llvm {
+class LLVMContext;
+} // namespace llvm
+
 namespace SPIRV {
 
 class SPIRVLowerConstExprBase {
@@ -40,6 +44,8 @@ public:
     return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
                                 : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 } // namespace SPIRV

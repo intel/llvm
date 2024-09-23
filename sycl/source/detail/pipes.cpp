@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_impl.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
@@ -20,6 +21,14 @@ __SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
   return sycl::_V1::detail::ProgramManager::getInstance()
       .getHostPipeEntry(HostPipePtr)
       ->MUniqueId;
+}
+
+__SYCL_EXPORT bool pipe_base::wait_non_blocking(const event &E) {
+  bool Success = false;
+  std::shared_ptr<sycl::detail::event_impl> EImpl =
+      sycl::detail::getSyclObjImpl(E);
+  EImpl->wait(EImpl, &Success);
+  return Success;
 }
 
 } // namespace experimental

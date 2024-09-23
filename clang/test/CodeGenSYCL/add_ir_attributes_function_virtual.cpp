@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-is-device \
-// RUN:    -fsycl-allow-virtual-functions -S -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
+// RUN:     -fsycl-is-device -emit-llvm %s -o - | FileCheck %s
 
 // Test IR generated for add_ir_attributes_function on virtual functions.
 
@@ -42,9 +42,9 @@ void foo() {
 // CHECK: define {{.*}}spir_func void @_ZN4Base11testVirtualEv{{.*}} #[[BaseAttrs:[0-9]+]]
 // CHECK: define {{.*}}spir_func void @_ZN8Derived111testVirtualEv{{.*}} #[[Derived1Attrs:[0-9]+]]
 // CHECK: define {{.*}}spir_func void @_ZN8Derived211testVirtualEv{{.*}} #[[Derived2Attrs:[0-9]+]]
-// CHECK: attributes #[[BaseAttrs]] = { {{.*}}"PropBase"="PropVal"{{.*}} }
-// CHECK: attributes #[[Derived1Attrs]] = { {{.*}}"PropDerived"="PropVal"{{.*}} }
 // CHECK: attributes #[[Derived2Attrs]] = {
 // CHECK-NOT: PropBase
 // CHECK-NOT: PropDerived
 // CHECK: }
+// CHECK: attributes #[[BaseAttrs]] = { {{.*}}"PropBase"="PropVal"{{.*}} }
+// CHECK: attributes #[[Derived1Attrs]] = { {{.*}}"PropDerived"="PropVal"{{.*}} }

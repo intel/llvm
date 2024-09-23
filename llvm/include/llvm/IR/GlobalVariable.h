@@ -47,6 +47,11 @@ class GlobalVariable : public GlobalObject, public ilist_node<GlobalVariable> {
   // global initializers are run?
   bool isExternallyInitializedConstant : 1;
 
+private:
+  static const unsigned CodeModelBits = LastCodeModelBit - LastAlignmentBit;
+  static const unsigned CodeModelMask = (1 << CodeModelBits) - 1;
+  static const unsigned CodeModelShift = LastAlignmentBit + 1;
+
 public:
   /// GlobalVariable ctor - If a parent module is specified, the global is
   /// automatically inserted into the end of the specified modules global list.
@@ -142,9 +147,15 @@ public:
     return static_cast<Constant*>(Op<0>().get());
   }
   /// setInitializer - Sets the initializer for this global variable, removing
-  /// any existing initializer if InitVal==NULL.  If this GV has type T*, the
-  /// initializer must have type T.
+  /// any existing initializer if InitVal==NULL. The initializer must have the
+  /// type getValueType().
   void setInitializer(Constant *InitVal);
+
+  /// replaceInitializer - Sets the initializer for this global variable, and
+  /// sets the value type of the global to the type of the initializer. The
+  /// initializer must not be null.  This may affect the global's alignment if
+  /// it isn't explicitly set.
+  void replaceInitializer(Constant *InitVal);
 
   /// If the value is a global constant, its value is immutable throughout the
   /// runtime execution of the program.  Assigning a value into the constant
@@ -246,6 +257,28 @@ public:
            getAttributes().hasAttribute("relro-section") ||
            getAttributes().hasAttribute("rodata-section");
   }
+
+  /// Get the custom code model raw value of this global.
+  ///
+  unsigned getCodeModelRaw() const {
+    unsigned Data = getGlobalValueSubClassData();
+    return (Data >> CodeModelShift) & CodeModelMask;
+  }
+
+  /// Get the custom code model of this global if it has one.
+  ///
+  /// If this global does not have a custom code model, the empty instance
+  /// will be returned.
+  std::optional<CodeModel::Model> getCodeModel() const {
+    unsigned CodeModelData = getCodeModelRaw();
+    if (CodeModelData > 0)
+      return static_cast<CodeModel::Model>(CodeModelData - 1);
+    return {};
+  }
+
+  /// Change the code model for this global.
+  ///
+  void setCodeModel(CodeModel::Model CM);
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Value *V) {

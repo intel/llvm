@@ -14,6 +14,7 @@
 ; 0x0 CrossDevice
 ; CHECK-SPIRV: Constant [[#UINT]] [[#CD:]] 0
 
+; 0x2 Workgroup
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID1:]] 2
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID2:]] 4
 ; CHECK-SPIRV: Constant [[#UINT]] [[#ID3:]] 8
@@ -23,6 +24,7 @@
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID2]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID3]]
 ; CHECK-SPIRV: MemoryBarrier [[#CD]] [[#ID4]]
+; CHECK-SPIRV: MemoryBarrier [[#ID1]] [[#ID2]]
 
 
 ; CHECK-LLVM: define spir_kernel void @fence_test_kernel1{{.*}} #0 {{.*}}
@@ -62,6 +64,11 @@ define spir_kernel void @fence_test_kernel3(ptr addrspace(1) noalias %s.ascast) 
 ; Function Attrs: noinline nounwind
 define spir_kernel void @fence_test_kernel4(ptr addrspace(1) noalias %s.ascast) {
   fence syncscope("singlethread") seq_cst
+  ret void
+}
+
+define spir_kernel void @fence_test_kernel5(ptr addrspace(1) noalias %s.ascast) {
+  fence syncscope("workgroup") release
   ret void
 }
 

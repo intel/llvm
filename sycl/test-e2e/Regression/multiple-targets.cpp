@@ -2,23 +2,23 @@
 // It tests if the target triples can be specified with any order.
 // The test is repeated for per_kernel device code splitting.
 //
-// REQUIRES: CUDA || HIP
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spirv64 -o %t.out %s
+// REQUIRES: cuda || hip || native_cpu
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%{sycl_triple} -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spirv64 -fsycl-device-code-split=per_kernel -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %{run} %t.out
 //
-// RUN: %clangxx -fsycl -fsycl-targets=spirv64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t.out %s
+// RUN: %clangxx -fsycl -fsycl-targets=spir64,%{sycl_triple} -fsycl-device-code-split=per_kernel -o %t.out %s
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
 //
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Q;

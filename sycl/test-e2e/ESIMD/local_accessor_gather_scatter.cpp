@@ -14,10 +14,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 
 template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
@@ -50,7 +46,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
     q.submit([&](handler &cgh) {
        auto acc = buf.template get_access<access::mode::read_write>(cgh);
        auto LocalAcc = local_accessor<T, 1>(size * STRIDE, cgh);
-       cgh.parallel_for(glob_range, [=](id<1> i) SYCL_ESIMD_KERNEL {
+       cgh.parallel_for(glob_range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          using namespace sycl::ext::intel::esimd;
          simd<T, VL> valsIn;
          valsIn.copy_from(acc, 0);

@@ -10,8 +10,6 @@
 
 #include <sycl/access/access.hpp>              // for address_space, decorated
 #include <sycl/aliases.hpp>                    // for half
-#include <sycl/detail/boolean.hpp>             // for Boolean
-#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
 #include <sycl/detail/type_list.hpp>           // for is_contained, type_list
@@ -25,20 +23,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-#ifdef __SYCL_DEVICE_ONLY__
-#define __sycl_std
-#else
-namespace __sycl_std = __host_std;
-#endif
-
 namespace detail {
-// Get the element type of T. If T is a scalar, the element type is considered
-// the type of the scalar.
-template <typename T> struct get_elem_type {
-  using type = T;
-};
-
-template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 #ifdef __FAST_MATH__
 template <typename T>
 struct use_fast_math
@@ -48,26 +33,6 @@ template <typename> struct use_fast_math : std::false_type {};
 #endif
 template <typename T> constexpr bool use_fast_math_v = use_fast_math<T>::value;
 
-// sycl::select(sgentype a, sgentype b, bool c) calls OpenCL built-in
-// select(sgentype a, sgentype b, igentype c). This type trait makes the
-// proper conversion for argument c from bool to igentype, based on sgentype
-// == T.
-// TODO: Consider unifying this with select_cl_scalar_integral_signed_t.
-template <typename T>
-using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
-    sizeof(T) == 1, char,
-    std::conditional_t<
-        sizeof(T) == 2, short,
-        std::conditional_t<
-            (detail::is_contained<
-                 T, detail::type_list<long, unsigned long>>::value &&
-             (sizeof(T) == 4 || sizeof(T) == 8)),
-            long, // long and ulong are 32-bit on
-                  // Windows and 64-bit on Linux
-            std::conditional_t<
-                sizeof(T) == 4, int,
-                std::conditional_t<sizeof(T) == 8, long long, void>>>>>;
-
 // Common utility for selecting a type based on the specified size.
 template <size_t Size, typename T8, typename T16, typename T32, typename T64>
 using select_scalar_by_size_t = std::conditional_t<
@@ -76,20 +41,6 @@ using select_scalar_by_size_t = std::conditional_t<
         Size == 2, T16,
         std::conditional_t<Size == 4, T32,
                            std::conditional_t<Size == 8, T64, void>>>>;
-
-template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
-  constexpr bool SameType[] = {
-      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::any_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (SameType[I])
-      return true;
-  return false;
-}
-
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
 
 template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
@@ -149,18 +100,17 @@ template <size_t Size> struct get_unsigned_int_by_size {
 template <typename T> struct same_size_unsigned_int {
   using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
+template <typename T>
+using same_size_unsigned_int_t = typename same_size_unsigned_int<T>::type;
 
-// Utility trait for getting an upsampled integer type.
-// NOTE: For upsampling we look for an integer of double the size of the
-// specified type.
-template <typename T> struct upsampled_int {
+template <typename T> struct get_fixed_sized_int {
+  static_assert(std::is_integral_v<T>);
   using type =
-      std::conditional_t<std::is_unsigned_v<T>,
-                         typename get_unsigned_int_by_size<sizeof(T) * 2>::type,
-                         typename get_signed_int_by_size<sizeof(T) * 2>::type>;
+      std::conditional_t<std::is_signed_v<T>, same_size_signed_int_t<T>,
+                         same_size_unsigned_int_t<T>>;
 };
-
-template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
+template <typename T>
+using get_fixed_sized_int_t = typename get_fixed_sized_int<T>::type;
 
 // Utility for converting a swizzle to a vector or preserve the type if it isn't
 // a swizzle.
@@ -204,15 +154,6 @@ struct has_writeable_addr_space<multi_ptr<ElementType, Space, DecorateAddress>>
 
 template <typename T>
 constexpr bool has_writeable_addr_space_v = has_writeable_addr_space<T>::value;
-
-// Wrapper trait around nan_return to allow propagation through swizzles and
-// marrays.
-template <typename T> struct nan_return_unswizzled {
-  using type = typename nan_types<T, T>::ret_type;
-};
-
-template <typename T>
-using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
 
 } // namespace detail
 } // namespace _V1

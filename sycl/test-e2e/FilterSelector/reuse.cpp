@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t1.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t1.out
 // RUN: %{run} %t1.out
 
 //==----------------- reuse.cpp - filter_selector reuse test ---------------==//
@@ -10,7 +10,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/filter_selector.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -19,8 +22,6 @@ int main() {
   std::vector<device> Devs;
 
   Devs = device::get_devices();
-
-  std::cout << "# Devices found: " << Devs.size() << std::endl;
 
   if (Devs.size() > 1) {
     filter_selector filter("1");
