@@ -101,7 +101,8 @@ constexpr inline access::address_space generic_space = access::address_space::ge
 
 template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, access::decorated::no>
+multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space,
+          access::decorated::no>
 static_address_cast(ElementType* ptr);
 
 template <access::address_space Space,
@@ -112,7 +113,8 @@ static_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
 
 template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, access::decorated::no>
+multi_ptr<std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space,
+          access::decorated::no>
 dynamic_address_cast(ElementType* ptr);
 
 template <access::address_space Space,
