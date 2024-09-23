@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-ext_intel_matrix
 
