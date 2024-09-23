@@ -1,4 +1,1 @@
-{{NONDETERMINISTIC}}
-urContextCreateWithNativeHandleTest.InvalidNullHandleAdapter/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
-urContextCreateWithNativeHandleTest.InvalidNullPointerContext/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urContextSetExtendedDeleterTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

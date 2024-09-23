@@ -27,7 +27,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueNativeCommandExp(
   // sure memory migration happens across devices in the same context
 
   try {
-    ScopedContext ActiveContext(hQueue->getDevice());
+    ScopedDevice ActiveDevice(hQueue->getDevice());
     ScopedStream ActiveStream(hQueue, NumEventsInWaitList, phEventWaitList);
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 

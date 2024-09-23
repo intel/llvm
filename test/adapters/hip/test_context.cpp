@@ -24,14 +24,6 @@ TEST_P(urHipContextTest, ActiveContexts) {
 
     // ensure that the queue has the correct context
     ASSERT_EQ(context, queue->getContext());
-
-    // check that the current context is the active HIP context
-    hipCtx_t hipContext = nullptr;
-    ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&hipContext));
-    ASSERT_NE(hipContext, nullptr);
-    if (context->getDevices().size() == 1) {
-        ASSERT_EQ(hipContext, context->getDevices()[0]->getNativeContext());
-    }
 }
 
 TEST_P(urHipContextTest, ActiveContextsThreads) {
@@ -50,7 +42,6 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
     bool thread_done = false;
 
     auto test_thread = std::thread([&] {
-        hipCtx_t current = nullptr;
         {
             uur::raii::Queue queue = nullptr;
             ASSERT_SUCCESS(
@@ -59,13 +50,6 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
 
             // ensure queue has the correct context
             ASSERT_EQ(queue->getContext(), context1);
-
-            // check that the first context is now the active HIP context
-            ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&current));
-            if (context1->getDevices().size() == 1) {
-                ASSERT_EQ(current,
-                          context1->getDevices()[0]->getNativeContext());
-            }
         }
 
         // mark the first set of processing as done and notify the main thread
@@ -90,13 +74,6 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
 
             // ensure the queue has the correct context
             ASSERT_EQ(queue->getContext(), context2);
-
-            // check that the second context is now the active HIP context
-            ASSERT_SUCCESS_HIP(hipCtxGetCurrent(&current));
-            if (context2->getDevices().size() == 1) {
-                ASSERT_EQ(current,
-                          context2->getDevices()[0]->getNativeContext());
-            }
         }
     });
 

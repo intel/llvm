@@ -10,7 +10,6 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipContextGetNativeHandleTest);
 
 TEST_P(urHipContextGetNativeHandleTest, Success) {
     ur_native_handle_t native_context = 0;
-    ASSERT_SUCCESS(urContextGetNativeHandle(context, &native_context));
-    hipCtx_t hip_context = reinterpret_cast<hipCtx_t>(native_context);
-    std::ignore = hip_context;
+    auto status = urContextGetNativeHandle(context, &native_context);
+    ASSERT_EQ(status, UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 }
