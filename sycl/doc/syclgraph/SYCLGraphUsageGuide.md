@@ -186,7 +186,7 @@ This example uses the explicit graph creation API to perform a dot product
 operation.
 
 ```c++
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
 int main() {
