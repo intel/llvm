@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7384e2d7b908de0b2bca9f3c57827ea84698864e
-  # Merge: ed85c3e2 a32549b4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Sep 20 14:56:40 2024 +0100
-  #   Merge pull request #2108 from pbalcer/fix-perf-tracing-logs
-  #   fix perf regression in tracing layer
-  set(UNIFIED_RUNTIME_TAG 7384e2d7b908de0b2bca9f3c57827ea84698864e)
+  # commit 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55
+  # Merge: 7384e2d7 59e5e405
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Sep 23 10:58:51 2024 +0200
+  #   Merge pull request #2113 from oneapi-src/revert-1698-counter-based-2 
+  #   Revert "[L0] Phase 2 of Counter-Based Event Implementation"
+  set(UNIFIED_RUNTIME_TAG 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
