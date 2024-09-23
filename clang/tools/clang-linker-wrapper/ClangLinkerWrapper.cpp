@@ -640,14 +640,13 @@ static Error getDeviceLibsForLTO(SmallVector<OffloadFile> &DeviceLibs,
             "Number of device library files cannot be zero.");
       for (StringRef Val : A->getValues()) {
         SmallString<128> LibName(Val);
-        if (llvm::sys::fs::exists(LibName)) {
-          if (auto Err = processFile(LibName))
-            return Err;
-        } else
+        if (!llvm::sys::fs::exists(LibName))
           return createStringError(
               inconvertibleErrorCode(),
               std::string(LibName) +
                   " SYCL device library file for NVPTX is not found.");
+        if (auto Err = processFile(LibName))
+          return Err;
       }
     }
   }
@@ -692,19 +691,17 @@ static Expected<StringRef> convertSPIRVToIR(StringRef Filename,
 static bool considerOnlyKernelsAsEntryPoints(const ArgList &Args,
                                              const llvm::Triple Triple) {
   const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-  bool SYCLNativeCPU = (HostTriple == Triple);
   // On Intel targets we don't need non-kernel functions as entry points,
   // because it only increases amount of code for device compiler to handle,
   // without any actual benefits.
   // TODO: Try to extend this feature for non-Intel GPUs.
-  return (!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
-                        OPT_sycl_remove_unused_external_funcs, false) &&
-          !SYCLNativeCPU) &&
-         !Triple.isNVPTX() && !Triple.isAMDGPU();
+  return !Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
+                       OPT_sycl_remove_unused_external_funcs, false) &&
+         Triple.isSPIROrSPIRV();
 }
 
 bool isSYCLThinLTO(const ArgList &Args, const llvm::Triple Triple) {
-  // TODO: Support CUDA/HIP
+  // TODO: Support AMDGPU/NVPTX targets
   return Triple.isSPIROrSPIRV() && Args.hasArg(OPT_sycl_thin_lto);
 }
 
@@ -747,10 +744,6 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   if (NoSplit && (Triple.getSubArch() != llvm::Triple::SPIRSubArch_fpga))
     PostLinkArgs.push_back("-split=auto");
 
-  // On Intel targets we don't need non-kernel functions as entry points,
-  // because it only increases amount of code for device compiler to handle,
-  // without any actual benefits.
-  // TODO: Try to extend this feature for non-Intel GPUs.
   if (considerOnlyKernelsAsEntryPoints(Args, Triple))
     PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
 
@@ -1917,8 +1910,8 @@ std::unique_ptr<lto::LTO> createLTO(
                              .str();
   auto PreCodeGenSaveTemps = [=](size_t Task, const Module &M) {
     std::string File =
-        !Task ? TempName + ".postopt.bc"
-              : TempName + "." + std::to_string(Task) + ".postopt.bc";
+        !Task ? TempName + ".precodegen.bc"
+              : TempName + "." + std::to_string(Task) + ".precodegen.bc";
     error_code EC;
     raw_fd_ostream LinkedBitcode(File, EC, sys::fs::OF_None);
     if (EC)
