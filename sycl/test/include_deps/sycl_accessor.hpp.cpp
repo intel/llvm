@@ -11,6 +11,12 @@
 // CHECK-NEXT: CL/__spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: atomic.hpp
+// CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: memory_enums.hpp
+// CHECK-NEXT: ur_api.h
+// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
+// CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
@@ -18,12 +24,6 @@
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
-// CHECK-NEXT: atomic.hpp
-// CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: ur_api.h
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
-// CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/generic_type_lists.hpp
 // CHECK-NEXT: detail/type_list.hpp
@@ -116,5 +116,4 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
-// CHECK-NEXT: sampler.hpp
 // CHECK-EMPTY:
