@@ -162,7 +162,7 @@ public:
       UR_CHECK_ERROR(hipHostUnregister(HostPtr));
       break;
     case AllocMode::AllocHostPtr:
-      UR_CHECK_ERROR(hipFreeHost(HostPtr));
+      UR_CHECK_ERROR(hipHostFree(HostPtr));
     }
     return UR_RESULT_SUCCESS;
   }

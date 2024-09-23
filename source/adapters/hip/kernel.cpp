@@ -20,7 +20,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getDevice());
+    ScopedDevice Active(hProgram->getDevice());
 
     hipFunction_t HIPFunc;
     hipError_t KernelError =
@@ -373,7 +373,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
 
   ur_device_handle_t Device = hQueue->getDevice();
-  ScopedContext Active(Device);
+  ScopedDevice Active(Device);
 
   guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
                      MaxThreadsPerBlock);

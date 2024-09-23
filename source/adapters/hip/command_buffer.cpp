@@ -789,7 +789,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_event_handle_t *phEvent) {
   try {
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     uint32_t StreamToken;
     ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
