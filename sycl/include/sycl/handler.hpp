@@ -590,10 +590,9 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
-    MCodeLoc = CodeLoc;
-    MIsTopCodeLoc = IsTopCodeLoc;
-  }
+  void saveCodeLoc(detail::code_location CodeLoc);
+  void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
+  void copyCodeLoc(const handler &other);
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
@@ -3393,7 +3392,6 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
 
   detail::code_location MCodeLoc = {};
-  bool MIsTopCodeLoc = true;
   bool MIsFinalized = false;
   event MLastEvent;
 
