@@ -16,6 +16,9 @@ inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+namespace detail {
+using namespace sycl::detail;
+}
 // Shorthands for address space names
 constexpr inline access::address_space global_space = access::address_space::global_space;
 constexpr inline access::address_space local_space = access::address_space::local_space;
@@ -32,6 +35,18 @@ static_address_cast(ElementType *Ptr) {
   if constexpr (Space == generic_space) {
     // Undecorated raw pointer is in generic AS already, no extra casts needed.
     return ret_ty(Ptr);
+  } else if constexpr (Space == access::address_space::
+                                    ext_intel_global_device_space ||
+                       Space ==
+                           access::address_space::ext_intel_global_host_space) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
+    // No SPIR-V intrinsic for this yet.
+    using raw_type = detail::DecoratedType<ElementType, Space>::type *;
+    auto CastPtr = (raw_type)(Ptr);
+#else
+    auto CastPtr = sycl::detail::spirv::GenericCastToPtr<global_space>(Ptr);
+#endif
+    return ret_ty(CastPtr);
   } else {
     auto CastPtr = sycl::detail::spirv::GenericCastToPtr<Space>(Ptr);
     return ret_ty(CastPtr);
@@ -60,6 +75,20 @@ dynamic_address_cast(ElementType *Ptr) {
                 "The extension expects undecorated raw pointers only!");
   if constexpr (Space == generic_space) {
     return ret_ty(Ptr);
+  } else if constexpr (Space == access::address_space::
+                                    ext_intel_global_device_space ||
+                       Space ==
+                           access::address_space::ext_intel_global_host_space) {
+#ifdef __ENABLE_USM_ADDR_SPACE__
+    static_assert(
+        Space != access::address_space::ext_intel_global_device_space &&
+            Space != access::address_space::ext_intel_global_host_space,
+        "Not supported yet!");
+    return ret_ty(nullptr);
+#else
+    auto CastPtr = sycl::detail::spirv::GenericCastToPtr<global_space>(Ptr);
+    return ret_ty(CastPtr);
+#endif
   } else {
     auto CastPtr = sycl::detail::spirv::GenericCastToPtrExplicit<Space>(Ptr);
     return ret_ty(CastPtr);
