@@ -7084,11 +7084,16 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
         if (!RD->hasConstexprDestructor())
           return false;
 
+        QualType CanUnqualT = T.getCanonicalType().getUnqualifiedType();
         for (const CXXBaseSpecifier &B : RD->bases())
-          if (!Check(B.getType(), Check))
+          if (B.getType().getCanonicalType().getUnqualifiedType() !=
+                  CanUnqualT &&
+              !Check(B.getType(), Check))
             return false;
         for (const FieldDecl *FD : RD->fields())
-          if (!Check(FD->getType(), Check))
+          if (FD->getType().getCanonicalType().getUnqualifiedType() !=
+                  CanUnqualT &&
+              !Check(FD->getType(), Check))
             return false;
         return true;
       };
@@ -10894,7 +10899,8 @@ bool Sema::CheckDestructor(CXXDestructorDecl *Destructor) {
           ExprResult This =
               ActOnCXXThis(OperatorDelete->getParamDecl(0)->getLocation());
           assert(!This.isInvalid() && "couldn't form 'this' expr in dtor?");
-          This = PerformImplicitConversion(This.get(), ParamType, AA_Passing);
+          This = PerformImplicitConversion(This.get(), ParamType,
+                                           AssignmentAction::Passing);
           if (This.isInvalid()) {
             // FIXME: Register this as a context note so that it comes out
             // in the right order.

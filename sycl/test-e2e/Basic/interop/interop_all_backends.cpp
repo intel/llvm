@@ -82,6 +82,15 @@ int main() {
   auto Event3 = InteropQueue.memcpy(&vec[0], A, N * sizeof(int), Event2);
   Event3.wait();
 
+  if constexpr (BACKEND == backend::ext_oneapi_hip) {
+    try {
+      backend_traits<BACKEND>::return_type<context> NativeContext =
+            get_native<BACKEND>(Context);
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::feature_not_supported);
+    }
+  }
+
   free(A, InteropQueue);
 
   for (const auto &val : vec) {
