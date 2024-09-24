@@ -241,7 +241,6 @@ section below). All these features are related to HW detection and they should
 be considered deprecated, because we have HW auto-detection functionality in
 place. No new tests should use these features:
 
- * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
  * **gpu-intel-gen12** - Intel GPU Gen12 availability;
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
