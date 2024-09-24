@@ -441,27 +441,6 @@ struct remove_pointer : remove_pointer_impl<std::remove_cv_t<T>> {};
 
 template <typename T> using remove_pointer_t = typename remove_pointer<T>::type;
 
-// is_address_space_compliant
-template <typename T, typename SpaceList>
-struct is_address_space_compliant_impl : std::false_type {};
-
-template <typename T, typename SpaceList>
-struct is_address_space_compliant_impl<T *, SpaceList> : std::true_type {};
-
-template <typename T, typename SpaceList, access::address_space Space,
-          access::decorated DecorateAddress>
-struct is_address_space_compliant_impl<multi_ptr<T, Space, DecorateAddress>,
-                                       SpaceList>
-    : std::bool_constant<is_one_of_spaces<Space, SpaceList>::value> {};
-
-template <typename T, typename SpaceList>
-struct is_address_space_compliant
-    : is_address_space_compliant_impl<std::remove_cv_t<T>, SpaceList> {};
-
-template <typename T, typename SpaceList>
-inline constexpr bool is_address_space_compliant_v =
-    is_address_space_compliant<T, SpaceList>::value;
-
 // make_type_t
 template <typename T, typename TL> struct make_type_impl {
   using type = find_same_size_type_t<TL, T>;
@@ -514,6 +493,8 @@ struct make_larger_impl<marray<T, N>, marray<T, N>> {
   using type = std::conditional_t<found, new_type, void>;
 };
 
+// TODO: this type trait is not used anyweher in SYCL headers and it should
+// be moved to the library code
 template <typename T> struct make_larger {
   using type = typename make_larger_impl<T, T>::type;
 };
@@ -529,13 +510,6 @@ using const_if_const_AS =
 template <access::address_space AS, class DataT>
 using const_if_const_AS = DataT;
 #endif
-
-template <typename T> struct function_traits {};
-
-template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
-  using ret_type = Ret;
-  using args_type = std::tuple<Args...>;
-};
 
 // No first_type_t due to
 // https://open-std.org/jtc1/sc22/wg21/docs/cwg_active.html#1430.

@@ -72,12 +72,6 @@ void test_remove_pointer_t() {
                 "");
 }
 
-template <typename T, typename SpaceList, bool Expected = true>
-void test_is_address_space_compliant() {
-  static_assert(d::is_address_space_compliant<T, SpaceList>::value == Expected,
-                "");
-}
-
 template <typename T, int Checked, bool Expected = true>
 void test_vector_size() {
   static_assert((d::vector_size<T>::value == Checked) == Expected, "");
@@ -101,22 +95,6 @@ int main() {
   test_remove_pointer_t<s::float2 *, s::float2>();
   test_remove_pointer_t<s::constant_ptr<s::int2>, s::int2>();
   test_remove_pointer_t<s::constant_ptr<s::float2>, s::float2>();
-
-  test_is_address_space_compliant<int *, d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<float *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::constant_ptr<int>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::constant_ptr<float>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::int2 *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::float2 *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::constant_ptr<s::int2>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::constant_ptr<s::float2>,
-                                  d::gvl::nonconst_address_space_list, false>();
 
   test_is_integral<int>();
   test_is_integral<s::int2>();
