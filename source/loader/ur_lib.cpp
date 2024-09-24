@@ -49,10 +49,9 @@ void context_t::parseEnvEnabledLayers() {
     }
 }
 
-void context_t::initLayers() const {
+void context_t::initLayers() {
     for (auto &[layer, _] : layers) {
-        layer->init((ur_dditable_t *)&urDdiTable, enabledLayerNames,
-                    codelocData);
+        layer->init(&urDdiTable, enabledLayerNames, codelocData);
     }
 }
 

@@ -13,6 +13,7 @@
 #include "memory.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
+#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -343,7 +344,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   try {
     auto Device = hKernel->getProgram()->getDevice();
     ur_mem_flags_t MemAccess =
-        Properties ? Properties->memoryAccess : UR_MEM_FLAG_READ_WRITE;
+        Properties ? Properties->memoryAccess
+                   : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
     hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
     if (hArgValue->isImage()) {
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
