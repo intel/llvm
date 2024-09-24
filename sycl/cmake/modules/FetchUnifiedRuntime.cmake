@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
-  # Merge: fa9ebe7b 53abe070
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Sep 16 10:20:10 2024 +0100
-  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
-  #     [Loader] Suppress system errors when loading adapters on Windows
-  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
+  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
+  # Merge: 9ca3ec7 be38e567
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Sep 23 08:27:12 2024 -0700
+  #     Merge pull request #1830 from JackAKirk/hip-set-device
+  #     [hip] Remove deprecated hip APIs, simplify urContext
+  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

@@ -667,11 +667,13 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
 // the transformation safe.
 static bool mustPreserveGV(const GlobalValue &GV) {
   if (const Function *F = dyn_cast<Function>(&GV)) {
-    // When dynamic linking is supported, we internalize everything that can
-    // not be imported which also means that there is no point of having it
+    // When dynamic linking is supported, we internalize everything (except
+    // kernels which are the entry points from host code to device code) that
+    // cannot be imported which also means that there is no point of having it
     // visible outside of the current module.
     if (AllowDeviceImageDependencies)
-      return canBeImportedFunction(*F);
+      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+             canBeImportedFunction(*F);
 
     // Otherwise, we are being even more aggressive: SYCL modules are expected
     // to be self-contained, meaning that they have no external dependencies.
