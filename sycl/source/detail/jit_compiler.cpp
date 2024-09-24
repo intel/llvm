@@ -9,6 +9,7 @@
 #if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
 #include <detail/device_image_impl.hpp>
+#include <detail/helpers.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>

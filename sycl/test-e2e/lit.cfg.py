@@ -140,8 +140,6 @@ elif platform.system() == "Linux":
 config.substitutions.append(("%sycl_include", config.sycl_include))
 
 # Intel GPU FAMILY availability
-if lit_config.params.get("gpu-intel-gen9", False):
-    config.available_features.add("gpu-intel-gen9")
 if lit_config.params.get("gpu-intel-gen11", False):
     config.available_features.add("gpu-intel-gen11")
 if lit_config.params.get("gpu-intel-gen12", False):
