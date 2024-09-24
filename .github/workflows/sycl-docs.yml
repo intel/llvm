@@ -55,4 +55,4 @@ jobs:
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .
         git diff-index --quiet HEAD || git commit --amend -m "Update docs" -s
-        git push
+        git push -f
