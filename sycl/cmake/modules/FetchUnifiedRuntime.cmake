@@ -116,14 +116,12 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
-  # Merge: 9ca3ec7 be38e567
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 23 08:27:12 2024 -0700
-  #     Merge pull request #1830 from JackAKirk/hip-set-device
-  #     [hip] Remove deprecated hip APIs, simplify urContext
-  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit 3bf2becb1894cc746c8d7d83c5345c93f0920d5f
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Fri Sep 20 13:03:15 2024 +0100
+  # More warning squishing
+  set(UNIFIED_RUNTIME_TAG 3bf2becb1894cc746c8d7d83c5345c93f0920d5f)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
