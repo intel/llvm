@@ -23,7 +23,7 @@
 #ifndef __CLC_MATH_H_
 #define __CLC_MATH_H_
 
-#include "func.h"
+#include <clc/clcfunc.h>
 #include "as_type.h"
 #include "config.h"
 
