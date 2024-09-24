@@ -423,6 +423,7 @@ The following table shows a mapping of the accepted values for `--offload-arch` 
 | Intel(R) microarchitecture code name Broadwell | broadwell | bdw      |
 | Intel(R) microarchitecture code name Coffee Lake | coffeelake | cfl   |
 | Intel(R) microarchitecture code name Alder Lake | alderlake | adl     |
+| Intel(R) microarchitecture code name Skylake (client) | skylake | skylake     |
 | Intel(R) microarchitecture code name Skylake (server) | skx | skx     |
 | Intel(R) microarchitecture code name Cascade Lake | cascadelake | clk |
 | Intel(R) microarchitecture code name Ice Lake (client) | icelake-client | icl |
