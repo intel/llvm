@@ -37,6 +37,7 @@
 #include "SIFixSGPRCopies.h"
 #include "SIFoldOperands.h"
 #include "SILoadStoreOptimizer.h"
+#include "SILowerSGPRSpills.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
 #include "SIPeepholeSDWA.h"
@@ -312,12 +313,6 @@ static cl::opt<bool> EnableSIModeRegisterPass(
   cl::init(true),
   cl::Hidden);
 
-// Enable GFX11.5+ s_singleuse_vdst insertion
-static cl::opt<bool>
-    EnableInsertSingleUseVDST("amdgpu-enable-single-use-vdst",
-                              cl::desc("Enable s_singleuse_vdst insertion"),
-                              cl::init(false), cl::Hidden);
-
 // Enable GFX11+ s_delay_alu insertion
 static cl::opt<bool>
     EnableInsertDelayAlu("amdgpu-enable-delay-alu",
@@ -415,7 +410,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUGlobalISelDivergenceLoweringPass(*PR);
   initializeSILowerWWMCopiesPass(*PR);
   initializeAMDGPUMarkLastScratchLoadPass(*PR);
-  initializeSILowerSGPRSpillsPass(*PR);
+  initializeSILowerSGPRSpillsLegacyPass(*PR);
   initializeSIFixSGPRCopiesLegacyPass(*PR);
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFoldOperandsLegacyPass(*PR);
@@ -451,7 +446,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPURewriteUndefForPHILegacyPass(*PR);
   initializeAMDGPUUnifyMetadataPass(*PR);
   initializeSIAnnotateControlFlowLegacyPass(*PR);
-  initializeAMDGPUInsertSingleUseVDSTPass(*PR);
   initializeAMDGPUInsertDelayAluPass(*PR);
   initializeSIInsertHardClausesPass(*PR);
   initializeSIInsertWaitcntsPass(*PR);
@@ -1457,7 +1451,7 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
   addPass(createSGPRAllocPass(false));
 
   // Equivalent of PEI for SGPRs.
-  addPass(&SILowerSGPRSpillsID);
+  addPass(&SILowerSGPRSpillsLegacyID);
   addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(false));
@@ -1481,7 +1475,7 @@ bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
   addPass(createVirtRegRewriter(false));
 
   // Equivalent of PEI for SGPRs.
-  addPass(&SILowerSGPRSpillsID);
+  addPass(&SILowerSGPRSpillsLegacyID);
   addPass(&SIPreAllocateWWMRegsID);
 
   addPass(createVGPRAllocPass(true));
@@ -1532,9 +1526,6 @@ void GCNPassConfig::addPreEmitPass() {
   // Here we add a stand-alone hazard recognizer pass which can handle all
   // cases.
   addPass(&PostRAHazardRecognizerID);
-
-  if (isPassEnabled(EnableInsertSingleUseVDST, CodeGenOptLevel::Less))
-    addPass(&AMDGPUInsertSingleUseVDSTID);
 
   if (isPassEnabled(EnableInsertDelayAlu, CodeGenOptLevel::Less))
     addPass(&AMDGPUInsertDelayAluID);

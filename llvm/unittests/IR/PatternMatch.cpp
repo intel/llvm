@@ -30,12 +30,8 @@ using namespace llvm::PatternMatch;
 
 namespace {
 
-struct OpaquePointerContext : LLVMContext {
-  OpaquePointerContext() { setOpaquePointers(true); }
-};
-
 struct PatternMatchTest : ::testing::Test {
-  OpaquePointerContext Ctx;
+  LLVMContext Ctx;
   std::unique_ptr<Module> M;
   Function *F;
   BasicBlock *BB;

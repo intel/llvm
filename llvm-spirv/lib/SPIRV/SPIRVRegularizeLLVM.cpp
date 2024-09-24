@@ -446,9 +446,6 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   // Opaque pointers will cause the optimizer to use i8 geps, or to remove
   // 0-index geps entirely (adding bitcasts to the result). Restore these to
   // avoid bitcasts in the resulting IR.
-  if (GV->getContext().supportsTypedPointers())
-    return;
-
   Type *Ty = GV->getValueType();
   Type *ScalarTy = Ty->getScalarType();
   SmallVector<Value *, 4> Users;

@@ -4656,6 +4656,15 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       }
     } else
       Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
+
+    if (Opts.LangStd < LangStandard::lang_hlsl202x) {
+      const LangStandard &Requested =
+          LangStandard::getLangStandardForKind(Opts.LangStd);
+      const LangStandard &Recommended =
+          LangStandard::getLangStandardForKind(LangStandard::lang_hlsl202x);
+      Diags.Report(diag::warn_hlsl_langstd_minimal)
+          << Requested.getName() << Recommended.getName();
+    }
   }
 
   // GPURelocatableDeviceCode should be true for SYCL if not specified.
