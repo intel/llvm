@@ -52,11 +52,6 @@ void test_vector_element_t() {
 }
 
 template <typename T, typename CheckedT, bool Expected = true>
-void test_make_signed_t() {
-  static_assert(is_same<d::make_signed_t<T>, CheckedT>::value == Expected, "");
-}
-
-template <typename T, typename CheckedT, bool Expected = true>
 void test_make_unsigned_t() {
   static_assert(is_same<d::make_unsigned_t<T>, CheckedT>::value == Expected,
                 "");
@@ -150,15 +145,6 @@ int main() {
   test_vector_element_t<const s::int2, const int>();
   test_vector_element_t<volatile s::int2, volatile int>();
   test_vector_element_t<const volatile s::int2, const volatile int>();
-
-  test_make_signed_t<int, int>();
-  test_make_signed_t<const int, const int>();
-  test_make_signed_t<unsigned int, int>();
-  test_make_signed_t<const unsigned int, const int>();
-  test_make_signed_t<s::int2, s::int2>();
-  test_make_signed_t<const s::int2, const s::int2>();
-  test_make_signed_t<s::uint2, s::int2>();
-  test_make_signed_t<const s::uint2, const s::int2>();
 
   test_make_unsigned_t<int, unsigned int>();
   test_make_unsigned_t<const int, const unsigned int>();

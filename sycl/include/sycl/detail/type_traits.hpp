@@ -124,12 +124,11 @@ template <typename T, typename R> struct copy_cv_qualifiers;
 template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
-template <int V> using int_constant = std::integral_constant<int, V>;
 // vector_size
 // scalars are interpreted as a vector of 1 length.
-template <typename T> struct vector_size_impl : int_constant<1> {};
+template <typename T> struct vector_size_impl : std::integral_constant<int, 1> {};
 template <typename T, int N>
-struct vector_size_impl<vec<T, N>> : int_constant<N> {};
+struct vector_size_impl<vec<T, N>> : std::integral_constant<int, N> {};
 template <typename T>
 struct vector_size
     : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
@@ -184,6 +183,7 @@ template <typename ElementType> struct get_elem_type_unqual<ElementType *> {
 template <typename T, typename = void>
 struct is_ext_vector : std::false_type {};
 
+// FIXME: unguarded use of non-standard built-in
 template <typename T>
 struct is_ext_vector<
     T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
@@ -192,6 +192,7 @@ struct is_ext_vector<
 template <typename T>
 inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
 
+// FIXME: unguarded use of non-standard built-in
 template <typename T>
 struct get_elem_type_unqual<T, std::enable_if_t<is_ext_vector_v<T>>> {
   using type = decltype(__builtin_reduce_max(std::declval<T>()));
@@ -235,27 +236,6 @@ struct copy_cv_qualifiers_impl<const volatile T, R> {
 
 template <typename T, typename R> struct copy_cv_qualifiers {
   using type = typename copy_cv_qualifiers_impl<T, std::remove_cv_t<R>>::type;
-};
-
-// make_signed with support SYCL vec class
-template <typename T> struct make_signed {
-  using type = std::make_signed_t<T>;
-};
-template <typename T> using make_signed_t = typename make_signed<T>::type;
-template <class T> struct make_signed<const T> {
-  using type = const make_signed_t<T>;
-};
-template <class T, int N> struct make_signed<vec<T, N>> {
-  using type = vec<make_signed_t<T>, N>;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct make_signed<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                             OperationCurrentT, Indexes...>> {
-  using type = make_signed_t<std::remove_cv_t<VecT>>;
-};
-template <class T, std::size_t N> struct make_signed<marray<T, N>> {
-  using type = marray<make_signed_t<T>, N>;
 };
 
 // make_unsigned with support SYCL vec class

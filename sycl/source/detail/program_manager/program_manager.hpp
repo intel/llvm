@@ -28,6 +28,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -297,7 +298,7 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<remove_pointer_t<ur_program_handle_t>,
+  using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
