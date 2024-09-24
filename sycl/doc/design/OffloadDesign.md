@@ -297,13 +297,14 @@ option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
 ``--offload-arch``
-^^^^^^^^^^^^^^^^^^
 For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the device architecture using --offload-arch option. For instance 
   ``--offload-arch=sm_80`` to target an NVidia Tesla A100, 
   ``--offload-arch=gfx90a`` to target an AMD Instinct MI250X, or 
   ``--offload-arch=sm_80,gfx90a`` to target both.
 For Intel Graphics AOT target, valid values for ``--offload-arch`` are the
 valid device names accepted by OCLOC (the Intel GPU AOT compiler) via the ``-device`` option.
+
+SYCL offloading with ``--offload-arch`` is currently enabled only with ``--offload-new-driver`` option.
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel GPUs and the corresponding `-device` value passed to OCLOC.
 
@@ -402,10 +403,10 @@ Additional options passed by the user via the
 option to the wrapper, `--cpu-tool-arg=<arg>`
 
 Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
-can also leverage the `--offload-arch` option.
+will also leverage the `--offload-arch` option.
 The valid CPU device names accepted for `--offload-arch` are CPU names from ``clang -march``.
 These names are more verbose, and do not overlap with the Intel GPU names.
-These user input CPU names are mapped to the corresponding ``openl-aot -march`` option.
+These user input CPU names are mapped to the corresponding ``opencl-aot -march`` option.
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel CPUs and the corresponding `-march` value passed to opencl-aot.
 
