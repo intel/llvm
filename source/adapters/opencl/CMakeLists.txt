@@ -54,7 +54,7 @@ if(UR_OPENCL_INCLUDE_DIR)
 else()
     FetchContent_Declare(OpenCL-Headers
         GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-Headers.git"
-        GIT_TAG         1e193332d02e27e15812d24ff2a3a7a908eb92a3
+        GIT_TAG         542d7a8f65ecfd88b38de35d8b10aa67b36b33b2
     )
     FetchContent_MakeAvailable(OpenCL-Headers)
     FetchContent_GetProperties(OpenCL-Headers

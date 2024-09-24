@@ -156,7 +156,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   cl_mutable_command_khr *OutCommandHandle =
       hCommandBuffer->IsUpdatable ? &CommandHandle : nullptr;
 
-  cl_ndrange_kernel_command_properties_khr UpdateProperties[] = {
+  cl_command_properties_khr UpdateProperties[] = {
       CL_MUTABLE_DISPATCH_UPDATABLE_FIELDS_KHR,
       CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR |
           CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR |
@@ -164,7 +164,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
           CL_MUTABLE_DISPATCH_ARGUMENTS_KHR | CL_MUTABLE_DISPATCH_EXEC_INFO_KHR,
       0};
 
-  cl_ndrange_kernel_command_properties_khr *Properties =
+  cl_command_properties_khr *Properties =
       hCommandBuffer->IsUpdatable ? UpdateProperties : nullptr;
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, Properties,
@@ -176,8 +176,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     auto URCommandHandle =
         std::make_unique<ur_exp_command_buffer_command_handle_t_>(
             hCommandBuffer, CommandHandle, workDim, pLocalWorkSize != nullptr);
-    *phCommandHandle = URCommandHandle.release();
-    hCommandBuffer->CommandHandles.push_back(*phCommandHandle);
+    ur_exp_command_buffer_command_handle_t Handle = URCommandHandle.release();
+    hCommandBuffer->CommandHandles.push_back(Handle);
+    if (phCommandHandle) {
+      *phCommandHandle = Handle;
+    }
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -222,7 +225,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       srcOffset, dstOffset, size, numSyncPointsInWaitList, pSyncPointWaitList,
       pSyncPoint, nullptr));
@@ -256,7 +259,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       OpenCLOriginRect, OpenCLDstRect, OpenCLRegion, srcRowPitch, srcSlicePitch,
       dstRowPitch, dstSlicePitch, numSyncPointsInWaitList, pSyncPointWaitList,
@@ -274,9 +277,6 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
     [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-
-  cl_adapter::die("Experimental Command-buffer feature is not "
-                  "implemented for OpenCL adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -343,7 +343,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
       numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint, nullptr));
 
@@ -556,8 +556,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   cl_mutable_command_khr command =
       cl_adapter::cast<cl_mutable_command_khr>(hCommand->CLMutableCommand);
   cl_mutable_dispatch_config_khr dispatch_config = {
-      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR,
-      nullptr,
       command,
       static_cast<cl_uint>(CLArgs.size()),    // num_args
       static_cast<cl_uint>(CLUSMArgs.size()), // num_svm_args
@@ -570,10 +568,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       CLGlobalWorkSize.data(),                // global_work_size
       CLLocalWorkSize.data(),                 // local_work_size
   };
-  cl_mutable_base_config_khr config = {
-      CL_STRUCTURE_TYPE_MUTABLE_BASE_CONFIG_KHR, nullptr, 1, &dispatch_config};
-  CL_RETURN_ON_FAILURE(
-      clUpdateMutableCommandsKHR(hCommandBuffer->CLCommandBuffer, &config));
+  cl_uint num_configs = 1;
+  cl_command_buffer_update_type_khr config_types[1] = {
+      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR};
+  const void *configs[1] = {&dispatch_config};
+  CL_RETURN_ON_FAILURE(clUpdateMutableCommandsKHR(
+      hCommandBuffer->CLCommandBuffer, num_configs, config_types, configs));
 
   return UR_RESULT_SUCCESS;
 }
