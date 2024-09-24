@@ -10,15 +10,16 @@
 
 #include <iostream>
 
+#include "../helpers.hpp"
 #include <sycl/ext/oneapi/filter_selector.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
   {

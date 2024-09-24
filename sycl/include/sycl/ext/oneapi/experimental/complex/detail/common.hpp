@@ -35,17 +35,15 @@ class complex<_Tp, typename std::enable_if_t<is_genfloat<_Tp>::value>>;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class _Tp>
-struct is_genfloat
-    : std::integral_constant<bool, std::is_same_v<_Tp, double> ||
-                                       std::is_same_v<_Tp, float> ||
-                                       std::is_same_v<_Tp, sycl::half>> {};
+struct is_genfloat : std::bool_constant<std::is_same_v<_Tp, double> ||
+                                        std::is_same_v<_Tp, float> ||
+                                        std::is_same_v<_Tp, sycl::half>> {};
 
 template <class _Tp>
 struct is_gencomplex
-    : std::integral_constant<bool,
-                             std::is_same_v<_Tp, complex<double>> ||
-                                 std::is_same_v<_Tp, complex<float>> ||
-                                 std::is_same_v<_Tp, complex<sycl::half>>> {};
+    : std::bool_constant<std::is_same_v<_Tp, complex<double>> ||
+                         std::is_same_v<_Tp, complex<float>> ||
+                         std::is_same_v<_Tp, complex<sycl::half>>> {};
 
 ////////////////////////////////////////////////////////////////////////////////
 /// DEFINES

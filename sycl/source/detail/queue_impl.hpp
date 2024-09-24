@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -16,7 +17,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
@@ -27,7 +27,6 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
@@ -143,14 +142,6 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (has_property<
-            ext::codeplay::experimental::property::queue::enable_fusion>() &&
-        !MDevice->get_info<
-            ext::codeplay::experimental::info::device::supports_fusion>()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot enable fusion if device does not support fusion");
-    }
     if (!Context->isDeviceValid(Device)) {
       if (Context->getBackend() == backend::opencl)
         throw sycl::exception(
@@ -173,37 +164,10 @@ public:
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    // Using the instance override constructor for use with queues as queues
-    // maintain instance IDs in the object
-    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, MQueueID, "queue_create");
-    // Cache the trace event, stream id and instance IDs for the destructor
-    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
-                              NotificationTraceType)) {
-      MTraceEvent = (void *)PrepareNotify.traceEvent();
-      MStreamID = PrepareNotify.streamID();
-      MInstanceID = PrepareNotify.instanceID();
-      // Add the function to capture meta data for the XPTI trace event
-      PrepareNotify.addMetadata([&](auto TEvent) {
-        xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
-        if (MDevice) {
-          xpti::addMetadata(TEvent, "sycl_device_name",
-                            MDevice->getDeviceName());
-          xpti::addMetadata(TEvent, "sycl_device",
-                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
-        }
-        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-        xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        xpti::addMetadata(TEvent, "queue_handle",
-                          reinterpret_cast<size_t>(getHandleRef()));
-      });
-      // Also publish to TLS
-      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      PrepareNotify.notify();
-    }
+    // Emit a trace event for queue creation; we currently do not get code
+    // location information, so all queueus will have the same UID with a
+    // different instance ID until this gets added.
+    constructorNotification();
 #endif
   }
 
@@ -221,10 +185,10 @@ private:
     MQueues.push_back(UrQueue);
 
     ur_device_handle_t DeviceUr{};
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_DEVICE,
-                 sizeof(DeviceUr), &DeviceUr, nullptr);
+    Adapter->call<UrApiKind::urQueueGetInfo>(
+        MQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
       throw sycl::exception(
@@ -236,40 +200,15 @@ private:
     // is the prolog section and the epilog section will initiate the
     // notification.
 #if XPTI_ENABLE_INSTRUMENTATION
-    constexpr uint16_t NotificationTraceType =
-        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
-    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, MQueueID, "queue_create");
-    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
-                              NotificationTraceType)) {
-      // Cache the trace event, stream id and instance IDs for the destructor
-      MTraceEvent = (void *)PrepareNotify.traceEvent();
-      MStreamID = PrepareNotify.streamID();
-      MInstanceID = PrepareNotify.instanceID();
-
-      // Add the function to capture meta data for the XPTI trace event
-      PrepareNotify.addMetadata([&](auto TEvent) {
-        xpti::addMetadata(TEvent, "sycl_context",
-                          reinterpret_cast<size_t>(MContext->getHandleRef()));
-        if (MDevice) {
-          xpti::addMetadata(TEvent, "sycl_device_name",
-                            MDevice->getDeviceName());
-          xpti::addMetadata(TEvent, "sycl_device",
-                            reinterpret_cast<size_t>(MDevice->getHandleRef()));
-        }
-        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-        xpti::addMetadata(TEvent, "queue_id", MQueueID);
-        xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
-      });
-      // Also publish to TLS before notification
-      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
-      PrepareNotify.notify();
-    }
+    // Emit a trace event for queue creation; we currently do not get code
+    // location information, so all queueus will have the same UID with a
+    // different instance ID until this gets added.
+    constructorNotification();
 #endif
   }
 
 public:
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -287,7 +226,7 @@ public:
     queue_impl_interop(UrQueue);
   }
 
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -300,30 +239,22 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()) {
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(UrQueue);
   }
 
   ~queue_impl() {
     try {
-      // The trace event created in the constructor should be active through the
-      // lifetime of the queue object as member variables when ABI breakage is
-      // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
-      constexpr uint16_t NotificationTraceType =
-          static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
-      if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
-        // Used cached information in member variables
-        xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
-                              (xpti::trace_event_data_t *)MTraceEvent,
-                              MInstanceID,
-                              static_cast<const void *>("queue_destroy"));
-        xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
-      }
+      // The trace event created in the constructor should be active through the
+      // lifetime of the queue object as member variable. We will send a
+      // notification and destroy the trace event for this queue.
+      destructorNotification();
 #endif
       throw_asynchronous();
-      cleanup_fusion_cmd();
-      getPlugin()->call(urQueueRelease, MQueues[0]);
+      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -332,10 +263,10 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getPlugin()->call(urQueueRetain, MQueues[0]);
+    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urQueueGetNativeHandle, MQueues[0], nullptr,
-                      &nativeHandle);
+    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
+                                                          &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -344,7 +275,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
+  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -382,7 +313,7 @@ public:
                             "recording to a command graph.");
     }
     for (const auto &queue : MQueues) {
-      getPlugin()->call(urQueueFlush, queue);
+      getAdapter()->call<UrApiKind::urQueueFlush>(queue);
     }
   }
 
@@ -502,7 +433,7 @@ public:
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
     }
     if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero plugin to be able to check it from
+      // Pass this flag to the Level Zero adapter to be able to check it from
       // queue property.
       CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
     }
@@ -558,7 +489,7 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice->getHandleRef();
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -574,8 +505,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Plugin->call_nocheck(urQueueCreate, Context, Device,
-                                             &Properties, &Queue);
+    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
+        Context, Device, &Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -585,7 +516,7 @@ public:
       MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      Plugin->checkUrResult(Error);
+      Adapter->checkUrResult(Error);
     }
 
     return Queue;
@@ -617,7 +548,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getPlugin()->call(urQueueFinish, *PIQ);
+      getAdapter()->call<UrApiKind::urQueueFinish>(*PIQ);
 
     return *PIQ;
   }
@@ -711,15 +642,6 @@ public:
 
   bool ext_oneapi_empty() const;
 
-  /// Check whether the queue is in fusion mode.
-  ///
-  /// \return true if the queue is in fusion mode, false otherwise.
-  bool is_in_fusion_mode() {
-    return detail::Scheduler::getInstance().isInFusionMode(
-        std::hash<typename std::shared_ptr<queue_impl>::element_type *>()(
-            this));
-  }
-
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -748,6 +670,8 @@ public:
 
   unsigned long long getQueueID() { return MQueueID; }
 
+  void *getTraceEvent() { return MTraceEvent; }
+
   void setExternalEvent(const event &Event) {
     std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
     MInOrderExternalEvent = Event;
@@ -765,15 +689,9 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. No-op
-  // for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
-
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // tasks and host tasks is applicable for out of order queues only. Not needed
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
@@ -790,15 +708,14 @@ public:
 
 protected:
   event discard_or_return(const event &Event);
-  // Hook to the scheduler to clean up any fusion command held on destruction.
-  void cleanup_fusion_cmd();
 
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
-    getPlugin()->call(urEnqueueEventsWaitWithBarrier,
-                      Handler.MQueue->getHandleRef(), 0, nullptr,
-                      &ResEvent->getHandleRef());
+    ur_event_handle_t UREvent = nullptr;
+    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+    ResEvent->setHandle(UREvent);
     return ResEvent;
   }
 
@@ -861,18 +778,19 @@ protected:
       if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
-      if (Deps.LastBarrier)
+      if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
+                               (!Deps.LastBarrier->isEnqueued())))
         Handler.depends_on(Deps.LastBarrier);
+
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-          Deps.LastBarrier = EventRetImpl;
-          Deps.UnenqueuedCmdEvents.clear();
-        } else
-          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.UnenqueuedCmdEvents.clear();
+      } else if (!EventRetImpl->isEnqueued()) {
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }
@@ -936,6 +854,13 @@ protected:
   // Uses events generated by the Prolog and emits wait done event
   void instrumentationEpilog(void *TelementryEvent, std::string &Name,
                              int32_t StreamID, uint64_t IId);
+
+  // We need to emit a queue_create notification when a queue object is created
+  void constructorNotification();
+
+  // We need to emit a queue_destroy notification when a queue object is
+  // destroyed
+  void destructorNotification();
 
   /// queue_impl.addEvent tracks events with weak pointers
   /// but some events have no other owners. addSharedEvent()
