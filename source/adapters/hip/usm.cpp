@@ -218,7 +218,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
           void *Base = nullptr;
           UR_CHECK_ERROR(hipPointerGetAttribute(
               &Base, HIP_POINTER_ATTRIBUTE_RANGE_START_ADDR,
-              (hipDeviceptr_t)pMem));
+              reinterpret_cast<hipDeviceptr_t>(const_cast<void *>(pMem))));
           return ReturnValue(Base);
         }
       }
