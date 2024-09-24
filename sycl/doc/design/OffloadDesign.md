@@ -296,7 +296,8 @@ resemble `--gpu-tool-arg=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
 
-``--offload-arch``
+#### --offload-arch
+
 For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the device architecture using --offload-arch option. For instance 
   ``--offload-arch=sm_80`` to target an NVidia Tesla A100, 
   ``--offload-arch=gfx90a`` to target an AMD Instinct MI250X, or 
