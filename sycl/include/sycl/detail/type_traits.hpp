@@ -86,8 +86,7 @@ template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
+    : std::bool_constant<is_group<T>::value || is_sub_group<T>::value> {};
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
@@ -332,6 +331,9 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 template <typename T>
 struct is_floating_point
     : is_floating_point_impl<std::remove_cv_t<get_elem_type_t<T>>> {};
+
+template <typename T>
+constexpr bool is_floating_point_v = is_floating_point<T>::value;
 
 // is_arithmetic
 template <typename T>

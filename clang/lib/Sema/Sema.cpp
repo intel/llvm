@@ -22,6 +22,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -310,6 +311,13 @@ void Sema::addImplicitTypedef(StringRef Name, QualType T) {
 }
 
 void Sema::Initialize() {
+  // Create BuiltinVaListDecl *before* ExternalSemaSource::InitializeSema(this)
+  // because during initialization ASTReader can emit globals that require
+  // name mangling. And the name mangling uses BuiltinVaListDecl.
+  if (Context.getTargetInfo().hasBuiltinMSVaList())
+    (void)Context.getBuiltinMSVaListDecl();
+  (void)Context.getBuiltinVaListDecl();
+
   if (SemaConsumer *SC = dyn_cast<SemaConsumer>(&Consumer))
     SC->InitializeSema(*this);
 
@@ -496,7 +504,9 @@ void Sema::Initialize() {
 #include "clang/Basic/OpenCLExtensionTypes.def"
   }
 
-  if (Context.getTargetInfo().hasAArch64SVETypes()) {
+  if (Context.getTargetInfo().hasAArch64SVETypes() ||
+      (Context.getAuxTargetInfo() &&
+       Context.getAuxTargetInfo()->hasAArch64SVETypes())) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -1305,6 +1315,18 @@ void Sema::ActOnEndOfTranslationUnit() {
                                    Module::ExplicitGlobalModuleFragment) {
     Diag(ModuleScopes.back().BeginLoc,
          diag::err_module_declaration_missing_after_global_module_introducer);
+  } else if (getLangOpts().getCompilingModule() ==
+                 LangOptions::CMK_ModuleInterface &&
+             // We can't use ModuleScopes here since ModuleScopes is always
+             // empty if we're compiling the BMI.
+             !getASTContext().getCurrentNamedModule()) {
+    // If we are building a module interface unit, we should have seen the
+    // module declaration.
+    //
+    // FIXME: Make a better guess as to where to put the module declaration.
+    Diag(getSourceManager().getLocForStartOfFile(
+             getSourceManager().getMainFileID()),
+         diag::err_module_declaration_missing);
   }
 
   // Now we can decide whether the modules we're building need an initializer.
@@ -1806,6 +1828,33 @@ public:
     --InOMPDeviceContext;
   }
 
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr) {
+      if (DS->isSingleDecl()) {
+        Decl *D = DS->getSingleDecl();
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          if (VD->isUsableInConstantExpressions(S.Context))
+            return;
+      } else {
+        for (auto *D : DS->getDeclGroup()) {
+          if (auto *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isUsableInConstantExpressions(S.Context))
+              return;
+          } else {
+            this->visitUsedDecl(DS->getBeginLoc(), D);
+          }
+        }
+      }
+    }
+    this->VisitStmt(DS);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+      return;
+    this->VisitStmt(E);
+  }
+
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
@@ -1860,6 +1909,10 @@ public:
   void checkFunc(SourceLocation Loc, FunctionDecl *FD) {
     auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
+
+    if (!Caller && S.LangOpts.SYCLIsDevice)
+      S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
+
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
       return;
@@ -2003,7 +2056,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
-    auto &Diags = S.DeviceDeferredDiags[Fn];
+    auto &Diags = getDeviceDeferredDiags()[Fn];
     PartialDiagId.emplace(Diags.size());
     Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
@@ -2210,13 +2263,17 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   CheckType(Ty);
-  if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-    for (const auto &ParamTy : FPTy->param_types())
-      CheckType(ParamTy);
-    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+  if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
+    if (LangOpts.SYCLAllowAllFeaturesInConstexpr && FD->isConsteval())
+      return;
+    if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      for (const auto &ParamTy : FPTy->param_types())
+        CheckType(ParamTy);
+      CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+    }
+    if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
+      CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
   }
-  if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
 bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {

@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/compiler.hpp>
-#include <detail/plugin.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -21,21 +21,21 @@ namespace detail {
 
 // RAII object for keeping ownership of a UR event.
 struct OwnedUrEvent {
-  OwnedUrEvent(const PluginPtr &Plugin)
-      : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedUrEvent(ur_event_handle_t Event, const PluginPtr &Plugin,
+  OwnedUrEvent(const AdapterPtr &Adapter)
+      : MEvent{std::nullopt}, MAdapter{Adapter} {}
+  OwnedUrEvent(ur_event_handle_t Event, const AdapterPtr &Adapter,
                bool TakeOwnership = false)
-      : MEvent(Event), MPlugin(Plugin) {
+      : MEvent(Event), MAdapter(Adapter) {
     // If it is not instructed to take ownership, retain the event to share
     // ownership of it.
     if (!TakeOwnership)
-      MPlugin->call(urEventRetain, *MEvent);
+      MAdapter->call<UrApiKind::urEventRetain>(*MEvent);
   }
   ~OwnedUrEvent() {
     try {
       // Release the event if the ownership was not transferred.
       if (MEvent.has_value())
-        MPlugin->call(urEventRelease, *MEvent);
+        MAdapter->call<UrApiKind::urEventRelease>(*MEvent);
 
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~OwnedUrEvent", e);
@@ -43,7 +43,7 @@ struct OwnedUrEvent {
   }
 
   OwnedUrEvent(OwnedUrEvent &&Other)
-      : MEvent(Other.MEvent), MPlugin(Other.MPlugin) {
+      : MEvent(Other.MEvent), MAdapter(Other.MAdapter) {
     Other.MEvent = std::nullopt;
   }
 
@@ -65,7 +65,7 @@ struct OwnedUrEvent {
 
 private:
   std::optional<ur_event_handle_t> MEvent;
-  const PluginPtr &MPlugin;
+  const AdapterPtr &MAdapter;
 };
 
 namespace ur {

@@ -11,6 +11,7 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/handler.hpp>
 
 #include <detail/accessor_impl.hpp>
@@ -77,7 +78,7 @@ inline node_type getNodeTypeFromCG(sycl::detail::CGType CGType) {
 }
 
 /// Implementation of node class from SYCL_EXT_ONEAPI_GRAPH.
-class node_impl {
+class node_impl : public std::enable_shared_from_this<node_impl> {
 public:
   using id_type = uint64_t;
 
@@ -112,12 +113,7 @@ public:
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
-  /// @param Prev Predecessor to \p node being added as successor.
-  ///
-  /// \p Prev should be a shared_ptr to an instance of this object, but can't
-  /// use a raw \p this pointer, so the extra \p Prev parameter is passed.
-  void registerSuccessor(const std::shared_ptr<node_impl> &Node,
-                         const std::shared_ptr<node_impl> &Prev) {
+  void registerSuccessor(const std::shared_ptr<node_impl> &Node) {
     if (std::find_if(MSuccessors.begin(), MSuccessors.end(),
                      [Node](const std::weak_ptr<node_impl> &Ptr) {
                        return Ptr.lock() == Node;
@@ -125,7 +121,7 @@ public:
       return;
     }
     MSuccessors.push_back(Node);
-    Node->registerPredecessor(Prev);
+    Node->registerPredecessor(shared_from_this());
   }
 
   /// Add predecessor to the node.
@@ -161,9 +157,10 @@ public:
   /// Construct a node from another node. This will perform a deep-copy of the
   /// command group object associated with this node.
   node_impl(node_impl &Other)
-      : MSuccessors(Other.MSuccessors), MPredecessors(Other.MPredecessors),
-        MCGType(Other.MCGType), MNodeType(Other.MNodeType),
-        MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
+      : enable_shared_from_this(Other), MSuccessors(Other.MSuccessors),
+        MPredecessors(Other.MPredecessors), MCGType(Other.MCGType),
+        MNodeType(Other.MNodeType), MCommandGroup(Other.getCGCopy()),
+        MSubGraphImpl(Other.MSubGraphImpl) {}
 
   /// Copy-assignment operator. This will perform a deep-copy of the
   /// command group object associated with this node.
@@ -901,32 +898,26 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create a CGF node in the graph.
-  /// @param Impl Graph implementation pointer to create a handler with.
   /// @param CGF Command-group function to create node with.
   /// @param Args Node arguments.
   /// @param Dep Dependencies of the created node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::shared_ptr<graph_impl> &Impl,
-      std::function<void(handler &)> CGF,
+  add(std::function<void(handler &)> CGF,
       const std::vector<sycl::detail::ArgDesc> &Args,
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
-  /// @param Impl Graph implementation pointer.
   /// @param Dep List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::shared_ptr<graph_impl> &Impl,
-      const std::vector<std::shared_ptr<node_impl>> &Dep = {});
+  add(const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
-  /// @param Impl Graph implementation pointer.
   /// @param Events List of events associated to this node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::shared_ptr<graph_impl> &Impl,
-      const std::vector<sycl::detail::EventImplPtr> Events);
+  add(const std::vector<sycl::detail::EventImplPtr> Events);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -951,15 +942,12 @@ public:
   bool clearQueues();
 
   /// Associate a sycl event with a node in the graph.
-  /// @param GraphImpl shared_ptr to Graph impl associated with this event, aka
-  /// this.
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
-  void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
-                       std::shared_ptr<sycl::detail::event_impl> EventImpl,
+  void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
     if (!(EventImpl->getCommandGraph()))
-      EventImpl->setCommandGraph(GraphImpl);
+      EventImpl->setCommandGraph(shared_from_this());
     MEventsMap[EventImpl] = NodeImpl;
   }
 
@@ -1238,12 +1226,10 @@ private:
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Adds nodes to the exit nodes of this graph.
-  /// @param Impl Graph implementation pointer.
   /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addNodesToExits(const std::shared_ptr<graph_impl> &Impl,
-                  const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
@@ -1253,7 +1239,7 @@ private:
                      const std::vector<std::shared_ptr<node_impl>> &Deps) {
     if (!Deps.empty()) {
       for (auto &N : Deps) {
-        N->registerSuccessor(Node, N);
+        N->registerSuccessor(Node);
         this->removeRoot(Node);
       }
     } else {
@@ -1515,6 +1501,17 @@ public:
     std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
+  /// sycl_ext_oneapi_raw_kernel_arg constructor
+  /// Parameter size is taken from member of raw_kernel_arg object.
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl, size_t,
+                         raw_kernel_arg *Data)
+      : MGraph(GraphImpl) {
+    size_t RawArgSize = Data->MArgSize;
+    const void *RawArgData = Data->MArgData;
+    MValueStorage.reserve(RawArgSize);
+    std::memcpy(MValueStorage.data(), RawArgData, RawArgSize);
+  }
+
   /// Register a node with this dynamic parameter
   /// @param NodeImpl The node to be registered
   /// @param ArgIndex The arg index for the kernel arg associated with this
@@ -1525,6 +1522,25 @@ public:
 
   /// Get a pointer to the internal value of this dynamic parameter
   void *getValue() { return MValueStorage.data(); }
+
+  /// Update sycl_ext_oneapi_raw_kernel_arg parameter
+  /// @param NewRawValue Pointer to a raw_kernel_arg object.
+  /// @param Size Parameter is ignored.
+  void updateValue(const raw_kernel_arg *NewRawValue, size_t Size) {
+    // Number of bytes is taken from member of raw_kernel_arg object rather
+    // than using the size parameter which represents sizeof(raw_kernel_arg).
+    std::ignore = Size;
+    size_t RawArgSize = NewRawValue->MArgSize;
+    const void *RawArgData = NewRawValue->MArgData;
+
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
+      auto NodeShared = NodeWeak.lock();
+      if (NodeShared) {
+        NodeShared->updateArgValue(ArgIndex, RawArgData, RawArgSize);
+      }
+    }
+    std::memcpy(MValueStorage.data(), RawArgData, RawArgSize);
+  }
 
   /// Update the internal value of this dynamic parameter as well as the value
   /// of this parameter in all registered nodes.

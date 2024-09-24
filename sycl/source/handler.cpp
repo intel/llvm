@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ur_api.h"
 #include "sycl/detail/helpers.hpp"
+#include "ur_api.h"
 #include <algorithm>
 
 #include <detail/config.hpp>
@@ -249,18 +249,18 @@ event handler::finalize() {
     }
 
     if (MQueue && !impl->MGraph && !impl->MSubgraphNode &&
-        !MQueue->getCommandGraph() && !MQueue->is_in_fusion_mode() &&
-        !impl->CGData.MRequirements.size() && !MStreamStorage.size() &&
+        !MQueue->getCommandGraph() && !impl->CGData.MRequirements.size() &&
+        !MStreamStorage.size() &&
         (!impl->CGData.MEvents.size() ||
          (MQueue->isInOrder() &&
           detail::Scheduler::areEventsSafeForSchedulerBypass(
               impl->CGData.MEvents, MQueue->getContextImplPtr())))) {
       // if user does not add a new dependency to the dependency graph, i.e.
-      // the graph is not changed, and the queue is not in fusion mode, then
-      // this faster path is used to submit kernel bypassing scheduler and
-      // avoiding CommandGroup, Command objects creation.
-
-      std::vector<ur_event_handle_t> RawEvents;
+      // the graph is not changed, then this faster path is used to submit
+      // kernel bypassing scheduler and avoiding CommandGroup, Command objects
+      // creation.
+      std::vector<ur_event_handle_t> RawEvents =
+          detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
       detail::EventImplPtr NewEvent;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -294,7 +294,7 @@ event handler::finalize() {
         if (NewEvent != nullptr) {
           detail::emitInstrumentationGeneral(
               StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-              static_cast<const void *>(NewEvent->getHandleRef()));
+              static_cast<const void *>(NewEvent->getHandle()));
         }
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
@@ -325,7 +325,7 @@ event handler::finalize() {
         NewEvent->setSubmissionTime();
 
         EnqueueKernel();
-        if (NewEvent->isHost() || NewEvent->getHandleRef() == nullptr)
+        if (NewEvent->isHost() || NewEvent->getHandle() == nullptr)
           NewEvent->setComplete();
         NewEvent->setEnqueued();
 
@@ -574,7 +574,7 @@ event handler::finalize() {
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
+    GraphImpl->addEventForNode(EventImpl, NodeImpl);
 
     NodeImpl->MNDRangeUsed = impl->MNDRangeUsed;
 
@@ -849,16 +849,16 @@ void handler::extractArgsAndReqs() {
 }
 
 void handler::extractArgsAndReqsFromLambda(
-    char *LambdaPtr, size_t KernelArgsNum,
-    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
+    char *LambdaPtr, const std::vector<detail::kernel_param_desc_t> &ParamDescs,
+    bool IsESIMD) {
   const bool IsKernelCreatedFromSource = false;
   size_t IndexShift = 0;
-  impl->MArgs.reserve(MaxNumAdditionalArgs * KernelArgsNum);
+  impl->MArgs.reserve(MaxNumAdditionalArgs * ParamDescs.size());
 
-  for (size_t I = 0; I < KernelArgsNum; ++I) {
-    void *Ptr = LambdaPtr + KernelArgs[I].offset;
-    const detail::kernel_param_kind_t &Kind = KernelArgs[I].kind;
-    const int &Size = KernelArgs[I].info;
+  for (size_t I = 0; I < ParamDescs.size(); ++I) {
+    void *Ptr = LambdaPtr + ParamDescs[I].offset;
+    const detail::kernel_param_kind_t &Kind = ParamDescs[I].kind;
+    const int &Size = ParamDescs[I].info;
     if (Kind == detail::kernel_param_kind_t::kind_accessor) {
       // For args kind of accessor Size is information about accessor.
       // The first 11 bits of Size encodes the accessor target.
@@ -880,6 +880,15 @@ void handler::extractArgsAndReqsFromLambda(
     processArg(Ptr, Kind, Size, I, IndexShift, IsKernelCreatedFromSource,
                IsESIMD);
   }
+}
+
+// TODO Unused, remove during ABI breaking window
+void handler::extractArgsAndReqsFromLambda(
+    char *LambdaPtr, size_t KernelArgsNum,
+    const detail::kernel_param_desc_t *KernelArgs, bool IsESIMD) {
+  std::vector<detail::kernel_param_desc_t> ParamDescs(
+      KernelArgs, KernelArgs + KernelArgsNum);
+  extractArgsAndReqsFromLambda(LambdaPtr, ParamDescs, IsESIMD);
 }
 
 // Calling methods of kernel_impl requires knowledge of class layout.
@@ -1044,10 +1053,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1059,7 +1073,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1134,7 +1147,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   Desc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
@@ -1154,10 +1167,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1169,7 +1187,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1187,8 +1204,8 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   ImageDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
-  MDstPtr = reinterpret_cast<void*>(Dest.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   ur_image_desc_t UrDesc = {};
   UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -1206,11 +1223,17 @@ void handler::ext_oneapi_copy(
         ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height,
+                         ImageDesc.array_size};
   } else {
     UrDesc.type = ImageDesc.depth > 0
                       ? UR_MEM_TYPE_IMAGE3D
                       : (ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                               : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1222,7 +1245,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1242,7 +1264,7 @@ void handler::ext_oneapi_copy(
           sycl_ext_oneapi_bindless_images>();
   SrcImgDesc.verify();
 
-  MSrcPtr = reinterpret_cast<void*>(Src.raw_handle);
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
   ur_image_desc_t UrDesc = {};
@@ -1318,10 +1340,15 @@ void handler::ext_oneapi_copy(
         Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
             ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
             : UrDesc.type;
+
+    // Array size is depth extent.
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
   } else {
     UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
                                  : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
                                                     : UR_MEM_TYPE_IMAGE1D);
+
+    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   }
 
   ur_image_format_t UrFormat;
@@ -1333,7 +1360,6 @@ void handler::ext_oneapi_copy(
 
   impl->MSrcOffset = {0, 0, 0};
   impl->MDestOffset = {0, 0, 0};
-  impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
   impl->MSrcImageDesc = UrDesc;
   impl->MDstImageDesc = UrDesc;
   impl->MSrcImageFormat = UrFormat;
@@ -1570,12 +1596,6 @@ void handler::depends_on(const detail::EventImplPtr &EventImpl) {
           "associated with a different device.");
     }
 
-    if (MQueue->is_in_fusion_mode()) {
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "Queue in fusion mode cannot have a dependency from a graph");
-    }
-
     if (QueueGraph && QueueGraph != EventGraph) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Cannot submit to a recording queue with a "
@@ -1615,10 +1635,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
-  auto &Plugin = ContextImpl->getPlugin();
+  auto &Adapter = ContextImpl->getAdapter();
   ur_bool_t SupportsOp = false;
-  Plugin->call(urContextGetInfo, ContextImpl->getHandleRef(), InfoQuery,
-               sizeof(ur_bool_t), &SupportsOp, nullptr);
+  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
+                                             InfoQuery, sizeof(ur_bool_t),
+                                             &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1852,8 +1873,8 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck(
-      urDeviceGetInfo, Dev->getHandleRef(),
+  auto Ret = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
       sizeof(UrResult), &UrResult, nullptr);

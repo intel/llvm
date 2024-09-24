@@ -2188,7 +2188,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *BC = static_cast<SPIRVBinary *>(BV);
     auto Ops = transValue(BC->getOperands(), F, BB);
     IRBuilder<> Builder(BB);
-    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
+    Type *ElemTy =
+        transType(BC->getOperands()[0]->getType()->getPointerElementType());
+    Value *V = Builder.CreatePtrDiff(ElemTy, Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
@@ -3042,12 +3044,15 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     auto BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
+    AttributeMask IllegalAttrs = AttributeFuncs::typeIncompatible(I->getType());
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       // Skip this function parameter attribute as it will translated among
       // OpenCL metadata
       if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
         return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
+      if (IllegalAttrs.contains(LLVMKind))
+        return;
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
       case Attribute::AttrKind::ByVal:
@@ -3268,8 +3273,16 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
         OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
-  auto *Call =
-      CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
+  CallInst *Call;
+  if (BI->getOpCode() == OpCooperativeMatrixLengthKHR &&
+      Ops[0]->getOpCode() == OpTypeCooperativeMatrixKHR) {
+    // OpCooperativeMatrixLengthKHR needs special handling as its operand is
+    // a Type instead of a Value.
+    llvm::Type *MatTy = transType(reinterpret_cast<SPIRVType *>(Ops[0]));
+    Call = CallInst::Create(Func, Constant::getNullValue(MatTy), "", BB);
+  } else {
+    Call = CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
+  }
   setName(Call, BI);
   setAttrByCalledFunc(Call);
   SPIRVDBG(spvdbgs() << "[transInstToBuiltinCall] " << *BI << " -> ";
@@ -3815,8 +3828,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
       GS->setSection("llvm.metadata");
 
-      Type *ResType = PointerType::get(GV->getContext(),
-                                       GV->getType()->getPointerAddressSpace());
+      Type *ResType = PointerType::get(
+          GV->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
       Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
       Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
@@ -3875,8 +3888,8 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::get(V->getContext(),
-                                     V->getType()->getPointerAddressSpace());
+    Type *ResType = PointerType::get(
+        V->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
 
