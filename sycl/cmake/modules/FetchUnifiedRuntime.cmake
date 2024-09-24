@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7a2caca559da81620c7430521873045bf42eafc1
-  # Merge: 1d1808a4 96f66e0f
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Tue Sep 24 13:00:46 2024 +0200
-  #     Merge pull request #2117 from pbalcer/fix-filter-out-same-cmdlists
-  #     Fix urEnqueueEventsWaitWithBarrier when used with interop events
-  set(UNIFIED_RUNTIME_TAG 7a2caca559da81620c7430521873045bf42eafc1)
+  # commit 45ad7c52a75e6d3e52f658e38e796563744914c7
+  # Merge: 7a2caca5 3bf2becb
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Tue Sep 24 08:04:54 2024 -0700
+  #     Merge pull request #2116 from RossBrunton/ross/morewarn
+  #     More warning squishing
+  set(UNIFIED_RUNTIME_TAG 45ad7c52a75e6d3e52f658e38e796563744914c7)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
