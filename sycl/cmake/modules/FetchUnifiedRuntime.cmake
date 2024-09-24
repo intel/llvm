@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
   # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
   # Merge: 1f13d2ce cf5994a1
   # Author: Piotr Balcer <piotr.balcer@intel.com>
   # Date:   Thu Oct 3 10:47:01 2024 +0200
   #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
   #     Fix mixed output of adapter and regular traces
-  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
+  set(UNIFIED_RUNTIME_TAG ae7f58e37baa17f8d38bc2a491a6ef07a243e3e6)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
