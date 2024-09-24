@@ -3,8 +3,10 @@
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // CHECK-DEFAULT-NOT: "-fsycl-is-device"
 
-/// Check "-fsycl-is-device" is passed when compiling for device:
+/// Check "-fsycl-is-device" is passed when compiling for device, including when --config is used:
 // RUN:   %clang -### -fsycl-device-only %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHECK-SYCL-DEV %s
+// RUN:   %clang -### --config=%S/Inputs/empty.cfg -fsycl-device-only %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-SYCL-DEV %s
 // CHECK-SYCL-DEV: "-fsycl-is-device"{{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl" "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include"
 

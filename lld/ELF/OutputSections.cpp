@@ -39,16 +39,6 @@ using namespace llvm::ELF;
 using namespace lld;
 using namespace lld::elf;
 
-uint8_t *Out::bufferStart;
-PhdrEntry *Out::tlsPhdr;
-OutputSection *Out::elfHeader;
-OutputSection *Out::programHeaders;
-OutputSection *Out::preinitArray;
-OutputSection *Out::initArray;
-OutputSection *Out::finiArray;
-
-SmallVector<OutputSection *, 0> elf::outputSections;
-
 uint32_t OutputSection::getPhdrFlags() const {
   uint32_t ret = 0;
   if (config->emachine != EM_ARM || !(flags & SHF_ARM_PURECODE))
@@ -272,7 +262,7 @@ static void sortByOrder(MutableArrayRef<InputSection *> in,
 uint64_t elf::getHeaderSize() {
   if (config->oFormatBinary)
     return 0;
-  return Out::elfHeader->size + Out::programHeaders->size;
+  return ctx.out.elfHeader->size + ctx.out.programHeaders->size;
 }
 
 void OutputSection::sort(llvm::function_ref<int(InputSectionBase *s)> order) {
@@ -288,7 +278,7 @@ static void nopInstrFill(uint8_t *buf, size_t size) {
   unsigned i = 0;
   if (size == 0)
     return;
-  std::vector<std::vector<uint8_t>> nopFiller = *target->nopInstrs;
+  std::vector<std::vector<uint8_t>> nopFiller = *ctx.target->nopInstrs;
   unsigned num = size / nopFiller.back().size();
   for (unsigned c = 0; c < num; ++c) {
     memcpy(buf + i, nopFiller.back().data(), nopFiller.back().size());
@@ -551,7 +541,7 @@ void OutputSection::writeTo(uint8_t *buf, parallel::TaskGroup &tg) {
         else
           end = buf + sections[i + 1]->outSecOff;
         if (isec->nopFiller) {
-          assert(target->nopInstrs);
+          assert(ctx.target->nopInstrs);
           nopInstrFill(start, end - start);
         } else
           fill(start, end - start, filler);
@@ -867,7 +857,7 @@ std::array<uint8_t, 4> OutputSection::getFiller() {
   if (filler)
     return *filler;
   if (flags & SHF_EXECINSTR)
-    return target->trapInstr;
+    return ctx.target->trapInstr;
   return {0, 0, 0, 0};
 }
 
@@ -900,7 +890,7 @@ void OutputSection::checkDynRelAddends(const uint8_t *bufStart) {
       int64_t writtenAddend =
           relOsec->type == SHT_NOBITS
               ? 0
-              : target->getImplicitAddend(relocTarget, rel.type);
+              : ctx.target->getImplicitAddend(relocTarget, rel.type);
       if (addend != writtenAddend)
         internalLinkerError(
             getErrorLocation(relocTarget),

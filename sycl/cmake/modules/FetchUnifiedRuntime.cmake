@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
+  # commit 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55
+  # Merge: 7384e2d7 59e5e405
   # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG b77358188d359b58dd1365c34e3c4b5285eded44)
+  # Date:   Mon Sep 23 10:58:51 2024 +0200
+  #   Merge pull request #2113 from oneapi-src/revert-1698-counter-based-2 
+  #   Revert "[L0] Phase 2 of Counter-Based Event Implementation"
+  set(UNIFIED_RUNTIME_TAG 1c5e49ff9cefce9e3a305f3c1c09fdb7cae250c0)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
