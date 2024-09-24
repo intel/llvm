@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
-  # Merge: 9ca3ec7 be38e567
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 23 08:27:12 2024 -0700
-  #     Merge pull request #1830 from JackAKirk/hip-set-device
-  #     [hip] Remove deprecated hip APIs, simplify urContext
-  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
+  # commit 7a2caca559da81620c7430521873045bf42eafc1
+  # Merge: 1d1808a4 96f66e0f
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Tue Sep 24 13:00:46 2024 +0200
+  #     Merge pull request #2117 from pbalcer/fix-filter-out-same-cmdlists
+  #     Fix urEnqueueEventsWaitWithBarrier when used with interop events
+  set(UNIFIED_RUNTIME_TAG 7a2caca559da81620c7430521873045bf42eafc1)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
