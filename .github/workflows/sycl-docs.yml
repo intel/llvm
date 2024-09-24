@@ -1,4 +1,4 @@
-name: Generate Doxygen documentation
+name: Generate documentation
 
 on:
   schedule:
