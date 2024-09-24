@@ -12,7 +12,6 @@
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/memory_enums.hpp>      // for memory_order
-#include <ur_api.h>
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
@@ -46,7 +45,9 @@ class queue_impl;
 using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
 class RTDeviceBinaryImage;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
+#endif
 
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
@@ -252,10 +253,6 @@ template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
-
-std::tuple<const RTDeviceBinaryImage *, ur_program_handle_t>
-retrieveKernelBinary(const QueueImplPtr &, const char *KernelName,
-                     CGExecKernel *CGKernel = nullptr);
 } // namespace detail
 
 } // namespace _V1
