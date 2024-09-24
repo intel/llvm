@@ -81,6 +81,17 @@ public:
     return dstBuffer;
   }
 
+  static size_t GetDecompressedSize(const char *src, size_t srcSize) {
+    size_t dstBufferSize = ZSTD_getFrameContentSize(src, srcSize);
+
+    if (dstBufferSize == ZSTD_CONTENTSIZE_UNKNOWN ||
+        dstBufferSize == ZSTD_CONTENTSIZE_ERROR) {
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Error determining size of uncompressed data.");
+    }
+    return dstBufferSize;
+  }
+
   static std::unique_ptr<char> DecompressBlob(const char *src, size_t srcSize,
                                               size_t &dstSize) {
     auto &instance = GetSingletonInstance();
@@ -101,13 +112,7 @@ public:
 
     // Size of decompressed image can be larger than what we can allocate
     // on heap. In that case, we need to use streaming decompression.
-    auto dstBufferSize = ZSTD_getFrameContentSize(src, srcSize);
-
-    if (dstBufferSize == ZSTD_CONTENTSIZE_UNKNOWN ||
-        dstBufferSize == ZSTD_CONTENTSIZE_ERROR) {
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Error determining size of uncompressed data.");
-    }
+    auto dstBufferSize = GetDecompressedSize(src, srcSize);
 
     // Allocate buffer for decompressed data.
     auto dstBuffer = std::unique_ptr<char>(new char[dstBufferSize]);

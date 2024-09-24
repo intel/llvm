@@ -733,6 +733,12 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
+static inline void CheckAndDecompressImage(RTDeviceBinaryImage *Img) {
+  if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
+    if (CompImg->IsCompressed())
+      CompImg->Decompress();
+}
+
 // When caching is enabled, the returned UrProgram will already have
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -784,6 +790,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::set<RTDeviceBinaryImage *> ImageDeps =
       collectDeviceImageDepsForImportedSymbols(Img, Device);
   DeviceImagesToLink.insert(ImageDeps.begin(), ImageDeps.end());
+
+  // Decompress all DeviceImagesToLink
+  for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+    CheckAndDecompressImage(BinImg);
 
   std::vector<const RTDeviceBinaryImage *> AllImages;
   AllImages.reserve(ImageDeps.size() + 1);
@@ -1388,6 +1398,10 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                     Device);
     }
   }
+
+  // Decompress the image if it is compressed.
+  CheckAndDecompressImage(Img);
+
   if (Img) {
     CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
@@ -1714,6 +1728,10 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
           [&](auto &CurrentImg) {
             return CurrentImg.first->getFormat() == Img->getFormat();
           });
+
+      // Check if image is compressed, and decompress it before dumping.
+      CheckAndDecompressImage(Img.get());
+
       dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
     }
 
@@ -2190,6 +2208,9 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           StateImagesPair = &KernelImageMap[KernelID];
 
         auto &[KernelImagesState, KernelImages] = *StateImagesPair;
+
+        // Check if device image is compressed and decompress it if needed
+        CheckAndDecompressImage(BinImage);
 
         if (KernelImages.empty()) {
           KernelImagesState = ImgState;

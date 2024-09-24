@@ -170,6 +170,8 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   // it when invoking the offload wrapper job
   Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
+  // For compressed images, we delay determining the format until the image is
+  // decompressed.
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
     Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
@@ -186,7 +188,6 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
     ProgramMetadataUR.push_back(
         ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
   }
-
   ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
@@ -235,25 +236,34 @@ CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
     sycl_device_binary CompressedBin)
     : RTDeviceBinaryImage() {
 
-  size_t compressedDataSize = static_cast<size_t>(CompressedBin->BinaryEnd -
-                                                  CompressedBin->BinaryStart);
+  // 'CompressedBin' is part of the executable image loaded into memory
+  // which can't be modified easily. So, we need to make a copy of it.
+  Bin = new sycl_device_binary_struct(*CompressedBin);
+
+  // Get the decompressed size of the binary image.
+  m_ImageSize = ZSTDCompressor::GetDecompressedSize(
+      reinterpret_cast<const char *>(Bin->BinaryStart),
+      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
+
+  init(Bin);
+}
+
+void CompressedRTDeviceBinaryImage::Decompress() {
+
+  size_t CompressedDataSize =
+      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
 
   size_t DecompressedSize = 0;
   m_DecompressedData = ZSTDCompressor::DecompressBlob(
-      reinterpret_cast<const char *>(CompressedBin->BinaryStart),
-      compressedDataSize, DecompressedSize);
+      reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
+      DecompressedSize);
 
-  Bin = new sycl_device_binary_struct(*CompressedBin);
   Bin->BinaryStart =
       reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
   Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
 
-  // Set the new format to none and let RT determine the format.
-  // TODO: Add support for automatically detecting compressed
-  // binary format.
-  Bin->Format = SYCL_DEVICE_BINARY_TYPE_NONE;
-
-  init(Bin);
+  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+  Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 }
 
 CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {

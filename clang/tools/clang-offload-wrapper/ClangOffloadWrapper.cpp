@@ -1112,10 +1112,11 @@ private:
         // If '--offload-compress' option is specified and zstd is not
         // available, throw an error.
         if (OffloadCompressDevImgs && !llvm::compression::zstd::isAvailable()) {
-          createStringError(inconvertibleErrorCode(),
-                            "'--offload-compress' option is specified but zstd "
-                            "is not available. The device image will not be "
-                            "compressed.");
+          return createStringError(
+              inconvertibleErrorCode(),
+              "'--offload-compress' option is specified but zstd "
+              "is not available. The device image will not be "
+              "compressed.");
         }
 
         // Don't compress if the user explicitly specifies the binary image
