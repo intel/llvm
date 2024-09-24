@@ -462,6 +462,9 @@ The checked APIs are currently available in devices with the architecture
 `architecture::intel_gpu_pvc`. The following restrictions apply to
 these checked APIs:
 
+- The `Stride` argument must be a multiple of 8 bytes. Also, `Stride`
+should not exceed `2^24` bytes.
+
 - The base pointer must be 4 bytes aligned.
 
 - For 8 bits data type, `RowIndex` must be a multiple of 4. For 16 bits
