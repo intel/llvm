@@ -125,9 +125,6 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   #    [XPTI] Use `ur.call` rather than `ur` in XPTI
   set(UNIFIED_RUNTIME_TAG d0a50523006fa6f283da6a36811081add3bb22fc)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG "yc-0903-handle-option-exception")
-
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
   # to link statically on windows
