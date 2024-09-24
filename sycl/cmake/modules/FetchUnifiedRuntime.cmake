@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Tue Aug 20 16:28:30 2024 +0100
   #    Merge pull request #1940 from RossBrunton/ross/urcall
   #    [XPTI] Use `ur.call` rather than `ur` in XPTI
-  set(UNIFIED_RUNTIME_TAG 43898feb938001ec2af6d04bfddda7105020a042)
+  set(UNIFIED_RUNTIME_TAG 9bedc9f3c6d8c745413d7fe667373b5ffa97c1d0)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
