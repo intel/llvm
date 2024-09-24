@@ -7049,9 +7049,16 @@ def fsycl_remove_unused_external_funcs : Flag<["-"], "fsycl-remove-unused-extern
 def fno_sycl_remove_unused_external_funcs : Flag<["-"], "fno-sycl-remove-unused-external-funcs">,
   HelpText<"Prevent removal of unused `SYCL_EXTERNAL` functions">;
 def fsycl_allow_device_dependencies : Flag<["-"], "fsycl-allow-device-dependencies">,
-  HelpText<"Allow dependencies between device code images">;
+  HelpText<"Deprecated: please use -fsycl-allow-device-image-dependencies instead.">,
+  Flags<[Deprecated]>;
 def fno_sycl_allow_device_dependencies : Flag<["-"], "fno-sycl-allow-device-dependencies">,
-  HelpText<"Do not allow dependencies between device code images (default)">;
+  HelpText<"Deprecated: please use -fno-sycl-allow-device-image-dependencies instead.">,
+  Flags<[Deprecated]>;
+
+defm sycl_allow_device_image_dependencies: BoolOptionWithoutMarshalling<"f", "sycl-allow-device-image-dependencies",
+  PosFlag<SetTrue, [], [ClangOption], "Allow dependencies between device code images">,
+  NegFlag<SetFalse, [], [ClangOption], "Do not allow dependencies between device code images (default)">>;
+
 def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">,
   Flags<[NoXarchOption]>,
   HelpText<"Dump device code into the user provided directory.">;
