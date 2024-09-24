@@ -401,6 +401,9 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
   return Object.fetch_max(Operand, MemoryOrder);
 }
 } // namespace detail
+// This alias is a workaround to allow accessor to use the deprecated
+// cl::sycl::atomic class without causing deprecation warnings without the user
+// explicitly using the corresponding accessor APIs.
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
 using atomic __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") =

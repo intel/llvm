@@ -55,10 +55,6 @@ int main(int argc, char *argv[]) {
             auto x_cv1 = sg.load<const volatile sycl::int2>(&global[i]);
             auto x_cv2 = sg.load(
                 global.get_multi_ptr<sycl::access::decorated::yes>() + i);
-
-            // auto x_cv2 = sg.load(
-            //     sycl::global_ptr<const volatile sycl::int2>(&global[i]));
-
             // Local address space
             auto y = sg.load(&local[i]);
             auto y_cv1 = sg.load<const volatile sycl::int2>(&local[i]);
