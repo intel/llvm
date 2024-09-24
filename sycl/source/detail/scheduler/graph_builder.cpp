@@ -754,7 +754,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
           // Can setup link between cl and host allocations only
           if ((Context == nullptr) != (Record->MCurContext == nullptr)) {
             // Linked commands assume that the host allocation is reused by the
-            // plugin runtime and that can lead to unnecessary copy overhead on
+            // unified runtime and that can lead to unnecessary copy overhead on
             // devices that do not support host unified memory. Do not link the
             // allocations in this case.
             // However, if the user explicitly requests use of pinned host

@@ -14,6 +14,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
+#include <detail/helpers.hpp>
 #include <detail/host_task.hpp>
 #include <detail/image_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
@@ -1628,11 +1629,11 @@ void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
 static bool
 checkContextSupports(const std::shared_ptr<detail::context_impl> &ContextImpl,
                      ur_context_info_t InfoQuery) {
-  auto &Plugin = ContextImpl->getPlugin();
+  auto &Adapter = ContextImpl->getAdapter();
   ur_bool_t SupportsOp = false;
-  Plugin->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
-                                            InfoQuery, sizeof(ur_bool_t),
-                                            &SupportsOp, nullptr);
+  Adapter->call<UrApiKind::urContextGetInfo>(ContextImpl->getHandleRef(),
+                                             InfoQuery, sizeof(ur_bool_t),
+                                             &SupportsOp, nullptr);
   return SupportsOp;
 }
 
@@ -1866,7 +1867,7 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
   std::array<size_t, 3> UrResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck<UrApiKind::urDeviceGetInfo>(
+  auto Ret = Dev->getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
       Dev->getHandleRef(),
       UrInfoCode<
           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
