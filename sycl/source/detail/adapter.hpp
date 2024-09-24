@@ -1,4 +1,4 @@
-//==- plugin.hpp -----------------------------------------------------------==//
+//==- adapter.hpp ----------------------------------------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -37,18 +37,18 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/// The plugin class provides a unified interface to the underlying low-level
+/// The adapter class provides a unified interface to the underlying low-level
 /// runtimes for the device-agnostic SYCL runtime.
 ///
 /// \ingroup sycl_ur
-class plugin {
+class Adapter {
 public:
-  plugin() = delete;
+  Adapter() = delete;
 
-  plugin(ur_adapter_handle_t adapter, backend UseBackend)
+  Adapter(ur_adapter_handle_t adapter, backend UseBackend)
       : MAdapter(adapter), MBackend(UseBackend),
         TracingMutex(std::make_shared<std::mutex>()),
-        MPluginMutex(std::make_shared<std::mutex>()) {
+        MAdapterMutex(std::make_shared<std::mutex>()) {
 
 #ifdef _WIN32
     UrLoaderHandle = ur::getURLoaderLibrary();
@@ -56,13 +56,13 @@ public:
 #endif
   }
 
-  // Disallow accidental copies of plugins
-  plugin &operator=(const plugin &) = delete;
-  plugin(const plugin &) = delete;
-  plugin &operator=(plugin &&other) noexcept = delete;
-  plugin(plugin &&other) noexcept = delete;
+  // Disallow accidental copies of adapters
+  Adapter &operator=(const Adapter &) = delete;
+  Adapter(const Adapter &) = delete;
+  Adapter &operator=(Adapter &&other) noexcept = delete;
+  Adapter(Adapter &&other) noexcept = delete;
 
-  ~plugin() = default;
+  ~Adapter() = default;
 
   /// \throw SYCL 2020 exception(errc) if ur_result is not UR_RESULT_SUCCESS
   template <sycl::errc errc = sycl::errc::runtime>
@@ -114,12 +114,12 @@ public:
   ///
   /// Usage:
   /// \code{cpp}
-  /// ur_result_t Err = Plugin->call<UrApiKind::urEntryPoint>(Args);
-  /// Plugin->checkUrResult(Err); // Checks Result and throws a runtime_error
+  /// ur_result_t Err = Adapter->call<UrApiKind::urEntryPoint>(Args);
+  /// Adapter->checkUrResult(Err); // Checks Result and throws a runtime_error
   /// // exception.
   /// \endcode
   ///
-  /// \sa plugin::checkUrResult
+  /// \sa adapter::checkUrResult
   template <UrApiKind UrApiOffset, typename... ArgsT>
   ur_result_t call_nocheck(ArgsT... Args) const {
     ur_result_t R = UR_RESULT_SUCCESS;
@@ -147,9 +147,9 @@ public:
     checkUrResult<errc>(Err);
   }
 
-  /// Tells if this plugin can serve specified backend.
-  /// For example, Unified Runtime plugin will be able to serve
-  /// multiple backends as determined by the platforms reported by the plugin.
+  /// Tells if this adapter can serve specified backend.
+  /// For example, Unified Runtime adapter will be able to serve
+  /// multiple backends as determined by the platforms reported by the adapter.
   bool hasBackend(backend Backend) const { return Backend == MBackend; }
 
   void release() {
@@ -170,7 +170,7 @@ public:
     return UrPlatforms.size() - 1;
   }
 
-  // Device ids are consecutive across platforms within a plugin.
+  // Device ids are consecutive across platforms within a adapter.
   // We need to return the same starting index for the given platform.
   // So, instead of returing the last device id of the given platform,
   // return the last device id of the predecessor platform.
@@ -204,7 +204,7 @@ public:
     return It != UrPlatforms.end();
   }
 
-  std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  std::shared_ptr<std::mutex> getAdapterMutex() { return MAdapterMutex; }
   bool adapterReleased = false;
 
 private:
@@ -214,8 +214,8 @@ private:
   // Mutex to guard UrPlatforms and LastDeviceIds.
   // Note that this is a temporary solution until we implement the global
   // Device/Platform cache later.
-  std::shared_ptr<std::mutex> MPluginMutex;
-  // vector of UrPlatforms that belong to this plugin
+  std::shared_ptr<std::mutex> MAdapterMutex;
+  // vector of UrPlatforms that belong to this adapter
   std::once_flag PlatformsPopulated;
   std::vector<ur_platform_handle_t> UrPlatforms;
   // represents the unique ids of the last device of each platform
@@ -225,9 +225,9 @@ private:
   void *UrLoaderHandle = nullptr;
 #endif
   UrFuncPtrMapT UrFuncPtrs;
-}; // class plugin
+}; // class Adapter
 
-using PluginPtr = std::shared_ptr<plugin>;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 } // namespace detail
 } // namespace _V1
