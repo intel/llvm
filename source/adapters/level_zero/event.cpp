@@ -171,48 +171,63 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Helper function for appending a barrier to a command list.
-  auto insertBarrierIntoCmdList =
-      [&Queue](ur_command_list_ptr_t CmdList,
-               const _ur_ze_event_list_t &EventWaitList,
-               ur_event_handle_t &Event, bool IsInternal) {
-        UR_CALL(createEventAndAssociateQueue(
-            Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
-            IsInternal, false));
+  auto insertBarrierIntoCmdList = [&Queue](ur_command_list_ptr_t CmdList,
+                                           _ur_ze_event_list_t &EventWaitList,
+                                           ur_event_handle_t &Event,
+                                           bool IsInternal) {
+    UR_CALL(createEventAndAssociateQueue(Queue, &Event,
+                                         UR_COMMAND_EVENTS_WAIT_WITH_BARRIER,
+                                         CmdList, IsInternal, false));
 
-        Event->WaitList = EventWaitList;
+    Event->WaitList = EventWaitList;
 
-        // For in-order queue we don't need a real barrier, just wait for
-        // requested events in potentially different queues and add a "barrier"
-        // event signal because it is already guaranteed that previous commands
-        // in this queue are completed when the signal is started.
-        //
-        // Only consideration here is that when profiling is used, signalEvent
-        // cannot be used if EventWaitList.Lenght == 0. In those cases, we need
-        // to fallback directly to barrier to have correct timestamps. See here:
-        // https://spec.oneapi.io/level-zero/latest/core/api.html?highlight=appendsignalevent#_CPPv430zeCommandListAppendSignalEvent24ze_command_list_handle_t17ze_event_handle_t
-        //
-        // TODO: this and other special handling of in-order queues to be
-        // updated when/if Level Zero adds native support for in-order queues.
-        //
-        if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
-            !Queue->isProfilingEnabled()) {
-          // If we are using driver in order lists, then append wait on events
-          // is unnecessary and we can signal the event created.
-          if (EventWaitList.Length && !CmdList->second.IsInOrderList) {
-            ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                       (CmdList->first, EventWaitList.Length,
-                        EventWaitList.ZeEventList));
+    // For in-order queue we don't need a real barrier, just wait for
+    // requested events in potentially different queues and add a "barrier"
+    // event signal because it is already guaranteed that previous commands
+    // in this queue are completed when the signal is started.
+    //
+    // Only consideration here is that when profiling is used, signalEvent
+    // cannot be used if EventWaitList.Lenght == 0. In those cases, we need
+    // to fallback directly to barrier to have correct timestamps. See here:
+    // https://spec.oneapi.io/level-zero/latest/core/api.html?highlight=appendsignalevent#_CPPv430zeCommandListAppendSignalEvent24ze_command_list_handle_t17ze_event_handle_t
+    //
+    // TODO: this and other special handling of in-order queues to be
+    // updated when/if Level Zero adds native support for in-order queues.
+    //
+    if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
+        !Queue->isProfilingEnabled()) {
+      // If we are using driver in order lists, then append wait on events
+      // is unnecessary IF the cmdlists match.
+      if (EventWaitList.Length) {
+        if (CmdList->second.IsInOrderList) {
+          for (unsigned i = EventWaitList.Length; i-- < 0;) {
+            // if the events is from the same cmdlist, we can remove it
+            // from the waitlist.
+            if (EventWaitList.UrEventList[i]->CommandList == CmdList) {
+              EventWaitList.Length--;
+              if (EventWaitList.Length != i) {
+                std::swap(EventWaitList.UrEventList[i],
+                          EventWaitList.UrEventList[EventWaitList.Length]);
+                std::swap(EventWaitList.ZeEventList[i],
+                          EventWaitList.ZeEventList[EventWaitList.Length]);
+              }
+            }
           }
-          ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                     (CmdList->first, Event->ZeEvent));
-        } else {
-          ZE2UR_CALL(zeCommandListAppendBarrier,
-                     (CmdList->first, Event->ZeEvent, EventWaitList.Length,
-                      EventWaitList.ZeEventList));
         }
+        ZE2UR_CALL(
+            zeCommandListAppendWaitOnEvents,
+            (CmdList->first, EventWaitList.Length, EventWaitList.ZeEventList));
+      }
+      ZE2UR_CALL(zeCommandListAppendSignalEvent,
+                 (CmdList->first, Event->ZeEvent));
+    } else {
+      ZE2UR_CALL(zeCommandListAppendBarrier,
+                 (CmdList->first, Event->ZeEvent, EventWaitList.Length,
+                  EventWaitList.ZeEventList));
+    }
 
-        return UR_RESULT_SUCCESS;
-      };
+    return UR_RESULT_SUCCESS;
+  };
 
   // If the queue is in-order then each command in it effectively acts as a
   // barrier, so we don't need to do anything except if we were requested
@@ -349,9 +364,9 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     // command-lists.
     std::vector<ur_event_handle_t> EventWaitVector(CmdLists.size());
     for (size_t I = 0; I < CmdLists.size(); ++I) {
-      UR_CALL(insertBarrierIntoCmdList(CmdLists[I], _ur_ze_event_list_t{},
-                                       EventWaitVector[I],
-                                       true /*IsInternal*/));
+      _ur_ze_event_list_t waitlist;
+      UR_CALL(insertBarrierIntoCmdList(
+          CmdLists[I], waitlist, EventWaitVector[I], true /*IsInternal*/));
     }
     // If there were multiple queues we need to create a "convergence" event to
     // be our active barrier. This convergence event is signalled by a barrier
@@ -376,8 +391,9 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     // If there is only a single queue then insert a barrier and the single
     // result event can be used as our active barrier and used as the return
     // event. Take into account whether output event is discarded or not.
-    UR_CALL(insertBarrierIntoCmdList(CmdLists[0], _ur_ze_event_list_t{},
-                                     ResultEvent, IsInternal));
+    _ur_ze_event_list_t waitlist;
+    UR_CALL(insertBarrierIntoCmdList(CmdLists[0], waitlist, ResultEvent,
+                                     IsInternal));
   }
 
   // Execute each command list so the barriers can be encountered.
