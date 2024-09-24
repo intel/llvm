@@ -428,7 +428,7 @@ public:
     ur_program_handle_t UrProgram = nullptr;
     const auto &SourceStr = std::get<std::string>(this->Source);
     bool FetchedFromCache = false;
-    if (Language == syclex::source_language::sycl) {
+    if (PersistentDeviceCodeCache::isEnabled()) {
       auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
           Devices[0], userArgsAsString(BuildOptions), SourceStr);
       if (!BinProg.empty()) {
@@ -541,7 +541,8 @@ public:
         UrProgram);
     device_image_plain DevImg{DevImgImpl};
 
-    if (!FetchedFromCache) {
+    // If caching enabled and kernel not fetched from cache, cache.
+    if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache) {
       PersistentDeviceCodeCache::putCompiledKernelToDisc(
           Devices[0], userArgsAsString(BuildOptions), SourceStr, UrProgram);
     }

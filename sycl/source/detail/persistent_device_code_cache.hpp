@@ -123,10 +123,6 @@ private:
       const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
       const SerializedObj &SpecConsts, const std::string &BuildOptionsString);
 
-  /* Check if on-disk cache enabled.
-   */
-  static bool isEnabled();
-
   /* Returns the path to directory storing persistent device code cache.*/
   static std::string getRootDir();
 
@@ -161,6 +157,10 @@ private:
       1024 * 1024 * 1024;
 
 public:
+  /* Check if on-disk cache enabled.
+   */
+  static bool isEnabled();
+
   /* Get directory name for storing current cache item
    */
   static std::string
