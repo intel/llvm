@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/load_library.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <cstring>
@@ -94,12 +94,12 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 #else
     static const std::string OclocLibraryName = "libocloc.so";
 #endif
-    void *OclocLibrary = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
+    void *OclocLibrary = sycl::detail::loadOsLibrary(OclocLibraryName);
     if (!OclocLibrary)
       throw online_compile_error("Cannot load ocloc library: " +
                                  OclocLibraryName);
     void *OclocVersionHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+        sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
     // The initial versions of ocloc library did not have the oclocVersion()
     // function. Those versions had the same API as the first version of ocloc
     // library having that oclocVersion() function.
@@ -126,11 +126,11 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
           ".N), where (N >= " + std::to_string(CurrentVersionMinor) + ").");
 
     CompileToSPIRVHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+        sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
     if (!CompileToSPIRVHandle)
       throw online_compile_error("Cannot load oclocInvoke() function");
-    FreeSPIRVOutputsHandle = sycl::detail::ur::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
+    FreeSPIRVOutputsHandle =
+        sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocFreeOutput");
     if (!FreeSPIRVOutputsHandle)
       throw online_compile_error("Cannot load oclocFreeOutput() function");
   }
