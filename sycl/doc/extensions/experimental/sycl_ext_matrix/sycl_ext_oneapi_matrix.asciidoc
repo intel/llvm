@@ -1149,15 +1149,15 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 
 - The `Stride` argument to `joint_matrix_load` and
 `joint_matrix_store` must be a multiple of 8 bytes. Also, `Stride`
-should not exceed `2^24` bytes.
+should not exceed `2^24^` bytes.
 
 - The base pointer argument to `joint_matrix_load` and
 `joint_matrix_store` must be 4 bytes aligned.
 
 - In the case of the offset overloads of `joint_matrix_load` and
 `joint_matrix_store`, for 8 bits data type, `RowIndex` must be a
-multiple of 4. For 16 bits data type, `RowIndex` must be a multiple of
-2. So `RowIndex` must be a multiple of 4 divided by size of the
+multiple of 4. For 16 bits data type, `RowIndex` must be a multiple
+of 2. So `RowIndex` must be a multiple of 4 divided by size of the
 element type (`4/sizeof(T)`).
 
 - If these restrictions are not satisfied, users can switch to slower
