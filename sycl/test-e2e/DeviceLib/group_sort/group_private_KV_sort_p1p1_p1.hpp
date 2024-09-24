@@ -65,5 +65,13 @@ __devicelib_default_work_group_private_sort_close_descending_p1u8_p1u64_u32_p1i8
     uint8_t *keys, uint64_t *vals, uint32_t n, uint8_t *scratch);
 
 __DPCPP_SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_private_sort_close_ascending_p1u8_p1i64_u32_p1i8(
+    uint8_t *keys, int64_t *vals, uint32_t n, uint8_t *scratch);
+
+__DPCPP_SYCL_EXTERNAL extern "C" void
+__devicelib_default_work_group_private_sort_close_descending_p1u8_p1i64_u32_p1i8(
+    uint8_t *keys, int64_t *vals, uint32_t n, uint8_t *scratch);
+
+__DPCPP_SYCL_EXTERNAL extern "C" void
 __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1f32_u32_p1i8(
     uint8_t *keys, float *vals, uint32_t n, uint8_t *scratch);

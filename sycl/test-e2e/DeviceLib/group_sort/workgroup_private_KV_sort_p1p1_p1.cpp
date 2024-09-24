@@ -183,6 +183,39 @@ int main() {
         1098974670,  56900257,   876775101,  -1496897817, 1172877939,
         1528916082,  559152364,  749878571,  2071902702,  -430851798};
 
+    uint64_t ivals7[NUM] = {7916688577774406903ULL,  16873442000174444235ULL,
+                            5261140449171682429ULL,  6274209348061756377ULL,
+                            17881284978944229367ULL, 4701456380424752599ULL,
+                            6241062870187348613ULL,  8972524466137433448ULL,
+                            468629112944127776ULL,   17523909311582893643ULL,
+                            17447772191733931166ULL, 14311152396797789854ULL,
+                            9265327272409079662ULL,  9958475911404242556ULL,
+                            15359829357736068242ULL, 11416531655738519189ULL,
+                            16839972510321195914ULL, 1927049095689256442ULL,
+                            3356565661065236628ULL,  1065114285796701562ULL,
+                            7071763288904613033ULL,  16473053015775147286ULL,
+                            10317354477399696817ULL, 16005969584273256379ULL,
+                            15391010921709289298ULL, 17671303749287233862ULL,
+                            8028596930095411867ULL,  10265936863337610975ULL,
+                            17403745948359398749ULL, 8504886230707230194ULL,
+                            12855085916215721214ULL, 5562885793068933146ULL,
+                            1508385574711135517ULL,  5953119477818575536ULL,
+                            9165320150094769334ULL};
+
+    int64_t ivals8[NUM] = {
+        2944696543084623337,  137239101631340692,  4370169869966467498,
+        3842452903439153631,  -795080033670806202, 3023506421574592237,
+        -4142692575864168559, 1716333381567689984, 1591746912204250089,
+        -1974664662220599925, 3144022139297218102, -371429365537296255,
+        4202906659701034264,  3878513012313576184, -3425767072006791628,
+        -2929337291418891626, 1880013370888913338, 1498977159463939728,
+        -2928775660744278650, 4074214991200977615, 4291797122649374026,
+        -763110360214750992,  2883673064242977727, 4270151072450399778,
+        1408696225027958214,  1264214335825459628, -4152065441956669638,
+        2684706424226400837,  569335474272794084,  -2798088842177577224,
+        814002749054152728,   2517003920904582842, 4089891582575745386,
+        705067059635512048,   -2500935118374519236};
+
     auto work_group_sorter = [](uint8_t *keys, uint32_t *vals, uint32_t n,
                                 uint8_t *scratch) {
 #if __DEVICE_CODE
@@ -269,6 +302,32 @@ int main() {
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1i32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter7 = [](uint8_t *keys, uint64_t *vals, uint32_t n,
+                                 uint8_t *scratch) {
+#if __DEVICE_CODE
+#ifdef DES
+      __devicelib_default_work_group_private_sort_close_descending_p1u8_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#endif
+    };
+
+    auto work_group_sorter8 = [](uint8_t *keys, int64_t *vals, uint32_t n,
+                                 uint8_t *scratch) {
+#if __DEVICE_CODE
+#ifdef DES
+      __devicelib_default_work_group_private_sort_close_descending_p1u8_p1i64_u32_p1i8(
+          keys, vals, n, scratch);
+#else
+      __devicelib_default_work_group_private_sort_close_ascending_p1u8_p1i64_u32_p1i8(
           keys, vals, n, scratch);
 #endif
 #endif
@@ -488,5 +547,79 @@ int main() {
         q, ikeys, ivals6, work_group_sorter6);
     std::cout << "KV private sort <Key: uint8_t, Val: int32_t> NUM = " << NUM5
               << ", WG = 25 pass." << std::endl;
+
+    constexpr static int NUM6 = 30;
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 1, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 1 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 2, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 2 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 3, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 3 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 5, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 5 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 6, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 6 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 10, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 10 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 15, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 15 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, uint64_t, 30, NUM6,
+                                    decltype(work_group_sorter7)>(
+        q, ikeys, ivals7, work_group_sorter7);
+    std::cout << "KV private sort <Key: uint8_t, Val: uint64_t> NUM = " << NUM6
+              << ", WG = 30 pass." << std::endl;
+
+    constexpr static int NUM7 = 21;
+    test_work_group_KV_private_sort<uint8_t, int64_t, 1, NUM7,
+                                    decltype(work_group_sorter8)>(
+        q, ikeys, ivals8, work_group_sorter8);
+    std::cout << "KV private sort <Key: uint8_t, Val: int64_t> NUM = " << NUM7
+              << ", WG = 1 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, int64_t, 3, NUM7,
+                                    decltype(work_group_sorter8)>(
+        q, ikeys, ivals8, work_group_sorter8);
+    std::cout << "KV private sort <Key: uint8_t, Val: int64_t> NUM = " << NUM7
+              << ", WG = 3 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, int64_t, 7, NUM7,
+                                    decltype(work_group_sorter8)>(
+        q, ikeys, ivals8, work_group_sorter8);
+    std::cout << "KV private sort <Key: uint8_t, Val: int64_t> NUM = " << NUM7
+              << ", WG = 7 pass." << std::endl;
+
+    test_work_group_KV_private_sort<uint8_t, int64_t, 21, NUM7,
+                                    decltype(work_group_sorter8)>(
+        q, ikeys, ivals8, work_group_sorter8);
+    std::cout << "KV private sort <Key: uint8_t, Val: int64_t> NUM = " << NUM7
+              << ", WG = 21 pass." << std::endl;
   }
 }
