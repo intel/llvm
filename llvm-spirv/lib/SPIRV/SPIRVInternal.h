@@ -800,13 +800,14 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V,
 //  an integer pointer type.
 /// \param Len is the length of the array.
 /// \param V is the value to fill the array.
-Value *getScalarOrArrayConstantInt(Instruction *P, Type *T, unsigned Len,
-                                   uint64_t V, bool IsSigned = false);
+Value *getScalarOrArrayConstantInt(BasicBlock::iterator P, Type *T,
+                                   unsigned Len, uint64_t V,
+                                   bool IsSigned = false);
 
 /// Get the array from GEP.
 /// \param V is a GEP whose pointer operand is a pointer to an array of size
 /// \param Size.
-Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos);
+Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos);
 
 void dumpUsers(Value *V, StringRef Prompt = "");
 
@@ -919,7 +920,7 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
 PointerType *getInt8PtrTy(PointerType *T);
 
 /// Cast a value to a i8* by inserting a cast instruction.
-Value *castToInt8Ptr(Value *V, Instruction *Pos);
+Value *castToInt8Ptr(Value *V, BasicBlock::iterator Pos);
 
 template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
 #define _SPIRV_OP(x) add(#x, OpType##x);
