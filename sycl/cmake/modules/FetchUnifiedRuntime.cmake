@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
-  # Merge: 9ca3ec7 be38e567
+  # commit 1d1808a4aef6e81b8079ebca49087b6f2965f85e
+  # Merge: f5c907a0 762eb9fa
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 23 08:27:12 2024 -0700
-  #     Merge pull request #1830 from JackAKirk/hip-set-device
-  #     [hip] Remove deprecated hip APIs, simplify urContext
-  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
+  # Date:   Tue Sep 24 03:54:45 2024 -0700
+  #     Merge pull request #2095 from Bensuo/ewan/update_opencl_headers
+  #     Reflect upstream OpenCL command-buffer API changes
+  set(UNIFIED_RUNTIME_TAG 1d1808a4aef6e81b8079ebca49087b6f2965f85e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -141,8 +141,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   )
 
   fetch_adapter_source(opencl
-    "https://github.com/Bensuo/unified-runtime.git"
-    "ewan/update_opencl_headers"
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(cuda
