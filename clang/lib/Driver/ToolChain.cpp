@@ -222,6 +222,12 @@ static void getAArch64MultilibFlags(const Driver &D,
   assert(!ArchName.empty() && "at least one architecture should be found");
   MArch.insert(MArch.begin(), ("-march=" + ArchName).str());
   Result.push_back(llvm::join(MArch, "+"));
+
+  const Arg *BranchProtectionArg =
+      Args.getLastArgNoClaim(options::OPT_mbranch_protection_EQ);
+  if (BranchProtectionArg) {
+    Result.push_back(BranchProtectionArg->getAsString(Args));
+  }
 }
 
 static void getARMMultilibFlags(const Driver &D,
@@ -268,6 +274,12 @@ static void getARMMultilibFlags(const Driver &D,
     break;
   case arm::FloatABI::Invalid:
     llvm_unreachable("Invalid float ABI");
+  }
+
+  const Arg *BranchProtectionArg =
+      Args.getLastArgNoClaim(options::OPT_mbranch_protection_EQ);
+  if (BranchProtectionArg) {
+    Result.push_back(BranchProtectionArg->getAsString(Args));
   }
 }
 
@@ -909,8 +921,8 @@ std::optional<std::string> ToolChain::getRuntimePath() const {
   llvm::sys::path::append(P, "lib");
   if (auto Ret = getTargetSubDirPath(P))
     return Ret;
-  // Darwin does not use per-target runtime directory.
-  if (Triple.isOSDarwin())
+  // Darwin and AIX does not use per-target runtime directory.
+  if (Triple.isOSDarwin() || Triple.isOSAIX())
     return {};
   llvm::sys::path::append(P, Triple.str());
   return std::string(P);
@@ -1444,7 +1456,7 @@ bool ToolChain::isFastMathRuntimeAvailable(const ArgList &Args,
       Default = false;
     if (A && A->getOption().getID() == options::OPT_ffp_model_EQ) {
       StringRef Model = A->getValue();
-      if (Model != "fast")
+      if (Model != "fast" && Model != "aggressive")
         Default = false;
     }
   }

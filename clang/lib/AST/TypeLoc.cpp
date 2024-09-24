@@ -731,6 +731,11 @@ namespace {
       return Visit(T.getWrappedLoc());
     }
 
+    TypeLoc
+    VisitHLSLAttributedResourceTypeLoc(HLSLAttributedResourceTypeLoc T) {
+      return Visit(T.getWrappedLoc());
+    }
+
     TypeLoc VisitMacroQualifiedTypeLoc(MacroQualifiedTypeLoc T) {
       return Visit(T.getInnerLoc());
     }

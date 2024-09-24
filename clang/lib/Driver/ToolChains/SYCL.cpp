@@ -713,21 +713,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   return OutputFileName;
 }
 
-void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
-                                       const InputInfo &Output,
-                                       const char *InputFileName) const {
-  // Construct llc command.
-  // The output is an object file.
-  ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                        InputFileName};
-  SmallString<128> LlcPath(C.getDriver().Dir);
-  llvm::sys::path::append(LlcPath, "llc");
-  const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(JA, *this,
-                                         ResponseFileSupport::AtFileUTF8(), Llc,
-                                         LlcArgs, std::nullopt));
-}
-
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
 // a single SPIR-V binary.  Input can also be bitcode when specified by
 // the user.

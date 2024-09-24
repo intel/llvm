@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
-// UNSUPPORTED: gpu-intel-dg2
+// SYCL Joint Matrix fp16 operations are not supported on SPR
+// UNSUPPORTED: gpu-intel-dg2, arch-intel_cpu_spr
+
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: matrix-fp16
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out

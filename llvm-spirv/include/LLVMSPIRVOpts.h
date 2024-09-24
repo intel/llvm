@@ -149,6 +149,9 @@ public:
       ExtStatusMap[Extension] = Allow;
   }
 
+  std::vector<std::string>
+  getAllowedSPIRVExtensionNames(std::function<bool(ExtensionID)> &Filter) const;
+
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
@@ -238,6 +241,9 @@ public:
   }
   BuiltinFormat getBuiltinFormat() const noexcept { return SPIRVBuiltinFormat; }
 
+  void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
+  bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -284,6 +290,9 @@ private:
   bool PreserveAuxData = false;
 
   BuiltinFormat SPIRVBuiltinFormat = BuiltinFormat::Function;
+
+  // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
+  bool UseLLVMTarget = false;
 };
 
 } // namespace SPIRV
