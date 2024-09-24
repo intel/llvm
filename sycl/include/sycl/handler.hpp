@@ -768,16 +768,16 @@ private:
       int ArgIndex);
 
   /* The kernel passed to StoreLambda can take an id, an item or an nd_item as
-   * its argument. Since esimd plugin directly invokes the kernel (doesn’t use
-   * piKernelSetArg), the kernel argument type must be known to the plugin.
-   * However, passing kernel argument type to the plugin requires changing ABI
+   * its argument. Since esimd adapter directly invokes the kernel (doesn’t use
+   * urKernelSetArg), the kernel argument type must be known to the adapter.
+   * However, passing kernel argument type to the adapter requires changing ABI
    * in HostKernel class. To overcome this problem, helpers below wrap the
    * “original” kernel with a functor that always takes an nd_item as argument.
    * A functor is used instead of a lambda because extractArgsAndReqsFromLambda
    * needs access to the “original” kernel and keeps references to its internal
    * data, i.e. the kernel passed as argument cannot be local in scope. The
    * functor itself is again encapsulated in a std::function since functor’s
-   * type is unknown to the plugin.
+   * type is unknown to the adapter.
    */
 
   // For 'id, item w/wo offset, nd_item' kernel arguments

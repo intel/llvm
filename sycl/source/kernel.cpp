@@ -18,11 +18,11 @@ inline namespace _V1 {
 
 // TODO(pi2ur): Don't cast straight from cl_kernel below
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
-  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
+  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Plugin->call<detail::UrApiKind::urKernelCreateWithNativeHandle>(
+  Adapter->call<detail::UrApiKind::urKernelCreateWithNativeHandle>(
       nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
       nullptr, nullptr, &hKernel);
   impl = std::make_shared<detail::kernel_impl>(
@@ -30,7 +30,7 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
-    impl->getPlugin()->call<detail::UrApiKind::urKernelRetain>(hKernel);
+    impl->getAdapter()->call<detail::UrApiKind::urKernelRetain>(hKernel);
   }
 }
 

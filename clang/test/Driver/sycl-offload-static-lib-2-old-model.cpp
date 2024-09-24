@@ -204,7 +204,7 @@
 // WHOLE_STATIC_LIB_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-input=[[INPUTB:.+\.a]]" "-output=[[OUTPUTB:.+\.a]]"
 // WHOLE_STATIC_LIB_NVPTX: llvm-link{{.*}} "[[OUTPUTA]]" "[[OUTPUTB]]"
 // WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
-// WHOLE_STATIC_LIB: llc{{.*}}
+// WHOLE_STATIC_LIB: clang{{.*}} "-c"
 // WHOLE_STATIC_LIB_1: ld{{.*}} "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
 
 /// test behaviors for special case handling of -z and -rpath
@@ -239,5 +239,5 @@
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image={{.*}}[[PTXLIST]]" "--image={{.*}}[[CUBINLIST]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[TABLE1:.+\.table]]" "[[TABLE]]" "[[OBJLIST]]"
 // STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}}"-target=[[TARGET]]" "-kind=sycl" "-batch" "[[TABLE1]]"
-// STATIC_LIB_NOSRC: llc{{.*}} "-filetype=obj" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"
+// STATIC_LIB_NOSRC: clang{{.*}} "-c" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"
 // STATIC_LIB_NOSRC: ld{{.*}} "-L/dummy/dir" {{.*}} "{{.*}}_lib.{{(a|lo)}}" "[[FINALOBJ]]"

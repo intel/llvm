@@ -1313,8 +1313,8 @@ public:
                                      CodeGenFunction &CGF) {
     assert(isInConditionalBranch());
     llvm::BasicBlock *block = OutermostConditional->getStartingBlock();
-    auto store =
-        new llvm::StoreInst(value, addr.emitRawPointer(CGF), &block->back());
+    auto store = new llvm::StoreInst(value, addr.emitRawPointer(CGF),
+                                     block->back().getIterator());
     store->setAlignment(addr.getAlignment().getAsAlign());
   }
 
@@ -2949,6 +2949,11 @@ public:
 
   void EmitAnyExprToExn(const Expr *E, Address Addr);
 
+  /// EmitInitializationToLValue - Emit an initializer to an LValue.
+  void EmitInitializationToLValue(
+      const Expr *E, LValue LV,
+      AggValueSlot::IsZeroed_t IsZeroed = AggValueSlot::IsNotZeroed);
+
   /// EmitExprAsInit - Emits the code necessary to initialize a
   /// location in memory with the given initializer.
   void EmitExprAsInit(const Expr *init, const ValueDecl *D, LValue lvalue,
@@ -3326,10 +3331,6 @@ public:
   FindFlexibleArrayMemberFieldAndOffset(ASTContext &Ctx, const RecordDecl *RD,
                                         const FieldDecl *FAMDecl,
                                         uint64_t &Offset);
-
-  /// Find the FieldDecl specified in a FAM's "counted_by" attribute. Returns
-  /// \p nullptr if either the attribute or the field doesn't exist.
-  const FieldDecl *FindCountedByField(const FieldDecl *FD);
 
   /// Build an expression accessing the "counted_by" field.
   llvm::Value *EmitLoadOfCountedByField(const Expr *Base,
@@ -3926,6 +3927,7 @@ public:
   void EmitOMPTeamsGenericLoopDirective(const OMPTeamsGenericLoopDirective &S);
   void EmitOMPInteropDirective(const OMPInteropDirective &S);
   void EmitOMPParallelMaskedDirective(const OMPParallelMaskedDirective &S);
+  void EmitOMPAssumeDirective(const OMPAssumeDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,
@@ -4305,6 +4307,7 @@ public:
   LValue EmitUnaryOpLValue(const UnaryOperator *E);
   LValue EmitArraySubscriptExpr(const ArraySubscriptExpr *E,
                                 bool Accessed = false);
+  llvm::Value *EmitMatrixIndexExpr(const Expr *E);
   LValue EmitMatrixSubscriptExpr(const MatrixSubscriptExpr *E);
   LValue EmitArraySectionExpr(const ArraySectionExpr *E,
                               bool IsLowerBound = true);
@@ -4318,6 +4321,8 @@ public:
   LValue EmitCastLValue(const CastExpr *E);
   LValue EmitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *E);
   LValue EmitOpaqueValueLValue(const OpaqueValueExpr *e);
+  void EmitHLSLOutArgExpr(const HLSLOutArgExpr *E, CallArgList &Args,
+                          QualType Ty);
 
   Address EmitExtVectorElementLValue(LValue V);
 
@@ -4729,6 +4734,7 @@ public:
                                     ReturnValueSlot ReturnValue);
 
   llvm::Value *EmitRISCVCpuSupports(const CallExpr *E);
+  llvm::Value *EmitRISCVCpuSupports(ArrayRef<StringRef> FeaturesStrs);
   llvm::Value *EmitRISCVCpuInit();
 
   void AddAMDGPUFenceAddressSpaceMMRA(llvm::Instruction *Inst,
@@ -5367,7 +5373,7 @@ public:
       llvm::SmallVector<StringRef, 8> Features;
 
       Conds(StringRef Arch, ArrayRef<StringRef> Feats)
-          : Architecture(Arch), Features(Feats.begin(), Feats.end()) {}
+          : Architecture(Arch), Features(Feats) {}
     } Conditions;
 
     MultiVersionResolverOption(llvm::Function *F, StringRef Arch,
