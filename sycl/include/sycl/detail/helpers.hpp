@@ -38,12 +38,7 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-class CGExecKernel;
 class buffer_impl;
-class context_impl;
-class queue_impl;
-using QueueImplPtr = std::shared_ptr<sycl::detail::queue_impl>;
-class RTDeviceBinaryImage;
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
