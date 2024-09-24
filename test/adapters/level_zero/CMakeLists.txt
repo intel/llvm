@@ -15,6 +15,7 @@ if(UR_BUILD_ADAPTER_L0)
             SOURCES
                 urProgramLink.cpp
                 urKernelCreateWithNativeHandle.cpp
+                urEventCreateWithNativeHandle.cpp
             ENVIRONMENT
                 "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
         )
