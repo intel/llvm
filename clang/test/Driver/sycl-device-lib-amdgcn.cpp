@@ -3,7 +3,6 @@
 // Check also if the correct warnings are generated.
 
 // UNSUPPORTED: system-windows
-// REQUIRES: amdgpu-registered-target
 
 // Check if internal libraries are still linked against when linkage of all
 // device libs is manually excluded.
