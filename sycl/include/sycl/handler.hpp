@@ -794,8 +794,8 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel.reset(
-        new detail::HostKernel<KernelType, LambdaArgType, Dims>(KernelFunc));
+    MHostKernel = std::make_unique<
+        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
