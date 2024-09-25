@@ -288,10 +288,11 @@ graph-limited event>>).
 outside of the graph they belong to. These can be dependencies on nodes from
 <<inter-graph-dependencies, another graph>> or on eager SYCL operations. Passing
 <<event-terminology, graph-limited events>> from another graph or
-<<event-terminology, regular SYCL events>> to `handler::depends_on()`, as well
-as passing nodes from another graph to the `property::node::depends_on`
-property, will create external dependencies for graph nodes that will be
-respected when the graph is executed.
+<<event-terminology, regular SYCL events>> to either `handler::depends_on()` or
+`property::node::depends_on` property, will create external dependencies for
+graph nodes that will be respected when the graph is executed. Nodes from
+another graph can also be passed to the `property::node::depends_on` property to
+create these same dependencies. 
 
 |===
 
