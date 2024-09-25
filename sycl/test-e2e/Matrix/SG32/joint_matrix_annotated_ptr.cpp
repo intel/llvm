@@ -11,9 +11,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// Currently row major B fails when annotated_ptr is used
-// XFAIL: gpu
-
 #include "../common.hpp"
 
 #define SG_SZ 32
