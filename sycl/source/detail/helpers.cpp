@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/helpers.hpp>
+
 #include <detail/scheduler/commands.hpp>
 #include <sycl/detail/helpers.hpp>
 
@@ -30,7 +32,8 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
   }
 }
 
-void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
