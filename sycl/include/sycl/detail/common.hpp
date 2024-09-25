@@ -287,12 +287,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
-
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
