@@ -12,7 +12,7 @@
 #include "logger/ur_logger.hpp"
 namespace cl_adapter {
 
-/* Global variables for urPlatformGetLastError() */
+/* Global variables for urAdapterGetLastError() */
 thread_local int32_t ErrorMessageCode = 0;
 thread_local char ErrorMessage[MaxMessageSize];
 

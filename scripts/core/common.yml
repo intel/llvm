@@ -275,7 +275,7 @@ etors:
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
-             via the urPlatformGetLastError entry point."
+             via the urAdapterGetLastError entry point."
     - name: ERROR_LAYER_NOT_PRESENT
       desc: "A requested layer was not found by the loader."
     - name: ERROR_IN_EVENT_LIST_EXEC_STATUS
