@@ -165,9 +165,9 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
-  // for Nvidia.
-  NeedLibs =
-      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
+  // for Nvidia and AMD.
+  NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
+             !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
   if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       C.hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -212,9 +212,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
-  // For NVPTX we only use one single bitcode library and ignore
+  // For NVPTX and AMDGCN we only use one single bitcode library and ignore
   // manually specified SYCL device libraries.
-  bool IgnoreSingleLibs = TargetTriple.isNVPTX();
+  bool IgnoreSingleLibs = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN();
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -277,6 +277,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
     LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+
+  if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
+    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
 
   if (IgnoreSingleLibs)
     return LibraryList;
