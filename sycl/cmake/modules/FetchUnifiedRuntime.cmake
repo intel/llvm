@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/GeorgeWeb/unified-runtime.git")
   # commit 7a2caca559da81620c7430521873045bf42eafc1
   # Merge: 1d1808a4 96f66e0f
   # Author: Piotr Balcer <piotr.balcer@intel.com>
   # Date:   Tue Sep 24 13:00:46 2024 +0200
   #     Merge pull request #2117 from pbalcer/fix-filter-out-same-cmdlists
   #     Fix urEnqueueEventsWaitWithBarrier when used with interop events
-  set(UNIFIED_RUNTIME_TAG 7a2caca559da81620c7430521873045bf42eafc1)
+  set(UNIFIED_RUNTIME_TAG 78947c1a1c61255f5bb44d36ccf6bf18394b7762)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
