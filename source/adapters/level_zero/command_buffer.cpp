@@ -754,6 +754,9 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   std::ignore = Event;
 
   UR_ASSERT(Kernel->Program, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(Command && !CommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
@@ -784,7 +787,7 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
   // reference count on the kernel, using the kernel saved in CommandData.
   UR_CALL(ur::level_zero::urKernelRetain(Kernel));
 
-  if (Command && CommandBuffer->IsUpdatable) {
+  if (Command) {
     UR_CALL(createCommandHandle(CommandBuffer, Kernel, WorkDim, LocalWorkSize,
                                 *Command));
   }
@@ -1687,14 +1690,14 @@ ur_result_t updateKernelCommand(
 ur_result_t urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t Command,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *CommandDesc) {
+  UR_ASSERT(Command->CommandBuffer->IsUpdatable,
+            UR_RESULT_ERROR_INVALID_OPERATION);
   UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   // Lock command, kernel and command buffer for update.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Guard(
       Command->Mutex, Command->CommandBuffer->Mutex, Command->Kernel->Mutex);
 
-  UR_ASSERT(Command->CommandBuffer->IsUpdatable,
-            UR_RESULT_ERROR_INVALID_OPERATION);
   UR_ASSERT(Command->CommandBuffer->IsFinalized,
             UR_RESULT_ERROR_INVALID_OPERATION);
 
@@ -1739,6 +1742,16 @@ urCommandBufferGetInfoExp(ur_exp_command_buffer_handle_t hCommandBuffer,
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hCommandBuffer->RefCount.load()});
+  case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
+    ur_exp_command_buffer_desc_t Descriptor{};
+    Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+    Descriptor.pNext = nullptr;
+    Descriptor.isUpdatable = hCommandBuffer->IsUpdatable;
+    Descriptor.isInOrder = hCommandBuffer->IsInOrderCmdList;
+    Descriptor.enableProfiling = hCommandBuffer->IsProfilingEnabled;
+
+    return ReturnValue(Descriptor);
+  }
   default:
     assert(!"Command-buffer info request not implemented");
   }
