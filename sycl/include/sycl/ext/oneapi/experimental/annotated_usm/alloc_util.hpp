@@ -45,6 +45,13 @@ using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename... Props>
+struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                    detail::properties_t<Props...>>
+    : GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                   std::tuple<Props...>> {};
+
 // Get the value of alignment from a property list
 // If alignment is not present in the property list, set to default value 0
 template <typename PropertyListT>
