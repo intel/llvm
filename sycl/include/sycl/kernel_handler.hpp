@@ -14,7 +14,7 @@
 #include <ur_api.h> // for UR_RESULT_ERROR_INVALID_OPERATION
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 #endif
 
 #include <type_traits> // for remove_reference_t
