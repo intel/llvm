@@ -9,6 +9,7 @@
 #pragma once
 
 #include "sycl/handler.hpp"
+#include <detail/cg.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
@@ -36,6 +37,10 @@ public:
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)),
         MEventNeeded(EventNeeded) {};
+
+  handler_impl(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph)
+      : MGraph{Graph} {}
 
   handler_impl() = default;
 
@@ -85,13 +90,13 @@ public:
 
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
 
-  pi_mem_advice MAdvice;
+  ur_usm_advice_flags_t MAdvice = 0;
 
   // 2D memory operation information.
-  size_t MSrcPitch;
-  size_t MDstPitch;
-  size_t MWidth;
-  size_t MHeight;
+  size_t MSrcPitch = 0;
+  size_t MDstPitch = 0;
+  size_t MWidth = 0;
+  size_t MHeight = 0;
 
   /// Offset into a device_global for copy operations.
   size_t MOffset = 0;
@@ -112,24 +117,24 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t MKernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
 
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
 
   // Extra information for bindless image copy
-  sycl::detail::pi::PiMemImageDesc MImageDesc;
-  sycl::detail::pi::PiMemImageFormat MImageFormat;
-  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+  ur_image_desc_t MSrcImageDesc = {};
+  ur_image_desc_t MDstImageDesc = {};
+  ur_image_format_t MSrcImageFormat = {};
+  ur_image_format_t MDstImageFormat = {};
+  ur_exp_image_copy_flags_t MImageCopyFlags = {};
 
-  sycl::detail::pi::PiImageOffset MSrcOffset;
-  sycl::detail::pi::PiImageOffset MDestOffset;
-  sycl::detail::pi::PiImageRegion MHostExtent;
-  sycl::detail::pi::PiImageRegion MCopyExtent;
+  ur_rect_offset_t MSrcOffset = {};
+  ur_rect_offset_t MDestOffset = {};
+  ur_rect_region_t MCopyExtent = {};
 
   // Extra information for semaphore interoperability
-  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+  ur_exp_external_semaphore_handle_t MExternalSemaphore = nullptr;
   std::optional<uint64_t> MWaitValue;
   std::optional<uint64_t> MSignalValue;
 
@@ -150,6 +155,45 @@ public:
   // Track whether an NDRange was used when submitting a kernel (as opposed to a
   // range), needed for graph update
   bool MNDRangeUsed = false;
+
+  /// The storage for the arguments passed.
+  /// We need to store a copy of values that are passed explicitly through
+  /// set_arg, require and so on, because we need them to be alive after
+  /// we exit the method they are passed in.
+  detail::CG::StorageInitHelper CGData;
+
+  /// The list of arguments for the kernel.
+  std::vector<detail::ArgDesc> MArgs;
+
+  /// The list of associated accessors with this handler.
+  /// These accessors were created with this handler as argument or
+  /// have become required for this handler via require method.
+  std::vector<detail::ArgDesc> MAssociatedAccesors;
+
+  /// Struct that encodes global size, local size, ...
+  detail::NDRDescT MNDRDesc;
+
+  /// Type of the command group, e.g. kernel, fill. Can also encode version.
+  /// Use getType and setType methods to access this variable unless
+  /// manipulations with version are required
+  detail::CGType MCGType = detail::CGType::None;
+
+  /// The graph that is associated with this handler.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// If we are submitting a graph using ext_oneapi_graph this will be the graph
+  /// to be executed.
+  std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+      MExecGraph;
+  /// Storage for a node created from a subgraph submission.
+  std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
+  /// Storage for the CG created when handling graph nodes added explicitly.
+  std::unique_ptr<detail::CG> MGraphNodeCG;
+
+  /// Storage for lambda/function when using HostTask
+  std::shared_ptr<detail::HostTask> MHostTask;
+  /// The list of valid SYCL events that need to complete
+  /// before barrier command can be executed
+  std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
 };
 
 } // namespace detail

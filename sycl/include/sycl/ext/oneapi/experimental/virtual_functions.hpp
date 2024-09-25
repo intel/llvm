@@ -13,8 +13,10 @@ struct indirectly_callable_key {
                                                       Set>;
 };
 
-template <typename Set = void>
-inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable;
+inline constexpr indirectly_callable_key::value_t<void> indirectly_callable;
+
+template <typename Set>
+inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable_in;
 
 struct calls_indirectly_key {
   template <typename First = void, typename... SetIds>
@@ -23,8 +25,11 @@ struct calls_indirectly_key {
                                                       First, SetIds...>;
 };
 
-template <typename First = void, typename... Rest>
-inline constexpr calls_indirectly_key::value_t<First, Rest...> calls_indirectly;
+inline constexpr calls_indirectly_key::value_t<void> assume_indirect_calls;
+
+template <typename First, typename... Rest>
+inline constexpr calls_indirectly_key::value_t<First, Rest...>
+    assume_indirect_calls_to;
 
 template <> struct is_property_key<indirectly_callable_key> : std::true_type {};
 template <> struct is_property_key<calls_indirectly_key> : std::true_type {};
@@ -57,6 +62,9 @@ struct PropertyMetaInfo<indirectly_callable_key::value_t<Set>> {
 
 template <typename First, typename... Rest>
 struct PropertyMetaInfo<calls_indirectly_key::value_t<First, Rest...>> {
+  static_assert(
+      sizeof...(Rest) == 0,
+      "assume_indirect_calls_to property only supports a single set for now");
   static constexpr const char *name = "calls-indirectly";
   static constexpr const char *value =
 #ifdef __SYCL_DEVICE_ONLY__

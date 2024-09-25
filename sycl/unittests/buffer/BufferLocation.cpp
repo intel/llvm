@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -20,87 +20,96 @@
 const uint64_t DEFAULT_VALUE = 7777;
 static uint64_t PassedLocation = DEFAULT_VALUE;
 
-pi_result redefinedMemBufferCreate(pi_context, pi_mem_flags, size_t size,
-                                   void *, pi_mem *,
-                                   const pi_mem_properties *properties) {
+ur_result_t redefinedMemBufferCreateBefore(void *pParams) {
+  auto params = reinterpret_cast<ur_mem_buffer_create_params_t *>(pParams);
   PassedLocation = DEFAULT_VALUE;
-  if (!properties)
-    return PI_SUCCESS;
+  if (!*params->ppProperties)
+    return UR_RESULT_SUCCESS;
+
+  auto nextProps =
+      static_cast<ur_base_properties_t *>((*params->ppProperties)->pNext);
 
   // properties must ended by 0
-  size_t I = 0;
-  while (true) {
-    if (properties[I] != 0) {
-      if (properties[I] != PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION) {
-        I += 2;
-      } else {
-        PassedLocation = properties[I + 1];
-        break;
-      }
+  while (nextProps) {
+    if (nextProps->stype !=
+        UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES) {
+      nextProps = static_cast<ur_base_properties_t *>(nextProps->pNext);
+      break;
     }
+    PassedLocation =
+        reinterpret_cast<ur_buffer_alloc_location_properties_t *>(nextProps)
+            ->location;
+    nextProps = reinterpret_cast<ur_base_properties_t *>(nextProps->pNext);
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedDeviceGetInfoAfter(pi_device device,
-                                             pi_device_info param_name,
-                                             size_t param_value_size,
-                                             void *param_value,
-                                             size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<_pi_device_type *>(param_value);
-    *Result = PI_DEVICE_TYPE_ACC;
+static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params->ppropName) {
+  case UR_DEVICE_INFO_TYPE: {
+    auto *Result = reinterpret_cast<ur_device_type_t *>(*params->ppPropValue);
+    *Result = UR_DEVICE_TYPE_FPGA;
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_COMPILER_AVAILABLE) {
-    auto *Result = reinterpret_cast<pi_bool *>(param_value);
+  case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
+    auto *Result = reinterpret_cast<ur_bool_t *>(*params->ppPropValue);
     *Result = true;
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
+  case UR_DEVICE_INFO_EXTENSIONS: {
     const std::string name = "cl_intel_mem_alloc_buffer_location";
 
     // Increase size by one for the null terminator
     const size_t nameSize = name.size() + 1;
 
-    if (!param_value) {
+    if (!*params->ppPropValue) {
       // Choose bigger size so that both original and redefined function
       // has enough memory for storing the extension string
-      *param_value_size_ret =
-          nameSize > *param_value_size_ret ? nameSize : *param_value_size_ret;
+      **params->ppPropSizeRet = nameSize > **params->ppPropSizeRet
+                                    ? nameSize
+                                    : **params->ppPropSizeRet;
     } else {
-      char *dst = static_cast<char *>(param_value);
+      char *dst = static_cast<char *>(*params->ppPropValue);
       strcpy(dst, name.data());
     }
+    break;
   }
   // This mock device has no sub-devices
-  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 0;
+  case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
+    if (*params->ppPropSizeRet) {
+      **params->ppPropSizeRet = 0;
     }
+    break;
   }
-  if (param_name == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
-    assert(param_value_size == sizeof(pi_device_affinity_domain));
-    if (param_value) {
-      *static_cast<pi_device_affinity_domain *>(param_value) = 0;
+  case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
+    assert(*params->ppropSize == sizeof(ur_device_affinity_domain_flags_t));
+    if (*params->ppPropValue) {
+      *static_cast<ur_device_affinity_domain_flags_t *>(*params->ppPropValue) =
+          0;
     }
+    break;
   }
-  return PI_SUCCESS;
+  default:
+    break;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 class BufferTest : public ::testing::Test {
 public:
-  BufferTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  BufferTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
-        redefinedMemBufferCreate);
-    Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-        redefinedDeviceGetInfoAfter);
+    mock::getCallbacks().set_before_callback("urMemBufferCreate",
+                                             &redefinedMemBufferCreateBefore);
+    mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &redefinedDeviceGetInfoAfter);
   }
 
-protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 

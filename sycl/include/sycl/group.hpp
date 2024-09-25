@@ -673,13 +673,7 @@ protected:
   friend class detail::Builder;
   group(const range<Dimensions> &G, const range<Dimensions> &L,
         const range<Dimensions> GroupRange, const id<Dimensions> &I)
-      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {
-    // Make sure local range divides global without remainder:
-    __SYCL_ASSERT(((G % L).size() == 0) &&
-                  "global range is not multiple of local");
-    __SYCL_ASSERT((((G / L) - GroupRange).size() == 0) &&
-                  "inconsistent group constructor arguments");
-  }
+      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
 };
 } // namespace _V1
 } // namespace sycl

@@ -10,8 +10,8 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -36,8 +36,8 @@ TEST_F(SchedulerTest, LeafLimitDiffContexts) {
       DisableCleanupName, "1",
       detail::SYCLConfig<detail::SYCL_DISABLE_EXECUTION_GRAPH_CLEANUP>::reset};
 
-  // Ensure the mock plugin has been initialized prior to selecting a device.
-  unittest::PiMock::EnsureMockPluginInitialized();
+  // Ensure the mock adapter has been initialized prior to selecting a device.
+  sycl::unittest::UrMock<> Mock;
 
   device Device;
   struct QueueRelatedObjects {

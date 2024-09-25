@@ -13,10 +13,7 @@
 #include <sycl/detail/cl.h>                   // for cl_int
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for pi_int32
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
-#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -55,11 +52,10 @@ __SYCL_EXPORT std::error_code make_error_code(sycl::errc E) noexcept;
 __SYCL_EXPORT const std::error_category &sycl_category() noexcept;
 
 namespace detail {
-__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
+__SYCL_EXPORT const char *stringifyErrorCode(int32_t error);
 
-inline std::string codeToString(pi_int32 code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
+inline std::string codeToString(int32_t code) {
+  return std::to_string(code) + " (" + std::string(stringifyErrorCode(code)) + ")";
 }
 
 class __SYCL_EXPORT SYCLCategory : public std::error_category {
@@ -69,7 +65,8 @@ public:
 };
 
 // Forward declare to declare as a friend in sycl::excepton.
-__SYCL_EXPORT pi_int32 get_pi_error(const exception &e);
+int32_t get_ur_error(const exception &e);
+exception set_ur_error(exception &&e, int32_t ur_err);
 } // namespace detail
 
 // Derive from std::exception so uncaught exceptions are printed in c++ default
@@ -117,23 +114,19 @@ public:
 private:
   // Exceptions must be noexcept copy constructible, so cannot use std::string
   // directly.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::shared_ptr<detail::string> MMsg;
-#else
-  std::shared_ptr<std::string> MMsg;
-#endif
-  pi_int32 MPIErr = 0;
+  int32_t MErr = 0;
   std::shared_ptr<context> MContext;
   std::error_code MErrC = make_error_code(sycl::errc::invalid);
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr)
+  exception(std::error_code Ec, const char *Msg, const int32_t PIErr)
       : exception(Ec, std::string(Msg), PIErr) {}
 
-  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
-      : exception(Ec, nullptr, Msg + " " + detail::codeToString(PIErr)) {
-    MPIErr = PIErr;
+  exception(std::error_code Ec, const std::string &Msg, const int32_t URErr)
+      : exception(Ec, nullptr, Msg + " " + detail::codeToString(URErr)) {
+    MErr = URErr;
   }
 
   // base constructor for all SYCL 2020 constructors
@@ -144,114 +137,28 @@ protected:
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
 
-  friend __SYCL_EXPORT pi_int32 detail::get_pi_error(const exception &);
+  friend int32_t detail::get_ur_error(const exception &);
+  // To be used like this:
+  //   throw/return detail::set_ur_error(exception(...), some_ur_error);
+  // *only* when such a error is coming from the UR level. Otherwise it
+  // *should* be left unset/default-initialized and exception should be thrown
+  // as-is using public ctors.
+  friend exception detail::set_ur_error(exception &&e, int32_t ur_err);
 };
 
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::runtime instead.") runtime_error
-    : public exception {
-public:
-  runtime_error() : exception(make_error_code(errc::runtime)) {}
-
-  runtime_error(const char *Msg, pi_int32 Err)
-      : runtime_error(std::string(Msg), Err) {}
-
-  runtime_error(const std::string &Msg, pi_int32 Err)
-      : exception(make_error_code(errc::runtime), Msg, Err) {}
-
-  runtime_error(std::error_code Ec, const std::string &Msg,
-                const pi_int32 PIErr)
-      : exception(Ec, Msg, PIErr) {}
-
-protected:
-  runtime_error(std::error_code Ec) : exception(Ec) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::nd_range instead.") nd_range_error
-    : public runtime_error {
-public:
-  nd_range_error() : runtime_error(make_error_code(errc::nd_range)) {}
-
-  nd_range_error(const char *Msg, pi_int32 Err)
-      : nd_range_error(std::string(Msg), Err) {}
-
-  nd_range_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::nd_range), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_parameter_error : public runtime_error {
-public:
-  invalid_parameter_error()
-      : runtime_error(make_error_code(errc::kernel_argument)) {}
-
-  invalid_parameter_error(const char *Msg, pi_int32 Err)
-      : invalid_parameter_error(std::string(Msg), Err) {}
-
-  invalid_parameter_error(const std::string &Msg, pi_int32 Err)
-      : runtime_error(make_error_code(errc::kernel_argument), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.") device_error
-    : public exception {
-public:
-  device_error() : exception(make_error_code(errc::invalid)) {}
-
-  device_error(const char *Msg, pi_int32 Err)
-      : device_error(std::string(Msg), Err) {}
-
-  device_error(const std::string &Msg, pi_int32 Err)
-      : exception(make_error_code(errc::invalid), Msg, Err) {}
-
-protected:
-  device_error(std::error_code Ec) : exception(Ec) {}
-
-  device_error(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
-      : exception(Ec, Msg, PIErr) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    compile_program_error : public device_error {
-public:
-  compile_program_error() : device_error(make_error_code(errc::build)) {}
-
-  compile_program_error(const char *Msg, pi_int32 Err)
-      : compile_program_error(std::string(Msg), Err) {}
-
-  compile_program_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::build), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with a sycl::errc enum value instead.")
-    invalid_object_error : public device_error {
-public:
-  invalid_object_error() : device_error(make_error_code(errc::invalid)) {}
-
-  invalid_object_error(const char *Msg, pi_int32 Err)
-      : invalid_object_error(std::string(Msg), Err) {}
-
-  invalid_object_error(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::invalid), Msg, Err) {}
-};
-
-class __SYCL2020_DEPRECATED(
-    "use sycl::exception with sycl::errc::feature_not_supported instead.")
-    feature_not_supported : public device_error {
-public:
-  feature_not_supported()
-      : device_error(make_error_code(errc::feature_not_supported)) {}
-
-  feature_not_supported(const char *Msg, pi_int32 Err)
-      : feature_not_supported(std::string(Msg), Err) {}
-
-  feature_not_supported(const std::string &Msg, pi_int32 Err)
-      : device_error(make_error_code(errc::feature_not_supported), Msg, Err) {}
-};
+namespace detail {
+// Even though at the moment those functions are only used in library and not
+// in headers, they were put here in case we will need them to implement some
+// of OpenCL (and other backends) interop APIs to query native backend error
+// from an exception.
+// And we don't want them to be part of our library ABI, because of future
+// underlying changes (PI -> UR -> Offload).
+inline int32_t get_ur_error(const exception &e) { return e.MErr; }
+inline exception set_ur_error(exception &&e, int32_t ur_err) {
+  e.MErr = ur_err;
+  return std::move(e);
+}
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

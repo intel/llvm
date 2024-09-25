@@ -142,6 +142,92 @@ void test2(sycl::queue &q, std::initializer_list<InputTy> Input1,
   }
 }
 
+template <size_t PredCount, class InputTy, class OutputTy, class FuncTy,
+          class EquTy = imf_utils_default_equ<OutputTy>>
+void test2_with_pred(sycl::queue &q, std::initializer_list<InputTy> Input1,
+                     std::initializer_list<InputTy> Input2,
+                     std::initializer_list<OutputTy> RefOutput,
+                     std::initializer_list<bool> PredOutput, FuncTy Func,
+                     int Line = __builtin_LINE()) {
+  auto Size = Input1.size();
+  assert(Size == Input2.size());
+  assert(RefOutput.size() == Size);
+
+  sycl::buffer<InputTy> InBuf1(Size);
+  sycl::buffer<InputTy> InBuf2(Size);
+  {
+    sycl::host_accessor InAcc1(InBuf1, sycl::write_only);
+    sycl::host_accessor InAcc2(InBuf2, sycl::write_only);
+    for (int i = 0; i < Size; ++i) {
+      InAcc1[i] = *(std::begin(Input1) + i);
+      InAcc2[i] = *(std::begin(Input2) + i);
+    }
+  }
+
+  sycl::buffer<OutputTy> OutBuf(Size);
+  // PredCount must be 1 or 2 for imf simd API
+  sycl::buffer<bool> PredBuf(Size * PredCount);
+  q.submit([&](sycl::handler &CGH) {
+     sycl::accessor InAcc1(InBuf1, CGH, sycl::read_only);
+     sycl::accessor InAcc2(InBuf2, CGH, sycl::read_only);
+     sycl::accessor OutAcc(OutBuf, CGH, sycl::write_only);
+     sycl::accessor PredAcc(PredBuf, CGH, sycl::write_only);
+     CGH.parallel_for(Size, [=](sycl::id<1> Id) {
+       bool Pred_hi, Pred_lo;
+       if constexpr (PredCount == 2) {
+         OutAcc[Id] = Func(InAcc1[Id], InAcc2[Id], &Pred_hi, &Pred_lo);
+         PredAcc[Id] = Pred_hi;
+         PredAcc[Id + 1] = Pred_lo;
+       } else if constexpr (PredCount == 1) {
+         OutAcc[Id] = Func(InAcc1[Id], InAcc2[Id], &Pred_hi);
+         PredAcc[Id] = Pred_hi;
+       }
+     });
+   }).wait();
+
+  sycl::host_accessor Acc(OutBuf, sycl::read_only);
+  sycl::host_accessor AccPred(PredBuf, sycl::read_only);
+
+  for (int i = 0; i < Size; ++i) {
+    auto Expected = *(std::begin(RefOutput) + i);
+    if constexpr (std::is_same_v<OutputTy, sycl::half2>) {
+      if (EquTy()(Expected, Acc[i]))
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: ("
+                << Acc[i].s0() << ", " << Acc[i].s1() << ")"
+                << " != (" << Expected.s0() << ", " << Expected.s1()
+                << "), input idx was " << i << std::endl;
+    } else {
+      if (EquTy()(Expected, Acc[i]))
+        continue;
+      std::cout << "Mismatch at line " << Line << "[" << i << "]: " << Acc[i]
+                << " != " << Expected << ", input idx was " << i << std::endl;
+    }
+
+    if (PredCount == 2) {
+      bool ExpectedPred0 = *(std::begin(PredOutput) + 2 * i);
+      bool ExpectedPred1 = *(std::begin(PredOutput) + 2 * i + 1);
+      if (AccPred[2 * i] == ExpectedPred0 &&
+          AccPred[2 * i + 1] == ExpectedPred1)
+        continue;
+      else {
+        std::cout << "Mismatch at line " << Line << "[" << i << "], Pred fail!"
+                  << std::endl;
+      }
+    } else if (PredCount == 1) {
+      bool ExpectedPred = *(std::begin(PredOutput) + i);
+      if (AccPred[i] == ExpectedPred)
+        continue;
+      else {
+
+        std::cout << "Mismatch at line " << Line << "[" << i << "], Pred fail!"
+                  << std::endl;
+      }
+    }
+    assert(false);
+  }
+}
+
 template <class InputTy1, class InputTy2, class InputTy3, class OutputTy,
           class FuncTy, class EquTy = imf_utils_default_equ<OutputTy>>
 void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
@@ -212,6 +298,9 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
 #define F2T(T, Name)                                                           \
   [](auto x, auto y) { return __builtin_bit_cast(T, (Name)(x, y)); }
 #define F3(Name) [](auto x, auto y, auto z) { return (Name)(x, y, z); }
+#define F2_PRED2(Name)                                                         \
+  [](auto x, auto y, bool *h, bool *l) { return (Name)(x, y, h, l); }
+#define F2_PRED1(Name) [](auto x, auto y, bool *p) { return (Name)(x, y, p); }
 #define F3T(T, Name)                                                           \
   [](auto x, auto y, auto z) { return __builtin_bit_cast(T, (Name)(x, y, z)); }
 #if defined(__SPIR__) || defined(__SPIRV__)

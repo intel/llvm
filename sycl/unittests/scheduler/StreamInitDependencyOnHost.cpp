@@ -11,8 +11,8 @@
 
 #include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
@@ -27,22 +27,22 @@ public:
   std::unique_ptr<detail::CG> finalize() {
     std::unique_ptr<detail::CG> CommandGroup;
     switch (getType()) {
-    case detail::CG::Kernel: {
+    case detail::CGType::Kernel: {
       CommandGroup.reset(new detail::CGExecKernel(
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
-          std::move(MImpl->MKernelBundle),
+          std::move(impl->MKernelBundle),
           detail::CG::StorageInitHelper(getArgsStorage(), getAccStorage(),
                                         getSharedPtrStorage(),
                                         getRequirements(), getEvents()),
           getArgs(), getKernelName(), getStreamStorage(),
-          std::move(MImpl->MAuxiliaryResources), getCGType(), {},
-          MImpl->MKernelIsCooperative, MImpl->MKernelUsesClusterLaunch,
+          std::move(impl->MAuxiliaryResources), getType(), {},
+          impl->MKernelIsCooperative, impl->MKernelUsesClusterLaunch,
           getCodeLoc()));
       break;
     }
     default:
-      throw sycl::runtime_error("Unhandled type of command group",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Unhandled type of command group");
     }
 
     return CommandGroup;

@@ -25,7 +25,7 @@ using property_value =
     sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
 struct balanced_key : oneapi::experimental::detail::compile_time_property_key<
-          oneapi::experimental::detail::PropKind::Balanced> {
+                          oneapi::experimental::detail::PropKind::Balanced> {
   using value_t = property_value<balanced_key>;
 };
 

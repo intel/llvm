@@ -41,7 +41,7 @@ void test() {
       } else {
         // Exception constantly adds info on its error code in the message
         assert(Msg.find_first_of(e.what()) == 0 &&
-               "PI_ERROR_BUILD_PROGRAM_FAILURE");
+               "UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE");
       }
     } catch (...) {
       assert(false && "Caught exception was not a compilation error");

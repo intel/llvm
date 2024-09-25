@@ -20,7 +20,7 @@
  *     dim3 tests
  **************************************************************************/
 
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <cassert>

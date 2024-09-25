@@ -17,6 +17,8 @@
 //     device::get_info<ext::oneapi::experimental::info::device::architecture>
 //   - alias of architecture if this is Intel GPU architecture in format
 //     intel_gpu_<intel_gpu_arch_version>
+//   - supported aspects of architecture in
+//     llvm/include/llvm/SYCLLowerIR/DeviceConfigFile.td 
 //
 // Important note about keeping architecture IDs below unique:
 //   - the architecture ID must be a hex number with 16 digits

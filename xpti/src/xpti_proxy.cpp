@@ -46,6 +46,22 @@ enum functions_t {
   XPTI_STASH_TUPLE,
   XPTI_GET_STASHED_TUPLE,
   XPTI_UNSTASH_TUPLE,
+  XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+  XPTI_LOOKUP_PAYLOAD,
+  XPTI_LOOKUP_EVENT,
+  XPTI_CREATE_TRACEPOINT,
+  XPTI_DELETE_TRACEPOINT,
+  XPTI_GET_TRACEPOINT_SCOPE_DATA,
+  XPTI_SET_TRACEPOINT_SCOPE_DATA,
+  XPTI_UNSET_TRACEPOINT_SCOPE_DATA,
+  XPTI_REGISTER_TRACEPOINT_SCOPE,
+  XPTI_GET_DEFAULT_STREAM_ID,
+  XPTI_SET_DEFAULT_STREAM_ID,
+  XPTI_GET_DEFAULT_EVENT_TYPE,
+  XPTI_SET_DEFAULT_EVENT_TYPE,
+  XPTI_GET_DEFAULT_TRACE_TYPE,
+  XPTI_SET_DEFAULT_TRACE_TYPE,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -85,6 +101,24 @@ class ProxyLoader {
       {XPTI_STASH_TUPLE, "xptiStashTuple"},
       {XPTI_GET_STASHED_TUPLE, "xptiGetStashedTuple"},
       {XPTI_UNSTASH_TUPLE, "xptiUnstashTuple"},
+      {XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiEnableTracepointScopeNotification"},
+      {XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION,
+       "xptiCheckTracepointScopeNotification"},
+      {XPTI_LOOKUP_PAYLOAD, "xptiLookupPayload"},
+      {XPTI_LOOKUP_EVENT, "xptiLookupEvent"},
+      {XPTI_CREATE_TRACEPOINT, "xptiCreateTracepoint"},
+      {XPTI_DELETE_TRACEPOINT, "xptiDeleteTracepoint"},
+      {XPTI_GET_TRACEPOINT_SCOPE_DATA, "xptiGetTracepointScopeData"},
+      {XPTI_SET_TRACEPOINT_SCOPE_DATA, "xptiSetTracepointScopeData"},
+      {XPTI_UNSET_TRACEPOINT_SCOPE_DATA, "xptiUnsetTracepointScopeData"},
+      {XPTI_REGISTER_TRACEPOINT_SCOPE, "xptiRegisterTracepointScope"},
+      {XPTI_GET_DEFAULT_STREAM_ID, "xptiGetDefaultStreamID"},
+      {XPTI_SET_DEFAULT_STREAM_ID, "xptiSetDefaultStreamID"},
+      {XPTI_GET_DEFAULT_EVENT_TYPE, "xptiGetDefaultEventType"},
+      {XPTI_SET_DEFAULT_EVENT_TYPE, "xptiSetDefaultEventType"},
+      {XPTI_GET_DEFAULT_TRACE_TYPE, "xptiGetDefaultTraceType"},
+      {XPTI_SET_DEFAULT_TRACE_TYPE, "xptiSetDefaultTraceType"},
       {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
@@ -526,4 +560,191 @@ XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
       (*(xpti_release_event_t)f)(lookup_object);
     }
   }
+}
+
+// New version of XPTI has these new APIs as XPTI is moving to 128-bit keys to
+// avoid hash collisions and improve performance. The older APIs -
+// xptiQueryPayloadByUID(), xptiFindEvent(), xptiMakeEvent(),
+// xptiRegisterPayload() will all be deprecated in the future.
+
+XPTI_EXPORT_API void xptiEnableTracepointScopeNotification(bool enable) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_ENABLE_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      (*(xpti_enable_tracepoint_scope_notification_t)f)(enable);
+    }
+  }
+}
+
+XPTI_EXPORT_API bool xptiCheckTracepointScopeNotification() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_CHECK_TRACEPOINT_SCOPE_NOTIFICATION);
+    if (f) {
+      return (*(xpti_check_tracepoint_scope_notification_t)f)();
+    }
+  }
+  return false;
+}
+
+XPTI_EXPORT_API xpti_tracepoint_t *xptiCreateTracepoint(const char *name,
+                                                        const char *source_file,
+                                                        uint32_t line_no,
+                                                        uint32_t column_no) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_CREATE_TRACEPOINT);
+    if (f) {
+      return (*(xpti_create_tracepoint_t)f)(name, source_file, line_no,
+                                            column_no);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API xpti::result_t xptiDeleteTracepoint(xpti_tracepoint_t *tp) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_DELETE_TRACEPOINT);
+    if (f) {
+      return (*(xpti_delete_tracepoint_t)f)(tp);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API const xpti_payload_t *xptiLookupPayload(uint64_t uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_PAYLOAD);
+    if (f) {
+      return (*(xpti_lookup_payload_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti_trace_event_t *xptiLookupEvent(uint64_t uid) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_LOOKUP_EVENT);
+    if (f) {
+      return (*(xpti_lookup_event_t)f)(uid);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API const xpti_tracepoint_t *xptiGetTracepointScopeData() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      return (*(xpti_get_trace_point_scope_data_t)f)();
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetTracepointScopeData(xpti_tracepoint_t *data) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      return (*(xpti_set_trace_point_scope_data_t)f)(data);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API void xptiUnsetTracepointScopeData() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_UNSET_TRACEPOINT_SCOPE_DATA);
+    if (f) {
+      (*(xpti_unset_trace_point_scope_data_t)f)();
+    }
+  }
+}
+
+XPTI_EXPORT_API const xpti_tracepoint_t *
+xptiRegisterTracepointScope(const char *FuncName, const char *FileName,
+                            uint32_t LineNo, uint32_t ColumnNo) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_REGISTER_TRACEPOINT_SCOPE);
+    if (f) {
+      return (*(xpti_register_tracepoint_scope_t)f)(FuncName, FileName, LineNo,
+                                                    ColumnNo);
+    }
+  }
+  return nullptr;
+}
+
+XPTI_EXPORT_API uint8_t xptiGetDefaultStreamID() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_STREAM_ID);
+    if (f) {
+      return (*(xpti_get_default_stream_id_t)f)();
+    }
+  }
+  return xpti::invalid_id;
+}
+
+XPTI_EXPORT_API xpti::result_t xptiSetDefaultStreamID(uint8_t stream_id) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_STREAM_ID);
+    if (f) {
+      return (*(xpti_set_default_stream_id_t)f)(stream_id);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::trace_event_type_t xptiGetDefaultEventType() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_EVENT_TYPE);
+    if (f) {
+      return (*(xpti_get_default_event_type_t)f)();
+    }
+  }
+  return xpti::trace_event_type_t::algorithm;
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultEventType(xpti::trace_event_type_t event_type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_EVENT_TYPE);
+    if (f) {
+      return (*(xpti_set_default_event_type_t)f)(event_type);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::trace_point_type_t xptiGetDefaultTraceType() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_GET_DEFAULT_TRACE_TYPE);
+    if (f) {
+      return (*(xpti_get_default_trace_type_t)f)();
+    }
+  }
+  return xpti::trace_point_type_t::function_begin;
+}
+
+XPTI_EXPORT_API xpti::result_t
+xptiSetDefaultTraceType(xpti::trace_point_type_t trace_type) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(
+        XPTI_SET_DEFAULT_TRACE_TYPE);
+    if (f) {
+      return (*(xpti_set_default_trace_type_t)f)(trace_type);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
 }

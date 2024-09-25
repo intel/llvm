@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <iostream>
 
@@ -17,41 +17,39 @@ using namespace sycl;
 
 static bool HostUnifiedMemory = false;
 
-static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
-                                             pi_device_info ParamName,
-                                             size_t ParamValueSize,
-                                             void *ParamValue,
-                                             size_t *ParamValueSizeRet) {
-  if (ParamName == PI_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
-    auto *Result = reinterpret_cast<pi_bool *>(ParamValue);
+static ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_HOST_UNIFIED_MEMORY) {
+    auto *Result = reinterpret_cast<ur_bool_t *>(*params.ppPropValue);
     *Result = HostUnifiedMemory;
-  } else if (ParamName == PI_DEVICE_INFO_TYPE) {
-    auto *Result = reinterpret_cast<_pi_device_type *>(ParamValue);
-    *Result = PI_DEVICE_TYPE_CPU;
+  } else if (*params.ppropName == UR_DEVICE_INFO_TYPE) {
+    auto *Result = reinterpret_cast<ur_device_type_t *>(*params.ppPropValue);
+    *Result = UR_DEVICE_TYPE_CPU;
   }
 
   // This mock device has no sub-devices
-  if (ParamName == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (ParamValueSizeRet) {
-      *ParamValueSizeRet = 0;
+  if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 0;
     }
   }
-  if (ParamName == PI_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
-    assert(ParamValueSize == sizeof(pi_device_affinity_domain));
-    if (ParamValue) {
-      *static_cast<pi_device_affinity_domain *>(ParamValue) = 0;
+  if (*params.ppropName == UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN) {
+    assert(**params.ppPropSizeRet == sizeof(ur_device_affinity_domain_flags_t));
+    if (*params.ppPropValue) {
+      *static_cast<ur_device_affinity_domain_flags_t *>(*params.ppPropValue) =
+          0;
     }
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(SchedulerTest, AllocaLinking) {
   HostUnifiedMemory = false;
 
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0]};
-  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter);
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0]};
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter);
   sycl::detail::QueueImplPtr QImpl = detail::getSyclObjImpl(Q);
 
   MockScheduler MS;

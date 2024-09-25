@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-dg2 || gpu-intel-pvc
+// REQUIRES: gpu-intel-dg2 || arch-intel_gpu_pvc
 
 // Use per-kernel compilation to have more information about failing cases.
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out

@@ -18,7 +18,7 @@ This document describes an extension that introduces a +sycl::ext::oneapi::prope
 
 |Property |Description
 |`syc::ext::oneapi::property::buffer::use_pinned_host_memory`
-| The `use_pinned_host_memory` property adds the requirement that the SYCL runtime must allocate host pinned memory for the `sycl::buffer`. The property cannot be used with the `sycl::buffer` constructors that take hostData parameter, an invalid_object_error SYCL exception must be thrown in this case.
+| The `use_pinned_host_memory` property adds the requirement that the SYCL runtime must allocate host pinned memory for the `sycl::buffer`. The property cannot be used with the `sycl::buffer` constructors that take hostData parameter, a SYCL exception with errc::invalid error code must be thrown in this case.
 |===
 
 == Feature test macro

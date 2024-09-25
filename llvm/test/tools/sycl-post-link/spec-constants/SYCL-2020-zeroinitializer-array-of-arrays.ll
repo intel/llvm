@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 @_ZL9coeff_id3 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
 
 ; Function Attrs: convergent mustprogress norecurse
-define weak_odr spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
+define weak_odr spir_kernel void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
   %3 = alloca %"class.cl::sycl::kernel_handler" addrspace(4)*, align 8
   %4 = alloca i8 addrspace(4)*, align 8
   %5 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*

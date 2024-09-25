@@ -48,37 +48,6 @@ int main() {
 // CHECK: define dso_local void @{{.*}}kernel_name2() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC:[0-9]+]] !max_work_groups_per_mp ![[MWGPM:[0-9]+]] !max_work_group_size ![[MWGS:[0-9]+]]
 // CHECK: define dso_local void @{{.*}}kernel_name3() #0 {{.*}} !min_work_groups_per_cu ![[MWGPC_MWGPM:[0-9]+]] !max_work_groups_per_mp ![[MWGPC_MWGPM]] !max_work_group_size ![[MWGS_2:[0-9]+]]
 
-// CHECK: {{.*}}@{{.*}}kernel_name1, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}kernel_name1, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}kernel_name1, !"maxntidz", i32 2}
-// CHECK: {{.*}}@{{.*}}kernel_name1, !"minctasm", i32 2}
-// CHECK: {{.*}}@{{.*}}kernel_name1, !"maxclusterrank", i32 4}
-// CHECK: {{.*}}@{{.*}}Foo{{.*}}, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}Foo{{.*}}, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}Foo{{.*}}, !"maxntidz", i32 2}
-// CHECK: {{.*}}@{{.*}}Foo{{.*}}, !"minctasm", i32 2}
-// CHECK: {{.*}}@{{.*}}Foo{{.*}}, !"maxclusterrank", i32 4}
-// CHECK: {{.*}}@{{.*}}kernel_name2, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}kernel_name2, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}kernel_name2, !"maxntidz", i32 2}
-// CHECK: {{.*}}@{{.*}}kernel_name2, !"minctasm", i32 2}
-// CHECK: {{.*}}@{{.*}}kernel_name2, !"maxclusterrank", i32 4}
-// CHECK: {{.*}}@{{.*}}main{{.*}}, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}main{{.*}}, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}main{{.*}}, !"maxntidz", i32 2}
-// CHECK: {{.*}}@{{.*}}main{{.*}}, !"minctasm", i32 2}
-// CHECK: {{.*}}@{{.*}}main{{.*}}, !"maxclusterrank", i32 4}
-// CHECK: {{.*}}@{{.*}}kernel_name3, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}kernel_name3, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}kernel_name3, !"maxntidz", i32 6}
-// CHECK: {{.*}}@{{.*}}kernel_name3, !"minctasm", i32 6}
-// CHECK: {{.*}}@{{.*}}kernel_name3, !"maxclusterrank", i32 6}
-// CHECK: {{.*}}@{{.*}}Functor{{.*}}, !"maxntidx", i32 8}
-// CHECK: {{.*}}@{{.*}}Functor{{.*}}, !"maxntidy", i32 4}
-// CHECK: {{.*}}@{{.*}}Functor{{.*}}, !"maxntidz", i32 6}
-// CHECK: {{.*}}@{{.*}}Functor{{.*}}, !"minctasm", i32 6}
-// CHECK: {{.*}}@{{.*}}Functor{{.*}}, !"maxclusterrank", i32 6}
-
 // CHECK: ![[MWGPC]] = !{i32 2}
 // CHECK: ![[MWGPM]] = !{i32 4}
 // CHECK: ![[MWGS]] = !{i32 8, i32 4, i32 2}

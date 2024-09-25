@@ -8,6 +8,7 @@
 
 #include "ABIInfoImpl.h"
 #include "TargetInfo.h"
+#include "clang/Basic/Cuda.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
 
 using namespace clang;
@@ -79,6 +80,9 @@ public:
   // resulting MDNode to the nvvm.annotations MDNode.
   static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
                               int Operand);
+
+  static void addNVVMMetadata(llvm::GlobalValue *GV, StringRef Name,
+                              const std::vector<int> &Operands);
 
 private:
   static void emitBuiltinSurfTexDeviceCopy(CodeGenFunction &CGF, LValue Dst,
@@ -203,8 +207,11 @@ ABIArgInfo NVPTXABIInfo::classifyArgumentType(QualType Ty) const {
 void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
   if (!getCXXABI().classifyReturnType(FI))
     FI.getReturnInfo() = classifyReturnType(FI.getReturnType());
-  for (auto &I : FI.arguments())
-    I.info = classifyArgumentType(I.type);
+
+  for (auto &&[ArgumentsCount, I] : llvm::enumerate(FI.arguments()))
+    I.info = ArgumentsCount < FI.getNumRequiredArgs()
+                 ? classifyArgumentType(I.type)
+                 : ABIArgInfo::getDirect();
 
   // Always honor user-specified calling convention.
   if (FI.getCallingConvention() != llvm::CallingConv::C)
@@ -215,7 +222,32 @@ void NVPTXABIInfo::computeInfo(CGFunctionInfo &FI) const {
 
 RValue NVPTXABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
                                QualType Ty, AggValueSlot Slot) const {
-  llvm_unreachable("NVPTX does not support varargs");
+  return emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*IsIndirect=*/false,
+                          getContext().getTypeInfoInChars(Ty),
+                          CharUnits::fromQuantity(1),
+                          /*AllowHigherAlign=*/true, Slot);
+}
+
+// Get current OffloadArch and ignore any unknown values
+// Copied from CGOpenMPRuntimeGPU
+static OffloadArch getOffloadArch(CodeGenModule &CGM) {
+  if (!CGM.getTarget().hasFeature("ptx"))
+    return OffloadArch::UNKNOWN;
+  for (const auto &Feature : CGM.getTarget().getTargetOpts().FeatureMap) {
+    if (Feature.getValue()) {
+      OffloadArch Arch = StringToOffloadArch(Feature.getKey());
+      if (Arch != OffloadArch::UNKNOWN)
+        return Arch;
+    }
+  }
+  return OffloadArch::UNKNOWN;
+}
+
+static bool supportsGridConstant(OffloadArch Arch) {
+  assert((Arch == OffloadArch::UNKNOWN || IsNVIDIAOffloadArch(Arch)) &&
+         "Unexpected architecture");
+  static_assert(OffloadArch::UNKNOWN < OffloadArch::SM_70);
+  return Arch >= OffloadArch::SM_70;
 }
 
 void NVPTXTargetCodeGenInfo::setTargetAttributes(
@@ -248,48 +280,21 @@ void NVPTXTargetCodeGenInfo::setTargetAttributes(
       addNVVMMetadata(F, "kernel", 1);
       // And kernel functions are not subject to inlining
       F->addFnAttr(llvm::Attribute::NoInline);
-    }
-    bool HasMaxWorkGroupSize = false;
-    bool HasMinWorkGroupPerCU = false;
-    if (const auto *MWGS = FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
-      HasMaxWorkGroupSize = true;
-      // We must index-flip between SYCL's notation, X,Y,Z (aka dim0,dim1,dim2)
-      // with the fastest-moving dimension rightmost, to CUDA's, where X is the
-      // fastest-moving dimension.
-      addNVVMMetadata(F, "maxntidx", MWGS->getZDimVal());
-      addNVVMMetadata(F, "maxntidy", MWGS->getYDimVal());
-      addNVVMMetadata(F, "maxntidz", MWGS->getXDimVal());
-    }
 
-    auto attrValue = [&](Expr *E) {
-      const auto *CE = cast<ConstantExpr>(E);
-      std::optional<llvm::APInt> Val = CE->getResultAsAPSInt();
-      return Val->getZExtValue();
-    };
-
-    if (const auto *MWGPCU =
-            FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
-      if (!HasMaxWorkGroupSize && FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPCU << 0;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "minctasm", attrValue(MWGPCU->getValue()));
-        HasMinWorkGroupPerCU = true;
-      }
-    }
-
-    if (const auto *MWGPMP =
-            FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
-      if ((!HasMaxWorkGroupSize || !HasMinWorkGroupPerCU) &&
-          FD->hasAttr<OpenCLKernelAttr>()) {
-        M.getDiags().Report(D->getLocation(),
-                            diag::warn_launch_bounds_missing_attr)
-            << MWGPMP << 1;
-      } else {
-        // The value is guaranteed to be > 0, pass it to the metadata.
-        addNVVMMetadata(F, "maxclusterrank", attrValue(MWGPMP->getValue()));
+      if (M.getLangOpts().SYCLIsDevice &&
+          supportsGridConstant(getOffloadArch(M))) {
+        // Add grid_constant annotations to all relevant kernel-function
+        // parameters. We can guarantee that in SYCL, all by-val kernel
+        // parameters are "grid_constant".
+        std::vector<int> GridConstantParamIdxs;
+        for (auto [Idx, Arg] : llvm::enumerate(F->args())) {
+          if (Arg.getType()->isPointerTy() && Arg.hasByValAttr()) {
+            // Note - the parameter indices are numbered from 1.
+            GridConstantParamIdxs.push_back(Idx + 1);
+          }
+        }
+        if (!GridConstantParamIdxs.empty())
+          addNVVMMetadata(F, "grid_constant", GridConstantParamIdxs);
       }
     }
   }
@@ -325,6 +330,28 @@ void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
       llvm::ConstantAsMetadata::get(GV), llvm::MDString::get(Ctx, Name),
       llvm::ConstantAsMetadata::get(
           llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Operand))};
+  // Append metadata to nvvm.annotations
+  MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
+}
+
+void NVPTXTargetCodeGenInfo::addNVVMMetadata(llvm::GlobalValue *GV,
+                                             StringRef Name,
+                                             const std::vector<int> &Operands) {
+  llvm::Module *M = GV->getParent();
+  llvm::LLVMContext &Ctx = M->getContext();
+
+  // Get "nvvm.annotations" metadata node
+  llvm::NamedMDNode *MD = M->getOrInsertNamedMetadata("nvvm.annotations");
+
+  llvm::SmallVector<llvm::Metadata *, 8> MDOps;
+  for (int Op : Operands) {
+    MDOps.push_back(llvm::ConstantAsMetadata::get(
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(Ctx), Op)));
+  }
+  auto *OpList = llvm::MDNode::get(Ctx, MDOps);
+
+  llvm::Metadata *MDVals[] = {llvm::ConstantAsMetadata::get(GV),
+                              llvm::MDString::get(Ctx, Name), OpList};
   // Append metadata to nvvm.annotations
   MD->addOperand(llvm::MDNode::get(Ctx, MDVals));
 }

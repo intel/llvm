@@ -35,7 +35,6 @@
 // This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvregular"
 
 #include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
@@ -54,6 +53,8 @@
 
 #include <set>
 #include <vector>
+
+#define DEBUG_TYPE "spvregular"
 
 using namespace llvm;
 using namespace SPIRV;

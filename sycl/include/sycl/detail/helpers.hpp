@@ -11,7 +11,6 @@
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
-#include <sycl/detail/pi.hpp>         // for PiEvent
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -39,10 +38,11 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
-
 class buffer_impl;
-class context_impl;
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
+#endif
 
 __SYCL_EXPORT void
 markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
@@ -124,15 +124,15 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   template <int N>
-  using is_valid_dimensions = std::integral_constant<bool, (N > 0) && (N < 4)>;
+  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     return __spirv::initGlobalInvocationId<Dims, id<Dims>>();
   }
 
   template <int Dims> static const group<Dims> getElement(group<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
     range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
@@ -142,7 +142,7 @@ public:
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
@@ -151,14 +151,14 @@ public:
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     return createItem<Dims, false>(GlobalSize, GlobalId);
   }
 
   template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
     range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};

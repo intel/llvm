@@ -8,6 +8,10 @@
 #include <mutex> // std::mutex, std::unique_lock
 #include <numeric>
 
+#if GRAPH_TESTS_VERBOSE_PRINT
+#include <chrono>
+#endif
+
 // Test constants.
 constexpr size_t Size = 1024;      // Number of data elements in a buffer.
 constexpr unsigned Iterations = 5; // Iterations of graph to execute.
@@ -479,4 +483,62 @@ loadKernelsFromFile(queue &Q, std::string FileName) {
   kernel_bundle<bundle_state::executable> KernelBundleExe =
       exp_ext::build(KernelBundleSrc);
   return KernelBundleExe;
+}
+
+bool verifyProfiling(event Event) {
+  auto Submit =
+      Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto Start =
+      Event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto End =
+      Event.get_profiling_info<sycl::info::event_profiling::command_end>();
+
+#if GRAPH_TESTS_VERBOSE_PRINT
+  std::cout << "Submit = " << Submit << std::endl;
+  std::cout << "Start = " << Start << std::endl;
+  std::cout << "End = " << End << " ( " << (End - Start) << " ) "
+            << " => full ( " << (End - Submit) << " ) " << std::endl;
+#endif
+
+  assert((Submit && Start && End) && "Profiling information failed.");
+  assert(Submit <= Start);
+  assert(Start < End);
+
+  bool Pass = sycl::info::event_command_status::complete ==
+              Event.get_info<sycl::info::event::command_execution_status>();
+
+  return Pass;
+}
+
+bool compareProfiling(event Event1, event Event2) {
+  assert(Event1 != Event2);
+
+  auto SubmitEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto StartEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto EndEvent1 =
+      Event1.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((SubmitEvent1 && StartEvent1 && EndEvent1) &&
+         "Profiling information failed.");
+
+  auto SubmitEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto StartEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto EndEvent2 =
+      Event2.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((SubmitEvent2 && StartEvent2 && EndEvent2) &&
+         "Profiling information failed.");
+
+  assert(SubmitEvent1 != SubmitEvent2);
+  assert(StartEvent1 != StartEvent2);
+  assert(EndEvent1 != EndEvent2);
+
+  bool Pass1 = sycl::info::event_command_status::complete ==
+               Event1.get_info<sycl::info::event::command_execution_status>();
+  bool Pass2 = sycl::info::event_command_status::complete ==
+               Event2.get_info<sycl::info::event::command_execution_status>();
+
+  return (Pass1 && Pass2);
 }

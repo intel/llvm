@@ -27,18 +27,22 @@
 
 constexpr double ERROR_TOLERANCE = 1e-5;
 
-// Typed call helper
-// Iterates over all types and calls Functor f for each of them
-template <typename tuple, typename Functor>
-void instantiate_all_types(Functor &&f) {
-  auto for_each_type_call =
-      [&]<template <typename...> class Container, typename... Ts>(
-          Container<Ts...> *) { (f.template operator()<Ts>(), ...); };
-  for_each_type_call(static_cast<tuple *>(nullptr));
+template <typename Tuple, typename Func, std::size_t... Is>
+void for_each_type_call(Func &&f, std::index_sequence<Is...>) {
+  (f(std::integral_constant<std::size_t, Is>{}), ...);
+}
+
+template <typename Tuple, typename Func> void instantiate_all_types(Func &&f) {
+  for_each_type_call<Tuple>(
+      std::forward<Func>(f),
+      std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 }
 
 #define INSTANTIATE_ALL_TYPES(tuple, f)                                        \
-  instantiate_all_types<tuple>([]<typename T>() { f<T>(); });
+  instantiate_all_types<tuple>([](auto index) {                                \
+    using T = std::tuple_element_t<decltype(index)::value, tuple>;             \
+    f<T>();                                                                    \
+  });
 
 using value_type_list =
     std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,

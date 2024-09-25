@@ -10,9 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Fails there.
-// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
-
 #include <cassert>
 #include <iostream>
 #include <sycl/detail/core.hpp>

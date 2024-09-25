@@ -118,10 +118,34 @@ enum class MatrixLayout : uint32_t {
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
+#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
+enum class MatrixOperands : uint32_t {
+  // SPV_KHR_cooperative_matrix operands
+  NoneKHR = 0,
+  MatrixASignedComponentsKHR = 0x1,
+  MatrixBSignedComponentsKHR = 0x2,
+  MatrixCSignedComponentsKHR = 0x4,
+  MatrixResultSignedComponentsKHR = 0x8,
+  SaturatingAccumulationKHR = 0x10,
+  // SPV_INTEL_joint_matrix operands
+  MatrixAAndBTF32ComponentsINTEL = 0x20,
+  MatrixAAndBBFloat16ComponentsINTEL = 0x40,
+  MatrixCBFloat16ComponentsINTEL = 0x80,
+  MatrixResultBFloat16ComponentsINTEL = 0x100
+};
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
+
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
+
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
+#else
+template <typename T, Scope::Flag S = Scope::Flag::Subgroup, std::size_t R = 1,
+          std::size_t C = 1, MatrixUse U = MatrixUse::MatrixA>
+struct __spirv_CooperativeMatrixKHR;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 struct __spirv_TaskSequenceINTEL;
 

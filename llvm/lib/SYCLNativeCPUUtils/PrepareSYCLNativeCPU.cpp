@@ -8,13 +8,16 @@
 //
 // Prepares the kernel for SYCL Native CPU:
 // * Handles kernel calling convention and attributes.
-// * Materializes spirv buitlins.
+// * Materializes spirv builtins.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
@@ -23,7 +26,6 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
-#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -35,13 +37,13 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/GlobalStatus.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <utility>
 #include <vector>
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/attributes.h"
-#include "compiler/utils/builtin_info.h"
 #include "compiler/utils/metadata.h"
 #endif
 
@@ -156,155 +158,55 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T,
   return NewF;
 }
 
+#define BMapEntry2(n1, n2) {"__mux_" #n1, "__dpcpp_nativecpu_" #n2}
+#define BMapEntry1(n) BMapEntry2(n, n)
+
 static const std::pair<StringRef, StringRef> BuiltinNamesMap[]{
-    {"__mux_get_global_id", NativeCPUGlobalId},
-    {"__mux_get_global_size", NativeCPUGlobaRange},
-    {"__mux_get_global_offset", NativeCPUGlobalOffset},
-    {"__mux_get_local_id", NativeCPULocalId},
-    {"__mux_get_num_groups", NativeCPUNumGroups},
-    {"__mux_get_local_size", NativeCPUWGSize},
-    {"__mux_get_group_id", NativeCPUWGId},
-    {"__mux_set_num_sub_groups", NativeCPUSetNumSubgroups},
-    {"__mux_set_sub_group_id", NativeCPUSetSubgroupId},
-    {"__mux_set_max_sub_group_size", NativeCPUSetMaxSubgroupSize},
-    {"__mux_set_local_id", NativeCPUSetLocalId}};
+    BMapEntry1(get_global_id),
+    BMapEntry2(get_global_size, get_global_range),
+    BMapEntry1(get_global_offset),
+    BMapEntry1(get_local_id),
+    BMapEntry1(get_num_groups),
+    BMapEntry2(get_local_size, get_wg_size),
+    BMapEntry2(get_group_id, get_wg_id),
+    BMapEntry1(set_num_sub_groups),
+    BMapEntry1(set_sub_group_id),
+    BMapEntry1(set_max_sub_group_size),
+    BMapEntry1(set_local_id),
+
+    BMapEntry1(get_sub_group_local_id),
+    BMapEntry1(get_max_sub_group_size),
+    BMapEntry1(get_sub_group_id),
+    BMapEntry1(get_num_sub_groups),
+    BMapEntry1(get_sub_group_size)};
 
 static constexpr unsigned int NativeCPUGlobalAS = 1;
 static constexpr char StateTypeName[] = "struct.__nativecpu_state";
 
 static Type *getStateType(Module &M) {
-  // %struct.__nativecpu_state = type { [3 x i64], [3 x i64], [3 x i64], [3 x
-  // i64], [3 x i64], [3 x i64], [3 x i64] } Check that there's no
   // __nativecpu_state type
-  auto Types = M.getIdentifiedStructTypes();
-  bool HasStateT =
-      llvm::any_of(Types, [](auto T) { return T->getName() == StateTypeName; });
-  if (HasStateT)
-    report_fatal_error("Native CPU state unexpectedly found in the module.");
   auto &Ctx = M.getContext();
-  auto *I64Ty = Type::getInt64Ty(Ctx);
-  auto *Array3dTy = ArrayType::get(I64Ty, 3);
-  std::array<Type *, 7> Elements;
-  Elements.fill(Array3dTy);
-  auto *StateType = StructType::create(Ctx, StateTypeName);
-  StateType->setBody(Elements);
-  return StateType;
+  return StructType::create(Ctx, StateTypeName);
 }
 
-static const StringMap<unsigned> OffsetMap{
-    {NativeCPUGlobalId, 0},    {NativeCPUGlobaRange, 1},
-    {NativeCPUWGSize, 2},      {NativeCPUWGId, 3},
-    {NativeCPULocalId, 4},     {NativeCPUNumGroups, 5},
-    {NativeCPUGlobalOffset, 6}};
-
-static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
-  /*
-  void __dpcpp_nativecpu_set_local_id(unsigned dim, size_t value,
-                                 __nativecpu_state *s) {
-    s->MLocal_id[dim] = value;
-    s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
-                         s->MLocal_id[dim] + s->MGlobalOffset[dim];
-  }
-  */
-  auto &Ctx = M.getContext();
-  Type *I64Ty = Type::getInt64Ty(Ctx);
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-  Type *RetTy = Type::getVoidTy(Ctx);
-  Type *DimTy = I32Ty;
-  Type *ValTy = I64Ty;
-  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *RetTy,
+                                const SmallVector<Value *> &Args) {
+  // Emit declarations if builtins are not found, e.g. when the device library
+  // is not linked by some lit tests. TODO: Change those lit tests and
+  // raise compiler error instead.
+  llvm::SmallVector<llvm::Type *> Paras;
+  for (Value *arg : Args)
+    Paras.push_back(arg->getType());
+  FunctionType *FTy = FunctionType::get(RetTy, Paras, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = cast<Function>(FCallee.getCallee());
-  IRBuilder<> Builder(Ctx);
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  auto *StatePtr = F->getArg(2);
-  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
-  auto *Zero = ConstantInt::get(I64Ty, 0);
-  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPULocalId));
-  auto *GEP = Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
-  // store local id
-  auto *Val = F->getArg(1);
-  Builder.CreateStore(Val, GEP);
-  // update global id
-  auto loadHelper = [&](const char *BTName) {
-    auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(BTName));
-    auto *Addr =
-        Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
-    auto *Load = Builder.CreateLoad(I64Ty, Addr);
-    return Load;
-  };
-  auto *WGId = loadHelper(NativeCPUWGId);
-  auto *WGSize = loadHelper(NativeCPUWGSize);
-  auto *GlobalOffset = loadHelper(NativeCPUGlobalOffset);
-  auto *Mul = Builder.CreateMul(WGId, WGSize);
-  auto *GId = Builder.CreateAdd(Builder.CreateAdd(Mul, GlobalOffset), Val);
-  auto *GIdOffset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPUGlobalId));
-  auto *GIdAddr =
-      Builder.CreateGEP(StateType, StatePtr, {Zero, GIdOffset, IdxProm});
-  Builder.CreateStore(GId, GIdAddr);
-  Builder.CreateRetVoid();
-  return F;
+  return cast<Function>(FCallee.getCallee());
 }
 
-static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
-  auto &Ctx = M.getContext();
-  Type *I64Ty = Type::getInt64Ty(Ctx);
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-  Type *RetTy = I64Ty;
-  Type *DimTy = I32Ty;
-  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
-  auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = cast<Function>(FCallee.getCallee());
-  IRBuilder<> Builder(Ctx);
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
-  auto *Zero = ConstantInt::get(I64Ty, 0);
-  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
-  auto *GEP =
-      Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
-  auto *Load = Builder.CreateLoad(I64Ty, GEP);
-  Builder.CreateRet(Load);
-  return F;
-}
-
-static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
-  Function *Res;
-  const char GetPrefix[] = "__dpcpp_nativecpu_get";
-  if (Name.starts_with(GetPrefix)) {
-    Res = addGetFunc(M, Name, StateType);
-  } else if (Name == NativeCPUSetLocalId) {
-    Res = addSetLocalIdFunc(M, Name, StateType);
-  } else {
-    // the other __dpcpp_nativecpu_set* builtins are subgroup-related and
-    // not supported yet, emit empty functions for now.
-    auto &Ctx = M.getContext();
-    Type *I32Ty = Type::getInt32Ty(Ctx);
-    Type *RetTy = Type::getVoidTy(Ctx);
-    Type *ValTy = I32Ty;
-    Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-    static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
-    auto FCallee = M.getOrInsertFunction(Name, FTy);
-    auto *F = cast<Function>(FCallee.getCallee());
-    IRBuilder<> Builder(Ctx);
-    BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-    Builder.SetInsertPoint(BB);
-    Builder.CreateRetVoid();
-    Res = F;
-  }
-  Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
-  return Res;
-}
-
-static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
-  Function *F = M.getFunction(Name);
-  if (!F)
-    return addReplaceFunc(M, Name, StateType);
-  assert(F && "Error retrieving replace function");
-  return F;
+static Function *getReplaceFunc(Module &M, StringRef Name, const Use &U,
+                                const SmallVector<Value *> &Args) {
+  if (Function *F = M.getFunction(Name))
+    return F;
+  return addReplaceFunc(M, Name, U.getUser()->getType(), Args);
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
@@ -316,24 +218,63 @@ static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
     return BB.CreateLoad(StateTLS->getType(), V);
   }
   auto *FT = F->getFunctionType();
+  assert(FT->getNumParams() > 0);
   return F->getArg(FT->getNumParams() - 1);
 }
 
 static inline bool IsNativeCPUKernel(const Function *F) {
   return F->getCallingConv() == llvm::CallingConv::SPIR_KERNEL;
 }
+
+static bool IsNonKernelCalledByNativeCPUKernel(const Function *F) {
+  if (IsNativeCPUKernel(F))
+    return false;
+  llvm::DenseSet<const Function *> todo, checked;
+  for (;;) {
+    if (checked.insert(F).second) {
+      for (const auto &Use : F->uses()) {
+        if (auto *I = cast<CallBase>(Use.getUser())) {
+          const Function *const F2 = I->getFunction();
+          if (IsNativeCPUKernel(F2))
+            return true;
+          todo.insert(F2);
+        }
+      }
+    }
+    if (todo.empty())
+      return false;
+    auto first = todo.begin();
+    F = *first;
+    todo.erase(first);
+  }
+  return false;
+}
+
+static bool IsUnusedBuiltinOrPrivateDef(const Function &F) {
+  if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL &&
+      F.getNumUses() == 0 && !F.isDeclaration()) {
+    if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
+      StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
+      if (val.ends_with("libdevice/nativecpu_utils.cpp"))
+        return true;
+    }
+    if (Function::isPrivateLinkage(F.getLinkage()))
+      return true;
+  }
+  return false;
+}
+
 static constexpr StringRef STATE_TLS_NAME = "_ZL28nativecpu_thread_local_state";
 
 } // namespace
-static llvm::Constant *CurrentStatePointerTLS;
+
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
-  for (auto &F : M) {
+  for (auto &F : M)
     if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
       OldKernels.push_back(&F);
-  }
 
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
@@ -342,9 +283,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Todo: fix this check since we are emitting the state type in the pass now
   if (!StateType)
     return PreservedAnalyses::all();
-  Type *StatePtrType = PointerType::get(StateType, 1);
+  Type *StatePtrType = PointerType::get(StateType, NativeCPUGlobalAS);
 
-  CurrentStatePointerTLS = nullptr;
+  llvm::Constant *CurrentStatePointerTLS = nullptr;
 
   // check if any of the kernels is called by some other function.
   // This can happen e.g. with OCK, where wrapper functions are
@@ -364,12 +305,13 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
       continue;
-    for (const auto &Use : Glob->uses()) {
-      auto *I = cast<CallInst>(Use.getUser());
-      if (!IsNativeCPUKernel(I->getFunction()) || KernelIsCalled) {
-        // only use the threadlocal if we have kernels calling builtins
-        // indirectly, or if the kernel is called by some other func.
-        if (CurrentStatePointerTLS == nullptr)
+    if (CurrentStatePointerTLS == nullptr) {
+      for (const auto &Use : Glob->uses()) {
+        auto *I = cast<CallBase>(Use.getUser());
+        if (KernelIsCalled ||
+            IsNonKernelCalledByNativeCPUKernel(I->getFunction())) {
+          // only use the threadlocal if we have kernels calling builtins
+          // indirectly, or if the kernel is called by some other func.
           CurrentStatePointerTLS = M.getOrInsertGlobal(
               STATE_TLS_NAME, StatePtrType, [&M, StatePtrType]() {
                 GlobalVariable *p = new GlobalVariable(
@@ -384,37 +326,66 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                 p->setInitializer(Constant::getNullValue(StatePtrType));
                 return p;
               });
-        break;
+          break;
+        }
       }
     }
     UsedBuiltins.push_back({Glob, Entry.second});
   }
 
-  SmallVector<Function *> NewKernels;
-  for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
-    auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    OldF->setName(Name);
-    // if vectorization occurred, at this point we have a wrapper function that
-    // runs the vectorized kernel and peels using the scalar kernel. We make it
-    // so this wrapper steals the original kernel name.
-    std::optional<compiler::utils::LinkMetadataResult> veczR =
-        compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
-    if (veczR) {
-      auto ScalarF = veczR.value().first;
-      OldF->takeName(ScalarF);
-      ScalarF->setName(OldF->getName() + "_scalar");
-    } else if (Name != OldF->getName()) {
-      auto RealKernel = M.getFunction(Name);
-      if (RealKernel) {
-        // the real kernel was not inlined in the wrapper, steal its name
-        OldF->takeName(RealKernel);
-      } else {
-        // the real kernel has been inlined, just use the name
-        OldF->setName(Name);
+  {
+    SmallSet<Function *, 5> RemovableFuncs;
+    SmallVector<Function *, 5> WrapperFuncs;
+
+    for (auto &OldF : OldKernels) {
+      // If vectorization occurred, at this point we have a wrapper function
+      // that runs the vectorized kernel and peels using the scalar kernel.
+      // There may also be a wrapper for local variables replacement. We make it
+      // so this wrapper steals the original kernel name. Otherwise we will have
+      // a wrapper function from the work item loops. In this case we also steal
+      // the original kernel name.
+      auto Name = compiler::utils::getOrigFnName(*OldF);
+      Function *OrigF = M.getFunction(Name);
+      if (Name != OldF->getName()) {
+        if (OrigF != nullptr) {
+          OldF->takeName(OrigF);
+          if (OrigF->use_empty()) {
+            RemovableFuncs.insert(OrigF);
+          }
+        } else {
+          OldF->setName(Name);
+        }
       }
     }
+
+    // Find any left over SYCL_EXTERNAL function that has no more uses
+    std::set<Function *> Kernelset(OldKernels.begin(), OldKernels.end());
+    for (auto &F : M) {
+      if (Kernelset.count(&F) == 0 &&
+          F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID) && F.use_empty() &&
+          !F.getName().starts_with("__dpcpp_nativecpu")) {
+        // SYCL_EXTERNAL functions end up in static array of function pointers,
+        // at this point we can remove them from the array and remove the
+        // function if no other uses are left.
+        RemovableFuncs.insert(&F);
+      }
+    }
+
+    // Remove unused functions. This is necessary in case they still contain
+    // calls to group collective functions that haven't been processed by the
+    // work item loops pass, which will lead to linker errors.
+    llvm::erase_if(OldKernels,
+                   [&](Function *F) { return RemovableFuncs.contains(F); });
+
+    for (Function *F : RemovableFuncs) {
+      F->eraseFromParent();
+    }
+  }
 #endif
+
+  SmallVector<Function *> NewKernels;
+  for (auto &OldF : OldKernels) {
     auto *NewF =
         cloneFunctionAndAddParam(OldF, StatePtrType, CurrentStatePointerTLS);
     NewF->takeName(OldF);
@@ -435,12 +406,25 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // replace them with calls to our Native CPU functions.
   for (const auto &Entry : UsedBuiltins) {
     SmallVector<std::pair<Instruction *, Instruction *>> ToRemove;
+    SmallVector<Function *> ToRemove2;
     Function *const Glob = Entry.first;
+    Function *ReplaceFunc = nullptr;
     for (const auto &Use : Glob->uses()) {
-      auto *ReplaceFunc = getReplaceFunc(M, Entry.second, StateType);
-      auto I = cast<CallInst>(Use.getUser());
+      auto I = cast<CallBase>(Use.getUser());
+      Function *const C = I->getFunction();
+      if (IsUnusedBuiltinOrPrivateDef(*C)) {
+        ToRemove2.push_back(C);
+        continue;
+      }
+      Value *SVal = getStateArg(I->getFunction(), CurrentStatePointerTLS);
+      if (nullptr == SVal || SVal->getType() != StatePtrType) {
+        // Something went wrong, try to recover
+        SVal = Constant::getNullValue(StatePtrType);
+      }
       SmallVector<Value *> Args(I->arg_begin(), I->arg_end());
-      Args.push_back(getStateArg(I->getFunction(), CurrentStatePointerTLS));
+      Args.push_back(SVal);
+      if (nullptr == ReplaceFunc)
+        ReplaceFunc = getReplaceFunc(M, Entry.second, Use, Args);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
                                     Args, "", I);
       // If the parent function has debug info, we need to make sure that the
@@ -462,37 +446,33 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       OldI->replaceAllUsesWith(NewI);
       OldI->eraseFromParent();
     }
+    for (auto Temp : ToRemove2)
+      Temp->eraseFromParent();
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
   }
 
-#ifdef NATIVECPU_USE_OCK
-  // Define __mux_mem_barrier here using the OCK
-  compiler::utils::BuiltinInfo BI;
+  // Removing unused builtins
+  SmallVector<Function *> UnusedLibBuiltins;
   for (auto &F : M) {
-    if (F.getName() == compiler::utils::MuxBuiltins::mem_barrier) {
-      BI.defineMuxBuiltin(compiler::utils::BaseBuiltinID::eMuxBuiltinMemBarrier,
-                          M);
+    if (IsUnusedBuiltinOrPrivateDef(F)) {
+      UnusedLibBuiltins.push_back(&F);
     }
   }
-  // if we find calls to mux barrier now, it means that we had SYCL_EXTERNAL
-  // functions that called __mux_work_group_barrier, which didn't get processed
-  // by the WorkItemLoop pass. This means that the actual function call has been
-  // inlined into the kernel, and the call to __mux_work_group_barrier has been
-  // removed in the inlined call, but not in the original function. The original
-  // function will not be executed (since it has been inlined) and so we can
-  // just define __mux_work_group_barrier as a no-op to avoid linker errors.
-  // Todo: currently we can't remove the function here even if it has no uses,
-  // because we may still emit a declaration for it in the offload-wrapper.
-  auto BarrierF =
-      M.getFunction(compiler::utils::MuxBuiltins::work_group_barrier);
-  if (BarrierF && BarrierF->isDeclaration()) {
-    IRBuilder<> Builder(M.getContext());
-    auto BB = BasicBlock::Create(M.getContext(), "noop", BarrierF);
-    Builder.SetInsertPoint(BB);
-    Builder.CreateRetVoid();
+  for (Function *F : UnusedLibBuiltins) {
+    F->eraseFromParent();
+    ModuleChanged = true;
   }
-#endif
+  for (auto It = M.begin(); It != M.end();) {
+    auto Curr = It++;
+    Function &F = *Curr;
+    if (F.getNumUses() == 0 && F.isDeclaration() &&
+        F.getName().starts_with("__mux_")) {
+      F.eraseFromParent();
+      ModuleChanged = true;
+    }
+  }
+
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

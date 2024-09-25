@@ -8,7 +8,6 @@
 
 #include "../graph_common.hpp"
 
-#include <sycl/detail/host_task_impl.hpp>
 #include <sycl/properties/all_properties.hpp>
 
 int main() {

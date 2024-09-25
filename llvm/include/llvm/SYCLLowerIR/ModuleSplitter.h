@@ -22,6 +22,7 @@
 #include "llvm/Support/PropertySetIO.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -44,6 +45,10 @@ enum IRSplitMode {
   SPLIT_AUTO,       // automatically select split mode
   SPLIT_NONE        // no splitting
 };
+
+// \returns IRSplitMode value if \p S is recognized. Otherwise, std::nullopt is
+// returned.
+std::optional<IRSplitMode> convertStringToSplitMode(StringRef S);
 
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
@@ -77,6 +82,11 @@ struct EntryPointGroup {
       // Scope remains global
       return Res;
     }
+
+    // Indicates that this group holds definitions of virtual functions - they
+    // are outlined into separate device images and should be removed from all
+    // other modules. The flag is used in ModuleDesc::cleanup
+    bool HasVirtualFunctionDefinitions = false;
   };
 
   std::string GroupId;
@@ -301,6 +311,9 @@ struct ModuleSplitterSettings {
   bool OutputAssembly = false; // Bitcode or LLVM IR.
   StringRef OutputPrefix;
 };
+
+/// Parses the output table file from sycl-post-link tool.
+Expected<std::vector<SplitModule>> parseSplitModulesFromFile(StringRef File);
 
 /// Splits the given module \p M according to the given \p Settings.
 Expected<std::vector<SplitModule>>

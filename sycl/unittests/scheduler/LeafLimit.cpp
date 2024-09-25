@@ -11,8 +11,8 @@
 
 #include <detail/buffer_impl.hpp>
 #include <detail/config.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <algorithm>
 #include <cstddef>
@@ -28,8 +28,8 @@ inline constexpr auto DisableCleanupName =
 // correctly with dependency tracking when leaf-limit for generic commands is
 // overflowed.
 TEST_F(SchedulerTest, LeafLimit) {
-  sycl::unittest::PiMock Mock;
-  sycl::queue Q{Mock.getPlatform().get_devices()[0], MAsyncHandler};
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Q{sycl::platform().get_devices()[0], MAsyncHandler};
 
   // All of the mock commands are owned on the test side, prevent post enqueue
   // cleanup from deleting some of them.

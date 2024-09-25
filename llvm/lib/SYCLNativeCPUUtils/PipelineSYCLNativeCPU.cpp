@@ -14,13 +14,17 @@
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/define_mux_builtins_pass.h"
 #include "compiler/utils/device_info.h"
+#include "compiler/utils/encode_kernel_metadata_pass.h"
 #include "compiler/utils/prepare_barriers_pass.h"
+#include "compiler/utils/replace_local_module_scope_variables_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
 #include "vecz/pass.h"
@@ -50,11 +54,17 @@ static cl::opt<bool>
     SYCLNativeCPUNoVecz("sycl-native-cpu-no-vecz", cl::init(false),
                         cl::desc("Disable vectorizer for SYCL Native CPU"));
 
+static cl::opt<bool>
+    SYCLDumpIR("sycl-native-dump-device-ir", cl::init(false),
+               cl::desc("Dump device IR after Native passes."));
+
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
     OptimizationLevel OptLevel) {
+  MPM.addPass(SpecConstantsPass(SpecConstantsPass::HandlingMode::emulation));
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
+  MPM.addPass(compiler::utils::TransferKernelMetadataPass());
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
   if (OptLevel != OptimizationLevel::O0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([] { return vecz::TargetInfoAnalysis(); });
@@ -82,8 +92,23 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MAM.registerPass([] { return compiler::utils::SubgroupAnalysis(); });
   MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::WorkItemLoopsPass(Opts));
+  MPM.addPass(compiler::utils::ReplaceLocalModuleScopeVariablesPass());
   MPM.addPass(AlwaysInlinerPass());
 #endif
   MPM.addPass(PrepareSYCLNativeCPUPass());
+#ifdef NATIVECPU_USE_OCK
+  MPM.addPass(compiler::utils::DefineMuxBuiltinsPass());
+#endif
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
+
+  if (SYCLDumpIR) {
+    // Fixme: Use PrintModulePass after PR to fix dependencies/--shared-libs
+    struct DumpIR : public PassInfoMixin<DumpIR> {
+      PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
+        M.print(llvm::outs(), nullptr);
+        return PreservedAnalyses::all();
+      }
+    };
+    MPM.addPass(DumpIR());
+  }
 }

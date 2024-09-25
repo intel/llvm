@@ -1,6 +1,8 @@
 // REQUIRES: accelerator
 // https://github.com/intel/llvm/issues/14308
-// UNSUPPORTED: accelerator
+// Temporarily re-enabled for testing purposes.
+// If you are facing issues with this test, please leave a comment in:
+// https://github.com/intel/llvm/pull/14627
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -60,6 +62,9 @@ template <int TestNumber, int KernelNumber = 0> class reader;
 // Test for simple non-blocking pipes
 template <typename PipeName, int TestNumber>
 int test_simple_nb_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[] = {0};
 
   using Pipe = sycl::ext::intel::pipe<PipeName, int>;
@@ -101,6 +106,9 @@ int test_simple_nb_pipe(sycl::queue Queue) {
 
 // Test for multiple non-blocking pipes
 template <int TestNumber> int test_multiple_nb_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[] = {0};
 
   Queue.submit([&](sycl::handler &cgh) {
@@ -152,6 +160,9 @@ template <int TestNumber> int test_multiple_nb_pipe(sycl::queue Queue) {
 
 // Test for array passing through a non-blocking pipe
 template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[N] = {0};
   using AnotherNbPipe = sycl::ext::intel::pipe<class another_nb_pipe, int>;
   static_assert(std::is_same_v<typename AnotherNbPipe::value_type, int>);
@@ -195,6 +206,9 @@ template <int TestNumber> int test_array_th_nb_pipe(sycl::queue Queue) {
 // Test for simple blocking pipes
 template <typename PipeName, int TestNumber>
 int test_simple_bl_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[] = {0};
 
   using Pipe = sycl::ext::intel::pipe<PipeName, int>;
@@ -230,6 +244,9 @@ int test_simple_bl_pipe(sycl::queue Queue) {
 
 // Test for multiple blocking pipes
 template <int TestNumber> int test_multiple_bl_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[] = {0};
 
   Queue.submit([&](sycl::handler &cgh) {
@@ -266,6 +283,9 @@ template <int TestNumber> int test_multiple_bl_pipe(sycl::queue Queue) {
 
 // Test for array passing through a blocking pipe
 template <int TestNumber> int test_array_th_bl_pipe(sycl::queue Queue) {
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: executing test " << TestNumber << std::endl;
+
   int data[N] = {0};
   using AnotherBlPipe = sycl::ext::intel::pipe<class another_bl_pipe, int>;
   static_assert(std::is_same_v<typename AnotherBlPipe::value_type, int>);
@@ -328,5 +348,7 @@ int main() {
   Result &= test_array_th_nb_pipe</*test number*/ 11>(Queue);
   Result &= test_array_th_bl_pipe</*test number*/ 12>(Queue);
 
+  // TODO Remove when #14308 is closed
+  std::cerr << "DEBUG: Finished with result " << Result << std::endl;
   return Result;
 }

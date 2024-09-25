@@ -10,10 +10,12 @@
 #include <detail/context_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
 
@@ -53,8 +55,7 @@ context::context(const std::vector<device> &DeviceList,
 context::context(const std::vector<device> &DeviceList,
                  async_handler AsyncHandler, const property_list &PropList) {
   if (DeviceList.empty()) {
-    throw invalid_parameter_error("DeviceList is empty.",
-                                  PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid), "DeviceList is empty.");
   }
 
   const auto &RefPlatform =
@@ -64,18 +65,23 @@ context::context(const std::vector<device> &DeviceList,
                     return (detail::getSyclObjImpl(CurrentDevice.get_platform())
                                 ->getHandleRef() != RefPlatform);
                   }))
-    throw invalid_parameter_error(
-        "Can't add devices across platforms to a single context.",
-        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::invalid),
+                    "Can't add devices across platforms to a single context.");
   else
     impl = std::make_shared<detail::context_impl>(DeviceList, AsyncHandler,
                                                   PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
-  impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
-      Plugin);
+  const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+
+  ur_context_handle_t hContext = nullptr;
+  ur_native_handle_t nativeHandle =
+      reinterpret_cast<ur_native_handle_t>(ClContext);
+  Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+
+  impl =
+      std::make_shared<detail::context_impl>(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>
@@ -106,24 +112,6 @@ context::get_backend_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool context::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type context::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
 cl_context context::get() const { return impl->get(); }
 
 backend context::get_backend() const noexcept { return impl->getBackend(); }
@@ -138,7 +126,11 @@ std::vector<device> context::get_devices() const {
 
 context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
-pi_native_handle context::getNative() const { return impl->getNative(); }
+ur_native_handle_t context::getNative() const { return impl->getNative(); }
+
+const property_list &context::getPropList() const {
+  return impl->getPropList();
+}
 
 } // namespace _V1
 } // namespace sycl

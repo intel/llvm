@@ -11,6 +11,13 @@
 
 #include <sycl/sycl.hpp>
 
+struct T1 {
+  double x;
+};
+struct T2 {
+  struct T1 y;
+};
+
 SYCL_EXTERNAL double foo(double a);
 double bar_compute(double a) { return a + 1.0; }
 
@@ -20,8 +27,10 @@ int main() {
     h.single_task([=]() {
       double a[10];
       double b[10];
+      struct T2 tmp;
       int i = 4;
       b[i] = foo(a[i]);
+      tmp.y.x = foo(a[i]);
     });
   });
   q.submit([&](sycl::handler &h) {
