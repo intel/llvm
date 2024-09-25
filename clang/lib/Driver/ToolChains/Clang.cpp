@@ -10801,10 +10801,17 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
   }
 }
 
-static bool allowDeviceDependencies(const llvm::opt::ArgList &TCArgs) {
+static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
+  // deprecated
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_dependencies,
                      options::OPT_fno_sycl_allow_device_dependencies, false))
     return true;
+
+  // preferred
+  if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
+                     options::OPT_fno_sycl_allow_device_image_dependencies, false))
+    return true;
+
   return false;
 }
 
@@ -10835,7 +10842,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
-  if (allowDeviceDependencies(TCArgs))
+  if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 }
 
@@ -10853,7 +10860,7 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
     return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
-  if (allowDeviceDependencies(TCArgs))
+  if (allowDeviceImageDependencies(TCArgs))
     return false;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;

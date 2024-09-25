@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out -DINIT_LIST -DVNNI -ffp-model=precise
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.

@@ -10,7 +10,7 @@
 // SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -ffp-model=precise -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX %fp-model-precise -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
