@@ -2049,7 +2049,7 @@ public:
         isForwardDeclarable(RD, SemaSYCLRef, /*DiagForFreeFunction=*/true);
     if (NFDR != NotForwardDeclarableReason::None) {
       Diag.Report(PD->getLocation(),
-                  diag::err_bad_free_function_kernel_param_type)
+                  diag::err_bad_kernel_param_type)
           << ParamTy;
       Diag.Report(PD->getLocation(),
                   diag::note_free_function_kernel_param_type_not_fwd_declarable)
@@ -2151,7 +2151,7 @@ public:
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
       Diag.Report(PD->getLocation(),
-                  diag::err_bad_free_function_kernel_param_type)
+                  diag::err_bad_kernel_param_type)
           << ParamTy;
       Diag.Report(PD->getLocation(),
                   diag::note_free_function_kernel_param_type_not_supported)
