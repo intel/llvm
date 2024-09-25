@@ -265,7 +265,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
-  (void)hDevice;
+  if (!hDevice && hContext->getDevices().size() == 1)
+    hDevice = hContext->getDevices().front();
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
