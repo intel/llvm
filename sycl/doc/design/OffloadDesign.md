@@ -298,7 +298,7 @@ set of targets.
 
 #### --offload-arch
 
-For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the device architecture using --offload-arch option. For instance 
+For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the device architecture using ``--offload-arch`` option. For instance 
   ``--offload-arch=sm_80`` to target an NVidia Tesla A100, 
   ``--offload-arch=gfx90a`` to target an AMD Instinct MI250X, or 
   ``--offload-arch=sm_80,gfx90a`` to target both.
@@ -309,7 +309,7 @@ SYCL offloading with ``--offload-arch`` is currently enabled only with ``--offlo
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel GPUs and the corresponding `-device` value passed to OCLOC.
 
-| Intel GPU device | --offload-arch accepted value | OCLOC -device value |
+| Intel GPU device | ``--offload-arch`` accepted value | OCLOC -device value |
 |------------------|-------------------------|------------------------|
 | Intel(R) microarchitecture code name Broadwell Intel graphics architecture | bdw | bdw |
 | Intel(R) microarchitecture code name Skylake Intel graphics architecture | skl | skl |
@@ -343,6 +343,73 @@ The following table shows a mapping of the accepted values for `--offload-arch` 
 | Lunar Lake Intel graphics architecture | lnl_m | lnl_m              |
 | Falcon Shores Intel graphics architecture | fs1 | fs1               |
 
+#### nvptx64-nvidia-cuda support
+For SYCL offloading to NVidia GPUs using ``--offload-arch`` option, the following table
+lists the accepted values.
+
+| NVidia GPU device name | ``--offload-arch`` accepted values for NVidia GPUs |
+|------------------------|----------------------------------------------------|
+| NVIDIA Maxwell architecture (compute capability 5.0) | sm_50 |
+| NVIDIA Maxwell architecture (compute capability 5.2) | sm_52 |
+| NVIDIA Maxwell architecture (compute capability 5.3) | sm_53 |
+| NVIDIA Pascal architecture (compute capability 6.0)  | sm_60 |
+| NVIDIA Pascal architecture (compute capability 6.1)  | sm_61 |
+| NVIDIA Pascal architecture (compute capability 6.2)  | sm_62 |
+| NVIDIA Volta architecture (compute capability 7.0)   | sm_70 |
+| NVIDIA Volta architecture (compute capability 7.2)   | sm_72 |
+| NVIDIA Turing architecture (compute capability 7.5)  | sm_75 |
+| NVIDIA Ampere architecture (compute capability 8.0)  | sm_80 |
+| NVIDIA Ampere architecture (compute capability 8.6)  | sm_86 |
+| NVIDIA Jetson/Drive AGX Orin architecture            | sm_87 |
+| NVIDIA Ada Lovelace architecture                     | sm_89 |
+| NVIDIA Hopper architecture                           | sm_90 |
+| NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)  | sm_90a |
+
+#### amdgcn-amd-amdhsa support
+
+For SYCL offloading to AMD GPUs using ``--offload-arch`` option, the following table
+lists the accepted values.
+
+| AMD GPU device name | ``--offload-arch`` accepted values for AMD GPUs |
+|------------------------|----------------------------------------------------|
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx700 |
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx701 |
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx702 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx801 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx802 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx803 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx805 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx810 |
+| AMD GCN GFX9 (Vega) architecture | gfx900 |
+| AMD GCN GFX9 (Vega) architecture | gfx902 |
+| AMD GCN GFX9 (Vega) architecture | gfx904 |
+| AMD GCN GFX9 (Vega) architecture | gfx906 |
+| AMD GCN GFX9 (Vega) architecture | gfx908 |
+| AMD GCN GFX9 (Vega) architecture | gfx909 |
+| AMD GCN GFX9 (Vega) architecture | gfx90a |
+| AMD GCN GFX9 (Vega) architecture | gfx90c |
+| AMD GCN GFX9 (Vega) architecture | gfx940 |
+| AMD GCN GFX9 (Vega) architecture | gfx941 |
+| AMD GCN GFX9 (Vega) architecture | gfx942 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1010 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1011 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1012 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1013 |
+| AMD GCN GFX10.3 (RDNA 2) architecture | gfx1030 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1031 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1032 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1033 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1034 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1035 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1036 |
+| GCN GFX11 (RDNA 3) architecture | gfx1100 |
+| GCN GFX11 (RDNA 3) architecture | gfx1101 |
+| GCN GFX11 (RDNA 3) architecture | gfx1102 |
+| GCN GFX11 (RDNA 3) architecture | gfx1103 |
+| GCN GFX11 (RDNA 3) architecture | gfx1150 |
+| GCN GFX11 (RDNA 3) architecture | gfx1151 |
+| GCN GFX12 (RDNA 4) architecture | gfx1200 |
+| GCN GFX12 (RDNA 4) architecture | gfx1201 |
 
 #### spir64_fpga support
 
@@ -411,7 +478,7 @@ These user input CPU names are mapped to the corresponding ``opencl-aot -march``
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel CPUs and the corresponding `-march` value passed to opencl-aot.
 
-| Intel CPU device | --offload-arch accepted value | opencl-aot -march value |
+| Intel CPU device | ``--offload-arch`` accepted value | opencl-aot -march value |
 |----------------|-------------------------|----------------------------|
 | Intel(R) Advanced Vector Extensions 512 | skylake-avx512 | avx512     |
 | Intel(R) Advanced Vector Extensions 2 | core-avx2 | avx2              |
