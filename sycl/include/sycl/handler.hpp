@@ -1046,8 +1046,13 @@ private:
   /// Process kernel properties.
   ///
   /// Stores information about kernel properties into the handler.
+  ///
+  /// Note: it is important that this function *does not* depend on kernel
+  /// name or kernel type, because then it will be instantiated for every
+  /// kernel, even though body of those instantiated functions could be almost
+  /// the same, thus unnecessary increasing compilation time.
   template <
-      typename KernelName,
+      bool IsESIMDKernel,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
     static_assert(
@@ -1058,7 +1063,7 @@ private:
             sycl::ext::intel::experimental::fp_control_key>() ||
             (PropertiesT::template has_property<
                  sycl::ext::intel::experimental::fp_control_key>() &&
-             detail::isKernelESIMD<KernelName>()),
+             IsESIMDKernel),
         "Floating point control property is supported for ESIMD kernels only.");
     static_assert(
         !PropertiesT::template has_property<
@@ -1398,7 +1403,7 @@ private:
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      processProperties<NameT, PropertiesT>(Props);
+      processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       setNDRangeDescriptor(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1450,7 +1455,7 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(ExecutionRange);
     setNDRangeDescriptor(std::move(ExecutionRange));
-    processProperties<NameT, PropertiesT>(Props);
+    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CGType::Kernel);
@@ -1532,7 +1537,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<NameT, PropertiesT>(Props);
+    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     detail::checkValueRange<Dims>(NumWorkGroups);
     setNDRangeDescriptor(NumWorkGroups, /*SetNumWorkGroups=*/true);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1574,7 +1579,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<NameT, PropertiesT>(Props);
+    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1774,7 +1779,7 @@ private:
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
                           _KERNELFUNCPARAMTYPE>::value) {
-      processProperties<KernelName>(
+      processProperties<detail::isKernelESIMD<KernelName>()>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
 #endif
@@ -1853,7 +1858,7 @@ private:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     setNDRangeDescriptor(range<1>{1});
-    processProperties<NameT, PropertiesT>(Props);
+    processProperties<detail::isKernelESIMD<NameT>(), PropertiesT>(Props);
     StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CGType::Kernel);
 #endif
