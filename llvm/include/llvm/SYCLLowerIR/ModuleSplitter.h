@@ -321,6 +321,7 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 bool isESIMDFunction(const Function &F);
 bool canBeImportedFunction(const Function &F);
+bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints);
 
 } // namespace module_split
 
