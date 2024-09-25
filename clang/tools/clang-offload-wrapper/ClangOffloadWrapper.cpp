@@ -1134,12 +1134,21 @@ private:
 
           // Compress the image using zstd.
           SmallVector<uint8_t, 512> CompressedBuffer;
-          llvm::compression::zstd::compress(
-              ArrayRef<unsigned char>(
-                  (const unsigned char *)(Bin->getBufferStart()),
-                  Bin->getBufferSize()),
-              CompressedBuffer, OffloadCompressLevel);
-
+#if LLVM_ENABLE_EXCEPTIONS
+          try {
+#endif
+            llvm::compression::zstd::compress(
+                ArrayRef<unsigned char>(
+                    (const unsigned char *)(Bin->getBufferStart()),
+                    Bin->getBufferSize()),
+                CompressedBuffer, OffloadCompressLevel);
+#if LLVM_ENABLE_EXCEPTIONS
+          } catch (const std::exception &ex) {
+            return createStringError(inconvertibleErrorCode(),
+                                     std::string("Failed to compress the device image: \n") +
+                                     std::string(ex.what()));
+          }
+#endif
           if (Verbose)
             errs() << "[Compression] Original image size: "
                    << Bin->getBufferSize() << "\n"

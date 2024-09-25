@@ -1,10 +1,9 @@
 // End-to-End test for testing device image compression when we have two
 // translation units, one compressed and one not compressed.
-// REQUIRES: zstd
+// REQUIRES: zstd, linux
 
-// DEFINE: %{fPIC_flag} =  %if windows %{%} %else %{-fPIC%}
-// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared %{fPIC_flag} -o %T/kernel1.so
-// RUN: %{build} -DENABLE_KERNEL2 -shared %{fPIC_flag} -o %T/kernel2.so
+// RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %T/kernel1.so
+// RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %T/kernel2.so
 
 // RUN: %{build} %T/kernel1.so %T/kernel2.so -o %t_compress.out
 // RUN: %{run} %t_compress.out
