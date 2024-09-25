@@ -1091,13 +1091,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       HasValidSYCLRuntime &&
       C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
 
-  if (IsSYCLOffloadArchEnabled &&
-      !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                options::OPT_no_offload_new_driver, false)) {
-    Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-    return;
-  }
-
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
   // Make -fintelfpga flag imply -fsycl.
@@ -1367,6 +1360,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (const auto &Val : SYCLTriples) {
       llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
       std::string NormalizedName = SYCLTargetTriple.normalize();
+
+      // SYCL offloading to Intel CPUs and Intel GPUs with ``--offload-arch``
+      // is currently enabled only with ``--offload-new-driver`` option.
+      // Emit a diagnostic if ``--offload-arch`` is invoked without
+      // ``--offload-new driver`` option.
+      if (SYCLTargetTriple != NVPTXTriple && SYCLTargetTriple != AMDTriple) {
+        if (IsSYCLOffloadArchEnabled &&
+            !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                      options::OPT_no_offload_new_driver,
+                                      false)) {
+          Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+          return;
+        }
+      }
 
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
