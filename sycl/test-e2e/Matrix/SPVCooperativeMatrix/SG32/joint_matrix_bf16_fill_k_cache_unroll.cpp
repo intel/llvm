@@ -10,7 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -mllvm -inline-threshold=5000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL -DVNNI
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -mllvm -inline-threshold=5000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
