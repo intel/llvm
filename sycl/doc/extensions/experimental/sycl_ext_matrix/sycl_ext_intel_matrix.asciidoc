@@ -124,7 +124,7 @@ enum class layout {
 
 Consequently, the layout argument `layout` in `joint_matrix_load` can
 take `ext_intel_packed` as argument to specify that the data has
-already been transformed into VNNI format. In this case, the `stride`
+already been transformed into VNNI format. In this case, the `Stride`
 argument of `joint_matrix_load` describes the number of elements
 between consecutive rows for packed layouts.
 
@@ -148,28 +148,59 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t Stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t Stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, typename PropertyListT>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
-    size_t stride);
+    size_t Stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, typename PropertyListT>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
     ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
-    size_t stride);
+    size_t Stride);
+
+// Overloads for offset store
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> base_dest, size_t RowIndex,
+    size_t ColIndex, size_t Stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    multi_ptr<T, Space, IsDecorated> base_dest, size_t RowIndex,
+    size_t ColIndex, size_t Stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT>
+          base_dest, size_t RowIndex, size_t ColIndex, size_t Stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT>
+          base_dest, size_t RowIndex, size_t ColIndex, size_t Stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
 ```

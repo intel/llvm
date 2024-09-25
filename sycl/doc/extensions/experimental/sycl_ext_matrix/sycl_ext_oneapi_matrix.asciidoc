@@ -216,7 +216,7 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-    multi_ptr<T2, Space, IsDecorated> src, size_t stride, layout Layout);
+    multi_ptr<T2, Space, IsDecorated> src, size_t Stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -226,7 +226,7 @@ template <typename Group, typename T1, typename T2,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-    multi_ptr<T2, Space, IsDecorated> src, size_t stride);
+    multi_ptr<T2, Space, IsDecorated> src, size_t Stride);
 
 // Only available when std::is_same_v<T1, std::remove_const_t<T2>>
 template <typename Group, typename T1, typename T2,
@@ -234,7 +234,7 @@ template <typename Group, typename T1, typename T2,
           typename PropertyListT>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-    annotated_ptr<T2, PropertyListT> src, size_t stride, layout Layout);
+    annotated_ptr<T2, PropertyListT> src, size_t Stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 // and when std::is_same_v<T1, std::remove_const_t<T2>>
@@ -243,7 +243,7 @@ template <typename Group, typename T1, typename T2,
           typename PropertyListT>
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
-    annotated_ptr<T2, PropertyListT> src, size_t stride);
+    annotated_ptr<T2, PropertyListT> src, size_t Stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -261,7 +261,7 @@ The second overload without a memory layout must not be used with a
 The base pointer `src` of type `T` here determines the starting address of the
 matrix to be loaded from. `Layout` determines whether the data is
 being read in a row (`row_major`), column major (`col_major`)
-fashion. `stride` describes the number of elements between consecutive
+fashion. `Stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major
 layout.
 
@@ -301,13 +301,13 @@ template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store(Group g,
    const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   multi_ptr<T2, Space, IsDecorated> dest, size_t stride, layout Layout);
+   multi_ptr<T2, Space, IsDecorated> dest, size_t Stride, layout Layout);
 
 template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
           typename PropertyListT>
 void joint_matrix_store(Group g,
    const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
-   annotated_ptr<T2, PropertyListT> dest, size_t stride, layout Layout);
+   annotated_ptr<T2, PropertyListT> dest, size_t Stride, layout Layout);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -317,7 +317,7 @@ registers back to memory.
 The base pointer `dest` here determines the starting address of the
 matrix to be stored. `Layout` determines whether the data is being
 written in a row (`row_major`), column major (`col_major`)
-fashion. `stride` describes the number of elements between consecutive
+fashion. `Stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major layout.
 
 The second overload of `joint_matrix_store` takes
@@ -368,7 +368,7 @@ template <typename Group, typename T1, typename T2,
 void joint_matrix_load(Group g,
     joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
     annotated_ptr<T2, PropertyListT> base_src, size_t RowIndex, size_t
-    ColIndex, size_t stride);
+    ColIndex, size_t Stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -552,7 +552,7 @@ namespace sycl::ext::oneapi::experimental::matrix {
 
 template <size_t Rows, size_t Cols, typename Group, typename T,
           typename Properties = empty_properties_t>
-void joint_matrix_prefetch(Group g, T* ptr, size_t stride, layout Layout,
+void joint_matrix_prefetch(Group g, T* ptr, size_t Stride, layout Layout,
                            Properties properties = {});
 
 } // namespace sycl::ext::oneapi::experimental::matrix
@@ -1217,11 +1217,11 @@ supported parameter combination is specified in the following table.
 | `matrix_type::fp64`  | `matrix_type::fp64` | `matrix_type::fp64` |8 |8 |4
 |======================
 
-IMPORTANT: The `stride` argument to `joint_matrix_load` and
+IMPORTANT: The `Stride` argument to `joint_matrix_load` and
 `joint_matrix_store` must be a multiple of 8 when `T` is `half`, and a
 multiple of 4 when `T` is `float`; where `T` is the type of the
 `joint_matrix` elements. When `T` is not `half` or `float` there are
-no restrictions to `stride`.
+no restrictions to `Stride`.
 
 IMPORTANT: For some devices it is important to use the sm version
 (Compute Capability) corresponding to the device that will run the
