@@ -452,6 +452,14 @@ public:
         if (BinaryStatus == UR_RESULT_SUCCESS) {
           FetchedFromCache = true;
           std::cout << "zOMG, fetched from cache!" << std::endl;
+
+          ur_result_t Error =
+              Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
+                  UrProgram,
+                  /*num devices =*/1, &UrDevice,
+                  userArgsAsString(BuildOptions).c_str());
+
+          std::cout << "error? " << Error << std::endl;
         }
       }
     }
@@ -534,6 +542,11 @@ public:
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
 
+    // CP
+    std::cout << "KernelNames: " << KernelNamesStr << std::endl;
+
+    //} // if(!FetchedFromCache)
+
     // make the device image and the kernel_bundle_impl
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
@@ -546,6 +559,8 @@ public:
       PersistentDeviceCodeCache::putCompiledKernelToDisc(
           Devices[0], userArgsAsString(BuildOptions), SourceStr, UrProgram);
     }
+
+    // std::vector<std::string> KernelNames = { "__sycl_kernel_ff_cp" };
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
