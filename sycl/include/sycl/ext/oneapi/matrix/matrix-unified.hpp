@@ -530,8 +530,8 @@ joint_matrix_mad(
   else
     D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
 #else
-  if constexpr (std::is_same<Ta, uint16_t>::value &&
-                std::is_same<Tb, uint16_t>::value &&
+  if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value &&
                 std::is_same<Tc, float>::value) {
     constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
         __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
