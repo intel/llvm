@@ -1317,7 +1317,7 @@ private:
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    // throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnLocalAccessorMisuse<KernelName, KernelType>();
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
