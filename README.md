@@ -139,6 +139,8 @@ List of options provided by CMake:
 | UR_BUILD_ADAPTER_HIP    | Build the HIP adapter                   | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_NATIVE_CPU | Build the Native-CPU adapter        | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_ALL    | Build all currently supported adapters  | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_L0_V2    | Build the (experimental) Level-Zero v2 adapter  | ON/OFF     | OFF     |
+| UR_STATIC_ADAPTER_L0    | Build the Level-Zero adapter as static and embed in the loader | ON/OFF   | OFF |
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
