@@ -29,8 +29,9 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   DIE_NO_IMPLEMENTATION
 }
 
-static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,
-                                 native_cpu::ReqdWGSize_t &res) {
+static ur_result_t
+deserializeWGMetadata(const ur_program_metadata_t &MetadataElement,
+                      native_cpu::WGSize_t &res, std::uint32_t DefaultVal) {
   size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
 
   // Expect between 1 and 3 32-bit integer values.
@@ -43,12 +44,12 @@ static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,
   const char *ValuePtr =
       reinterpret_cast<const char *>(MetadataElement.value.pData) +
       sizeof(std::uint64_t);
-  // Read values and pad with 1's for values not present.
-  std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
-  std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
-  std::get<0>(res) = ReqdWorkGroupElements[0];
-  std::get<1>(res) = ReqdWorkGroupElements[1];
-  std::get<2>(res) = ReqdWorkGroupElements[2];
+  // Read values and pad with a default value for missing elements.
+  std::uint32_t WorkGroupElements[] = {DefaultVal, DefaultVal, DefaultVal};
+  std::memcpy(WorkGroupElements, ValuePtr, MDElemsSize);
+  std::get<0>(res) = WorkGroupElements[0];
+  std::get<1>(res) = WorkGroupElements[1];
+  std::get<2>(res) = WorkGroupElements[2];
   return UR_RESULT_SUCCESS;
 }
 
@@ -71,13 +72,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
       const auto &mdNode = pProperties->pMetadatas[i];
       std::string mdName(mdNode.pName);
       auto [Prefix, Tag] = splitMetadataName(mdName);
-      if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
-        native_cpu::ReqdWGSize_t reqdWGSize;
-        auto res = getReqdWGSize(mdNode, reqdWGSize);
+      if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE ||
+          Tag == __SYCL_UR_PROGRAM_METADATA_TAG_MAX_WORK_GROUP_SIZE) {
+        bool isReqd =
+            Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+        native_cpu::WGSize_t wgSizeProp;
+        auto res = deserializeWGMetadata(
+            mdNode, wgSizeProp,
+            isReqd ? 1 : std::numeric_limits<std::uint32_t>::max());
         if (res != UR_RESULT_SUCCESS) {
           return res;
         }
-        hProgram->KernelReqdWorkGroupSizeMD[Prefix] = std::move(reqdWGSize);
+        (isReqd ? hProgram->KernelReqdWorkGroupSizeMD
+                : hProgram->KernelMaxWorkGroupSizeMD)[Prefix] =
+            std::move(wgSizeProp);
+      } else if (Tag ==
+                 __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
+        hProgram->KernelMaxLinearWorkGroupSizeMD[Prefix] = mdNode.value.data64;
       }
     }
   }

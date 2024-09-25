@@ -125,6 +125,30 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
         &Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE: {
+    size_t MaxGroupSize[3] = {0, 0, 0};
+    const auto &MaxWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxWorkGroupSizeMD;
+    const auto MaxWGSizeMD = MaxWGSizeMDMap.find(hKernel->getName());
+    if (MaxWGSizeMD != MaxWGSizeMDMap.end()) {
+      const auto MaxWGSize = MaxWGSizeMD->second;
+      MaxGroupSize[0] = std::get<0>(MaxWGSize);
+      MaxGroupSize[1] = std::get<1>(MaxWGSize);
+      MaxGroupSize[2] = std::get<2>(MaxWGSize);
+    }
+    return ReturnValue(MaxGroupSize, 3);
+  }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE: {
+    size_t MaxLinearGroupSize = 0;
+    const auto &MaxLinearWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxLinearWorkGroupSizeMD;
+    const auto MaxLinearWGSizeMD =
+        MaxLinearWGSizeMDMap.find(hKernel->getName());
+    if (MaxLinearWGSizeMD != MaxLinearWGSizeMDMap.end()) {
+      MaxLinearGroupSize = MaxLinearWGSizeMD->second;
+    }
+    return ReturnValue(MaxLinearGroupSize);
+  }
   default:
     break;
   }

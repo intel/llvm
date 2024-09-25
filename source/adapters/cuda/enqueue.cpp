@@ -203,6 +203,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
     // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext Active(Device);
     {
+      size_t *MaxThreadsPerBlock = Kernel->MaxThreadsPerBlock;
       size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
 
@@ -210,6 +211,10 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
         auto IsValid = [&](int Dim) {
           if (ReqdThreadsPerBlock[Dim] != 0 &&
               LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
+            return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+
+          if (MaxThreadsPerBlock[Dim] != 0 &&
+              LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 
           if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
@@ -233,6 +238,12 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
           // If no error then compute the total local work size as a product of
           // all dims.
           KernelLocalWorkGroupSize *= LocalWorkSize[Dim];
+        }
+
+        if (size_t MaxLinearThreadsPerBlock = Kernel->MaxLinearThreadsPerBlock;
+            MaxLinearThreadsPerBlock &&
+            MaxLinearThreadsPerBlock < KernelLocalWorkGroupSize) {
+          return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
         }
 
         if (hasExceededMaxRegistersPerBlock(Device, Kernel,
