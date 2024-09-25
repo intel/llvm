@@ -545,24 +545,61 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
     const void *pMem, size_t size, ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = pMem;
-  std::ignore = size;
   std::ignore = flags;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  if (pWaitEvents) {
+    ZE2UR_CALL(zeCommandListAppendBarrier, (handler->commandList.get(), nullptr,
+                                            numWaitEvents, pWaitEvents));
+  }
+  // TODO: figure out how to translate "flags"
+  ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
+             (handler->commandList.get(), pMem, size));
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (handler->commandList.get(), signalEvent));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
 ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
                                                 ur_usm_advice_flags_t advice,
                                                 ur_event_handle_t *phEvent) {
-  std::ignore = pMem;
-  std::ignore = size;
-  std::ignore = advice;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::ignore = flags;
+
+  auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
+
+  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0, handler);
+
+  if (pWaitEvents) {
+    ZE2UR_CALL(zeCommandListAppendBarrier, (handler->commandList.get(), nullptr,
+                                            numWaitEvents, pWaitEvents));
+  }
+
+  // TODO: figure out how to translate "flags"
+  ZE2UR_CALL(zeCommandListAppendMemAdvise,
+             (handler->commandList.get(), this->hDevice->ZeDevice, pMem, size,
+              zeAdvice));
+  ZE2UR_CALL(zeCommandListAppendSignalEvent,
+             (handler->commandList.get(), signalEvent));
+
+  lastHandler = handler;
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill2D(
