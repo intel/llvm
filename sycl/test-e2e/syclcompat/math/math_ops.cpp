@@ -43,9 +43,9 @@ void test_syclcompat_max() {
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  constexpr ValueT op1 = static_cast<ValueT>(5);
-  constexpr ValueU op2 = static_cast<ValueU>(10);
-  constexpr std::common_type_t<ValueT, ValueU> res = static_cast<ValueU>(10);
+  const ValueT op1 = static_cast<ValueT>(5);
+  const ValueU op2 = static_cast<ValueU>(10);
+  const std::common_type_t<ValueT, ValueU> res = static_cast<ValueU>(10);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<max_kernel<ValueT, ValueU>>(op1, op2, res);
@@ -63,9 +63,9 @@ void test_syclcompat_min() {
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  constexpr ValueT op1 = static_cast<ValueT>(5);
-  constexpr ValueU op2 = static_cast<ValueU>(10);
-  constexpr std::common_type_t<ValueT, ValueU> res =
+  const ValueT op1 = static_cast<ValueT>(5);
+  const ValueU op2 = static_cast<ValueU>(10);
+  const std::common_type_t<ValueT, ValueU> res =
       static_cast<std::common_type_t<ValueT, ValueU>>(5);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
@@ -84,11 +84,11 @@ void test_syclcompat_fmin_nan() {
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  constexpr ValueT op1 = static_cast<ValueT>(5);
-  constexpr ValueU op2 = static_cast<ValueU>(10);
+  const ValueT op1 = static_cast<ValueT>(5);
+  const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  constexpr std::common_type_t<ValueT, ValueU> res =
+  const std::common_type_t<ValueT, ValueU> res =
       static_cast<std::common_type_t<ValueT, ValueU>>(5);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
@@ -110,11 +110,11 @@ void test_syclcompat_fmax_nan() {
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  constexpr ValueT op1 = static_cast<ValueT>(5);
-  constexpr ValueU op2 = static_cast<ValueU>(10);
+  const ValueT op1 = static_cast<ValueT>(5);
+  const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  constexpr std::common_type_t<ValueT, ValueU> res =
+  const std::common_type_t<ValueT, ValueU> res =
       static_cast<std::common_type_t<ValueT, ValueU>>(10);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
@@ -146,9 +146,9 @@ void test_syclcompat_pow() {
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
   // 3 ** 3 = 27
-  constexpr ValueT op1 = static_cast<ValueT>(3);
-  constexpr ValueU op2 = static_cast<ValueU>(3);
-  constexpr ValueT res = static_cast<ValueT>(27);
+  const ValueT op1 = static_cast<ValueT>(3);
+  const ValueU op2 = static_cast<ValueU>(3);
+  const ValueT res = static_cast<ValueT>(27);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<pow_kernel<ValueT, ValueU>>(op1, op2, res);
@@ -165,25 +165,25 @@ template <typename ValueT> void test_syclcompat_relu() {
   constexpr syclcompat::dim3 threads{1};
 
   // relu(3) = 3, relu(-value) = 0
-  constexpr ValueT op1 = static_cast<ValueT>(3);
-  constexpr ValueT res1 = static_cast<ValueT>(3);
+  const ValueT op1 = static_cast<ValueT>(3);
+  const ValueT res1 = static_cast<ValueT>(3);
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<relu_kernel<ValueT>>(op1, res1);
 
-  constexpr ValueT op2 = static_cast<ValueT>(-3);
-  constexpr ValueT res2 = static_cast<ValueT>(0);
+  const ValueT op2 = static_cast<ValueT>(-3);
+  const ValueT res2 = static_cast<ValueT>(0);
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<relu_kernel<ValueT>>(op2, res2);
 
   using ValueU = sycl::vec<ValueT, 2>;
-  constexpr ValueU op3{op1, op2};
-  constexpr ValueU res3{res1, res2};
+  const ValueU op3{op1, op2};
+  const ValueU res3{res1, res2};
   UnaryOpTestLauncher<ValueU>(grid, threads)
       .template launch_test<relu_kernel<ValueU>>(op3, res3);
 
   using ValueV = sycl::marray<ValueT, 2>;
-  constexpr ValueV op4{op1, op2};
-  constexpr ValueV res4{res1, res2};
+  const ValueV op4{op1, op2};
+  const ValueV res4{res1, res2};
   UnaryOpTestLauncher<ValueV>(grid, threads)
       .template launch_test<relu_kernel<ValueV>>(op4, res4);
 }
@@ -198,13 +198,13 @@ template <typename ValueT> void test_syclcompat_cbrt() {
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
 
-  constexpr ValueT op1 = static_cast<ValueT>(1);
-  constexpr ValueT res1 = static_cast<ValueT>(1);
+  const ValueT op1 = static_cast<ValueT>(1);
+  const ValueT res1 = static_cast<ValueT>(1);
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<cbrt_kernel<ValueT>>(op1, res1);
 
-  constexpr ValueT op2 = static_cast<ValueT>(64);
-  constexpr ValueT res2 = static_cast<ValueT>(4);
+  const ValueT op2 = static_cast<ValueT>(64);
+  const ValueT res2 = static_cast<ValueT>(4);
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<cbrt_kernel<ValueT>>(op2, res2);
 }
