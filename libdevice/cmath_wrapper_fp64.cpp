@@ -395,7 +395,7 @@ short _Exp(double *px, double y,
   if (*px < -HUGE_EXP || y == 0.0) // certain underflow
     *px = 0.0;
   else if (HUGE_EXP < *px) { // certain overflow
-    *px = _Inf._Double;
+    *px = _Inf._Double * (y < 0.F ? -1.F : 1.F);
     ret = _INFCODE;
   } else { // xexp won't overflow
     double g = *px * invln2;
