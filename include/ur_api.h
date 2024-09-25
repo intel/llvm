@@ -506,7 +506,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_USM_SIZE = 64,                                    ///< Invalid USM size
     UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 65,                           ///< Objection allocation failure
     UR_RESULT_ERROR_ADAPTER_SPECIFIC = 66,                                    ///< An adapter specific warning/error has been reported and can be
-                                                                              ///< retrieved via the urPlatformGetLastError entry point.
+                                                                              ///< retrieved via the urAdapterGetLastError entry point.
     UR_RESULT_ERROR_LAYER_NOT_PRESENT = 67,                                   ///< A requested layer was not found by the loader.
     UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS = 68,                           ///< An event in the provided wait list has ::UR_EVENT_STATUS_ERROR.
     UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 69,                                ///< Device in question has `::UR_DEVICE_INFO_AVAILABLE == false`
