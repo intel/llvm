@@ -4862,6 +4862,10 @@ typedef enum ur_kernel_group_info_t {
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
                                                                  ///< work item in the Kernel
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE = 6,        ///< [size_t[3]] Return the maximum Work Group size guaranteed by the
+                                                                 ///< source code, or (0, 0, 0) if unspecified
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE = 7, ///< [size_t] Return the maximum linearized Work Group size (X * Y * Z)
+                                                                 ///< guaranteed by the source code, or 0 if unspecified
     /// @cond
     UR_KERNEL_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4965,7 +4969,7 @@ urKernelGetInfo(
 ///         + `NULL == hKernel`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName`
+///         + `::UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(
     ur_kernel_handle_t hKernel,      ///< [in] handle of the Kernel object

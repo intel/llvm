@@ -3504,7 +3504,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName) {
+        if (UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE <
+            propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
