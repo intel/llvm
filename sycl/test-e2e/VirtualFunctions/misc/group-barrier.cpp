@@ -1,6 +1,3 @@
-// FIXME: replace unsupported with an aspect check once we have it
-// UNSUPPORTED: cuda, hip, acc
-//
 // REQUIRES: aspect-usm_shared_allocations
 //
 // Fails with UR_RESULT_ERROR_PROGRAM_LINK_FAILURE. SPIR-V files produced by

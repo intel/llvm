@@ -1,6 +1,3 @@
-// FIXME: replace unsupported with an aspect check once we have it
-// UNSUPPORTED: cuda, hip, acc
-//
 // REQUIRES: aspect-usm_shared_allocations
 //
 // This test checks that virtual functions work correctly within simple range
