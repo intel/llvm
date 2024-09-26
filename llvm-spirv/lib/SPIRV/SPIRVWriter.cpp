@@ -4604,15 +4604,16 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ true,
                                       spv::internal::LinkageTypeInternal, Init,
                                       "", StorageClassUniformConstant, nullptr);
+    std::vector<SPIRVWord> MemAccess = GetMemoryAccess(
+        MSI, BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4));
+    if (!MemAccess.empty() && MemAccess[0] == MemoryAccessAlignedMask)
+      Var->setAlignment(MemAccess[1]);
     SPIRVType *SourceTy =
         transPointerType(Val->getType(), SPIRV::SPIRAS_Constant);
     SPIRVValue *Source = BM->addUnaryInst(OpBitcast, SourceTy, Var, BB);
     SPIRVValue *Target = transValue(MSI->getRawDest(), BB);
-    return BM->addCopyMemorySizedInst(
-        Target, Source, CompositeTy->getLength(),
-        GetMemoryAccess(MSI,
-                        BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4)),
-        BB);
+    return BM->addCopyMemorySizedInst(Target, Source, CompositeTy->getLength(),
+                                      MemAccess, BB);
   } break;
   case Intrinsic::memcpy:
     return BM->addCopyMemorySizedInst(
