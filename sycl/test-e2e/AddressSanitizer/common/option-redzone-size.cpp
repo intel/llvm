@@ -21,7 +21,7 @@ int main() {
    }).wait();
   // CHECK: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
   // CHECK: {{READ of size 1 at kernel <.*Test> LID\(0, 0, 0\) GID\(0, 0, 0\)}}
-  // CHECK: {{  #0 .* .*config-red-zone-size.cpp:}}[[@LINE-7]]
+  // CHECK: {{  #0 .* .*option-red-zone-size.cpp:}}[[@LINE-7]]
   // CHECK-MIN: Trying to set redzone size to a value less than 16 is ignored
   // CHECK-MAX: Trying to set max redzone size to a value greater than 2048 is ignored
 
