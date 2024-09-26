@@ -20,7 +20,6 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
@@ -43,4 +42,5 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: range.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-EMPTY:

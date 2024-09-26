@@ -65,7 +65,6 @@
 // CHECK-NEXT: CL/cl_platform.h
 // CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
@@ -82,6 +81,7 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: range.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
