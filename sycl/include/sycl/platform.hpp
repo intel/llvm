@@ -15,12 +15,12 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <ur_api.h>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -194,6 +194,11 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
+  /// Returns all unsupported (non-SYCL) platforms in the system.
+  ///
+  /// \return a vector of all unsupported non-SYCL platforms.
+  static std::vector<platform> get_unsupported_platforms();
+
   /// Returns the backend associated with this platform.
   ///
   /// \return the backend associated with this platform
@@ -231,7 +236,7 @@ public:
   std::vector<device> ext_oneapi_get_composite_devices() const;
 
 private:
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   std::shared_ptr<detail::platform_impl> impl;
   platform(std::shared_ptr<detail::platform_impl> impl) : impl(impl) {}
@@ -241,7 +246,8 @@ private:
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)

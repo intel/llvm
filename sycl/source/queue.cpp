@@ -12,7 +12,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 
@@ -65,7 +64,8 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
   impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
+      // TODO(pi2ur): Don't cast straight from cl_command_queue
+      reinterpret_cast<ur_queue_handle_t>(clQueue),
       detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
 }
 
@@ -140,23 +140,18 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                       /*CallerNeedsEvent=*/true, CodeLoc);
 }
 
-event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
-                        const detail::code_location &CodeLoc) {
-  detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return mem_advise(Ptr, Length, int(Advice));
-}
-
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {},
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice), {},
                           /*CallerNeedsEvent=*/true);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         event DepEvent, const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), {DepEvent},
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice),
+                          {DepEvent},
                           /*CallerNeedsEvent=*/true);
 }
 
@@ -164,7 +159,8 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents,
+  return impl->mem_advise(impl, Ptr, Length, ur_usm_advice_flags_t(Advice),
+                          DepEvents,
                           /*CallerNeedsEvent=*/true);
 }
 
@@ -300,7 +296,7 @@ bool queue::ext_oneapi_empty() const { return impl->ext_oneapi_empty(); }
 
 void queue::ext_oneapi_prod() { impl->flush(); }
 
-pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
+ur_native_handle_t queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
 
@@ -327,10 +323,8 @@ bool queue::device_has(aspect Aspect) const {
   return impl->getDeviceImplPtr()->has(Aspect);
 }
 
-bool queue::ext_codeplay_supports_fusion() const {
-  return has_property<
-      ext::codeplay::experimental::property::queue::enable_fusion>();
-}
+// TODO(#15184) Remove this function in the next ABI-breaking window.
+bool queue::ext_codeplay_supports_fusion() const { return false; }
 
 event queue::ext_oneapi_get_last_event() const {
   if (!is_in_order())

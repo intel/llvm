@@ -42,6 +42,15 @@ int main() {
   static_assert(is_property_key<sub_group_size_key>::value);
   static_assert(is_property_key<device_has_key>::value);
 
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                work_group_size_key::value_t<1>>::value);
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                work_group_size_hint_key::value_t<1>>::value);
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                sub_group_size_key::value_t<28>>::value);
+  static_assert(sycl::ext::oneapi::experimental::detail::HasCompileTimeEffect<
+                device_has_key::value_t<aspect::fp64>>::value);
+
   static_assert(is_property_value<decltype(work_group_size<1>)>::value);
   static_assert(is_property_value<decltype(work_group_size<2, 2>)>::value);
   static_assert(is_property_value<decltype(work_group_size<3, 3, 3>)>::value);
@@ -50,6 +59,12 @@ int main() {
   static_assert(
       is_property_value<decltype(work_group_size_hint<6, 6, 6>)>::value);
   static_assert(is_property_value<decltype(sub_group_size<7>)>::value);
+  static_assert(is_property_value<decltype(max_work_group_size<8>)>::value);
+  static_assert(is_property_value<decltype(max_work_group_size<8, 8>)>::value);
+  static_assert(
+      is_property_value<decltype(max_work_group_size<8, 8, 8>)>::value);
+  static_assert(
+      is_property_value<decltype(max_linear_work_group_size<8>)>::value);
 
   static_assert(
       std::is_same_v<work_group_size_key, decltype(work_group_size<8>)::key_t>);
@@ -66,6 +81,16 @@ int main() {
                      decltype(work_group_size_hint<13, 13, 13>)::key_t>);
   static_assert(
       std::is_same_v<sub_group_size_key, decltype(sub_group_size<14>)::key_t>);
+  static_assert(std::is_same_v<max_work_group_size_key,
+                               decltype(max_work_group_size<14>)::key_t>);
+  static_assert(std::is_same_v<max_work_group_size_key,
+                               decltype(max_work_group_size<14, 14>)::key_t>);
+  static_assert(
+      std::is_same_v<max_work_group_size_key,
+                     decltype(max_work_group_size<14, 14, 14>)::key_t>);
+  static_assert(
+      std::is_same_v<max_linear_work_group_size_key,
+                     decltype(max_linear_work_group_size<14>)::key_t>);
 
   static_assert(work_group_size<15>[0] == 15);
   static_assert(work_group_size<16, 17>[0] == 16);
@@ -80,6 +105,13 @@ int main() {
   static_assert(work_group_size_hint<24, 25, 26>[1] == 25);
   static_assert(work_group_size_hint<24, 25, 26>[2] == 26);
   static_assert(sub_group_size<27>.value == 27);
+  static_assert(max_work_group_size<28>[0] == 28);
+  static_assert(max_work_group_size<28, 29>[0] == 28);
+  static_assert(max_work_group_size<28, 29>[1] == 29);
+  static_assert(max_work_group_size<28, 29, 30>[0] == 28);
+  static_assert(max_work_group_size<28, 29, 30>[1] == 29);
+  static_assert(max_work_group_size<28, 29, 30>[2] == 30);
+  static_assert(max_linear_work_group_size<28>.value == 28);
 
   static_assert(std::is_same_v<decltype(sub_group_size<28>)::value_t,
                                std::integral_constant<uint32_t, 28>>);

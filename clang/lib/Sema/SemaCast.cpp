@@ -272,8 +272,6 @@ static TryCastResult TryAddressSpaceCast(Sema &Self, ExprResult &SrcExpr,
                                          unsigned &msg, CastKind &Kind,
                                          SourceRange OpRange = SourceRange());
 
-/// ActOnCXXNamedCast - Parse
-/// {dynamic,static,reinterpret,const,addrspace}_cast's.
 ExprResult
 Sema::ActOnCXXNamedCast(SourceLocation OpLoc, tok::TokenKind Kind,
                         SourceLocation LAngleBracketLoc, Declarator &D,
@@ -2694,7 +2692,7 @@ void CastOperation::checkAddressSpaceCast(QualType SrcType, QualType DestType) {
               ? DestPPointee.getAddressSpace() != SrcPPointee.getAddressSpace()
               : !DestPPointee.isAddressSpaceOverlapping(SrcPPointee)) {
         Self.Diag(OpRange.getBegin(), DiagID)
-            << SrcType << DestType << Sema::AA_Casting
+            << SrcType << DestType << AssignmentAction::Casting
             << SrcExpr.get()->getSourceRange();
         if (!Nested)
           SrcExpr = ExprError();
@@ -3234,7 +3232,7 @@ void CastOperation::CheckCStyleCast() {
             !CastQuals.compatiblyIncludesObjCLifetime(ExprQuals)) {
           Self.Diag(SrcExpr.get()->getBeginLoc(),
                     diag::err_typecheck_incompatible_ownership)
-              << SrcType << DestType << Sema::AA_Casting
+              << SrcType << DestType << AssignmentAction::Casting
               << SrcExpr.get()->getSourceRange();
           return;
         }

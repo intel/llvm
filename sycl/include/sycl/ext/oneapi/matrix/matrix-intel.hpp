@@ -115,8 +115,13 @@ public:
 
   inline __SYCL_ALWAYS_INLINE std::tuple<size_t, size_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+#else
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     const size_t row = coord[0];
     const size_t col = coord[1];
     return std::make_tuple(row, col);
@@ -128,12 +133,20 @@ public:
 
   operator storage_element_type() {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     storage_element_type elem =
         __spirv_VectorExtractDynamic<storage_element_type, T, NumRows, NumCols,
                                      spv_matrix_use_traits<Use>::value,
                                      spv_matrix_layout_traits<Layout>::value,
                                      spv_scope_traits<Group>::value>(M.spvm,
                                                                      idx);
+#else
+    storage_element_type *ExtractP =
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    storage_element_type elem = *ExtractP;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     return elem;
 #else
     throw exception(make_error_code(errc::runtime),
@@ -143,12 +156,20 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     return __spirv_VectorExtractDynamic<storage_element_type, T, NumRows,
                                         NumCols,
                                         spv_matrix_use_traits<Use>::value,
                                         spv_matrix_layout_traits<Layout>::value,
                                         spv_scope_traits<Group>::value>(
                M.spvm, idx) != static_cast<storage_element_type>(0);
+#else
+    storage_element_type *ExtractP =
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    return *ExtractP != static_cast<storage_element_type>(0);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
@@ -157,8 +178,16 @@ public:
 
   template <typename T2> wi_element &operator=(const T2 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm, static_cast<storage_element_type>(rhs), idx);
+#else
+    storage_element_type *InsertP =
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = static_cast<storage_element_type>(rhs);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     return *this;
 #else
     (void)rhs;
@@ -170,6 +199,7 @@ public:
   wi_element &
   operator=(const wi_element<T, NumRows, NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm,
         __spirv_VectorExtractDynamic<storage_element_type, T, NumRows, NumCols,
@@ -178,6 +208,18 @@ public:
                                      spv_scope_traits<Group>::value>(rhs.M.spvm,
                                                                      rhs.idx),
         idx);
+#else
+    storage_element_type *ExtractP =
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&rhs.M.spvm,
+                                                            rhs.idx);
+    storage_element_type *InsertP =
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = *ExtractP;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     return *this;
 #else
     (void)rhs;
@@ -187,6 +229,7 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
@@ -201,6 +244,22 @@ public:
         idx);                                                                  \
     return *this;                                                              \
   }
+#else // __SPIRV_USE_COOPERATIVE_MATRIX
+#define OP(op)                                                                 \
+  template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
+    storage_element_type *ExtractP =                                           \
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,         \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
+                                                            rhs.idx);          \
+    storage_element_type *InsertP =                                            \
+        __spirv_AccessChain<storage_element_type, T, NumRows, NumCols,         \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);     \
+    *InsertP = *ExtractP op static_cast<storage_element_type>(rhs);            \
+    return *this;                                                              \
+  }
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else // __SYCL_DEVICE_ONLY__
 #define OP(op)                                                                 \
   template <typename T2> wi_element &operator op##=(const T2 & rhs) {          \
@@ -235,8 +294,13 @@ public:
 
   inline __SYCL_ALWAYS_INLINE std::tuple<uint32_t, uint32_t> get_coord() {
 #if defined(__SYCL_DEVICE_ONLY__)
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+#else
+    __ocl_vec_t<uint32_t, 2> coord =
+        __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     const uint32_t row = coord[0];
     const uint32_t col = coord[1];
     return std::make_tuple(row, col);
@@ -248,11 +312,20 @@ public:
 
   operator sycl::ext::oneapi::bfloat16() {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     return __spirv_VectorExtractDynamic<
         sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16, NumRows,
         NumCols, spv_matrix_use_traits<Use>::value,
         spv_matrix_layout_traits<Layout>::value,
         spv_scope_traits<Group>::value>(M.spvm, idx);
+#else
+    sycl::ext::oneapi::bfloat16 *ExtractP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    return *ExtractP;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
@@ -261,6 +334,7 @@ public:
 
   explicit operator bool() {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     return sycl::fabs(static_cast<float>(
                __spirv_VectorExtractDynamic<
                    sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16,
@@ -269,6 +343,16 @@ public:
                    spv_scope_traits<Group>::value>(M.spvm, idx))) >=
            std::numeric_limits<float>::epsilon();
 #else
+    sycl::ext::oneapi::bfloat16 *ExtractP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    sycl::ext::oneapi::bfloat16 Elem = *ExtractP;
+    return sycl::fabs(static_cast<float>(Elem)) >=
+           std::numeric_limits<float>::epsilon();
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
+#else
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
@@ -276,7 +360,16 @@ public:
 
   wi_element &operator=(const sycl::ext::oneapi::bfloat16 &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     M.spvm = __spirv_VectorInsertDynamic(M.spvm, rhs, idx);
+#else
+    sycl::ext::oneapi::bfloat16 *InsertP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = rhs;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
     return *this;
 #else
     (void)rhs;
@@ -288,6 +381,7 @@ public:
   wi_element &operator=(const wi_element<sycl::ext::oneapi::bfloat16, NumRows,
                                          NumCols, Use, Layout, Group> &rhs) {
 #ifdef __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     M.spvm = __spirv_VectorInsertDynamic(
         M.spvm,
         __spirv_VectorExtractDynamic<sycl::ext::oneapi::bfloat16,
@@ -299,6 +393,21 @@ public:
         idx);
     return *this;
 #else
+    sycl::ext::oneapi::bfloat16 *ExtractP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&rhs.M.spvm,
+                                                            rhs.idx);
+    sycl::ext::oneapi::bfloat16 *InsertP =
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,
+                            spv_matrix_use_traits<Use>::value,
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);
+    *InsertP = *ExtractP;
+    return *this;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
+#else
     (void)rhs;
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
@@ -306,6 +415,7 @@ public:
   }
 
 #if __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
 #define OP(opassign, op)                                                       \
   wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
     M.spvm = __spirv_VectorInsertDynamic(                                      \
@@ -318,6 +428,23 @@ public:
         idx);                                                                  \
     return *this;                                                              \
   }
+#else
+#define OP(opassign, op)                                                       \
+  wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
+    sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);     \
+    sycl::ext::oneapi::bfloat16 *InsertP =                                     \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&M.spvm, idx);     \
+    *InsertP = *ExtractP op rhs;                                               \
+    return *this;                                                              \
+  }
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else // __SYCL_DEVICE_ONLY__
 #define OP(opassign, op)                                                       \
   wi_element &operator opassign(const sycl::ext::oneapi::bfloat16 & rhs) {     \
@@ -333,6 +460,7 @@ public:
 #undef OP
 
 #if __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
@@ -354,11 +482,39 @@ public:
         spv_matrix_layout_traits<Layout>::value,                               \
         spv_scope_traits<Group>::value>(rhs.M.spvm, rhs.idx) op lhs;           \
   }
+#else
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &lhs,                                    \
+      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
+    sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&lhs.M.spvm,       \
+                                                            lhs.idx);          \
+    return *ExtractP op rhs;                                                   \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const sycl::ext::oneapi::bfloat16 &lhs,                                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &rhs) {                                  \
+    sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
+                                                            rhs.idx);          \
+    return *ExtractP op lhs;                                                   \
+  }
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
   OP(sycl::ext::oneapi::bfloat16, +)
   OP(sycl::ext::oneapi::bfloat16, -)
   OP(sycl::ext::oneapi::bfloat16, *)
   OP(sycl::ext::oneapi::bfloat16, /)
 #undef OP
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
 #define OP(type, op)                                                           \
   friend type operator op(                                                     \
       const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
@@ -384,6 +540,33 @@ public:
             spv_scope_traits<Group>::value>(rhs.M.spvm, rhs.idx))              \
                     op static_cast<float>(lhs)};                               \
   }
+#else
+#define OP(type, op)                                                           \
+  friend type operator op(                                                     \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &lhs,                                    \
+      const sycl::ext::oneapi::bfloat16 &rhs) {                                \
+    sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&lhs.M.spvm,       \
+                                                            lhs.idx);          \
+    return type{static_cast<float>(*ExtractP) op static_cast<float>(rhs)};     \
+  }                                                                            \
+  friend type operator op(                                                     \
+      const sycl::ext::oneapi::bfloat16 &lhs,                                  \
+      const wi_element<sycl::ext::oneapi::bfloat16, NumRows, NumCols, Use,     \
+                       Layout, Group> &rhs) {                                  \
+    sycl::ext::oneapi::bfloat16 *ExtractP =                                    \
+        __spirv_AccessChain<sycl::ext::oneapi::bfloat16,                       \
+                            sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
+                            spv_matrix_use_traits<Use>::value,                 \
+                            spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
+                                                            rhs.idx);          \
+    return type{static_cast<float>(*ExtractP) op static_cast<float>(lhs)};     \
+  }
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
   OP(bool, ==)
   OP(bool, !=)
   OP(bool, <)
@@ -448,7 +631,11 @@ class wi_data {
 public:
   size_t length() {
 #if __SYCL_DEVICE_ONLY__
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
     return __spirv_JointMatrixWorkItemLengthINTEL(jm.spvm);
+#else
+    return __spirv_CooperativeMatrixLengthKHR(jm.spvm);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #else
     throw exception(make_error_code(errc::runtime),
                     "joint matrix is not supported on host.");
@@ -503,6 +690,7 @@ joint_matrix_store(Group,
   // intel's impl
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(dst);
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   __spirv_JointMatrixStoreINTEL<DecorT, Tp, NumRows, NumCols,
                                 sycl::ext::oneapi::experimental::matrix::
                                     spv_matrix_use_traits<Use>::value,
@@ -512,6 +700,18 @@ joint_matrix_store(Group,
       sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
           Layout>::value,
       sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
+#else
+  __spirv_CooperativeMatrixStoreKHR<
+      DecorT, Tp, NumRows, NumCols,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_use_traits<
+          Use>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value>(
+      Ptr, src.spvm,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = src;
@@ -548,6 +748,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
 #else
   // intel's impl
   T *Ptr = dst.get();
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
   __spirv_JointMatrixStoreINTEL<T, Tp, NumRows, NumCols,
                                 sycl::ext::oneapi::experimental::matrix::
                                     spv_matrix_use_traits<Use>::value,
@@ -557,6 +758,18 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
       sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
           Layout>::value,
       sycl::ext::oneapi::experimental::matrix::spv_scope_traits<Group>::value);
+#else
+  __spirv_CooperativeMatrixStoreKHR<
+      T, Tp, NumRows, NumCols,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_use_traits<
+          Use>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value>(
+      Ptr, src.spvm,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      stride);
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
   std::ignore = src;

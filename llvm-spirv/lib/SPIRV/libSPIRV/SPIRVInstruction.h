@@ -702,6 +702,8 @@ _SPIRV_OP(ISubBorrow)
 _SPIRV_OP(FSub)
 _SPIRV_OP(IMul)
 _SPIRV_OP(FMul)
+_SPIRV_OP(SMulExtended)
+_SPIRV_OP(UMulExtended)
 _SPIRV_OP(UDiv)
 _SPIRV_OP(SDiv)
 _SPIRV_OP(FDiv)
@@ -975,6 +977,9 @@ protected:
       ResTy = Type;
     }
     assert(isCmpOpCode(OpCode) && "Invalid op code for cmp inst");
+    if (OpCode == OpLessOrGreater)
+      assert(this->getModule()->getSPIRVVersion() <= VersionNumber::SPIRV_1_5 &&
+             "OpLessOrGreater is removed starting from SPIR-V 1.6");
     assert((ResTy->isTypeBool() || ResTy->isTypeInt()) &&
            "Invalid type for compare instruction");
     assert(Op1Ty == Op2Ty && "Inconsistent types");
@@ -2793,6 +2798,12 @@ public:
     SPIRVInstTemplateBase::setOpWords(TheOps);
     for (auto RC : getRequiredCapability())
       Module->addCapability(RC);
+  }
+
+  void validate() const override {
+    if (OpCode == OpAtomicCompareExchangeWeak)
+      assert(this->getModule()->getSPIRVVersion() < VersionNumber::SPIRV_1_4 &&
+             "OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4");
   }
 };
 

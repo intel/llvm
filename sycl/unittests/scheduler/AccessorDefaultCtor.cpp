@@ -2,17 +2,17 @@
 #include "SchedulerTestUtils.hpp"
 #include <detail/handler_impl.hpp>
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <vector>
 
 using namespace sycl;
 
 TEST_F(SchedulerTest, AccDefaultCtorDoesntAffectDepGraph) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
 
   queue QueueDev(context(Plt), default_selector_v);
   MockScheduler MS;

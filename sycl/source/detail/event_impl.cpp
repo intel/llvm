@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/event_info.hpp>
-#include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/context.hpp>
@@ -44,27 +44,29 @@ void event_impl::initContextIfNeeded() {
 
 event_impl::~event_impl() {
   try {
-    if (MEvent)
-      getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
+    auto Handle = this->getHandle();
+    if (Handle)
+      getAdapter()->call<UrApiKind::urEventRelease>(Handle);
   } catch (std::exception &e) {
     __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~event_impl", e);
   }
 }
 
 void event_impl::waitInternal(bool *Success) {
-  if (!MIsHostEvent && MEvent) {
+  auto Handle = this->getHandle();
+  if (!MIsHostEvent && Handle) {
     // Wait for the native event
-    sycl::detail::pi::PiResult Err =
-        getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
-    // TODO drop the PI_ERROR_UKNOWN from here once the UR counterpart to
-    // PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST is added:
-    // https://github.com/oneapi-src/unified-runtime/issues/1459
+    ur_result_t Err =
+        getAdapter()->call_nocheck<UrApiKind::urEventWait>(1, &Handle);
+    // TODO drop the UR_RESULT_ERROR_UKNOWN from here (this was waiting for
+    // https://github.com/oneapi-src/unified-runtime/issues/1459 which is now
+    // closed).
     if (Success != nullptr &&
-        (Err == PI_ERROR_UNKNOWN ||
-         Err == PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST))
+        (Err == UR_RESULT_ERROR_UNKNOWN ||
+         Err == UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS))
       *Success = false;
     else {
-      getPlugin()->checkPiResult(Err);
+      getAdapter()->checkUrResult(Err);
       if (Success != nullptr)
         *Success = true;
     }
@@ -82,10 +84,15 @@ void event_impl::waitInternal(bool *Success) {
   // Wait for connected events(e.g. streams prints)
   for (const EventImplPtr &Event : MPostCompleteEvents)
     Event->wait(Event);
+  for (const std::weak_ptr<event_impl> &WeakEventPtr :
+       MWeakPostCompleteEvents) {
+    if (EventImplPtr Event = WeakEventPtr.lock())
+      Event->wait(Event);
+  }
 }
 
 void event_impl::setComplete() {
-  if (MIsHostEvent || !MEvent) {
+  if (MIsHostEvent || !this->getHandle()) {
     {
       std::unique_lock<std::mutex> lock(MMutex);
 #ifndef NDEBUG
@@ -112,19 +119,20 @@ static uint64_t inline getTimestamp() {
       .count();
 }
 
-const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
-  return MEvent;
+ur_event_handle_t event_impl::getHandle() const { return MEvent.load(); }
+
+void event_impl::setHandle(const ur_event_handle_t &UREvent) {
+  MEvent.store(UREvent);
 }
-sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   initContextIfNeeded();
   return MContext;
 }
 
-const PluginPtr &event_impl::getPlugin() {
+const AdapterPtr &event_impl::getAdapter() {
   initContextIfNeeded();
-  return MContext->getPlugin();
+  return MContext->getAdapter();
 }
 
 void event_impl::setStateIncomplete() { MState = HES_NotComplete; }
@@ -134,20 +142,20 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MContext = Context;
 }
 
-event_impl::event_impl(sycl::detail::pi::PiEvent Event,
-                       const context &SyclContext)
+event_impl::event_impl(ur_event_handle_t Event, const context &SyclContext)
     : MEvent(Event), MContext(detail::getSyclObjImpl(SyclContext)),
       MIsFlushed(true), MState(HES_Complete) {
 
-  sycl::detail::pi::PiContext TempContext;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+  ur_context_handle_t TempContext;
+  getAdapter()->call<UrApiKind::urEventGetInfo>(
+      this->getHandle(), UR_EVENT_INFO_CONTEXT, sizeof(ur_context_handle_t),
       &TempContext, nullptr);
+
   if (MContext->getHandleRef() != TempContext) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "The syclContext must match the OpenCL context "
                           "associated with the clEvent. " +
-                              codeToString(PI_ERROR_INVALID_CONTEXT));
+                              codeToString(UR_RESULT_ERROR_INVALID_CONTEXT));
   }
 }
 
@@ -161,9 +169,10 @@ event_impl::event_impl(const QueueImplPtr &Queue)
     MState.store(HES_NotComplete);
     MHostProfilingInfo.reset(new HostProfilingInfo());
     if (!MHostProfilingInfo)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                            "Out of host memory " +
-                                codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "Out of host memory " +
+              codeToString(UR_RESULT_ERROR_OUT_OF_HOST_MEMORY));
     return;
   }
   MState.store(HES_Complete);
@@ -176,15 +185,12 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
   if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
-  // Use a thread-safe counter to get a unique instance ID for the wait() on the
-  // event
-  static std::atomic<uint64_t> InstanceID = {1};
   xpti::trace_event_data_t *WaitEvent = nullptr;
 
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", this->getHandle());
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -193,11 +199,20 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
     Command *Cmd = (Command *)MCommand;
     WaitEvent = Cmd->MTraceEvent ? static_cast<xpti_td *>(Cmd->MTraceEvent)
                                  : GSYCLGraphEvent;
-  } else
-    WaitEvent = GSYCLGraphEvent;
-
+  } else {
+    // If queue.wait() is used, we want to make sure the information about the
+    // queue is available with the wait events. We check to see if the
+    // TraceEvent is available in the Queue object.
+    void *TraceEvent = nullptr;
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      TraceEvent = Queue->getTraceEvent();
+      WaitEvent =
+          (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
+    } else
+      WaitEvent = GSYCLGraphEvent;
+  }
   // Record the current instance ID for use by Epilog
-  IId = InstanceID++;
+  IId = xptiGetUniqueId();
   xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
@@ -241,9 +256,10 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
 #endif
 
-  if (MEvent)
-    // presence of MEvent means the command has been enqueued, so no need to
-    // go via the slow path event waiting in the scheduler
+  auto EventHandle = getHandle();
+  if (EventHandle)
+    // presence of the native handle means the command has been enqueued, so no
+    // need to go via the slow path event waiting in the scheduler
     waitInternal(Success);
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self, Success);
@@ -286,7 +302,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
     // For profiling tag events we rely on the submission time reported as
     // the start time has undefined behavior.
     return get_event_profiling_info<info::event_profiling::command_submit>(
-        this->getHandleRef(), this->getPlugin());
+        this->getHandle(), this->getAdapter());
   }
 
   // The delay between the submission and the actual start of a CommandBuffer
@@ -303,10 +319,11 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // made by forcing the re-sync of submit time to start time is less than
   // 0.5ms. These timing values were obtained empirically using an integrated
   // Intel GPU).
-  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && MEvent) {
+  auto Handle = this->getHandle();
+  if (MEventFromSubmittedExecCommandBuffer && !MIsHostEvent && Handle) {
     uint64_t StartTime =
         get_event_profiling_info<info::event_profiling::command_start>(
-            this->getHandleRef(), this->getPlugin());
+            Handle, this->getAdapter());
     if (StartTime < MSubmitTime)
       MSubmitTime = StartTime;
   }
@@ -318,16 +335,17 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MIsHostEvent) {
-    if (MEvent) {
+    auto Handle = getHandle();
+    if (Handle) {
       auto StartTime =
           get_event_profiling_info<info::event_profiling::command_start>(
-              this->getHandleRef(), this->getPlugin());
+              Handle, this->getAdapter());
       if (!MFallbackProfiling) {
         return StartTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                Handle, this->getAdapter());
         return MHostBaseTime - DeviceBaseTime + StartTime;
       }
     }
@@ -337,7 +355,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 
@@ -345,16 +363,17 @@ template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MIsHostEvent) {
-    if (MEvent) {
+    auto Handle = this->getHandle();
+    if (Handle) {
       auto EndTime =
           get_event_profiling_info<info::event_profiling::command_end>(
-              this->getHandleRef(), this->getPlugin());
+              Handle, this->getAdapter());
       if (!MFallbackProfiling) {
         return EndTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
-                this->getHandleRef(), this->getPlugin());
+                Handle, this->getAdapter());
         return MHostBaseTime - DeviceBaseTime + EndTime;
       }
     }
@@ -364,14 +383,15 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
-            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
+            codeToString(UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
-  if (!MIsHostEvent && MEvent) {
-    return get_event_info<info::event::reference_count>(this->getHandleRef(),
-                                                        this->getPlugin());
+  auto Handle = this->getHandle();
+  if (!MIsHostEvent && Handle) {
+    return get_event_info<info::event::reference_count>(Handle,
+                                                        this->getAdapter());
   }
   return 0;
 }
@@ -383,11 +403,12 @@ event_impl::get_info<info::event::command_execution_status>() {
     return info::event_command_status::ext_oneapi_unknown;
 
   if (!MIsHostEvent) {
-    // Command is enqueued and PiEvent is ready
-    if (MEvent)
+    // Command is enqueued and UrEvent is ready
+    auto Handle = this->getHandle();
+    if (Handle)
       return get_event_info<info::event::command_execution_status>(
-          this->getHandleRef(), this->getPlugin());
-    // Command is blocked and not enqueued, PiEvent is not assigned yet
+          Handle, this->getAdapter());
+    // Command is blocked and not enqueued, UrEvent is not assigned yet
     else if (MCommand)
       return sycl::info::event_command_status::submitted;
   }
@@ -457,21 +478,27 @@ void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
 
-pi_native_handle event_impl::getNative() {
+ur_native_handle_t event_impl::getNative() {
   if (isHost())
     return {};
   initContextIfNeeded();
 
-  auto Plugin = getPlugin();
-  if (MIsDefaultConstructed && !MEvent) {
+  auto Adapter = getAdapter();
+  auto Handle = getHandle();
+  if (MIsDefaultConstructed && !Handle) {
     auto TempContext = MContext.get()->getHandleRef();
-    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    ur_event_native_properties_t NativeProperties{};
+    ur_event_handle_t UREvent = nullptr;
+    Adapter->call<UrApiKind::urEventCreateWithNativeHandle>(
+        0, TempContext, &NativeProperties, &UREvent);
+    this->setHandle(UREvent);
+    Handle = UREvent;
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
-  pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
-  return Handle;
+    Adapter->call<UrApiKind::urEventRetain>(Handle);
+  ur_native_handle_t OutHandle;
+  Adapter->call<UrApiKind::urEventGetNativeHandle>(Handle, &OutHandle);
+  return OutHandle;
 }
 
 std::vector<EventImplPtr> event_impl::getWaitList() {
@@ -494,13 +521,14 @@ std::vector<EventImplPtr> event_impl::getWaitList() {
 
 void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
   // Some events might not have a native handle underneath even at this point,
-  // e.g. those produced by memset with 0 size (no PI call is made).
-  if (MIsFlushed || !MEvent)
+  // e.g. those produced by memset with 0 size (no UR call is made).
+  auto Handle = this->getHandle();
+  if (MIsFlushed || !Handle)
     return;
 
   QueueImplPtr Queue = MQueue.lock();
   // If the queue has been released, all of the commands have already been
-  // implicitly flushed by piQueueRelease.
+  // implicitly flushed by urQueueRelease.
   if (!Queue) {
     MIsFlushed = true;
     return;
@@ -509,12 +537,12 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
     return;
 
   // Check if the task for this event has already been submitted.
-  pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin()->call<PiApiKind::piEventGetInfo>(
-      MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
-      nullptr);
-  if (Status == PI_EVENT_QUEUED) {
-    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+  ur_event_status_t Status = UR_EVENT_STATUS_QUEUED;
+  getAdapter()->call<UrApiKind::urEventGetInfo>(
+      Handle, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(ur_event_status_t),
+      &Status, nullptr);
+  if (Status == UR_EVENT_STATUS_QUEUED) {
+    getAdapter()->call<UrApiKind::urQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }

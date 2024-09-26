@@ -12,7 +12,6 @@
 
 #include <sycl/aliases.hpp>             // for half
 #include <sycl/builtins.hpp>            // for min
-#include <sycl/detail/pi.h>             // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>           // for sycl_category, exception
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
 #include <sycl/ext/oneapi/properties/properties.hpp>
@@ -37,22 +36,22 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class group_algorithm_data_placement { blocked, striped };
+enum class group_algorithm_data_placement : std::uint8_t { blocked, striped };
 
 struct input_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::InputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<input_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      input_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 struct output_data_placement_key
     : detail::compile_time_property_key<detail::PropKind::OutputDataPlacement> {
   template <group_algorithm_data_placement Placement>
-  using value_t =
-      property_value<output_data_placement_key,
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+  using value_t = property_value<
+      output_data_placement_key,
+      std::integral_constant<group_algorithm_data_placement, Placement>>;
 };
 
 template <group_algorithm_data_placement Placement>
@@ -97,159 +96,8 @@ public:
   sycl::span<std::byte, Extent> get_memory() const { return scratch; }
 };
 
-// Default sorter provided by the first version of the extension specification.
-template <typename Compare = std::less<>> class default_sorter {
-  Compare comp;
-  sycl::span<std::byte> scratch;
-
-public:
-  template <size_t Extent>
-  default_sorter(sycl::span<std::byte, Extent> scratch_,
-                 Compare comp_ = Compare())
-      : comp(comp_), scratch(scratch_) {}
-
-  template <typename Group, typename Ptr>
-  void operator()([[maybe_unused]] Group g, [[maybe_unused]] Ptr first,
-                  [[maybe_unused]] Ptr last) {
-#ifdef __SYCL_DEVICE_ONLY__
-    using T = typename sycl::detail::GetValueType<Ptr>::type;
-    size_t n = std::distance(first, last);
-    T *scratch_begin = sycl::detail::align_scratch<T>(scratch, g, n);
-    sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter constructor is not supported on host device.");
-#endif
-  }
-
-  template <typename Group, typename T>
-  T operator()([[maybe_unused]] Group g, T val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    std::size_t local_id = g.get_local_linear_id();
-    auto range_size = g.get_local_range().size();
-    T *scratch_begin = sycl::detail::align_scratch<T>(
-        scratch, g, /* output storage and temporary storage */ 2 * range_size);
-    scratch_begin[local_id] = val;
-    sycl::detail::merge_sort(g, scratch_begin, range_size, comp,
-                             scratch_begin + range_size);
-    val = scratch_begin[local_id];
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter operator() is not supported on host device.");
-#endif
-    return val;
-  }
-
-  template <typename T>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
-    return range_size * sizeof(T) + alignof(T);
-  }
-
-  template <typename T, int dim = 1>
-  static constexpr size_t memory_required(sycl::memory_scope scope,
-                                          sycl::range<dim> r) {
-    return 2 * memory_required<T>(scope, r.size());
-  }
-};
-
 enum class sorting_order { ascending, descending };
 
-namespace detail {
-
-template <typename T, sorting_order = sorting_order::ascending>
-struct ConvertToComp {
-  using Type = std::less<T>;
-};
-
-template <typename T> struct ConvertToComp<T, sorting_order::descending> {
-  using Type = std::greater<T>;
-};
-} // namespace detail
-
-// Radix sorter provided by the first version of the extension specification.
-template <typename ValT, sorting_order OrderT = sorting_order::ascending,
-          unsigned int BitsPerPass = 4>
-class radix_sorter {
-
-  sycl::span<std::byte> scratch;
-  uint32_t first_bit = 0;
-  uint32_t last_bit = 0;
-
-  static constexpr uint32_t bits = BitsPerPass;
-  using bitset_t = std::bitset<sizeof(ValT) * CHAR_BIT>;
-
-public:
-  template <size_t Extent>
-  radix_sorter(sycl::span<std::byte, Extent> scratch_,
-               const bitset_t mask = bitset_t{}.set())
-      : scratch(scratch_) {
-    static_assert((std::is_arithmetic<ValT>::value ||
-                   std::is_same<ValT, sycl::half>::value ||
-                   std::is_same<ValT, sycl::ext::oneapi::bfloat16>::value),
-                  "radix sort is not usable");
-
-    for (first_bit = 0; first_bit < mask.size() && !mask[first_bit];
-         ++first_bit)
-      ;
-    for (last_bit = first_bit; last_bit < mask.size() && mask[last_bit];
-         ++last_bit)
-      ;
-  }
-
-  template <typename GroupT, typename PtrT>
-  void operator()([[maybe_unused]] GroupT g, [[maybe_unused]] PtrT first,
-                  [[maybe_unused]] PtrT last) {
-#ifdef __SYCL_DEVICE_ONLY__
-    sycl::detail::privateDynamicSort</*is_key_value=*/false,
-                                     OrderT == sorting_order::ascending,
-                                     /*empty*/ 1, BitsPerPass>(
-        g, first, /*empty*/ first, std::distance(first, last), scratch.data(),
-        first_bit, last_bit);
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
-#endif
-  }
-
-  template <typename GroupT>
-  ValT operator()([[maybe_unused]] GroupT g, [[maybe_unused]] ValT val) {
-#ifdef __SYCL_DEVICE_ONLY__
-    ValT result[]{val};
-    sycl::detail::privateStaticSort</*is_key_value=*/false,
-                                    /*is_input_blocked=*/true,
-                                    /*is_output_blocked=*/true,
-                                    OrderT == sorting_order::ascending,
-                                    /*items_per_work_item=*/1, bits>(
-        g, result, /*empty*/ result, scratch.data(), first_bit, last_bit);
-    return result[0];
-#else
-    throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
-#endif
-  }
-
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          size_t range_size) {
-    return range_size * sizeof(ValT) +
-           (1 << bits) * range_size * sizeof(uint32_t) + alignof(uint32_t);
-  }
-
-  // memory_helpers
-  template <int dimensions = 1>
-  static constexpr size_t memory_required(sycl::memory_scope,
-                                          sycl::range<dimensions> local_range) {
-    return (std::max)(local_range.size() * sizeof(ValT),
-                      local_range.size() * (1 << bits) * sizeof(uint32_t));
-  }
-};
-
-// Default sorters provided by the second version of the extension
-// specification.
 namespace default_sorters {
 
 template <typename CompareT = std::less<>> class joint_sorter {
@@ -272,8 +120,8 @@ public:
     sycl::detail::merge_sort(g, first, n, comp, scratch_begin);
 #else
     throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter constructor is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 
@@ -307,8 +155,8 @@ public:
     val = scratch_begin[local_id];
 #else
     throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "default_sorter operator() is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
     return val;
   }
@@ -468,7 +316,6 @@ public:
 };
 } // namespace default_sorters
 
-// Radix sorters provided by the second version of the extension specification.
 namespace radix_sorters {
 
 template <typename ValT, sorting_order OrderT = sorting_order::ascending,
@@ -511,8 +358,8 @@ public:
         first_bit, last_bit);
 #else
     throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 
@@ -566,8 +413,8 @@ public:
     return result[0];
 #else
     throw sycl::exception(
-        std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
-        "radix_sorter is not supported on host device.");
+        sycl::errc::feature_not_supported,
+        "default_sorter constructor is not supported on host.");
 #endif
   }
 

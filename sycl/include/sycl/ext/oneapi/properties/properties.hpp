@@ -283,8 +283,19 @@ struct ValueOrDefault<
   }
 };
 
-// all_props_are_keys_of
+// helper: check_all_props_are_keys_of
+template <typename SyclT> constexpr bool check_all_props_are_keys_of() {
+  return true;
+}
 
+template <typename SyclT, typename FirstProp, typename... RestProps>
+constexpr bool check_all_props_are_keys_of() {
+  return ext::oneapi::experimental::is_property_key_of<FirstProp,
+                                                       SyclT>::value &&
+         check_all_props_are_keys_of<SyclT, RestProps...>();
+}
+
+// all_props_are_keys_of
 template <typename SyclT, typename PropertiesT>
 struct all_props_are_keys_of : std::false_type {};
 
@@ -300,13 +311,10 @@ struct all_props_are_keys_of<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
 };
 
-template <typename SyclT, typename PropT, typename... PropTs>
+template <typename SyclT, typename... Props>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::detail::properties_t<PropT, PropTs...>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, ext::oneapi::experimental::detail::
-                                           properties_t<PropTs...>>::value> {};
+    SyclT, ext::oneapi::experimental::detail::properties_t<Props...>>
+    : std::bool_constant<check_all_props_are_keys_of<SyclT, Props...>()> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

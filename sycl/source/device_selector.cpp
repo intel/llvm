@@ -50,10 +50,11 @@ static int getDevicePreference(const device &Device) {
 static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
   bool shouldTrace = false;
   if (Chosen) {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
   } else {
-    shouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL);
+    shouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL);
   }
+
   if (shouldTrace) {
     std::string PlatformName = Device.get_info<info::device::platform>()
                                    .get_info<info::platform::name>();
@@ -61,11 +62,11 @@ static void traceDeviceSelection(const device &Device, int Score, bool Chosen) {
     auto selectionMsg = Chosen ? "Selected device: -> final score = "
                                : "Candidate device: -> score = ";
 
-    std::cout << "SYCL_PI_TRACE[all]: " << selectionMsg << Score
+    std::cout << "SYCL_UR_TRACE: " << selectionMsg << Score
               << ((Score < 0) ? " (REJECTED)" : "") << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  platform: " << PlatformName << std::endl
-              << "SYCL_PI_TRACE[all]: "
+              << "SYCL_UR_TRACE: "
               << "  device: " << DeviceName << std::endl;
   }
 }
@@ -167,10 +168,9 @@ select_device(const DSelectorInvocableType &DeviceSelectorInvocable,
 /// 4. Accelerator
 
 static void traceDeviceSelector(const std::string &DeviceType) {
-  bool ShouldTrace = false;
-  ShouldTrace = detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_BASIC);
+  bool ShouldTrace = detail::ur::trace(detail::ur::TraceLevel::TRACE_BASIC);
   if (ShouldTrace) {
-    std::cout << "SYCL_PI_TRACE[all]: Requested device_type: " << DeviceType
+    std::cout << "SYCL_UR_TRACE: Requested device_type: " << DeviceType
               << std::endl;
   }
 }

@@ -34,6 +34,16 @@ template <typename RangeT>
 constexpr bool is_range_or_nd_range_v = is_range_or_nd_range<RangeT>::value;
 
 template <typename LCRangeT, typename LCPropertiesT> struct LaunchConfigAccess;
+
+// Checks that none of the properties in the property list has compile-time
+// effects on the kernel.
+template <typename T>
+struct NoPropertyHasCompileTimeKernelEffect : std::false_type {};
+template <typename... Ts>
+struct NoPropertyHasCompileTimeKernelEffect<properties_t<Ts...>> {
+  static constexpr bool value =
+      !(HasCompileTimeEffect<Ts>::value || ... || false);
+};
 } // namespace detail
 
 // Available only when Range is range or nd_range
@@ -42,6 +52,11 @@ template <
     typename = std::enable_if_t<
         ext::oneapi::experimental::detail::is_range_or_nd_range_v<RangeT>>>
 class launch_config {
+  static_assert(ext::oneapi::experimental::detail::
+                    NoPropertyHasCompileTimeKernelEffect<PropertiesT>::value,
+                "launch_config does not allow properties with compile-time "
+                "kernel effects.");
+
 public:
   launch_config(RangeT Range, PropertiesT Properties = {})
       : MRange{Range}, MProperties{Properties} {}
@@ -187,7 +202,8 @@ void parallel_for(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>
@@ -263,7 +279,8 @@ void nd_launch(handler &CGH,
                                                         Properties>
       ConfigAccess(Config);
   CGH.set_args<ArgsT...>(std::forward<ArgsT>(Args)...);
-  CGH.parallel_for(ConfigAccess.getRange(), KernelObj);
+  sycl::detail::HandlerAccess::parallelForImpl(
+      CGH, ConfigAccess.getRange(), ConfigAccess.getProperties(), KernelObj);
 }
 
 template <int Dimensions, typename Properties, typename... ArgsT>

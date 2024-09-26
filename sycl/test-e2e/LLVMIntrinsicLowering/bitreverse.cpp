@@ -8,8 +8,9 @@
 // Ensure that SPV_KHR_bit_instructions is disabled so that translator
 // will lower llvm.bitreverse.* intrinsics instead of relying on SPIRV
 // BitReverse instruction.
-// Also build executable with SPV dump.
-// RUN: %{build} -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -fsycl-dump-device-code=%t.spvdir
+// Also build executable with SPV dump.  Use -fno-sycl-allow-device-image-dependencies to
+// ensure that only one SPV file is generated.
+// RUN: %{build} -Wno-error=psabi -Wno-error=constant-conversion -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -fsycl-dump-device-code=%t.spvdir -fno-sycl-allow-device-image-dependencies
 
 // Rename SPV file to explictly known filename.
 // RUN: mv %t.spvdir/*.spv %t.spvdir/dump.spv
@@ -26,7 +27,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Build without lowering explicitly disabled.
-// RUN: %{build} -o %t.bitinstructions.out
+// RUN: %{build} -Wno-error=psabi -Wno-error=constant-conversion -o %t.bitinstructions.out
 
 // Execution should still be correct.
 // RUN: %{run} %t.bitinstructions.out

@@ -25,20 +25,20 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedPiEvent DeviceGlobalUSMMem::getInitEvent(const PluginPtr &Plugin) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
   std::lock_guard<std::mutex> Lock(MInitEventMutex);
   // If there is a init event we can remove it if it is done.
   if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
-            *MInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call<PiApiKind::piEventRelease>(*MInitEvent);
+            *MInitEvent, Adapter) == info::event_command_status::complete) {
+      Adapter->call<UrApiKind::urEventRelease>(*MInitEvent);
       MInitEvent = {};
-      return OwnedPiEvent(Plugin);
+      return OwnedUrEvent(Adapter);
     } else {
-      return OwnedPiEvent(*MInitEvent, Plugin);
+      return OwnedUrEvent(*MInitEvent, Adapter);
     }
   }
-  return OwnedPiEvent(Plugin);
+  return OwnedUrEvent(Adapter);
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
@@ -69,19 +69,20 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
   // Initialize here and save the event.
   {
     std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
-    sycl::detail::pi::PiEvent InitEvent;
+    ur_event_handle_t InitEvent;
     // C++ guarantees members appear in memory in the order they are declared,
     // so since the member variable that contains the initial contents of the
     // device_global is right after the usm_ptr member variable we can do
     // some pointer arithmetic to memcopy over this value to the usm_ptr. This
     // value inside of the device_global will be zero-initialized if it was not
     // given a value on construction.
+
     MemoryManager::copy_usm(reinterpret_cast<const void *>(
                                 reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
                                 sizeof(MDeviceGlobalPtr)),
                             QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
-                            std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent, nullptr);
+                            std::vector<ur_event_handle_t>{}, &InitEvent,
+                            nullptr);
     NewAlloc.MInitEvent = InitEvent;
   }
 
@@ -99,7 +100,7 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
       if (USMMem.MInitEvent.has_value())
-        CtxImpl->getPlugin()->call<PiApiKind::piEventRelease>(
+        CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
             *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values

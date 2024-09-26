@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -20,11 +20,11 @@ public:
   //       default initialization, in case no devices are available before mock
   //       has been initialized.
   ContextTest()
-      : mock{}, deviceA{mock.getPlatform().get_devices().front()},
-        deviceB{mock.getPlatform().get_devices().back()} {}
+      : mock{}, deviceA{sycl::platform().get_devices().front()},
+        deviceB{sycl::platform().get_devices().back()} {}
 
 protected:
-  unittest::PiMock mock;
+  unittest::UrMock<> mock;
   device deviceA, deviceB;
 };
 

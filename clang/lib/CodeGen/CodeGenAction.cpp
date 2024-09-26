@@ -228,15 +228,10 @@ void BackendConsumer::HandleInterestingDecl(DeclGroupRef D) {
     HandleTopLevelDecl(D);
 }
 
-// Links each entry in LinkModules into our module.  Returns true on error.
-bool BackendConsumer::LinkInModules(llvm::Module *M, bool ShouldLinkFiles) {
+// Links each entry in LinkModules into our module. Returns true on error.
+bool BackendConsumer::LinkInModules(llvm::Module *M) {
   for (auto &LM : LinkModules) {
     assert(LM.Module && "LinkModule does not actually have a module");
-
-    // If ShouldLinkFiles is not set, skip files added via the
-    // -mlink-bitcode-files, only linking -mlink-builtin-bitcode
-    if (!LM.Internalize && !ShouldLinkFiles)
-      continue;
 
     if (LM.PropagateAttrs)
       for (Function &F : *LM.Module) {
@@ -384,7 +379,7 @@ void BackendConsumer::CompleteTentativeDefinition(VarDecl *D) {
   Gen->CompleteTentativeDefinition(D);
 }
 
-void BackendConsumer::CompleteExternalDeclaration(VarDecl *D) {
+void BackendConsumer::CompleteExternalDeclaration(DeclaratorDecl *D) {
   Gen->CompleteExternalDeclaration(D);
 }
 
@@ -806,6 +801,28 @@ void BackendConsumer::AspectMismatchDiagHandler(
   }
 }
 
+void BackendConsumer::SYCLIllegalVirtualCallDiagHandler(
+    const llvm::DiagnosticInfoIllegalVirtualCall &D) {
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain =
+      D.getCallChain();
+  auto &KI = CallChain.front();
+
+  SourceLocation LocCookie = SourceLocation::getFromRawEncoding(KI.second);
+  assert(LocCookie.isValid() &&
+         "Invalid location for kernel in illegal virtual call diagnostic");
+  Diags.Report(LocCookie, diag::err_sycl_illegal_virtual_call)
+      << llvm::demangle(KI.first.str());
+
+  for (size_t I = 1; I < CallChain.size(); ++I) {
+    auto &CalleeInfo = CallChain[I];
+    LocCookie = SourceLocation::getFromRawEncoding(CalleeInfo.second);
+    assert(LocCookie.isValid() &&
+           "Invalid location for callee in illegal virtual call diagnostic");
+    Diags.Report(LocCookie, diag::note_sycl_virtual_call_done_from)
+        << /* function */ 0 << llvm::demangle(CalleeInfo.first.str());
+  }
+}
+
 void BackendConsumer::MisExpectDiagHandler(
     const llvm::DiagnosticInfoMisExpect &D) {
   StringRef Filename;
@@ -910,6 +927,10 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
   case llvm::DK_AspectMismatch:
     AspectMismatchDiagHandler(cast<DiagnosticInfoAspectsMismatch>(DI));
     return;
+  case llvm::DK_SYCLIllegalVirtualCall:
+    SYCLIllegalVirtualCallDiagHandler(
+        cast<DiagnosticInfoIllegalVirtualCall>(DI));
+    return;
   default:
     // Plugin IDs are not bound to any value as they are set dynamically.
     ComputeDiagRemarkID(Severity, backend_plugin, DiagID);
@@ -998,9 +1019,10 @@ CodeGenerator *CodeGenAction::getCodeGenerator() const {
   return BEConsumer->getCodeGenerator();
 }
 
-bool CodeGenAction::BeginSourceFileAction(CompilerInstance &CI) {
+bool CodeGenAction::BeginInvocation(CompilerInstance &CI) {
   if (CI.getFrontendOpts().GenReducedBMI)
-    CI.getLangOpts().setCompilingModule(LangOptions::CMK_ModuleInterface);
+    return BeginInvocationForModules(CI);
+
   return true;
 }
 

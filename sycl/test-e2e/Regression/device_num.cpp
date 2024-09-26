@@ -5,9 +5,7 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:2" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
-
+#include "../helpers.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -76,7 +74,7 @@ void PrintSystemConfiguration() {
 
 using DevInfo = std::pair<info::device_type, backend>;
 using DevInfoMap = std::map<int, std::vector<DevInfo>>;
-bool ReadInitialSystemConfiguration(char *fileName, DevInfoMap &devices) {
+bool ReadInitialSystemConfiguration(const char *fileName, DevInfoMap &devices) {
   fstream confFile;
   confFile.open(fileName, ios::in);
   if (!confFile.is_open())
@@ -133,20 +131,21 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
 
 int main() {
   // Expected that the sycl device filter is not set
-  if (getenv("PRINT_FULL_DEVICE_INFO")) {
+  if (env::isDefined("PRINT_FULL_DEVICE_INFO")) {
     PrintSystemConfiguration();
     return 0;
   }
 
   DevInfoMap unfilteredDevices;
-  assert(ReadInitialSystemConfiguration(getenv("TEST_DEV_CONFIG_FILE_NAME"),
-                                        unfilteredDevices) &&
+  assert(ReadInitialSystemConfiguration(
+             env::getVal("TEST_DEV_CONFIG_FILE_NAME").c_str(),
+             unfilteredDevices) &&
          "Failed to parse file with initial system configuration data");
 
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   int deviceNum;
   std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
-  deviceNum = std::atoi(std::string(envVal).substr(2).c_str());
+  deviceNum = std::stoi(envVal.substr(2));
 
   auto devices = device::get_devices();
   std::cout << "Device count to analyze =" << devices.size() << std::endl;

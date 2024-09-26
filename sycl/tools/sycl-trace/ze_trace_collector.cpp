@@ -27,7 +27,7 @@ int IndentationLevel = 0;
 
 enum class ZEApiKind {
 #define _ZE_API(call, domain, cb, params_type) call,
-#include "../../plugins/level_zero/ze_api.def"
+#include "ze_api.def"
 #undef _ZE_API
 };
 

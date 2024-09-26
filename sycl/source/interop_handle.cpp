@@ -23,7 +23,8 @@ backend interop_handle::get_backend() const noexcept {
   return detail::getImplBackend(MQueue);
 }
 
-pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
+ur_native_handle_t
+interop_handle::getNativeMem(detail::Requirement *Req) const {
   auto Iter = std::find_if(std::begin(MMemObjs), std::end(MMemObjs),
                            [=](ReqToMem Elem) { return (Elem.first == Req); });
 
@@ -32,22 +33,22 @@ pi_native_handle interop_handle::getNativeMem(detail::Requirement *Req) const {
                     "Invalid memory object used inside interop");
   }
 
-  auto Plugin = MQueue->getPlugin();
-  pi_native_handle Handle;
-  Plugin->call<detail::PiApiKind::piextMemGetNativeHandle>(
+  auto Adapter = MQueue->getAdapter();
+  ur_native_handle_t Handle;
+  Adapter->call<detail::UrApiKind::urMemGetNativeHandle>(
       Iter->second, MDevice->getHandleRef(), &Handle);
   return Handle;
 }
 
-pi_native_handle interop_handle::getNativeDevice() const {
+ur_native_handle_t interop_handle::getNativeDevice() const {
   return MDevice->getNative();
 }
 
-pi_native_handle interop_handle::getNativeContext() const {
+ur_native_handle_t interop_handle::getNativeContext() const {
   return MContext->getNative();
 }
 
-pi_native_handle
+ur_native_handle_t
 interop_handle::getNativeQueue(int32_t &NativeHandleDesc) const {
   return MQueue->getNative(NativeHandleDesc);
 }

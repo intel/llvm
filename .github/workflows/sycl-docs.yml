@@ -1,4 +1,4 @@
-name: Generate Doxygen documentation
+name: Generate documentation
 
 on:
   schedule:
@@ -25,7 +25,7 @@ jobs:
         path: repo
     - name: Install deps
       run: |
-        sudo apt-get install -y doxygen graphviz ssh ninja-build
+        sudo apt-get install -y graphviz ssh ninja-build libhwloc-dev
         sudo pip3 install -r repo/llvm/docs/requirements.txt
     - name: Build Docs
       run: |
@@ -33,8 +33,6 @@ jobs:
         cd $GITHUB_WORKSPACE/build
         python $GITHUB_WORKSPACE/repo/buildbot/configure.py -w $GITHUB_WORKSPACE \
         -s $GITHUB_WORKSPACE/repo -o $GITHUB_WORKSPACE/build -t Release --docs
-        cmake --build . --target doxygen-sycl
-        cmake --build . --target doxygen-clang
         cmake --build . --target docs-sycl-html
         cmake --build . --target docs-clang-html
     - name: Deploy
@@ -52,9 +50,7 @@ jobs:
         git rm -rf .
         touch .nojekyll
         yes | \cp -rf $GITHUB_WORKSPACE/build/tools/sycl/doc/html/* .
-        mv $GITHUB_WORKSPACE/build/tools/sycl/doc/doxygen/html doxygen/
         mv $GITHUB_WORKSPACE/build/tools/clang/docs/html clang/
-        mv $GITHUB_WORKSPACE/build/tools/clang/docs/doxygen/html clang_doxygen/
         git config --global user.name "iclsrc"
         git config --global user.email "ia.compiler.tools.git@intel.com"
         git add .

@@ -130,8 +130,8 @@ image_plain::image_plain(cl_mem ClMemObject, const context &SyclContext,
 }
 #endif
 
-image_plain::image_plain(pi_native_handle MemObject, const context &SyclContext,
-                         event AvailableEvent,
+image_plain::image_plain(ur_native_handle_t MemObject,
+                         const context &SyclContext, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
                          uint8_t Dimensions, image_channel_order Order,
                          image_channel_type Type, bool OwnNativeHandle,

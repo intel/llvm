@@ -92,55 +92,53 @@
 // RUN:   | FileCheck %s -check-prefix=STATIC_LIB_SRC-CUDA
 // STATIC_LIB_SRC: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
-// STATIC_LIB_SRC: 2: append-footer, {1}, c++, (host-sycl)
-// STATIC_LIB_SRC: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
-// STATIC_LIB_SRC: 4: input, "[[INPUTC]]", c++, (device-sycl)
-// STATIC_LIB_SRC: 5: preprocessor, {4}, c++-cpp-output, (device-sycl)
-// STATIC_LIB_SRC: 6: compiler, {5}, ir, (device-sycl)
-// STATIC_LIB_SRC: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (spir64-unknown-unknown)" {6}, c++-cpp-output
-// STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
-// STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
-// STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
-// STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
-// STATIC_LIB_SRC: 13: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
-// STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
-// STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
-// STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
-// STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
+// STATIC_LIB_SRC: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// STATIC_LIB_SRC: 3: input, "[[INPUTC]]", c++, (device-sycl)
+// STATIC_LIB_SRC: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
+// STATIC_LIB_SRC: 5: compiler, {4}, ir, (device-sycl)
+// STATIC_LIB_SRC: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (spir64-unknown-unknown)" {5}, c++-cpp-output
+// STATIC_LIB_SRC: 7: compiler, {6}, ir, (host-sycl)
+// STATIC_LIB_SRC: 8: backend, {7}, assembler, (host-sycl)
+// STATIC_LIB_SRC: 9: assembler, {8}, object, (host-sycl)
+// STATIC_LIB_SRC: 10: linker, {0, 9}, host_dep_image, (host-sycl)
+// STATIC_LIB_SRC: 11: clang-offload-deps, {10}, ir, (host-sycl)
+// STATIC_LIB_SRC: 12: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC: 13: clang-offload-unbundler, {12}, tempfilelist
+// STATIC_LIB_SRC: 14: spirv-to-ir-wrapper, {13}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 15: linker, {5, 11, 14}, ir, (device-sycl)
+// STATIC_LIB_SRC: 16: sycl-post-link, {15}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 17: file-table-tform, {16}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 18: llvm-spirv, {17}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 19: file-table-tform, {16, 18}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 20: clang-offload-wrapper, {19}, object, (device-sycl)
+// STATIC_LIB_SRC: 21: offload, "device-sycl (spir64-unknown-unknown)" {20}, object
+// STATIC_LIB_SRC: 22: linker, {0, 9, 21}, image, (host-sycl)
 
 // STATIC_LIB_SRC-CUDA: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC-CUDA: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 2: append-footer, {1}, c++, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 3: preprocessor, {2}, c++-cpp-output, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 4: input, "[[INPUTC]]", c++, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 5: preprocessor, {4}, c++-cpp-output, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 6: compiler, {5}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {3}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {6}, c++-cpp-output
-// STATIC_LIB_SRC-CUDA: 8: compiler, {7}, ir, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 9: backend, {8}, assembler, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 10: assembler, {9}, object, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 11: linker, {0, 10}, host_dep_image, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 12: clang-offload-deps, {11}, ir, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 13: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC-CUDA: 14: clang-offload-unbundler, {13}, archive
-// STATIC_LIB_SRC-CUDA: 15: linker, {6, 12, 14}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: backend, {17}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: assembler, {18}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
-// STATIC_LIB_SRC-CUDA: 25: linker, {0, 10, 24}, image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 2: preprocessor, {1}, c++-cpp-output, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 3: input, "[[INPUTC]]", c++, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 6: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {5}, c++-cpp-output
+// STATIC_LIB_SRC-CUDA: 7: compiler, {6}, ir, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 8: backend, {7}, assembler, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 9: assembler, {8}, object, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 10: linker, {0, 9}, host_dep_image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 11: clang-offload-deps, {10}, ir, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 12: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC-CUDA: 13: clang-offload-unbundler, {12}, archive
+// STATIC_LIB_SRC-CUDA: 14: linker, {5, 11, 13}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 15: sycl-post-link, {14}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 16: file-table-tform, {15}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: backend, {16}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: assembler, {17}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: linker, {17, 18}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: foreach, {16, 19}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: file-table-tform, {15, 20}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: clang-offload-wrapper, {21}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {22}, object
+// STATIC_LIB_SRC-CUDA: 24: linker, {0, 9, 23}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -206,7 +204,7 @@
 // WHOLE_STATIC_LIB_NVPTX: clang-offload-bundler{{.*}} "-type=a" "-targets=[[BUNDLE_TRIPLE]]" "-input=[[INPUTB:.+\.a]]" "-output=[[OUTPUTB:.+\.a]]"
 // WHOLE_STATIC_LIB_NVPTX: llvm-link{{.*}} "[[OUTPUTA]]" "[[OUTPUTB]]"
 // WHOLE_STATIC_LIB: clang-offload-wrapper{{.*}}
-// WHOLE_STATIC_LIB: llc{{.*}}
+// WHOLE_STATIC_LIB: clang{{.*}} "-c"
 // WHOLE_STATIC_LIB_1: ld{{.*}} "--whole-archive" "[[INPUTA]]" "[[INPUTB]]" "--no-whole-archive"
 
 /// test behaviors for special case handling of -z and -rpath
@@ -241,5 +239,5 @@
 // STATIC_LIB_NOSRC-CUDA: llvm-foreach{{.*}}fatbin{{.*}} "--create" "[[OBJLIST:.+]]"{{.*}} "--image={{.*}}[[PTXLIST]]" "--image={{.*}}[[CUBINLIST]]"
 // STATIC_LIB_NOSRC: file-table-tform{{.*}} "-o" "[[TABLE1:.+\.table]]" "[[TABLE]]" "[[OBJLIST]]"
 // STATIC_LIB_NOSRC: clang-offload-wrapper{{.*}} "-o=[[BCFILE2:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}}"-target=[[TARGET]]" "-kind=sycl" "-batch" "[[TABLE1]]"
-// STATIC_LIB_NOSRC: llc{{.*}} "-filetype=obj" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"
+// STATIC_LIB_NOSRC: clang{{.*}} "-c" "-o" "[[FINALOBJ:.+\.o]]" "[[BCFILE2]]"
 // STATIC_LIB_NOSRC: ld{{.*}} "-L/dummy/dir" {{.*}} "{{.*}}_lib.{{(a|lo)}}" "[[FINALOBJ]]"

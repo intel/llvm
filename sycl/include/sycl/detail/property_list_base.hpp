@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
 #include <sycl/exception.hpp>
 

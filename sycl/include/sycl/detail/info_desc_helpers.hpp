@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for pi_device_info
+#include <ur_api.h>
 
 #include <type_traits> // for true_type
 
@@ -23,6 +23,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <typename T> struct PiInfoCode;
+template <typename T> struct UrInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
 template <typename T> struct is_context_info_desc : std::false_type {};
 template <typename T> struct is_device_info_desc : std::false_type {};
@@ -30,6 +31,8 @@ template <typename T> struct is_queue_info_desc : std::false_type {};
 template <typename T> struct is_kernel_info_desc : std::false_type {};
 template <typename T>
 struct is_kernel_device_specific_info_desc : std::false_type {};
+template <typename T>
+struct is_kernel_queue_specific_info_desc : std::false_type {};
 template <typename T> struct is_event_info_desc : std::false_type {};
 template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 // Normally we would just use std::enable_if to limit valid get_info template
@@ -43,9 +46,10 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 template <typename T> struct is_backend_info_desc : std::false_type {};
 // Similar approach to limit valid get_backend_info template argument
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr pi_##DescType##_info value = PiCode;                      \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
+    static constexpr ur_##DescType##_info_t value =                            \
+        static_cast<ur_##DescType##_info_t>(UrCode);                           \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -57,9 +61,10 @@ template <typename T> struct is_backend_info_desc : std::false_type {};
 #include <sycl/info/platform_traits.def>
 #include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr pi_profiling_info value = PiCode;                         \
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
+    static constexpr ur_profiling_info_t value = UrCode;                       \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -81,13 +86,19 @@ struct IsSubGroupInfo<info::kernel_device_specific::max_sub_group_size>
 template <>
 struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
     : std::true_type {};
+template <typename Param> struct IsKernelInfo : std::false_type {};
+template <>
+struct IsKernelInfo<info::kernel_device_specific::ext_codeplay_num_regs>
+    : std::true_type {};
 
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr                                                           \
-        typename std::conditional<IsSubGroupInfo<info::DescType::Desc>::value, \
-                                  pi_kernel_sub_group_info,                    \
-                                  pi_kernel_group_info>::type value = PiCode;  \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
+    static constexpr typename std::conditional<                                \
+        IsSubGroupInfo<info::DescType::Desc>::value,                           \
+        ur_kernel_sub_group_info_t,                                            \
+        std::conditional<IsKernelInfo<info::DescType::Desc>::value,            \
+                         ur_kernel_info_t,                                     \
+                         ur_kernel_group_info_t>::type>::type value = UrCode;  \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -95,12 +106,10 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   };
 #include <sycl/info/kernel_device_specific_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
-// Need a static_cast here since piDeviceGetInfo can also accept
-// pi_usm_capability_query values.
-#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template <> struct PiInfoCode<info::DescType::Desc> {                        \
-    static constexpr pi_device_info value =                                    \
-        static_cast<pi_device_info>(PiCode);                                   \
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, UrCode)              \
+  template <> struct UrInfoCode<info::DescType::Desc> {                        \
+    static constexpr ur_device_info_t value =                                  \
+        static_cast<ur_device_info_t>(UrCode);                                 \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
@@ -113,11 +122,10 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
-
-#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template <> struct PiInfoCode<Namespace::info::DescType::Desc> {             \
-    static constexpr pi_device_info value =                                    \
-        static_cast<pi_device_info>(PiCode);                                   \
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, UrCode)   \
+  template <> struct UrInfoCode<Namespace::info::DescType::Desc> {             \
+    static constexpr ur_device_info_t value =                                  \
+        static_cast<ur_device_info_t>(UrCode);                                 \
   };                                                                           \
   template <>                                                                  \
   struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
@@ -128,6 +136,16 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+
+#define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
+  template <>                                                                  \
+  struct is_##DescType##_info_desc<Namespace::info::DescType::Desc>            \
+      : std::true_type {                                                       \
+    using return_type = Namespace::info::DescType::Desc::return_type;          \
+  };
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <>                                                                  \
   struct is_backend_info_desc<info::DescType::Desc> : std::true_type {         \

@@ -15,9 +15,9 @@ public:
   operator()() const {}
 };
 
-// expected-warning@+1 {{'max_work_groups_per_mp' attribute ignored, as it requires: maximum work group size and minimum work groups per compute unit to be also specified}}
 template <int N1, int N2> class Functor_2 {
 public:
+// expected-warning@+2 {{'max_work_groups_per_mp' attribute ignored, as it requires: maximum work group size and minimum work groups per compute unit to be also specified}}
   [[intel::max_work_group_size(1, 1, N1),
     intel::max_work_groups_per_mp(N2)]] void
   operator()() const {}
@@ -32,7 +32,7 @@ int main() {
               intel::min_work_groups_per_cu(2),
               intel::max_work_groups_per_mp(4)]] () { volatile int A = 42; });
 
-    // expected-warning@+2 {{'max_work_groups_per_mp' attribute ignored, as it requires: maximum work group size and minimum work groups per compute unit to be also specified}}
+    // expected-warning@+3 {{'max_work_groups_per_mp' attribute ignored, as it requires: maximum work group size and minimum work groups per compute unit to be also specified}}
     cgh.single_task<class T2>(
         [=] [[intel::max_work_group_size(1, 1, 256),
               intel::max_work_groups_per_mp(4)]] () { volatile int A = 42; });

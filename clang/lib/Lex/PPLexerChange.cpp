@@ -534,6 +534,28 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       return LeavingSubmodule;
     }
   }
+
+  if (isInPrimaryFile() && getLangOpts().SYCLIsHost &&
+      !getPreprocessorOpts().IncludeFooter.empty()) {
+    SourceManager &SourceMgr = getSourceManager();
+    SourceLocation Loc = CurLexer->getFileLoc();
+
+    FileID FooterFileID =
+        SourceMgr.ComputeValidFooterFileID(getPreprocessorOpts().IncludeFooter);
+    if (!FooterFileID.isInvalid() && !IncludeFooterProcessed) {
+      IncludeFooterProcessed = true;
+      // Mark the footer file as included
+      if (OptionalFileEntryRef FE =
+              SourceMgr.getFileEntryRefForID(FooterFileID))
+        markIncluded(*FE);
+      clang::Lexer *LexerSave = CurLexer.get();
+      clang::PreprocessorLexer *CurPPLexerSave =
+          CurPPLexer->getPP()->getCurrentLexer();
+      EnterSourceFile(FooterFileID, CurDirLookup, Result.getLocation());
+      return false;
+    }
+  }
+
   // If this is the end of the main file, form an EOF token.
   assert(CurLexer && "Got EOF but no current lexer set!");
   const char *EndPos = getCurLexerEndPos();
