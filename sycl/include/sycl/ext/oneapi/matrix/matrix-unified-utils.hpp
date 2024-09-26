@@ -82,6 +82,30 @@ inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
+#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
+template<typename Ta, typename Tb, typename Tc>
+constexpr uint32_t CalculateMatrixOperand() {
+  if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Tb, sycl::ext::oneapi::bfloat16>::value &&
+                std::is_same<Tc, float>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
+  if constexpr (std::is_signed<Ta>::value && std::is_unsigned<Tb>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixASignedComponentsKHR);
+  if constexpr (std::is_unsigned<Ta>::value && std::is_signed<Tb>::value)
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+  if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
+    return static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixASignedComponentsKHR) +
+           static_cast<uint32_t>(
+        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
+  }
+  return 0;
+}
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
