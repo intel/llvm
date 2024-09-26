@@ -468,6 +468,8 @@ public:
 
   static node get_node_from_event(event nodeEvent);
 
+  static event get_event_from_node(node graphNode);
+
   template <int Dimensions>
   void update_nd_range(nd_range<Dimensions> executionRange);
 
@@ -534,6 +536,24 @@ Exceptions:
 
 * Throws with error code `invalid` if `nodeEvent` is not associated with a
   graph node.
+
+|
+[source,c++]
+----
+static event get_event_from_node(node graphNode);
+----
+|Finds the <<event-terminology, graph-limited event>> associated with a graph
+node. This can be used for interop between the explicit and queue recording
+APIs.
+
+If `graphNode` was created via the explicit graph creation API then an event may
+be created for it during this call.
+
+Parameters:
+
+* `graphNode` - A graph node.
+
+Returns: A graph-limited event which represents `graphNode`.
 
 |
 [source,c++]
