@@ -235,8 +235,7 @@ will split events into two categories:
 - *Graph-limited events*: These are events returned from a queue submission
 which is recorded to a `command_graph`. These events are only valid for defining
 dependencies for other nodes inside a `command_graph`. These events cannot be
-waited on or used as dependencies for eager SYCL operations. They also cannot
-be used with <<dynamic-events, Dynamic Events>>. See the section on
+waited on or used as dependencies for eager SYCL operations. See the section on
 <<event-limitations, Event Limitations>> for a more detailed overview of the
 limitations of these events.
 
@@ -713,7 +712,11 @@ The API for explicitly adding nodes to a `command_graph` includes a
 be passed here. `depends_on` may be used in two ways:
 
 * Passing nodes from the same `command_graph` which will create dependencies and
-graph edges between those nodes and the node being added. 
+graph edges between those nodes and the node being added.
+
+* Passing nodes from another `command_graph` which will create an external
+dependency between the node being added and the dependent nodes in other
+graphs.
 
 * Passing SYCL events, including <<dynamic-events, Dynamic Events>>. If an event
 is a <<event-terminology, graph-limited event>> from the same `command_graph`,
