@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
-  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
-  # Merge: 17aa04d3 6eb5208b
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Sep 25 11:14:47 2024 +0100
-  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
-  #     Add two new properties to ur_kernel_group_info_t
-  set(UNIFIED_RUNTIME_TAG 668c5e5df82b8b0b4ff2d7a76792820370bdfca6)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ce0325da13048af40acd61bd43ef88bafd84c6b3
+  # Merge: 2ad32681 668c5e5d
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 26 10:51:57 2024 +0200
+  #     Merge pull request #2134 from nrspruit/fix_multi_device_event_driver_in_order_syclos
+  #     [L0] Fix Multi Device Event handling and remove unhandled events from in order wait list
+  set(UNIFIED_RUNTIME_TAG ce0325da13048af40acd61bd43ef88bafd84c6b3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
