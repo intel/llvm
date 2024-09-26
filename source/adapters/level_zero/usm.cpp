@@ -154,15 +154,26 @@ static ur_result_t USMAllocationMakeResident(
   } else {
     Devices.push_back(Device);
     if (ForceResidency == USMAllocationForceResidencyType::P2PDevices) {
-      ze_bool_t P2P;
-      for (const auto &D : Context->Devices) {
-        if (D == Device)
-          continue;
-        // TODO: Cache P2P devices for a context
-        ZE2UR_CALL(zeDeviceCanAccessPeer,
-                   (D->ZeDevice, Device->ZeDevice, &P2P));
-        if (P2P)
-          Devices.push_back(D);
+      // Check if the P2P devices are already cached
+      auto it = Context->P2PDeviceCache.find(Device);
+      if (it != Context->P2PDeviceCache.end()) {
+        // Use cached P2P devices
+        Devices.insert(Devices.end(), it->second.begin(), it->second.end());
+      } else {
+        // Query for P2P devices and update the cache
+        std::list<ur_device_handle_t> P2PDevices;
+        ze_bool_t P2P;
+        for (const auto &D : Context->Devices) {
+          if (D == Device)
+            continue;
+          ZE2UR_CALL(zeDeviceCanAccessPeer,
+                     (D->ZeDevice, Device->ZeDevice, &P2P));
+          if (P2P)
+            P2PDevices.push_back(D);
+        }
+        // Update the cache
+        Context->P2PDeviceCache[Device] = P2PDevices;
+        Devices.insert(Devices.end(), P2PDevices.begin(), P2PDevices.end());
       }
     }
   }

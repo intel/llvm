@@ -100,6 +100,9 @@ struct ur_context_handle_t_ : _ur_object {
                                          l0_command_list_cache_info>>>
       ZeCopyCommandListCache;
 
+  std::unordered_map<ur_device_handle_t, std::list<ur_device_handle_t>>
+      P2PDeviceCache;
+
   // Store USM pool for USM shared and device allocations. There is 1 memory
   // pool per each pair of (context, device) per each memory type.
   std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
