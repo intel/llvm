@@ -65,6 +65,7 @@ jobs:
     - name: Extract SYCL toolchain
       shell: bash
       run: |
+        rm -rf install
         mkdir install
         tar -xf ${{ inputs.sycl_toolchain_archive }} -C install
         rm ${{ inputs.sycl_toolchain_archive }}
@@ -78,6 +79,7 @@ jobs:
     - name: Configure E2E with Level Zero target
       shell: cmd
       run: |
+        rmdir /q /s build-e2e
         mkdir build-e2e
         cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLEVEL_ZERO_INCLUDE="D:\github\level-zero_win-sdk\include" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
     - name: Run End-to-End tests
