@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
-  # Merge: fa9ebe7b 53abe070
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Sep 16 10:20:10 2024 +0100
-  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
-  #     [Loader] Suppress system errors when loading adapters on Windows
-  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
+  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
+  # Merge: 17aa04d3 6eb5208b
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Sep 25 11:14:47 2024 +0100
+  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
+  #     Add two new properties to ur_kernel_group_info_t
+  set(UNIFIED_RUNTIME_TAG 7ecf64d60c31cd72bd88588498536d067bad59d6)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

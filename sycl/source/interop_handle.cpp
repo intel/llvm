@@ -33,9 +33,9 @@ interop_handle::getNativeMem(detail::Requirement *Req) const {
                     "Invalid memory object used inside interop");
   }
 
-  auto Plugin = MQueue->getPlugin();
+  auto Adapter = MQueue->getAdapter();
   ur_native_handle_t Handle;
-  Plugin->call<detail::UrApiKind::urMemGetNativeHandle>(
+  Adapter->call<detail::UrApiKind::urMemGetNativeHandle>(
       Iter->second, MDevice->getHandleRef(), &Handle);
   return Handle;
 }

@@ -882,6 +882,8 @@ class SingleDeviceFunctionTracker {
         // having a kernel lambda with a lambda call inside of it.
         KernelBody = CurrentDecl;
       }
+      if (KernelBody)
+        Parent.SemaSYCLRef.addSYCLKernelFunction(KernelBody);
     }
 
     // Recurse.
@@ -6851,4 +6853,20 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
     TSI = getASTContext().getTrivialTypeSourceInfo(Ty, LParen);
 
   return BuildUniqueStableNameExpr(OpLoc, LParen, RParen, TSI);
+}
+
+void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
+  if (SYCLKernelFunctions.contains(FD))
+    return;
+
+  for (const auto *KernelAttr : std::vector<AttributeCommonInfo *>{
+           FD->getAttr<SYCLReqdWorkGroupSizeAttr>(),
+           FD->getAttr<IntelReqdSubGroupSizeAttr>(),
+           FD->getAttr<SYCLWorkGroupSizeHintAttr>(),
+           FD->getAttr<VecTypeHintAttr>()}) {
+    if (KernelAttr)
+      Diag(KernelAttr->getLoc(),
+           diag::warn_sycl_incorrect_use_attribute_non_kernel_function)
+          << KernelAttr;
+  }
 }
