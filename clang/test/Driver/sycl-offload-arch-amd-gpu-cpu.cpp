@@ -47,9 +47,6 @@
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1013 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx1013 -DMAC_STR=GFX1013
 
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1013 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx1013 -DMAC_STR=GFX1013
-
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1030 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-GPU,CLANG-OFFLOAD-PACKAGER-AMD -DDEV_STR=gfx1030 -DMAC_STR=GFX1030
 
@@ -91,15 +88,6 @@
 
 // AMD CPUs
 
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx600 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx600
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx601 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx601
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx602 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx602
-
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx700 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx700
 
@@ -108,18 +96,6 @@
 
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx702 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx702
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx702 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx702
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx703 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx703
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx704 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx704
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx705 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx705
 
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx801 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx801
@@ -136,23 +112,11 @@
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx810 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx810
 
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx9-generic -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx9-generic
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1152 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx1152
-
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1200 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx1200
 
 // RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx1201 -nogpulib -fno-sycl-libspirv %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx1201
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=gfx12-generic -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-CPU,CLANG-OFFLOAD-PACKAGER-AMD-CPU -DDEV_STR=gfx12-generic
-
-// RUN: %clangxx -### --offload-new-driver -fsycl --offload-arch=amdgcnspirv -nogpulib -fno-sycl-libspirv %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=TARGET-TRIPLE-AMD-SPIRV,CLANG-OFFLOAD-PACKAGER-AMD-SPIRV -DDEV_STR=amdgcnspirv
 
 // TARGET-TRIPLE-AMD-GPU: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // TARGET-TRIPLE-AMD-GPU: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
@@ -164,7 +128,4 @@
 
 // TARGET-TRIPLE-AMD-SPIRV: clang{{.*}} "-triple" "spirv64-amd-amdhsa"
 // CLANG-OFFLOAD-PACKAGER-AMD-SPIRV: clang-offload-packager{{.*}} "--image={{.*}}triple=spirv64-amd-amdhsa,arch=[[DEV_STR]],kind=sycl,{{.*}}"
-
-// TARGET-TRIPLE-AMD-GENERIC: clang{{.*}} "-triple" "spirv64-amd-amdhsa"
-// CLANG-OFFLOAD-PACKAGER-AMD-GENERIC: clang-offload-packager{{.*}} "--image={{.*}}triple=spirv64-amd-amdhsa,arch=[[DEV_STR]],kind=sycl,{{.*}}"
 

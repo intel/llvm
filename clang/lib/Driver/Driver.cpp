@@ -1078,10 +1078,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                false) ||
       C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
-  bool IsSYCLOffloadArchEnabled =
-      HasValidSYCLRuntime &&
-      C.getInputArgs().hasArg(options::OPT_offload_arch_EQ);
-
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
   // Make -fintelfpga flag imply -fsycl.
@@ -1303,6 +1299,16 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   else if (HasValidSYCLRuntime &&
            C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
            !IsCuda) {
+      // SYCL offloading to Intel CPUs and Intel GPUs with ``--offload-arch``
+      // is currently enabled only with ``--offload-new-driver`` option.
+      // Emit a diagnostic if ``--offload-arch`` is invoked without
+      // ``--offload-new driver`` option.
+        if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                      options::OPT_no_offload_new_driver,
+                                      false)) {
+          Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+          return;
+        }            
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
     auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
@@ -1365,19 +1371,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
       std::string NormalizedName = SYCLTargetTriple.normalize();
 
-      // SYCL offloading to Intel CPUs and Intel GPUs with ``--offload-arch``
-      // is currently enabled only with ``--offload-new-driver`` option.
-      // Emit a diagnostic if ``--offload-arch`` is invoked without
-      // ``--offload-new driver`` option.
-      if (SYCLTargetTriple != NVPTXTriple && SYCLTargetTriple != AMDTriple) {
-        if (IsSYCLOffloadArchEnabled &&
-            !C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                      options::OPT_no_offload_new_driver,
-                                      false)) {
-          Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-          return;
-        }
-      }
+
 
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
