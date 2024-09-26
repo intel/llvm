@@ -1695,6 +1695,18 @@ void CompilerInvocationBase::GenerateCodeGenArgs(const CodeGenOptions &Opts,
   else if (Opts.CFProtectionBranch)
     GenerateArg(Consumer, OPT_fcf_protection_EQ, "branch");
 
+  if (Opts.CFProtectionBranch) {
+    switch (Opts.getCFBranchLabelScheme()) {
+    case CFBranchLabelSchemeKind::Default:
+      break;
+#define CF_BRANCH_LABEL_SCHEME(Kind, FlagVal)                                  \
+  case CFBranchLabelSchemeKind::Kind:                                          \
+    GenerateArg(Consumer, OPT_mcf_branch_label_scheme_EQ, #FlagVal);           \
+    break;
+#include "clang/Basic/CFProtectionOptions.def"
+    }
+  }
+
   if (Opts.FunctionReturnThunks)
     GenerateArg(Consumer, OPT_mfunction_return_EQ, "thunk-extern");
 
@@ -2027,6 +2039,22 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
       Opts.CFProtectionBranch = 1;
     else if (Name != "none")
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Name;
+  }
+
+  if (Opts.CFProtectionBranch && T.isRISCV()) {
+    if (const Arg *A = Args.getLastArg(OPT_mcf_branch_label_scheme_EQ)) {
+      const auto Scheme =
+          llvm::StringSwitch<CFBranchLabelSchemeKind>(A->getValue())
+#define CF_BRANCH_LABEL_SCHEME(Kind, FlagVal)                                  \
+  .Case(#FlagVal, CFBranchLabelSchemeKind::Kind)
+#include "clang/Basic/CFProtectionOptions.def"
+              .Default(CFBranchLabelSchemeKind::Default);
+      if (Scheme != CFBranchLabelSchemeKind::Default)
+        Opts.setCFBranchLabelScheme(Scheme);
+      else
+        Diags.Report(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+    }
   }
 
   if (const Arg *A = Args.getLastArg(OPT_mfunction_return_EQ)) {
@@ -4130,6 +4158,28 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Name == "full" || Name == "branch") {
       Opts.CFProtectionBranch = 1;
     }
+  }
+
+  if (Opts.CFProtectionBranch) {
+    if (const Arg *A = Args.getLastArg(OPT_mcf_branch_label_scheme_EQ)) {
+      const auto Scheme =
+          llvm::StringSwitch<CFBranchLabelSchemeKind>(A->getValue())
+#define CF_BRANCH_LABEL_SCHEME(Kind, FlagVal)                                  \
+  .Case(#FlagVal, CFBranchLabelSchemeKind::Kind)
+#include "clang/Basic/CFProtectionOptions.def"
+              .Default(CFBranchLabelSchemeKind::Default);
+      Opts.setCFBranchLabelScheme(Scheme);
+    }
+  }
+
+  if ((Args.hasArg(OPT_fsycl_is_device) || Args.hasArg(OPT_fsycl_is_host)) &&
+      !Args.hasArg(OPT_sycl_std_EQ)) {
+    // If the user supplied -fsycl-is-device or -fsycl-is-host, but failed to
+    // provide -sycl-std=, we want to default it to whatever the default SYCL
+    // version is. I could not find a way to express this with the options
+    // tablegen because we still want this value to be SYCL_None when the user
+    // is not in device or host mode.
+    Opts.setSYCLVersion(LangOptions::SYCL_Default);
   }
 
   if (Opts.ObjC) {
