@@ -74,11 +74,15 @@ struct ur_mem_handle_t_ : _ur_object {
 
   // Get the Level Zero handle of the current memory object
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device = nullptr) = 0;
+                                  ur_device_handle_t Device,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) = 0;
 
   // Get a pointer to the Level Zero handle of the current memory object
   virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t Device = nullptr) = 0;
+                                     ur_device_handle_t Device,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) = 0;
 
   // Method to get type of the derived object (image or buffer)
   virtual bool isImage() const = 0;
@@ -118,10 +122,13 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // the hood.
   //
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device = nullptr) override;
-  virtual ur_result_t
-  getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                 ur_device_handle_t Device = nullptr) override;
+                                  ur_device_handle_t Device,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) override;
+  virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                     ur_device_handle_t Device,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) override;
 
   bool isImage() const override { return false; }
   bool isSubBuffer() const { return SubBuffer != std::nullopt; }
@@ -199,12 +206,20 @@ struct _ur_image final : ur_mem_handle_t_ {
   }
 
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t = nullptr) override {
+                                  ur_device_handle_t,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) override {
+    std::ignore = phWaitEvents;
+    std::ignore = numWaitEvents;
     ZeHandle = reinterpret_cast<char *>(ZeImage);
     return UR_RESULT_SUCCESS;
   }
   virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t = nullptr) override {
+                                     ur_device_handle_t,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) override {
+    std::ignore = phWaitEvents;
+    std::ignore = numWaitEvents;
     ZeHandlePtr = reinterpret_cast<char **>(&ZeImage);
     return UR_RESULT_SUCCESS;
   }
