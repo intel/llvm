@@ -275,8 +275,6 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
 
-  std::cout << "getItemFromDisc" << std::endl;
-
   if (!areImagesCacheable(Imgs))
     return {};
 
@@ -301,8 +299,6 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
         trace("using cached device binary: " + FullFileName);
-        std::cout << " using cached device binary: " << FullFileName
-                  << std::endl;
         return res; // subject for NRVO
       } catch (...) {
         // If read was unsuccessfull try the next item
@@ -313,17 +309,16 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
   return {};
 }
 
-/*
+/*  kernel_compiler extension uses slightly different format for path
+    and does not cache a .src separate from the binary.
  */
-// ur_program_handle_t
 std::vector<std::vector<char>>
 PersistentDeviceCodeCache::getCompiledKernelFromDisc(
     const device &Device, const std::string &BuildOptionsString,
     const std::string SourceStr) {
-  std::cout << "getCompiledKernelFromDisc" << std::endl;
+
   std::string DirName =
       getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
-  std::cout << " DirName: " << DirName << std::endl;
 
   if (DirName.empty() || !OSUtil::isPathPresent(DirName))
     return {};
@@ -334,18 +329,12 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
   while (OSUtil::isPathPresent(FileName + ".bin") ||
          OSUtil::isPathPresent(FileName + ".src")) {
 
-    if (!LockCacheItem::isLocked(
-            FileName)) //&&
-                       // isCacheItemSrcEqual(FileName + ".src", Device,
-                       // SortedImgs, SpecConsts, BuildOptionsString))
-    {
+    if (!LockCacheItem::isLocked(FileName)) {
       try {
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
-        trace("using cached device binary: " + FullFileName);
-        std::cout << " kernel_compiler using cached device binary: "
-                  << FullFileName << std::endl;
+        trace("kernel_compiler using cached binary: " + FullFileName);
         return res; // subject for NRVO
       } catch (...) {
         // If read was unsuccessfull try the next item

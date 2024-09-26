@@ -406,6 +406,50 @@ public:
                            });
   }
 
+  bool
+  extKernelCompilerFetchFromCache(const std::vector<device> Devices,
+                                  const std::vector<std::string> &BuildOptions,
+                                  const std::string &SourceStr,
+                                  ur_program_handle_t &UrProgram) {
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
+
+    std::string UserArgs = userArgsAsString(BuildOptions);
+    auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+        Devices[0], UserArgs, SourceStr);
+    if (!BinProg.empty()) {
+      ur_device_handle_t UrDevice = getSyclObjImpl(Devices[0])->getHandleRef();
+      ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
+      ur_program_properties_t Properties = {};
+      std::vector<ur_program_metadata_t> Metadata = {};
+      Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+      Properties.pNext = nullptr;
+      Properties.count = Metadata.size();
+      Properties.pMetadatas = Metadata.data();
+      BinaryStatus = Plugin->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
+          ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
+          (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
+
+      std::cout << " BinaryStatus: " << BinaryStatus << std::endl;
+
+      if (BinaryStatus == UR_RESULT_SUCCESS) {
+        std::cout << "zOMG, fetched from cache!" << std::endl;
+
+        ur_result_t Error = Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
+            UrProgram,
+            /*num devices =*/1, &UrDevice, UserArgs.c_str());
+
+        std::cout << "error? " << Error << std::endl;
+        if (Error == UR_RESULT_SUCCESS) {
+
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -429,39 +473,8 @@ public:
     const auto &SourceStr = std::get<std::string>(this->Source);
     bool FetchedFromCache = false;
     if (PersistentDeviceCodeCache::isEnabled()) {
-      auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-          Devices[0], userArgsAsString(BuildOptions), SourceStr);
-      if (!BinProg.empty()) {
-        ur_device_handle_t UrDevice =
-            getSyclObjImpl(Devices[0])->getHandleRef();
-        ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
-        ur_program_properties_t Properties = {};
-        std::vector<ur_program_metadata_t> Metadata = {};
-        Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
-        Properties.pNext = nullptr;
-        Properties.count = Metadata.size();
-        Properties.pMetadatas = Metadata.data();
-        BinaryStatus =
-            Plugin->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
-                ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
-                (const unsigned char *)BinProg[0].data(), &Properties,
-                &UrProgram);
-
-        std::cout << " BinaryStatus: " << BinaryStatus << std::endl;
-
-        if (BinaryStatus == UR_RESULT_SUCCESS) {
-          FetchedFromCache = true;
-          std::cout << "zOMG, fetched from cache!" << std::endl;
-
-          ur_result_t Error =
-              Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
-                  UrProgram,
-                  /*num devices =*/1, &UrDevice,
-                  userArgsAsString(BuildOptions).c_str());
-
-          std::cout << "error? " << Error << std::endl;
-        }
-      }
+      FetchedFromCache = extKernelCompilerFetchFromCache(Devices, BuildOptions,
+                                                         SourceStr, UrProgram);
     }
 
     if (!FetchedFromCache) {
@@ -542,11 +555,6 @@ public:
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
 
-    // CP
-    std::cout << "KernelNames: " << KernelNamesStr << std::endl;
-
-    //} // if(!FetchedFromCache)
-
     // make the device image and the kernel_bundle_impl
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
@@ -559,8 +567,6 @@ public:
       PersistentDeviceCodeCache::putCompiledKernelToDisc(
           Devices[0], userArgsAsString(BuildOptions), SourceStr, UrProgram);
     }
-
-    // std::vector<std::string> KernelNames = { "__sycl_kernel_ff_cp" };
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
