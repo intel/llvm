@@ -45,7 +45,11 @@ void check(queue &Queue, unsigned int G, unsigned int L) {
     host_accessor syclacc(syclbuf);
     host_accessor sgsizeacc(sgsizebuf);
     unsigned int sg_size = sgsizeacc[0];
-    unsigned int num_sg = L / sg_size + (L % sg_size ? 1 : 0);
+    if (L % sg_size != 0) {
+      std::cout << "Sub group size doesn't divide local size, skipping.\n";
+      return;
+    }
+    unsigned int num_sg = L / sg_size;
     for (int j = 0; j < G; j++) {
       unsigned int group_id = j % L / sg_size;
       unsigned int local_range =

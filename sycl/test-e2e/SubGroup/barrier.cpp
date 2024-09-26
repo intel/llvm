@@ -53,6 +53,10 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
     host_accessor sgsizeacc(sgsizebuf);
 
     size_t sg_size = sgsizeacc[0];
+    if (L % sg_size != 0) {
+      std::cout << "Sub group size doesn't divide local size, skipping.\n";
+      return;
+    }
     int WGid = -1, SGid = 0;
     T add = 0;
     for (int j = 0; j < G; j++) {
