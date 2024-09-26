@@ -86,7 +86,7 @@ int main() try {
   constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 2; ++TestCase) {
     std::vector<int> HostData(G.size());
-    std::iota(HostData.begin(), HostData.end(), 0);
+    std::iota(HostData.begin(), HostData.end(), 1);
     std::vector<int> DeviceData = HostData;
     sycl::buffer<int> DataStorage(DeviceData.data(), G);
 
