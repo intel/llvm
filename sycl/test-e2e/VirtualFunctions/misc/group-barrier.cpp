@@ -111,20 +111,40 @@ int main() try {
 
     // We can't call group_barrier on host and therefore here we have a
     // reference function instead of calling the same methods on host.
-    for (size_t GID = 0; GID < G.size() / L.size(); ++GID) {
-      for (size_t LID = 0; LID < L.size(); ++LID)
-        HostData[GID * L.size() + LID] += LID;
-
-      int Res = (TestCase == 0) ? 0 : 1;
+    //
+    // 'apply' function is written as a kernel, i.e. it describes a single
+    // work-item in an nd-range. Here we emulate that nd-range by looping over
+    // all work-groups and then over each work-item within that group.
+    for (size_t WorkGroupID = 0; WorkGroupID < G.size() / L.size();
+         ++WorkGroupID) {
+      // Equivalent of a local accessor (LocalData)
+      std::vector<int> LocalHostData(L.size());
+      // For each work-item within a group, LID - local id
       for (size_t LID = 0; LID < L.size(); ++LID) {
-        if (TestCase == 0)
-          Res += HostData[GID * L.size() + LID];
-        else
-          Res *= HostData[GID * L.size() + LID];
-      }
+        // GID - global id
+        size_t GID = WorkGroupID * L.size() + LID;
+        LocalHostData[LID] = HostData[GID];
 
-      for (size_t LID = 0; LID < L.size(); ++LID)
-        HostData[GID * L.size() + LID] = Res;
+        // Below is an equivalent of apply's body, but it combains both SumOp
+        // and MultiplyOp and hence conditions based on TestCase.
+        LocalHostData[LID] = LID;
+
+        // group barrier which is no-op here
+
+        int Res = (TestCase == 0) ? 0 : 1;
+        if (LID == 0) { // if that is a group leader
+          for (size_t NestedLID = 0; NestedLID < L.size(); ++NestedLID) {
+            if (TestCase == 0)
+              Res += LocalHostData[NestedLID];
+            else
+              Res *= LocalHostData[NestedLID];
+          }
+        }
+
+        // group broadcast:
+        for (size_t LID = 0; LID < L.size(); ++LID)
+          HostData[GID] = Res;
+      }
     }
 
     sycl::host_accessor HostAcc(DataStorage);
