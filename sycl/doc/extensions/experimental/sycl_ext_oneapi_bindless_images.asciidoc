@@ -2901,6 +2901,6 @@ These features still need to be handled:
 |6 |2024-08-05 | - Collated all changes since revision 5.
                  - Bumped SYCL_EXT_ONEAPI_BINDLESS_IMAGES to number 6.
 |6.1|2024-09-09| - Update for image-array sub-region copy support.
-|6.2|2024-08-26| - Added addressing mode `ext_oneapi_clamp_to_border` value,
+|6.2|2024-09-26| - Added addressing mode `ext_oneapi_clamp_to_border` value,
                    equivalent to `clamp`, to match with external APIs.
 |======================
