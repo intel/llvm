@@ -5563,7 +5563,7 @@ class OffloadingActionBuilder final {
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
         Action *NativeCPULib = nullptr;
-        if (IsSPIR || IsNVPTX || IsSYCLNativeCPU) {
+        if (IsSPIR || IsNVPTX || IsAMDGCN || IsSYCLNativeCPU) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,

@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
-  # Merge: 9ca3ec7 be38e567
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 23 08:27:12 2024 -0700
-  #     Merge pull request #1830 from JackAKirk/hip-set-device
-  #     [hip] Remove deprecated hip APIs, simplify urContext
-  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
+  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
+  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
+  # Date:   Wed Sep 25 15:55:05 2024 +0100
+  #     Associate queue with device in context (#1992)
+  #     Making a native queue doesn't require hDevice to be non null, but this
+  #     associates the queue with a null device, even if hContext contains valid
+  #     devices.
+  set(UNIFIED_RUNTIME_TAG 2ad32681efd2c977f2c1f7f3a30d572d4c15499c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

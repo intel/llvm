@@ -104,6 +104,22 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
       Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
       sizeof(size_t) * 3, CompileWGSize, nullptr);
 
+  size_t CompileMaxWGSize[3] = {0};
+  ur_result_t URRes = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+      sizeof(size_t) * 3, CompileMaxWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Adapter->checkUrResult(URRes);
+  }
+
+  size_t CompileMaxLinearWGSize = 0;
+  URRes = Adapter->call_nocheck<UrApiKind::urKernelGetGroupInfo>(
+      Kernel, Device, UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE,
+      sizeof(size_t), &CompileMaxLinearWGSize, nullptr);
+  if (URRes != UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+    Adapter->checkUrResult(URRes);
+  }
+
   size_t MaxWGSize = 0;
   Adapter->call<UrApiKind::urDeviceGetInfo>(
       Device, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE, sizeof(size_t), &MaxWGSize,
@@ -147,7 +163,28 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
               std::to_string(CompileWGSize[0]) + "}");
   }
 
+  const size_t TotalNumberOfWIs =
+      NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
+
   if (HasLocalSize) {
+    if (CompileMaxWGSize[0] != 0) {
+      if (NDRDesc.LocalSize[0] > CompileMaxWGSize[0] ||
+          NDRDesc.LocalSize[1] > CompileMaxWGSize[1] ||
+          NDRDesc.LocalSize[2] > CompileMaxWGSize[2]) {
+        throw sycl::exception(
+            make_error_code(errc::nd_range),
+            "The specified local size {" +
+                std::to_string(NDRDesc.LocalSize[2]) + ", " +
+                std::to_string(NDRDesc.LocalSize[1]) + ", " +
+                std::to_string(NDRDesc.LocalSize[0]) +
+                "} exceeds the maximum work-group size specified "
+                "in the program source {" +
+                std::to_string(CompileMaxWGSize[2]) + ", " +
+                std::to_string(CompileMaxWGSize[1]) + ", " +
+                std::to_string(CompileMaxWGSize[0]) + "}");
+      }
+    }
+
     size_t MaxThreadsPerBlock[3] = {};
     Adapter->call<UrApiKind::urDeviceGetInfo>(
         Device, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES, sizeof(MaxThreadsPerBlock),
@@ -164,6 +201,15 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
                                   "} for this device");
       }
     }
+
+    if (CompileMaxLinearWGSize && TotalNumberOfWIs > CompileMaxLinearWGSize) {
+      throw sycl::exception(
+          make_error_code(errc::nd_range),
+          "The total number of work-items in the work-group (" +
+              std::to_string(TotalNumberOfWIs) +
+              ") exceeds the maximum specified in the program source (" +
+              std::to_string(CompileMaxLinearWGSize) + ")");
+    }
   }
 
   if (IsOpenCLV1x) {
@@ -173,8 +219,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     // local_work_size[0] * ... * local_work_size[work_dim - 1] is greater
     // than the value specified by UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE in
     // table 4.3
-    const size_t TotalNumberOfWIs =
-        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
     if (TotalNumberOfWIs > MaxWGSize)
       throw sycl::exception(
           make_error_code(errc::nd_range),
@@ -191,8 +235,6 @@ void handleInvalidWorkGroupSize(const device_impl &DeviceImpl,
     Adapter->call<UrApiKind::urKernelGetGroupInfo>(
         Kernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE, sizeof(size_t),
         &KernelWGSize, nullptr);
-    const size_t TotalNumberOfWIs =
-        NDRDesc.LocalSize[0] * NDRDesc.LocalSize[1] * NDRDesc.LocalSize[2];
     if (TotalNumberOfWIs > KernelWGSize)
       throw sycl::exception(
           make_error_code(errc::nd_range),

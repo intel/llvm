@@ -2742,7 +2742,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
           ConstWithoutErrnoOrExceptions && ErrnoOverridenToFalseWithOpt;
   }
   if (GenerateIntrinsics &&
-      !(getLangOpts().SYCLIsDevice && getTarget().getTriple().isNVPTX())) {
+      !(getLangOpts().SYCLIsDevice && (getTarget().getTriple().isNVPTX() ||
+                                       getTarget().getTriple().isAMDGCN()))) {
     switch (BuiltinIDIfNoAsmLabel) {
     case Builtin::BIacos:
     case Builtin::BIacosf:

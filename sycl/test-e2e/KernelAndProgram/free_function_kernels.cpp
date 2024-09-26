@@ -257,6 +257,120 @@ bool test_3(queue Queue) {
   return PassA && PassB;
 }
 
+struct KArg {
+  KArg(int *_p, int _s) : ptr(_p), start(_s) {}
+  int *ptr;
+  int start;
+};
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<2>))
+void ff_4(KArg Arg) {
+  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(Arg.ptr);
+  nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
+  id<2> GId = Item.get_global_id();
+  id<2> LId = Item.get_local_id();
+  ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + Arg.start;
+}
+
+bool test_4(queue Queue) {
+  constexpr int Range = 16;
+  int *usmPtr = malloc_shared<int>(Range, Queue);
+  int value = 55;
+  int Result[Range] = {55, 56, 55, 56, 56, 57, 56, 57,
+                       55, 56, 55, 56, 56, 57, 56, 57};
+  nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
+
+  memset(usmPtr, 0, Range * sizeof(int));
+  Queue.submit([&](handler &Handler) {
+    Handler.parallel_for(R2, [=](nd_item<2> Item) {
+      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      id<2> GId = Item.get_global_id();
+      id<2> LId = Item.get_local_id();
+      ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
+    });
+  });
+  Queue.wait();
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 4a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(KArg))ff_4>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
+  memset(usmPtr, 0, Range * sizeof(int));
+  Queue.submit([&](handler &Handler) {
+    Handler.set_arg(0, KArg(usmPtr, value));
+    Handler.parallel_for(R2, Kernel);
+  });
+  Queue.wait();
+  PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 4b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+
+  free(usmPtr, Queue);
+#endif
+  return PassA && PassB;
+}
+
+template <typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<2>))
+void ff_5(T Arg) {
+  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(Arg.ptr);
+  nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
+  id<2> GId = Item.get_global_id();
+  id<2> LId = Item.get_local_id();
+  ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + Arg.start;
+}
+
+// Explicit instantiation with "KArg".
+template void ff_5(KArg Arg);
+
+bool test_5(queue Queue) {
+  constexpr int Range = 16;
+  int *usmPtr = malloc_shared<int>(Range, Queue);
+  int value = 55;
+  int Result[Range] = {55, 56, 55, 56, 56, 57, 56, 57,
+                       55, 56, 55, 56, 56, 57, 56, 57};
+  nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
+
+  memset(usmPtr, 0, Range * sizeof(int));
+  Queue.submit([&](handler &Handler) {
+    Handler.parallel_for(R2, [=](nd_item<2> Item) {
+      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
+      id<2> GId = Item.get_global_id();
+      id<2> LId = Item.get_local_id();
+      ptr2D[GId.get(0)][GId.get(1)] = LId.get(0) + LId.get(1) + value;
+    });
+  });
+  Queue.wait();
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 5a: " << (PassA ? "PASS" : "FAIL") << std::endl;
+
+  bool PassB = false;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id =
+      ext::oneapi::experimental::get_kernel_id<(void (*)(KArg))ff_5<KArg>>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
+  memset(usmPtr, 0, Range * sizeof(int));
+  Queue.submit([&](handler &Handler) {
+    Handler.set_arg(0, KArg(usmPtr, value));
+    Handler.parallel_for(R2, Kernel);
+  });
+  Queue.wait();
+  PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 5b: " << (PassB ? "PASS" : "FAIL") << std::endl;
+
+  free(usmPtr, Queue);
+#endif
+  return PassA && PassB;
+}
+
 int main() {
   queue Queue;
 
@@ -265,6 +379,8 @@ int main() {
   Pass &= test_1(Queue);
   Pass &= test_2(Queue);
   Pass &= test_3(Queue);
+  Pass &= test_4(Queue);
+  Pass &= test_5(Queue);
 
   return Pass ? 0 : 1;
 }
