@@ -113,7 +113,8 @@ ur_result_t urEnqueueKernelLaunch(
     char **ZeHandlePtr = nullptr;
     if (Arg.Value) {
       UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device));
+                                        Queue->Device, EventWaitList,
+                                        NumEventsInWaitList));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
@@ -273,7 +274,8 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
     char **ZeHandlePtr = nullptr;
     if (Arg.Value) {
       UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        Queue->Device));
+                                        Queue->Device, EventWaitList,
+                                        NumEventsInWaitList));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));

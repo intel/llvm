@@ -672,7 +672,7 @@ setKernelPendingArguments(ur_exp_command_buffer_handle_t CommandBuffer,
     char **ZeHandlePtr = nullptr;
     if (Arg.Value) {
       UR_CALL(Arg.Value->getZeHandlePtr(ZeHandlePtr, Arg.AccessMode,
-                                        CommandBuffer->Device));
+                                        CommandBuffer->Device, nullptr, 0u));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
                (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
@@ -826,10 +826,10 @@ ur_result_t urCommandBufferAppendMemBufferCopyExp(
 
   char *ZeHandleSrc;
   UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 CommandBuffer->Device));
+                                 CommandBuffer->Device, nullptr, 0u));
   char *ZeHandleDst;
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 CommandBuffer->Device));
+                                 CommandBuffer->Device, nullptr, 0u));
 
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
@@ -858,10 +858,10 @@ ur_result_t urCommandBufferAppendMemBufferCopyRectExp(
 
   char *ZeHandleSrc;
   UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 CommandBuffer->Device));
+                                 CommandBuffer->Device, nullptr, 0u));
   char *ZeHandleDst;
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 CommandBuffer->Device));
+                                 CommandBuffer->Device, nullptr, 0u));
 
   bool PreferCopyEngine = (SrcBuffer->OnHost || DstBuffer->OnHost);
 
@@ -884,7 +884,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteExp(
 
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              CommandBuffer->Device));
+                              CommandBuffer->Device, nullptr, 0u));
   // Always prefer copy engine for writes
   bool PreferCopyEngine = true;
 
@@ -908,7 +908,7 @@ ur_result_t urCommandBufferAppendMemBufferWriteRectExp(
 
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              CommandBuffer->Device));
+                              CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for writes
   bool PreferCopyEngine = true;
@@ -930,7 +930,7 @@ ur_result_t urCommandBufferAppendMemBufferReadExp(
 
   char *ZeHandleSrc = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                              CommandBuffer->Device));
+                              CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for reads
   bool PreferCopyEngine = true;
@@ -953,7 +953,7 @@ ur_result_t urCommandBufferAppendMemBufferReadRectExp(
 
   char *ZeHandleSrc;
   UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                              CommandBuffer->Device));
+                              CommandBuffer->Device, nullptr, 0u));
 
   // Always prefer copy engine for reads
   bool PreferCopyEngine = true;
@@ -1078,7 +1078,7 @@ ur_result_t urCommandBufferAppendMemBufferFillExp(
   char *ZeHandleDst = nullptr;
   _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
   UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                CommandBuffer->Device));
+                                CommandBuffer->Device, nullptr, 0u));
 
   return enqueueCommandBufferFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, ZeHandleDst + Offset,
@@ -1512,7 +1512,7 @@ ur_result_t updateKernelCommand(
     char **ZeHandlePtr = nullptr;
     if (NewMemObjArg) {
       UR_CALL(NewMemObjArg->getZeHandlePtr(ZeHandlePtr, UrAccessMode,
-                                           CommandBuffer->Device));
+                                           CommandBuffer->Device, nullptr, 0u));
     }
 
     auto ZeMutableArgDesc =
