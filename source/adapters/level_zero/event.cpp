@@ -196,14 +196,13 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     //
     if (Queue->isInOrderQueue() && InOrderBarrierBySignal &&
         !Queue->isProfilingEnabled()) {
-      // If we are using driver in order lists, then append wait on events
-      // is unnecessary IF the cmdlists match.
       if (EventWaitList.Length) {
         if (CmdList->second.IsInOrderList) {
-          for (unsigned i = EventWaitList.Length; i-- < 0;) {
-            // if the events is from the same cmdlist, we can remove it
-            // from the waitlist.
-            if (EventWaitList.UrEventList[i]->CommandList == CmdList) {
+          for (unsigned i = EventWaitList.Length; i-- > 0;) {
+            // If the event is a multidevice event, then given driver in order
+            // lists, we cannot include this into the wait event list due to
+            // driver limitations.
+            if (EventWaitList.UrEventList[i]->IsMultiDevice) {
               EventWaitList.Length--;
               if (EventWaitList.Length != i) {
                 std::swap(EventWaitList.UrEventList[i],
@@ -1562,16 +1561,11 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           const auto &ZeCommandList = CommandList->first;
           EventList[I]->RefCount.increment();
 
-          ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
-                     (ZeCommandList, 1u, &EventList[I]->ZeEvent));
-          if (!MultiDeviceEvent->CounterBasedEventsEnabled) {
-            ZE2UR_CALL(zeEventHostSignal, (MultiDeviceZeEvent));
-          } else {
-            ZE2UR_CALL(zeCommandListAppendSignalEvent,
-                       (ZeCommandList, MultiDeviceZeEvent));
-          }
-          MultiDeviceEvent->Completed = true;
-
+          // Append a Barrier to wait on the original event while signalling the
+          // new multi device event.
+          ZE2UR_CALL(
+              zeCommandListAppendBarrier,
+              (ZeCommandList, MultiDeviceZeEvent, 1u, &EventList[I]->ZeEvent));
           UR_CALL(Queue->executeCommandList(CommandList, /* IsBlocking */ false,
                                             /* OkToBatchCommand */ true));
 
