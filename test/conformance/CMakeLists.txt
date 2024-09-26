@@ -17,16 +17,17 @@ function(add_test_adapter name adapter)
     set(TEST_NAME ${name}-${adapter}${EXTRA_NAME})
 
     set(TEST_COMMAND
-        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --test_devices_count=${UR_TEST_DEVICES_COUNT} --test_platforms_count=${UR_TEST_PLATFORMS_COUNT}"
+        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_PLATFORMS_COUNT}"
     )
+    set(MATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}${EXTRA_NAME}.match")
 
-    if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
+    if(${UR_CONFORMANCE_ENABLE_MATCH_FILES} AND EXISTS ${MATCH_FILE})
         add_test(NAME ${TEST_NAME}
             COMMAND ${CMAKE_COMMAND}
             -D TEST_FILE=${Python3_EXECUTABLE}
             -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${TEST_COMMAND}"
             -D MODE=stdout
-            -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}${EXTRA_NAME}.match
+            -D MATCH_FILE=${MATCH_FILE}
             -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
             DEPENDS ${TEST_TARGET_NAME}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
