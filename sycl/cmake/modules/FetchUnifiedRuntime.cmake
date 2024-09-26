@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6298474e628889d3598b9416303a52e67a2b66aa
-  # Merge: 3cd6eaeb 4bb6a103
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Wed Sep 18 09:20:05 2024 +0200
-  #   Merge pull request #2093 from lslusarczyk/memleak-fix
-  #   fixed issue #1990, L0 leaks checker counts successful create/destroy only
-  set(UNIFIED_RUNTIME_TAG 6298474e628889d3598b9416303a52e67a2b66aa)
+  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
+  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
+  # Date:   Wed Sep 25 15:55:05 2024 +0100
+  #     Associate queue with device in context (#1992)
+  #     Making a native queue doesn't require hDevice to be non null, but this
+  #     associates the queue with a null device, even if hContext contains valid
+  #     devices.
+  set(UNIFIED_RUNTIME_TAG 2ad32681efd2c977f2c1f7f3a30d572d4c15499c)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
