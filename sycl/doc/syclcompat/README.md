@@ -1690,7 +1690,27 @@ second operand, respectively. These three APIs return a single 32-bit value with
 the accumulated result, which is unsigned if both operands are `uint32_t` and
 signed otherwise.
 
+Various maths functions are defined operate on any floating point types.
+`syclcompat::is_floating_point_v` extends the standard library's
+`std::is_floating_point_v` to include `sycl::half` and, where available,
+`sycl::ext::oneapi::bfloat16`.
+
 ```cpp
+namespace syclcompat{
+
+// Trait for extended floating point definition
+template <typename T>
+struct is_floating_point : std::is_floating_point<T>{};
+
+template <> struct is_floating_point<sycl::half> : std::true_type {};
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <> struct is_floating_point<sycl::ext::oneapi::bfloat16> : std::true_type {};
+#endif
+template <typename T>
+
+inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
 
@@ -1889,6 +1909,7 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
 template <typename T1, typename T2>
 inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
                                       dot_product_acc_t<T1, T2> c);
+} // namespace syclcompat
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
