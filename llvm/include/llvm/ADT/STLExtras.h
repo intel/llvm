@@ -1843,6 +1843,13 @@ OutputIt replace_copy(R &&Range, OutputIt Out, const T &OldValue,
                            NewValue);
 }
 
+/// Provide wrappers to std::replace which take ranges instead of having to pass
+/// begin/end explicitly.
+template <typename R, typename T>
+void replace(R &&Range, const T &OldValue, const T &NewValue) {
+  return std::replace(adl_begin(Range), adl_end(Range), OldValue, NewValue);
+}
+
 /// Provide wrappers to std::move which take ranges instead of having to
 /// pass begin/end explicitly.
 template <typename R, typename OutputIt>
@@ -2366,7 +2373,7 @@ public:
   detail::index_iterator end() const { return {End}; }
 };
 
-/// Given two or more input ranges, returns a new range whose values are are
+/// Given two or more input ranges, returns a new range whose values are
 /// tuples (A, B, C, ...), such that A is the 0-based index of the item in the
 /// sequence, and B, C, ..., are the values from the original input ranges. All
 /// input ranges are required to have equal lengths. Note that the returned

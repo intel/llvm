@@ -39,6 +39,7 @@
 #include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/TimeProfiler.h"
 #include <optional>
 
@@ -1447,7 +1448,8 @@ namespace {
     }
 
     void transformedLocalDecl(Decl *Old, ArrayRef<Decl *> NewDecls) {
-      if (Old->isParameterPack()) {
+      if (Old->isParameterPack() &&
+          (NewDecls.size() != 1 || !NewDecls.front()->isParameterPack())) {
         SemaRef.CurrentInstantiationScope->MakeInstantiatedLocalArgPack(Old);
         for (auto *New : NewDecls)
           SemaRef.CurrentInstantiationScope->InstantiatedLocalPackArg(
@@ -1679,11 +1681,12 @@ namespace {
       LocalInstantiationScope Scope(SemaRef, /*CombineWithOuterScope=*/true);
       Sema::ConstraintEvalRAII<TemplateInstantiator> RAII(*this);
 
-      ExprResult Result = inherited::TransformLambdaExpr(E);
-      if (Result.isInvalid())
-        return Result;
+      return inherited::TransformLambdaExpr(E);
+    }
 
-      CXXMethodDecl *MD = Result.getAs<LambdaExpr>()->getCallOperator();
+    ExprResult RebuildLambdaExpr(SourceLocation StartLoc, SourceLocation EndLoc,
+                                 LambdaScopeInfo *LSI) {
+      CXXMethodDecl *MD = LSI->CallOperator;
       for (ParmVarDecl *PVD : MD->parameters()) {
         assert(PVD && "null in a parameter list");
         if (!PVD->hasDefaultArg())
@@ -1702,8 +1705,7 @@ namespace {
             PVD->setDefaultArg(ErrorResult.get());
         }
       }
-
-      return Result;
+      return inherited::RebuildLambdaExpr(StartLoc, EndLoc, LSI);
     }
 
     StmtResult TransformLambdaBody(LambdaExpr *E, Stmt *Body) {
@@ -1716,11 +1718,8 @@ namespace {
       // `true` to temporarily fix this issue.
       // FIXME: This temporary fix can be removed after fully implementing
       // p0588r1.
-      bool Prev = EvaluateConstraints;
-      EvaluateConstraints = true;
-      StmtResult Stmt = inherited::TransformLambdaBody(E, Body);
-      EvaluateConstraints = Prev;
-      return Stmt;
+      llvm::SaveAndRestore _(EvaluateConstraints, true);
+      return inherited::TransformLambdaBody(E, Body);
     }
 
     ExprResult TransformRequiresExpr(RequiresExpr *E) {

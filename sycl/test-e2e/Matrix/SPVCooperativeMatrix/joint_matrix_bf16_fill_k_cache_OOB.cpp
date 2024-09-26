@@ -8,9 +8,6 @@
 // REQUIRES: aspect-ext_intel_matrix, gpu
 // UNSUPPORTED: gpu-intel-dg2
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc && igc-dev
-
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_gpu_vnni.out -ffp-model=precise -DOOB -DVNNI
 // RUN: %{run} %t_gpu_vnni.out
 

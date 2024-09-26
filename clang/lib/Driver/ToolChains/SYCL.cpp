@@ -711,16 +711,15 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (IsNVPTX || IsSYCLNativeCPU) {
-        // Linking SYCL Device libs requires libclc as well as libdevice
-        if ((InputFilename.find("libspirv") != InputFilename.npos ||
-             InputFilename.find("libdevice") != InputFilename.npos))
-          return true;
-        if (IsNVPTX) {
-          LibPostfix = ".cubin";
-          NewLibPostfix = ".new.cubin";
-        }
-      }
+      // NativeCPU links against libclc (libspirv)
+      if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
+        return true;
+      // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
+      // and the CUDA libdevice
+      if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
+                      InputFilename.contains("libspirv") ||
+                      InputFilename.contains("libdevice")))
+        return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix) ||
@@ -831,21 +830,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     AddLinkCommand(OutputFileName, LinkInputs, {"--only-needed"});
   }
   return OutputFileName;
-}
-
-void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
-                                       const InputInfo &Output,
-                                       const char *InputFileName) const {
-  // Construct llc command.
-  // The output is an object file.
-  ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                        InputFileName};
-  SmallString<128> LlcPath(C.getDriver().Dir);
-  llvm::sys::path::append(LlcPath, "llc");
-  const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(JA, *this,
-                                         ResponseFileSupport::AtFileUTF8(), Llc,
-                                         LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is

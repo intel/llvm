@@ -13,6 +13,7 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   Core
   Support
   Passes
+  SYCLLowerIR
   Target
   TargetParser
   TransformUtils

@@ -480,7 +480,8 @@ namespace llvm {
   ///
   Pass *createGlobalMergePass(const TargetMachine *TM, unsigned MaximalOffset,
                               bool OnlyOptimizeForSize = false,
-                              bool MergeExternalByDefault = false);
+                              bool MergeExternalByDefault = false,
+                              bool MergeConstantByDefault = false);
 
   /// This pass splits the stack into a safe stack and an unsafe stack to
   /// protect against stack-based overflow vulnerabilities.
@@ -516,11 +517,6 @@ namespace llvm {
   // This pass replaces intrinsics operating on vector operands with calls to
   // the corresponding function in a vector library (e.g., SVML, libmvec).
   FunctionPass *createReplaceWithVeclibLegacyPass();
-
-  /// This pass expands the vector predication intrinsics into unpredicated
-  /// instructions with selects or just the explicit vector length into the
-  /// predicate mask.
-  FunctionPass *createExpandVectorPredicationPass();
 
   // Expands large div/rem instructions.
   FunctionPass *createExpandLargeDivRemPass();

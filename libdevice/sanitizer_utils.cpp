@@ -55,6 +55,8 @@ __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
 
 extern SYCL_EXTERNAL __attribute__((convergent)) void
 __spirv_ControlBarrier(uint32_t Execution, uint32_t Memory, uint32_t Semantics);
+
+extern "C" SYCL_EXTERNAL void __devicelib_exit();
 #endif // __USE_SPIR_BUILTIN__
 
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
@@ -104,8 +106,8 @@ enum ADDRESS_SPACE : uint32_t {
 
 namespace {
 
-bool __asan_report_unknown_device();
-bool __asan_report_out_of_shadow_bounds();
+void __asan_report_unknown_device();
+void __asan_report_out_of_shadow_bounds();
 void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as);
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
@@ -182,10 +184,11 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
                       ((addr & (slm_size - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds()) {
+      if (__AsanDebug) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)shadow_offset);
       }
+      __asan_report_out_of_shadow_bounds();
       return 0;
     }
     return shadow_ptr;
@@ -215,10 +218,11 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
                       ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds()) {
+      if (__AsanDebug) {
         __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr,
                            WG_LID, (uptr)shadow_offset);
       }
+      __asan_report_out_of_shadow_bounds();
       return 0;
     }
     return shadow_ptr;
@@ -245,10 +249,11 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
     }
 
     if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-      if (__asan_report_out_of_shadow_bounds()) {
+      if (__AsanDebug) {
         __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
                            (uptr)__AsanShadowMemoryGlobalStart);
       }
+      __asan_report_out_of_shadow_bounds();
       return 0;
     }
     return shadow_ptr;
@@ -281,10 +286,11 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
                       ((addr & (SLM_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds()) {
+      if (__AsanDebug) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)shadow_offset);
       }
+      __asan_report_out_of_shadow_bounds();
       return 0;
     }
     return shadow_ptr;
@@ -314,10 +320,11 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
                       ((addr & (ASAN_PRIVATE_SIZE - 1)) >> ASAN_SHADOW_SCALE);
 
     if (shadow_ptr > shadow_offset_end) {
-      if (__asan_report_out_of_shadow_bounds()) {
+      if (__AsanDebug) {
         __spirv_ocl_printf(__private_shadow_out_of_bound, addr, shadow_ptr,
                            WG_LID, (uptr)shadow_offset);
       }
+      __asan_report_out_of_shadow_bounds();
       return 0;
     }
     return shadow_ptr;
@@ -336,14 +343,13 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
   } else if (__DeviceType == DeviceType::GPU_DG2) {
     shadow_ptr = MemToShadow_DG2(addr, as);
   } else {
-    if (__asan_report_unknown_device() && __AsanDebug) {
+    if (__AsanDebug) {
       __spirv_ocl_printf(__asan_print_unsupport_device_type, (int)__DeviceType);
     }
-    return shadow_ptr;
+    __asan_report_unknown_device();
+    return 0;
   }
 
-// FIXME: OCL "O2" optimizer doesn't work well with following code
-#if 0
   if (__AsanDebug) {
     if (shadow_ptr) {
       if (as == ADDRESS_SPACE_PRIVATE)
@@ -355,7 +361,6 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
       __spirv_ocl_printf(__asan_print_shadow_value2, addr, as, shadow_ptr);
     }
   }
-#endif
 
   return shadow_ptr;
 }
@@ -398,7 +403,7 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
     "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
 
-bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
+void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
@@ -423,12 +428,11 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
     if (__AsanDebug)
       __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
                          SanitizerReport.IsRecover);
-    return true;
   }
-  return false;
+  __devicelib_exit();
 }
 
-bool __asan_internal_report_save(
+void __asan_internal_report_save(
     uptr ptr, uint32_t as, const char __SYCL_CONSTANT__ *file, uint32_t line,
     const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
     DeviceSanitizerMemoryType memory_type, DeviceSanitizerErrorType error_type,
@@ -505,9 +509,8 @@ bool __asan_internal_report_save(
     if (__AsanDebug)
       __spirv_ocl_printf(__mem_sanitizer_report, SanitizerReport.ErrorType,
                          SanitizerReport.IsRecover);
-    return true;
   }
-  return false;
+  __devicelib_exit();
 }
 
 ///
@@ -575,6 +578,9 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   case kUsmSharedDeallocatedMagic:
     error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
     break;
+  case kNullPointerRedzoneMagic:
+    error_type = DeviceSanitizerErrorType::NULL_POINTER;
+    break;
   default:
     error_type = DeviceSanitizerErrorType::UNKNOWN;
   }
@@ -604,13 +610,12 @@ void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
                               memory_type, error_type, is_recover);
 }
 
-bool __asan_report_unknown_device() {
-  return __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE);
+void __asan_report_unknown_device() {
+  __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE);
 }
 
-bool __asan_report_out_of_shadow_bounds() {
-  return __asan_internal_report_save(
-      DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS);
+void __asan_report_out_of_shadow_bounds() {
+  __asan_internal_report_save(DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS);
 }
 
 ///

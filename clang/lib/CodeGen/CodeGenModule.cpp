@@ -128,8 +128,6 @@ createTargetCodeGenInfo(CodeGenModule &CGM) {
   default:
     return createDefaultTargetCodeGenInfo(CGM);
 
-  case llvm::Triple::le32:
-    return createPNaClTargetCodeGenInfo(CGM);
   case llvm::Triple::m68k:
     return createM68kTargetCodeGenInfo(CGM);
   case llvm::Triple::mips:
@@ -1273,8 +1271,12 @@ void CodeGenModule::Release() {
           (LangOpts.PointerAuthVTPtrTypeDiscrimination
            << AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_VPTRTYPEDISCR) |
           (LangOpts.PointerAuthInitFini
-           << AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_INITFINI);
-      static_assert(AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_INITFINI ==
+           << AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_INITFINI) |
+          (LangOpts.PointerAuthInitFiniAddressDiscrimination
+           << AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_INITFINIADDRDISC) |
+          (LangOpts.PointerAuthELFGOT
+           << AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_GOT);
+      static_assert(AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_GOT ==
                         AARCH64_PAUTH_PLATFORM_LLVM_LINUX_VERSION_LAST,
                     "Update when new enum items are defined");
       if (PAuthABIVersion != 0) {
@@ -2196,11 +2198,14 @@ void CodeGenModule::AddGlobalDtor(llvm::Function *Dtor, int Priority,
 void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
   if (Fns.empty()) return;
 
-  // Ctor function type is void()*.
-  llvm::FunctionType* CtorFTy = llvm::FunctionType::get(VoidTy, false);
-  llvm::Type *CtorPFTy = llvm::PointerType::get(CtorFTy,
-      TheModule.getDataLayout().getProgramAddressSpace());
-  llvm::PointerType *TargetType = VoidPtrTy;
+  const PointerAuthSchema &InitFiniAuthSchema =
+      getCodeGenOpts().PointerAuth.InitFiniPointers;
+
+  // Ctor function type is ptr.
+  llvm::PointerType *PtrTy = llvm::PointerType::get(
+      getLLVMContext(), TheModule.getDataLayout().getProgramAddressSpace());
+
+  llvm::PointerType *TargetType = PtrTy;
   // Get target type when templated global variables are used,
   // to emit them correctly in the target (default) address space and avoid
   // emitting them in a private address space.
@@ -2208,33 +2213,48 @@ void CodeGenModule::EmitCtorList(CtorList &Fns, const char *GlobalName) {
     TargetType = llvm::PointerType::get(
         getLLVMContext(), getContext().getTargetAddressSpace(LangAS::Default));
 
-  // Get the type of a ctor entry, { i32, void ()*, i8* }.
-  llvm::StructType *CtorStructTy =
-      llvm::StructType::get(Int32Ty, CtorPFTy, TargetType);
+
+  // Get the type of a ctor entry, { i32, ptr, ptr }.
+  llvm::StructType *CtorStructTy = llvm::StructType::get(Int32Ty, PtrTy, TargetType);
 
   // Construct the constructor and destructor arrays.
-  ConstantInitBuilder builder(*this);
-  auto ctors = builder.beginArray(CtorStructTy);
+  ConstantInitBuilder Builder(*this);
+  auto Ctors = Builder.beginArray(CtorStructTy);
   for (const auto &I : Fns) {
-    auto ctor = ctors.beginStruct(CtorStructTy);
-    ctor.addInt(Int32Ty, I.Priority);
-    ctor.add(I.Initializer);
+    auto Ctor = Ctors.beginStruct(CtorStructTy);
+    Ctor.addInt(Int32Ty, I.Priority);
+    if (InitFiniAuthSchema) {
+      llvm::Constant *StorageAddress =
+          (InitFiniAuthSchema.isAddressDiscriminated()
+               ? llvm::ConstantExpr::getIntToPtr(
+                     llvm::ConstantInt::get(
+                         IntPtrTy,
+                         llvm::ConstantPtrAuth::AddrDiscriminator_CtorsDtors),
+                     PtrTy)
+               : nullptr);
+      llvm::Constant *SignedCtorPtr = getConstantSignedPointer(
+          I.Initializer, InitFiniAuthSchema.getKey(), StorageAddress,
+          llvm::ConstantInt::get(
+              SizeTy, InitFiniAuthSchema.getConstantDiscrimination()));
+      Ctor.add(SignedCtorPtr);
+    } else {
+      Ctor.add(I.Initializer);
+    }
     if (I.AssociatedData)
-      ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+      Ctor.add(llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
           I.AssociatedData, TargetType));
     else
-      ctor.addNullPointer(TargetType);
-    ctor.finishAndAddTo(ctors);
+      Ctor.addNullPointer(TargetType);
+    Ctor.finishAndAddTo(Ctors);
   }
 
-  auto list =
-    ctors.finishAndCreateGlobal(GlobalName, getPointerAlign(),
-                                /*constant*/ false,
-                                llvm::GlobalValue::AppendingLinkage);
+  auto List = Ctors.finishAndCreateGlobal(GlobalName, getPointerAlign(),
+                                          /*constant*/ false,
+                                          llvm::GlobalValue::AppendingLinkage);
 
   // The LTO linker doesn't seem to like it when we set an alignment
   // on appending variables.  Take it off as a workaround.
-  list->setAlignment(std::nullopt);
+  List->setAlignment(std::nullopt);
 
   Fns.clear();
 }
@@ -6594,13 +6614,13 @@ static void replaceUsesOfNonProtoConstant(llvm::Constant *old,
 
     llvm::CallBase *newCall;
     if (isa<llvm::CallInst>(callSite)) {
-      newCall =
-          llvm::CallInst::Create(newFn, newArgs, newBundles, "", callSite);
+      newCall = llvm::CallInst::Create(newFn, newArgs, newBundles, "",
+                                       callSite->getIterator());
     } else {
       auto *oldInvoke = cast<llvm::InvokeInst>(callSite);
-      newCall = llvm::InvokeInst::Create(newFn, oldInvoke->getNormalDest(),
-                                         oldInvoke->getUnwindDest(), newArgs,
-                                         newBundles, "", callSite);
+      newCall = llvm::InvokeInst::Create(
+          newFn, oldInvoke->getNormalDest(), oldInvoke->getUnwindDest(),
+          newArgs, newBundles, "", callSite->getIterator());
     }
     newArgs.clear(); // for the next iteration
 

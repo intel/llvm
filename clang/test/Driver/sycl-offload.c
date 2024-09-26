@@ -69,6 +69,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
+/// -fsycl-device-obj argument check
+// RUN: %clang -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// RUN: %clang_cl -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// DEVICE_OBJ_WARN: warning: ignoring invalid '-fsycl-device-obj' value 'test', using default value 'llvmir' [-Wunused-command-line-argument]
+
 /// ###########################################################################
 
 /// Check warning for duplicate offloading targets.
