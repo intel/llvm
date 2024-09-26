@@ -625,7 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     auto Stream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
@@ -1500,19 +1500,12 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       // the runtime.
       if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
         releaseEvent();
-        // UR_RESULT_ERROR_INVALID_ENUMERATION is returned when using a valid
-        // but currently unmapped advice arguments as not supported by this
-        // platform. Therefore, warn the user instead of throwing and aborting
-        // the runtime.
-        if (Result == UR_RESULT_ERROR_INVALID_ENUMERATION) {
-          setErrorMessage("mem_advise is ignored as the advice argument is not "
-                          "supported by this device",
-                          UR_RESULT_SUCCESS);
-          return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
-        } else {
-          throw Result;
-        }
+        setErrorMessage("mem_advise is ignored as the advice argument is not "
+                        "supported by this device",
+                        UR_RESULT_SUCCESS);
+        return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+      UR_CHECK_ERROR(Result);
     }
 
     releaseEvent();
