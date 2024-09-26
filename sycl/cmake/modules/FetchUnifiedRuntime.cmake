@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f5c907a0f74fd6729be5c2e137144f1a43f87111
-  # Merge: 9ca3ec7 be38e567
+  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
+  # Merge: 17aa04d3 6eb5208b
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 23 08:27:12 2024 -0700
-  #     Merge pull request #1830 from JackAKirk/hip-set-device
-  #     [hip] Remove deprecated hip APIs, simplify urContext
-  set(UNIFIED_RUNTIME_TAG f5c907a0f74fd6729be5c2e137144f1a43f87111)
+  # Date:   Wed Sep 25 11:14:47 2024 +0100
+  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
+  #     Add two new properties to ur_kernel_group_info_t
+  set(UNIFIED_RUNTIME_TAG 7ecf64d60c31cd72bd88588498536d067bad59d6)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
