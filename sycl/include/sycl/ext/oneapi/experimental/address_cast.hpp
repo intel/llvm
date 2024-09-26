@@ -27,14 +27,10 @@ multi_ptr<ElementType, Space, access::decorated::no>
 static_address_cast(ElementType *Ptr) {
   using ret_ty = multi_ptr<ElementType, Space, access::decorated::no>;
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Remove this restriction.
   static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
-                "The extension expect undecorated raw pointers only!");
+                "The extension expects undecorated raw pointers only!");
   if constexpr (Space == generic_space) {
     // Undecorated raw pointer is in generic AS already, no extra casts needed.
-    // Note for future, for `OpPtrCastToGeneric`, `Pointer` must point to one of
-    // `Storage Classes` that doesn't include `Generic`, so this will have to
-    // remain a special case even if the restriction above is lifted.
     return ret_ty(Ptr);
   } else {
     auto CastPtr = sycl::detail::spirv::GenericCastToPtr<Space>(Ptr);
@@ -60,9 +56,8 @@ multi_ptr<ElementType, Space, access::decorated::no>
 dynamic_address_cast(ElementType *Ptr) {
   using ret_ty = multi_ptr<ElementType, Space, access::decorated::no>;
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Remove this restriction.
   static_assert(std::is_same_v<ElementType, remove_decoration_t<ElementType>>,
-                "The extension expect undecorated raw pointers only!");
+                "The extension expects undecorated raw pointers only!");
   if constexpr (Space == generic_space) {
     return ret_ty(Ptr);
   } else {

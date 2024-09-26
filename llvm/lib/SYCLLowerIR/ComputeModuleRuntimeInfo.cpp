@@ -112,28 +112,35 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
-// Gets reqd_work_group_size information for function Func.
-std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
-  MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
-  if (!ReqdWorkGroupSizeMD)
+// Gets 1- to 3-dimension work-group related information for function Func.
+// Returns an empty vector if not present.
+template <typename T>
+std::vector<T> getKernelWorkGroupMetadata(const Function &Func,
+                                          const char *MDName) {
+  MDNode *WorkGroupMD = Func.getMetadata(MDName);
+  if (!WorkGroupMD)
     return {};
-  size_t NumOperands = ReqdWorkGroupSizeMD->getNumOperands();
+  size_t NumOperands = WorkGroupMD->getNumOperands();
   assert(NumOperands >= 1 && NumOperands <= 3 &&
-         "reqd_work_group_size does not have between 1 and 3 operands.");
-  std::vector<uint32_t> OutVals;
+         "work-group metadata does not have between 1 and 3 operands.");
+  std::vector<T> OutVals;
   OutVals.reserve(NumOperands);
-  for (const MDOperand &MDOp : ReqdWorkGroupSizeMD->operands())
+  for (const MDOperand &MDOp : WorkGroupMD->operands())
     OutVals.push_back(mdconst::extract<ConstantInt>(MDOp)->getZExtValue());
   return OutVals;
 }
-// Gets work_group_num_dim information for function Func, conviniently 0 if
-// metadata is not present.
-uint32_t getKernelWorkGroupNumDim(const Function &Func) {
-  MDNode *MaxDimMD = Func.getMetadata("work_group_num_dim");
-  if (!MaxDimMD)
-    return 0;
-  assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
-  return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))->getZExtValue();
+
+// Gets a single-dimensional piece of information for function Func.
+// Returns std::nullopt if metadata is not present.
+template <typename T>
+std::optional<T> getKernelSingleEltMetadata(const Function &Func,
+                                            const char *MDName) {
+  if (MDNode *MaxDimMD = Func.getMetadata(MDName)) {
+    assert(MaxDimMD->getNumOperands() == 1 && "Malformed node.");
+    return mdconst::extract<ConstantInt>(MaxDimMD->getOperand(0))
+        ->getZExtValue();
+  }
+  return std::nullopt;
 }
 
 PropSetRegTy computeModuleProperties(const Module &M,
@@ -249,22 +256,40 @@ PropSetRegTy computeModuleProperties(const Module &M,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    // Add reqd_work_group_size and work_group_num_dim information to
-    // program metadata.
+    // Add various pieces of function metadata to program metadata.
     for (const Function &Func : M.functions()) {
-      std::vector<uint32_t> KernelReqdWorkGroupSize =
-          getKernelReqdWorkGroupSizeMetadata(Func);
-      if (!KernelReqdWorkGroupSize.empty()) {
+      // Note - we're implicitly truncating 64-bit work-group data to 32 bits in
+      // all work-group related metadata. All current consumers of this program
+      // metadata format only support SYCL ID queries that fit within MAX_INT.
+      if (auto KernelReqdWorkGroupSize = getKernelWorkGroupMetadata<uint32_t>(
+              Func, "reqd_work_group_size");
+          !KernelReqdWorkGroupSize.empty()) {
         MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     KernelReqdWorkGroupSize);
       }
 
-      uint32_t WorkGroupNumDim = getKernelWorkGroupNumDim(Func);
-      if (WorkGroupNumDim) {
+      if (auto WorkGroupNumDim = getKernelSingleEltMetadata<uint32_t>(
+              Func, "work_group_num_dim")) {
         MetadataNames.push_back(Func.getName().str() + "@work_group_num_dim");
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
-                    WorkGroupNumDim);
+                    *WorkGroupNumDim);
+      }
+
+      if (auto KernelMaxWorkGroupSize =
+              getKernelWorkGroupMetadata<uint32_t>(Func, "max_work_group_size");
+          !KernelMaxWorkGroupSize.empty()) {
+        MetadataNames.push_back(Func.getName().str() + "@max_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    KernelMaxWorkGroupSize);
+      }
+
+      if (auto MaxLinearWGSize = getKernelSingleEltMetadata<uint64_t>(
+              Func, "max_linear_work_group_size")) {
+        MetadataNames.push_back(Func.getName().str() +
+                                "@max_linear_work_group_size");
+        PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                    *MaxLinearWGSize);
       }
     }
 
