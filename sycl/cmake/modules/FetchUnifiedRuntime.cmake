@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
-  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
-  # Date:   Wed Sep 25 15:55:05 2024 +0100
-  #     Associate queue with device in context (#1992)
-  #     Making a native queue doesn't require hDevice to be non null, but this
-  #     associates the queue with a null device, even if hContext contains valid
-  #     devices.
-  set(UNIFIED_RUNTIME_TAG 2ad32681efd2c977f2c1f7f3a30d572d4c15499c)
+  # commit 6d9c97f4979ff3b8f375ee2bb9553a0e54d40338
+  # Merge: ce0325da 3dfcdfde
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Thu Sep 26 10:52:17 2024 +0100
+  #     Merge pull request #2013 from winstonzhang-intel/URLZA-186
+  #     [L0] zeDeviceCanAccessPeer call optimization
+  set(UNIFIED_RUNTIME_TAG 6d9c97f4979ff3b8f375ee2bb9553a0e54d40338)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -137,8 +136,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endif()
 
   fetch_adapter_source(level_zero
-    https://github.com/winstonzhang-intel/unified-runtime.git
-    3dfcdfde5a79bfc587f3a5e45789b66e9e6a26ff
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl
