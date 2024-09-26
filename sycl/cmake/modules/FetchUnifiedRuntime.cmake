@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
-  # commit 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55
-  # Merge: 7384e2d7 59e5e405
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Sep 23 10:58:51 2024 +0200
-  #   Merge pull request #2113 from oneapi-src/revert-1698-counter-based-2 
-  #   Revert "[L0] Phase 2 of Counter-Based Event Implementation"
-  set(UNIFIED_RUNTIME_TAG 1c5e49ff9cefce9e3a305f3c1c09fdb7cae250c0)
+  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
+  # Merge: 17aa04d3 6eb5208b
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Sep 25 11:14:47 2024 +0100
+  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
+  #     Add two new properties to ur_kernel_group_info_t
+  set(UNIFIED_RUNTIME_TAG da1ebe8deba17e825db12d4a939710e2d9bae556)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
