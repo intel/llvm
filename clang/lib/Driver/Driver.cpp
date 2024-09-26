@@ -1303,12 +1303,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       // is currently enabled only with ``--offload-new-driver`` option.
       // Emit a diagnostic if ``--offload-arch`` is invoked without
       // ``--offload-new driver`` option.
-        if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                      options::OPT_no_offload_new_driver,
-                                      false)) {
-          Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-          return;
-        }            
+      if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                    options::OPT_no_offload_new_driver,
+                                    false)) {
+        Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+        return;
+      }
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
     auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
