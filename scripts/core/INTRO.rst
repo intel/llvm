@@ -286,7 +286,7 @@ for these parameter structs can be found in the main API header.
 Layers
 ---------------------
 UR comes with a mechanism that allows various API intercept layers to be enabled, either through the API or with an environment variable (see `Environment Variables`_).
-Layers currently included with the runtime are as follows:
+By default, no layers are enabled. Layers currently included with the runtime are as follows:
 
 .. list-table::
    :header-rows: 1

@@ -17,6 +17,7 @@ struct LoaderConfigCreateTest : ::testing::Test {
 
 TEST_F(LoaderConfigCreateTest, Success) {
     ASSERT_SUCCESS(urLoaderConfigCreate(&loaderConfig));
+    ASSERT_TRUE(loaderConfig != nullptr);
 }
 
 TEST_F(LoaderConfigCreateTest, InvalidNullPointerLoaderConfig) {

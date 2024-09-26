@@ -151,7 +151,7 @@ ur_result_t UR_APICALL urLoaderConfigEnableLayer(
         hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
     const char *
         pLayerName ///< [in] Null terminated string containing the name of the layer to
-                   ///< enable.
+                   ///< enable. Empty if none are enabled.
     ) try {
     return ur_lib::urLoaderConfigEnableLayer(hLoaderConfig, pLayerName);
 } catch (...) {
