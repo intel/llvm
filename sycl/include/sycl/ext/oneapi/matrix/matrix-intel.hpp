@@ -1120,6 +1120,101 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 }
 // End out-of-bounds API
 
+template <
+    typename Group, typename T, typename Tp,
+    sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
+    size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+    access::address_space Space, access::decorated IsDecorated,
+    std::enable_if_t<Use == sycl::ext::oneapi::experimental::matrix::use::a ||
+                         Use == sycl::ext::oneapi::experimental::matrix::use::b,
+                     bool> = true>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_store(Group,
+                   const sycl::ext::oneapi::experimental::matrix::joint_matrix<
+                       Group, Tp, Use, NumRows, NumCols, Layout> &Src,
+                   size_t RowIndex, size_t ColIndex,
+                   multi_ptr<T, Space, IsDecorated> BaseDst, size_t Stride) {
+#if defined(__SYCL_DEVICE_ONLY__)
+  static_assert(Space != access::address_space::private_space,
+                "Joint Matrix doesn't support store to private memory!");
+#if defined(__NVPTX__)
+  std::ignore = Src;
+  std::ignore = BaseDst;
+  std::ignore = Stride;
+  throw exception(
+      make_error_code(errc::runtime),
+      "This version of the matrix extension is only currently supported on "
+      "intel devices");
+#else
+  // intel's impl
+  using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
+  DecorT *Ptr = sycl::detail::getDecorated<DecorT>(BaseDst);
+  __spirv_CooperativeMatrixStoreOffsetINTEL<
+      DecorT, Tp, NumRows, NumCols,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_use_traits<
+          Use>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value>(
+      Ptr, RowIndex, ColIndex, Src.spvm,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      Stride);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = Src;
+  std::ignore = BaseDst;
+  std::ignore = Stride;
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+template <
+    typename Group, typename T, typename Tp,
+    sycl::ext::oneapi::experimental::matrix::use Use, size_t NumRows,
+    size_t NumCols, sycl::ext::oneapi::experimental::matrix::layout Layout,
+    typename PropertyListT,
+    std::enable_if_t<Use == sycl::ext::oneapi::experimental::matrix::use::a ||
+                         Use == sycl::ext::oneapi::experimental::matrix::use::b,
+                     bool> = true>
+inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
+    Group,
+    const sycl::ext::oneapi::experimental::matrix::joint_matrix<
+        Group, Tp, Use, NumRows, NumCols, Layout>
+        Src,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> BaseDst,
+    size_t RowIndex, size_t ColIndex, size_t Stride) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  std::ignore = Src;
+  std::ignore = BaseDst;
+  std::ignore = Stride;
+  throw exception(
+      make_error_code(errc::runtime),
+      "This version of the matrix extension is only currently supported on "
+      "intel devices");
+#else
+  // intel's impl
+  T *Ptr = BaseDst.get();
+  __spirv_CooperativeMatrixStoreOffsetINTEL<
+      T, Tp, NumRows, NumCols,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_use_traits<
+          Use>::value,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value>(
+      Ptr, Src.spvm,
+      sycl::ext::oneapi::experimental::matrix::spv_matrix_layout_traits<
+          Layout>::value,
+      RowIndex, ColIndex, Stride);
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = Src;
+  std::ignore = BaseDst;
+  std::ignore = Stride;
+  throw exception(make_error_code(errc::runtime),
+                  "joint matrix is not supported on host.");
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 } // namespace intel::experimental::matrix
 
 } // namespace ext
