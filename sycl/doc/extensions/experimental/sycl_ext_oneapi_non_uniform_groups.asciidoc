@@ -69,9 +69,10 @@ work-groups and sub-groups to support fine-grained work scheduling. A common
 use-case for such flexibility is communication between and coordination of
 work-items in divergent control flow.
 
-This proposal introduces new classes to represent sub-divisions of SYCL's
-built-in group types, traits for detecting these classes, and free functions
-for creating new instances of these classes.
+This proposal introduces the `chunk` and `fragment` clases to represent
+contiguous and non-contiguous sub-divisions of SYCL's built-in group types,
+respectively. It also introduces new traits for detecting these classes, and
+free functions for creating new instances of these classes.
 
 These new classes can be used as arguments to group functions, group algorithms,
 and custom functions to convey exactly which work-items an operation is expecting,
