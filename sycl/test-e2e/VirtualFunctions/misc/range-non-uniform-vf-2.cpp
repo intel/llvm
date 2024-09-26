@@ -49,12 +49,7 @@ int main() try {
 
   storage_t HostStorage;
 
-  auto asyncHandler = [](sycl::exception_list list) {
-    for (auto &e : list)
-      std::rethrow_exception(e);
-  };
-
-  sycl::queue q(asyncHandler);
+  sycl::queue q;
 
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range R{1024};

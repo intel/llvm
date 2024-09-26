@@ -69,12 +69,7 @@ public:
 int main() try {
   using storage_t = obj_storage_t<SumOp, MultiplyOp>;
 
-  auto asyncHandler = [](sycl::exception_list list) {
-    for (auto &e : list)
-      std::rethrow_exception(e);
-  };
-
-  sycl::queue q(asyncHandler);
+  sycl::queue q;
 
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
   sycl::range G{512};
