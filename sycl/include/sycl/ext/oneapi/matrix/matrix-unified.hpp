@@ -486,7 +486,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
+  std::ignore = Sg;
   throw exception(make_error_code(errc::runtime),
                   "Use joint_matrix_load on multi_ptr on Nvidia device.");
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
@@ -526,7 +526,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load(
     size_t RowIndex, size_t ColIndex, size_t Stride) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
+  std::ignore = Sg;
   throw exception(make_error_code(errc::runtime),
                   "Use joint_matrix_load on multi_ptr on Nvidia device.");
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)
@@ -672,7 +672,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
                                                  : RowIndex + ColIndex * Stride;
   sycl::ext::oneapi::detail::joint_matrix_store_hip<Group, T, NumRows, NumCols,
                                                     Space>(
-      Src.matrix_impl, BaseDst + StoreStride, Stride, Layout, sg);
+      Src.matrix_impl, BaseDst + StoreStride, Stride, Layout, Sg);
 #else
   std::ignore = Sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
@@ -707,7 +707,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
-  std::ignore = sg;
+  std::ignore = Sg;
   throw exception(make_error_code(errc::runtime),
                   "Use joint_matrix_store on multi_ptr on Nvidia device.");
 #elif defined(__HIP_PLATFORM_AMD_MFMA__)

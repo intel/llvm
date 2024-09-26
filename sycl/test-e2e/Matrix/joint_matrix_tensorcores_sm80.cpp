@@ -10,6 +10,9 @@
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_80 -o %t.out
 // RUN: %{run} %t.out
 //
+// RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_70 -o %toff.out -DOFFSET
+// RUN: %{run} %toff.out
+//
 // This tests the unified matrix extension interfaces for the cuda backend.
 // This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
 // where sm_xx >= sm_80.

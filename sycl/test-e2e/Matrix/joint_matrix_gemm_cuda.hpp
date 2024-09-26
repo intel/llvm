@@ -167,28 +167,43 @@ void test(queue &q) {
                 sub_c;
             joint_matrix<sycl::sub_group, Td, use::accumulator, M, N> sub_d;
             auto stride_C = layout_C == layout::row_major ? Big_N : Big_M;
+#ifdef OFFSET
+
+            joint_matrix_load(
+                sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
+                m * M, n * N, stride_C, layout_C);
+#else
             auto load_stride_C = layout_C == layout::row_major
                                      ? (m * M) * Big_N + n * N
                                      : (m * M) + n * N * Big_M;
-
             joint_matrix_load(
                 sg, sub_c,
                 accC.template get_multi_ptr<access::decorated::no>() +
                     load_stride_C,
                 stride_C, layout_C);
-
+#endif
             auto stride_A = layout_A == layout::row_major ? Big_K : Big_M;
             auto stride_B = layout_B == layout::row_major ? Big_N : Big_K;
 
             // k = row/col id of current submatrix of BIG A/B matrices
             for (int k = 0; k < Sub_Tiles_K; k++) {
+#ifdef OFFSET
+              joint_matrix_load(
+                  sg, sub_a,
+                  accA.template get_multi_ptr<access::decorated::no>(), m * M,
+                  k * K, stride_A);
+
+              joint_matrix_load(
+                  sg, sub_b,
+                  accB.template get_multi_ptr<access::decorated::no>(), k * K,
+                  n * N, load_stride_B, stride_B);
+#else
               auto load_stride_A = layout_A == layout::row_major
                                        ? (k * K) + (m * M * Big_K)
                                        : (k * K * Big_M) + (m * M);
               auto load_stride_B = layout_B == layout::row_major
                                        ? (k * K * Big_N) + (n * N)
                                        : (k * K) + (n * N * Big_K);
-
               joint_matrix_load(
                   sg, sub_a,
                   accA.template get_multi_ptr<access::decorated::no>() +
@@ -200,7 +215,7 @@ void test(queue &q) {
                   accB.template get_multi_ptr<access::decorated::no>() +
                       load_stride_B,
                   stride_B);
-
+#endif
               // round values to correct precision if using tf32
               if constexpr (std::is_same<T3, precision::tf32>::value) {
                 auto round_lambda = [](auto &x) { x = round_to_tf32(x); };
@@ -211,11 +226,17 @@ void test(queue &q) {
               joint_matrix_mad(sg, sub_d, sub_a, sub_b, sub_c);
               joint_matrix_copy(sg, sub_d, sub_c);
             }
+#ifdef OFFSET
             joint_matrix_store(
+                sg, sub_d, accD.template get_multi_ptr<access::decorated::no>(),
+                m * M, n * N, stride_C, layout_C);
+#else
+	                joint_matrix_store(
                 sg, sub_d,
                 accD.template get_multi_ptr<access::decorated::no>() +
                     load_stride_C,
                 stride_C, layout_C);
+#endif
           });
     });
     q.wait();
