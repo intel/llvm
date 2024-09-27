@@ -146,12 +146,19 @@ on:
           - false
           - true
 
+      skip_run:
+        type: choice
+        default: 'false'
+        options:
+          - false
+          - true
+
 permissions:
   contents: read
 
 jobs:
   run:
-    if: inputs.skip_run == 'false' || github.event_name == 'workflow_run'
+    if: inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
