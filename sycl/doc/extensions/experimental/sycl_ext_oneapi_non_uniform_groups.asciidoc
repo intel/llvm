@@ -286,11 +286,11 @@ false) or 1 (if `predicate` is true).
 
 [source, c++]
 ----
-namespace ext::oneapi::experimental::this_kernel {
+namespace ext::oneapi::experimental::this_work_item {
 
 fragment<sycl::sub_group> get_opportunistic_group();
 
-} // namespace ext::oneapi::experimental::this_kernel
+} // namespace ext::oneapi::experimental::this_work_item
 ----
 
 _Returns_: A `fragment` consisting of all work-items which call this function
@@ -442,7 +442,7 @@ template <sycl::memory_order Order,
 int atomic_aggregate_inc(sycl::atomic_ref<int, Order, Scope, AddressSpace> ptr) {
 
   // get the set of work-items that called this function simultaneously
-  auto active_group = sycl::ext::oneapi::experimental::this_kernel::get_opportunistic_group();
+  auto active_group = sycl::ext::oneapi::experimental::this_work_item::get_opportunistic_group();
 
   // increment the atomic once on behalf of all active work-items
   int count = active_group.get_local_linear_range();
