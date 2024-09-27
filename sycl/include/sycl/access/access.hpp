@@ -377,6 +377,137 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
   }
 }
 
+#ifdef __SYCL_DEVICE_ONLY__
+inline constexpr bool
+address_space_cast_is_possible(access::address_space Src,
+                               access::address_space Dst) {
+  auto generic_space = access::address_space::generic_space;
+  if (Src == Dst || Src == generic_space || Dst == generic_space)
+    return true;
+
+  // global_host/global_device could be casted to/from global
+  auto global_space = access::address_space::global_space;
+  auto global_device = access::address_space::ext_intel_global_device_space;
+  auto global_host = access::address_space::ext_intel_global_host_space;
+
+  if (Src == global_space || Dst == global_space) {
+    auto Other = Src == global_space ? Dst : Src;
+    if (Other == global_device || Other == global_host)
+      return true;
+  }
+
+  // No more compatible combinations.
+  return false;
+}
+template <access::address_space Space, typename ElementType>
+auto static_address_cast(ElementType *Ptr) {
+  constexpr auto generic_space = access::address_space::generic_space;
+  constexpr auto global_space = access::address_space::global_space;
+  constexpr auto local_space = access::address_space::local_space;
+  constexpr auto private_space = access::address_space::private_space;
+  constexpr auto global_device =
+      access::address_space::ext_intel_global_device_space;
+  constexpr auto global_host =
+      access::address_space::ext_intel_global_host_space;
+
+  constexpr auto SrcAS = deduce_AS<ElementType *>::value;
+  static_assert(address_space_cast_is_possible(SrcAS, Space));
+
+  using dst_type = typename DecoratedType<
+      std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space>::type *;
+
+  // Note: reinterpret_cast isn't enough for some of the casts between different
+  // address spaces, use C-style cast instead.
+#if !defined(__SPIR__)
+  return (dst_type)Ptr;
+#else
+  if constexpr (SrcAS != generic_space) {
+    return (dst_type)Ptr;
+  } else if constexpr (Space == global_space) {
+    return (dst_type)__spirv_GenericCastToPtr_ToGlobal(
+        Ptr, __spv::StorageClass::CrossWorkgroup);
+  } else if constexpr (Space == local_space) {
+    return (dst_type)__spirv_GenericCastToPtr_ToLocal(
+        Ptr, __spv::StorageClass::Workgroup);
+  } else if constexpr (Space == private_space) {
+    return (dst_type)__spirv_GenericCastToPtr_ToPrivate(
+        Ptr, __spv::StorageClass::Function);
+#if !defined(__ENABLE_USM_ADDR_SPACE__)
+  } else if constexpr (Space == global_device || Space == global_host) {
+    // If __ENABLE_USM_ADDR_SPACE__ isn't defined then both
+    // global_device/global_host are just aliases for global_space.
+    return (dst_type)__spirv_GenericCastToPtr_ToGlobal(
+        Ptr, __spv::StorageClass::CrossWorkgroup);
+#endif
+  } else {
+    return (dst_type)Ptr;
+  }
+#endif
+}
+template <access::address_space Space, typename ElementType>
+auto dynamic_address_cast(ElementType *Ptr) {
+  constexpr auto generic_space = access::address_space::generic_space;
+  constexpr auto global_space = access::address_space::global_space;
+  constexpr auto local_space = access::address_space::local_space;
+  constexpr auto private_space = access::address_space::private_space;
+  constexpr auto global_device =
+      access::address_space::ext_intel_global_device_space;
+  constexpr auto global_host =
+      access::address_space::ext_intel_global_host_space;
+
+  constexpr auto SrcAS = deduce_AS<ElementType *>::value;
+  using dst_type = typename DecoratedType<
+      std::remove_pointer_t<remove_decoration_t<ElementType *>>, Space>::type *;
+
+  if constexpr (!address_space_cast_is_possible(SrcAS, Space)) {
+    return (dst_type) nullptr;
+  } else if constexpr (Space == generic_space) {
+    return (dst_type)Ptr;
+  } else if constexpr (Space == global_space &&
+                       (SrcAS == global_device || SrcAS == global_host)) {
+    return (dst_type)Ptr;
+  } else if constexpr (SrcAS == global_space &&
+                       (Space == global_device || Space == global_host)) {
+#if defined(__ENABLE_USM_ADDR_SPACE__)
+    static_assert(Space != Space, "Not supported yet!");
+#else
+    // If __ENABLE_USM_ADDR_SPACE__ isn't defined then both
+    // global_device/global_host are just aliases for global_space.
+    static_assert(std::is_same_v<dst_type, ElementType *>);
+    return (dst_type)Ptr;
+#endif
+#if defined(__SPIR__)
+  } else if constexpr (Space == global_space) {
+    return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
+        Ptr, __spv::StorageClass::CrossWorkgroup);
+  } else if constexpr (Space == local_space) {
+    return (dst_type)__spirv_GenericCastToPtrExplicit_ToLocal(
+        Ptr, __spv::StorageClass::Workgroup);
+  } else if constexpr (Space == private_space) {
+    return (dst_type)__spirv_GenericCastToPtrExplicit_ToPrivate(
+        Ptr, __spv::StorageClass::Function);
+#if !defined(__ENABLE_USM_ADDR_SPACE__)
+  } else if constexpr (SrcAS == generic_space &&
+                       (Space == global_device || Space == global_host)) {
+    return (dst_type)__spirv_GenericCastToPtrExplicit_ToGlobal(
+        Ptr, __spv::StorageClass::CrossWorkgroup);
+#endif
+#endif
+  } else {
+    static_assert(Space != Space, "Not supported yet!");
+    return (dst_type) nullptr;
+  }
+}
+#else  // __SYCL_DEVICE_ONLY__
+template <access::address_space Space, typename ElementType>
+auto static_address_cast(ElementType *Ptr) {
+  return Ptr;
+}
+template <access::address_space Space, typename ElementType>
+auto dynamic_address_cast(ElementType *Ptr) {
+  return Ptr;
+}
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
 #undef __OPENCL_GLOBAL_AS__
