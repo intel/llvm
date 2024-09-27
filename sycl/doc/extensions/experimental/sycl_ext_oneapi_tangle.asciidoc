@@ -191,8 +191,7 @@ tangle<ParentGroup> entangle(ParentGroup group);
 } // namespace ext::oneapi::experimental
 ----
 
-_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>> &&
-std::is_same_v<Group, sycl::sub_group>` is true.
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group`.
 
 _Effects:_ Blocks until all work-items in `parent` that will reach this
 synchronization point have reached this synchronization point.

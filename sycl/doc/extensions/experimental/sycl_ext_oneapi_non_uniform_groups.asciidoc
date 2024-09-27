@@ -264,8 +264,8 @@ fragment<ParentGroup> binary_partition(ParentGroup parent, bool predicate);
 
 } // namespace ext::oneapi::experimental
 ----
-_Constraints_: Available only if `sycl::is_group_v<std::decay_t<ParentGroup>>`
-and `ParentGroup` is a `sycl::sub_group` or `sycl::fragment`.
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group` or
+`sycl::fragment`.
 
 _Preconditions_: All work-items in `parent` must encounter this function in
 converged control flow.
@@ -483,8 +483,8 @@ chunk<ChunkSize, Group> chunked_partition(ParentGroup parent);
 } // namespace ext::oneapi::experimental
 ----
 
-_Constraints_: Available only if `sycl::is_group_v<std::decay_t<ParentGroup>>`
-is true and `ParentGroup` is a `sycl::sub_group` or `sycl::chunk`.
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group` or
+`sycl::chunk`.
 `ChunkSize` must be positive and a power of 2.
 
 _Preconditions_: `ChunkSize` must be less than or equal to the result of
