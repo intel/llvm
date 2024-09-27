@@ -331,7 +331,6 @@ if (will_branch)
 {
   // wait for all work-items that took the branch to hit the barrier
   auto inner = sycl::ext::oneapi::experimental::entangle(sg);
-  sycl::group_barrier(inner);
 
   // reduce across subset of outer work-items that took the branch
   float ix = sycl::reduce_over_group(inner, x, plus<>());
