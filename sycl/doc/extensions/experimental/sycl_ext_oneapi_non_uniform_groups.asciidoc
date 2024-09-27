@@ -264,8 +264,8 @@ fragment<ParentGroup> binary_partition(ParentGroup parent, bool predicate);
 
 } // namespace ext::oneapi::experimental
 ----
-_Constraints_: Available only if `ParentGroup` is `sycl::sub_group` or
-`sycl::fragment`.
+_Constraints_: Available only if `ParentGroup` is `sycl::sub_group`,
+`sycl::chunk`, or `sycl::fragment`.
 
 _Preconditions_: All work-items in `parent` must encounter this function in
 converged control flow.
