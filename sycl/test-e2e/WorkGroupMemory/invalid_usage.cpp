@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 using namespace sycl::ext::oneapi::experimental;
 
 // As per the spec, a work_group_memory object cannot be used in a single task
