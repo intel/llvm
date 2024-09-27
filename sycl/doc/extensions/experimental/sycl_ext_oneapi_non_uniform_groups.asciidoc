@@ -377,19 +377,19 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
@@ -586,19 +586,19 @@ _Returns_: A linearized version of the `id` returned by `get_group_id()`.
 ----
 id_type get_local_linear_id() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_linear_id()`.
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
 
 [source,c++]
 ----
-range_type get_group_linear_range() const;
+linear_id_type get_group_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_group_range()`.
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
 
 [source,c++]
 ----
-range_type get_local_linear_range() const;
+linear_id_type get_local_linear_range() const;
 ----
-_Returns_: A linearized version of the `id` returned by `get_local_range()`.
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
 
 [source,c++]
 ----
