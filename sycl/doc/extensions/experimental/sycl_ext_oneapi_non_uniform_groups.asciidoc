@@ -358,7 +358,8 @@ fragment.
 range_type get_group_range() const;
 ----
 _Returns_: A `range` representing the number of fragments created when the
-parent group was partitioned.
+parent group was partitioned, or 1 if the fragment was created by a call
+to `get_opportunistic_group()`.
 
 [source,c++]
 ----
