@@ -87,3 +87,21 @@ TEST_F(urAdapterGetInfoTest, InvalidNullPointerPropSizeRet) {
         urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, 0, nullptr, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
+
+TEST_F(urAdapterGetInfoTest, ReferenceCountNotZero) {
+    uint32_t referenceCount = 0;
+
+    ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
+                                    sizeof(referenceCount), &referenceCount,
+                                    nullptr));
+    ASSERT_GT(referenceCount, 0);
+}
+
+TEST_F(urAdapterGetInfoTest, ValidAdapterBackend) {
+    ur_adapter_backend_t backend;
+    ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
+                                    sizeof(backend), &backend, nullptr));
+
+    ASSERT_TRUE(backend >= UR_ADAPTER_BACKEND_LEVEL_ZERO &&
+                backend <= UR_ADAPTER_BACKEND_NATIVE_CPU);
+}
