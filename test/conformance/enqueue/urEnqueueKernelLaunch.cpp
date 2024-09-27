@@ -230,7 +230,7 @@ inline std::string printKernelLaunchTestString(
 }
 
 struct urEnqueueKernelLaunchTestWithParam
-    : uur::urBaseKernelExecutionTestWithParam<testParametersEnqueueKernel> {
+    : uur::urKernelExecutionTestWithParam<testParametersEnqueueKernel> {
     void SetUp() override {
         global_range[0] = std::get<1>(GetParam()).X;
         global_range[1] = std::get<1>(GetParam()).Y;
@@ -247,12 +247,11 @@ struct urEnqueueKernelLaunchTestWithParam
             program_name = "fill_3d";
             buffer_size *= global_range[1] * global_range[2];
         }
-        UUR_RETURN_ON_FATAL_FAILURE(
-            urBaseKernelExecutionTestWithParam::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTestWithParam::SetUp());
     }
 
     void TearDown() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urBaseKernelExecutionTestWithParam<
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTestWithParam<
                                     testParametersEnqueueKernel>::TearDown());
     }
 
