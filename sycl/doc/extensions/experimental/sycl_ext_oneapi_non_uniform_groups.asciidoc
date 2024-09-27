@@ -223,12 +223,12 @@ groups is discouraged, since it is highly likely that such code would have to
 make assumptions regarding work-item scheduling and forward progress
 guarantees.
 
-The following group functions support user-defined groups:
+The following group functions support user-constructed groups:
 
 * `group_barrier`
 * `group_broadcast`
 
-The following group algorithms support user-defined groups:
+The following group algorithms support user-constructed groups:
 
 * `joint_any_of` and `any_of_group`
 * `joint_all_of` and `all_of_group`
