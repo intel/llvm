@@ -60,6 +60,7 @@ struct PropertyMetaInfo<indirectly_callable_key::value_t<Set>> {
 #endif
 };
 
+#ifdef __SYCL_DEVICE_ONLY__
 // Helper to concatenate several lists of characters into a single string.
 // Lists are separated from each other with comma within the resulting string.
 template <typename List, typename... Rest> struct ConcatenateCharsToStr;
@@ -84,11 +85,7 @@ struct ConcatenateCharsToStr<CharList<Chars...>, CharList<CharsToAppend...>,
 // Helper to convert type T to a list of characters representing the type (its
 // mangled name).
 template <typename T, size_t... Indices> struct StableNameToCharsHelper {
-#ifdef __SYCL_DEVICE_ONLY__
   using chars = CharList<__builtin_sycl_unique_stable_name(T)[Indices]...>;
-#else
-  using chars = CharList<>;
-#endif
 };
 
 // Wrapper helper for the struct above
@@ -99,15 +96,21 @@ template <typename T, size_t... Indices>
 struct StableNameToChars<T, std::integer_sequence<size_t, Indices...>>
     : StableNameToCharsHelper<T, Indices...> {};
 
+// Creates a comma-separated string with unique stable names for each type in
+// Ts.
+template <typename... Ts>
+struct UniqueStableNameListStr
+    : ConcatenateCharsToStr<typename StableNameToChars<
+          Ts, std::make_index_sequence<__builtin_strlen(
+                  __builtin_sycl_unique_stable_name(Ts))>>::chars...> {};
+#endif // __SYCL_DEVICE_ONLY__
+
 template <typename... SetIds>
 struct PropertyMetaInfo<calls_indirectly_key::value_t<SetIds...>> {
   static constexpr const char *name = "calls-indirectly";
   static constexpr const char *value =
 #ifdef __SYCL_DEVICE_ONLY__
-      ConcatenateCharsToStr<typename StableNameToChars<
-          SetIds,
-          std::make_index_sequence<__builtin_strlen(
-              __builtin_sycl_unique_stable_name(SetIds))>>::chars...>::value;
+      UniqueStableNameListStr<SetIds...>::value;
 #else
       "";
 #endif
