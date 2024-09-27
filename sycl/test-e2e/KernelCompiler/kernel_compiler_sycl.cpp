@@ -11,11 +11,14 @@
 
 // The leak check env var is set even if it might be ignored by some backends.
 
+// -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
 // RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
 
+// -- Test again, with caching.
 // 'reading-from-cache' is just a string we pass to differentiate between the
 // two runs.
+
 // DEFINE: %{cache_vars} = env UR_L0_LEAKS_DEBUG=1 env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // RUN: rm -rf %t/cache_dir
 // RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE

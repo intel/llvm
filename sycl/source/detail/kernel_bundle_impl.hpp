@@ -397,15 +397,6 @@ public:
     return SS.str();
   }
 
-  // TODO: remove duplication in kernel_compiler_sycl.cpp.
-  std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
-    return std::accumulate(UserArguments.begin(), UserArguments.end(),
-                           std::string(""),
-                           [](const std::string &A, const std::string &B) {
-                             return A.empty() ? B : A + " " + B;
-                           });
-  }
-
   bool
   extKernelCompilerFetchFromCache(const std::vector<device> Devices,
                                   const std::vector<std::string> &BuildOptions,
@@ -415,7 +406,7 @@ public:
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
 
-    std::string UserArgs = userArgsAsString(BuildOptions);
+    std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
     auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
         Devices[0], UserArgs, SourceStr);
     if (!BinProg.empty()) {
@@ -509,7 +500,6 @@ public:
                               "languages at this time");
       }();
 
-      // CP  ur_program_handle_t UrProgram = nullptr;
       Plugin->call<UrApiKind::urProgramCreateWithIL>(
           ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
           &UrProgram);
@@ -559,7 +549,8 @@ public:
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache) {
       PersistentDeviceCodeCache::putCompiledKernelToDisc(
-          Devices[0], userArgsAsString(BuildOptions), SourceStr, UrProgram);
+          Devices[0], syclex::detail::userArgsAsString(BuildOptions), SourceStr,
+          UrProgram);
     }
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
