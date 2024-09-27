@@ -110,29 +110,22 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
   return SortedImgs;
 }
 
-/* Stores built program in persistent cache
- */
-void PersistentDeviceCodeCache::putItemToDisc(
-    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const ur_program_handle_t &NativePrg) {
+// Utility function to get a non-yet-existing unique filename.
+std::string getUniqueFilename(const std::string &base_name) {
+  size_t i = 0;
+  std::string filename = base_name + "/" + std::to_string(i++);
+  while (OSUtil::isPathPresent(filename + ".bin") ||
+         OSUtil::isPathPresent(filename + ".lock")) {
+    filename = base_name + "/" + std::to_string(i++);
+  }
+  return filename;
+}
 
-  std::cout << "putItemToDisc" << std::endl;
-
-  if (!areImagesCacheable(Imgs))
-    return;
-
-  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
-  std::string DirName =
-      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
-
-  if (DirName.empty())
-    return;
-
+std::vector<std::vector<char>>
+getProgramBinaryData(const ur_program_handle_t &NativePrg,
+                     const device &Device) {
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
-
   unsigned int DeviceNum = 0;
-
   Plugin->call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
@@ -152,22 +145,35 @@ void PersistentDeviceCodeCache::putItemToDisc(
   Plugin->call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin") ||
-           OSUtil::isPathPresent(FileName + ".lock"));
+  return Result;
+}
+
+/* Stores built program in persistent cache
+ */
+void PersistentDeviceCodeCache::putItemToDisc(
+    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
+    const ur_program_handle_t &NativePrg) {
+
+  if (!areImagesCacheable(Imgs))
+    return;
+
+  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
+  std::string DirName =
+      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
+
+  if (DirName.empty())
+    return;
 
   try {
     OSUtil::makeDir(DirName.c_str());
+    std::string FileName = getUniqueFilename(DirName);
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       std::string FullFileName = FileName + ".bin";
-      writeBinaryDataToFile(FullFileName, Result);
+      writeBinaryDataToFile(FullFileName,
+                            getProgramBinaryData(NativePrg, Device));
       trace("device binary has been cached: " + FullFileName);
-      std::cout << " device binary has been cached: " << FullFileName
-                << std::endl;
       writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
                       BuildOptionsString);
     } else {
@@ -184,75 +190,22 @@ void PersistentDeviceCodeCache::putItemToDisc(
   }
 }
 
-// TODO: unify this with putItemToDisc. Too much code duplication.
 void PersistentDeviceCodeCache::putCompiledKernelToDisc(
     const device &Device, const std::string &BuildOptionsString,
-    const std::string SourceStr, const ur_program_handle_t &NativePrg) {
+    const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
 
-  std::cout << "putCompiledKernelToDisc" << std::endl;
-
-  // Directory
   std::string DirName =
       getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
-  std::cout << " DirName: " << DirName << std::endl;
 
-  // File
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin") ||
-           OSUtil::isPathPresent(FileName + ".lock"));
-
-  std::cout << " FileName: " << FileName << std::endl;
-
-  // Number of Devices?
-  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
-
-  std::vector<std::vector<char>> Result;
-  std::vector<char *> Pointers;
-
-  try {
-    unsigned int DeviceNum = 0;
-    Plugin->call<UrApiKind::urProgramGetInfo>(
-        NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
-        nullptr);
-    std::cout << " DeviceNum: " << DeviceNum << std::endl;
-
-    // Actual Data
-    std::vector<size_t> BinarySizes(DeviceNum);
-    Plugin->call<UrApiKind::urProgramGetInfo>(
-        NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
-        sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
-
-    for (size_t I = 0; I < BinarySizes.size(); ++I) {
-      Result.emplace_back(BinarySizes[I]);
-      Pointers.push_back(Result[I].data());
-      std::cout << " BinarySizes[" << I << "]: " << BinarySizes[I] << std::endl;
-    }
-    Plugin->call<UrApiKind::urProgramGetInfo>(
-        NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
-        Pointers.data(), nullptr);
-  } catch (sycl::exception &e) {
-    PersistentDeviceCodeCache::trace(
-        std::string(
-            "exception when retrieving program info for persistent cache: ") +
-        e.what());
-    return;
-  }
-
-  // Write
   try {
     OSUtil::makeDir(DirName.c_str());
+    std::string FileName = getUniqueFilename(DirName);
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       std::string FullFileName = FileName + ".bin";
-      writeBinaryDataToFile(FullFileName, Result);
-      trace("device binary has been cached: " + FullFileName);
-      std::cout << " kernel_compiler device binary has been cached: "
-                << FullFileName << std::endl;
-      // writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
-      // BuildOptionsString);
+      writeBinaryDataToFile(FullFileName,
+                            getProgramBinaryData(NativePrg, Device));
+      trace("kernel_compiler binary has been cached: " + FullFileName);
     } else {
       PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }

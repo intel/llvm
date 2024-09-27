@@ -203,7 +203,7 @@ public:
 
   static void putCompiledKernelToDisc(const device &Device,
                                       const std::string &BuildOptionsString,
-                                      const std::string SourceStr,
+                                      const std::string &SourceStr,
                                       const ur_program_handle_t &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/

@@ -9,8 +9,25 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// The leak check env var is set even if it might be ignored by some backends.
+
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
+
+// 'reading-from-cache' is just a string we pass to differentiate between the
+// two runs.
+// DEFINE: %{cache_vars} = env UR_L0_LEAKS_DEBUG=1 env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
+// RUN: rm -rf %t/cache_dir
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// CHECK-WRITTEN-TO-CACHE: Code caching: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: *** Code caching: kernel_compiler using cached binary
+// CHECK-WRITTEN-TO-CACHE: *** Code caching: kernel_compiler binary has been cached
+
+// CHECK-READ-FROM-CACHE: *** Code caching: enabled
+// CHECK-READ-FROM-CACHE-NOT: *** Code caching: kernel_compiler binary has been cached
+// CHECK-READ-FROM-CACHE: *** Code caching: kernel_compiler using cached binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -115,7 +132,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   sycl::free(usmPtr, Queue);
 }
 
-void test_build_and_run() {
+void test_build_and_run(bool readingFromCache) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -157,8 +174,11 @@ void test_build_and_run() {
       kbSrc, devs,
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
-  assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
-         std::string::npos);
+
+  if (!readingFromCache) {
+    assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
+           std::string::npos);
+  }
 
   // clang-format off
 
@@ -271,10 +291,19 @@ void test_esimd() {
   sycl::free(C, q);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  bool readingFromCache = false;
+
+  // Check if the argument is present
+  if (argc > 1) {
+    std::string argument(argv[1]);
+    if (argument == "reading-from-cache") {
+      readingFromCache = true;
+    }
+  }
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  test_build_and_run();
+  test_build_and_run(readingFromCache);
   test_error();
   test_esimd();
 #else

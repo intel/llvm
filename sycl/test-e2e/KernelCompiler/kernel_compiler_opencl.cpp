@@ -9,8 +9,23 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// The leak check env var is set even if it might be ignored by some backends.
+
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
+
+// DEFINE: %{cache_vars} = env UR_L0_LEAKS_DEBUG=1 env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
+// RUN: rm -rf %t/cache_dir
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// CHECK-WRITTEN-TO-CACHE: Code caching: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: *** Code caching: kernel_compiler using cached binary
+// CHECK-WRITTEN-TO-CACHE: *** Code caching: kernel_compiler binary has been cached
+
+// CHECK-READ-FROM-CACHE: *** Code caching: enabled
+// CHECK-READ-FROM-CACHE-NOT: *** Code caching: kernel_compiler binary has been cached
+// CHECK-READ-FROM-CACHE: *** Code caching: kernel_compiler using cached binary
 
 #include <sycl/detail/core.hpp>
 

@@ -431,18 +431,12 @@ public:
           ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
           (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
 
-      std::cout << " BinaryStatus: " << BinaryStatus << std::endl;
-
       if (BinaryStatus == UR_RESULT_SUCCESS) {
-        std::cout << "zOMG, fetched from cache!" << std::endl;
-
         ur_result_t Error = Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
             UrProgram,
             /*num devices =*/1, &UrDevice, UserArgs.c_str());
 
-        std::cout << "error? " << Error << std::endl;
         if (Error == UR_RESULT_SUCCESS) {
-
           return true;
         }
       }
