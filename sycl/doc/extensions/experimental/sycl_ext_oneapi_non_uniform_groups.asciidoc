@@ -293,9 +293,9 @@ fragment<sycl::sub_group> get_opportunistic_group();
 } // namespace ext::oneapi::experimental::this_work_item
 ----
 
-_Returns_: A `fragment` consisting of all work-items which call this function
-simultaneously. This `fragment` must have a group range of 1, and a group index
-of 0.
+_Returns_: A `fragment` consisting of all work-items in the same sub-group as
+the calling work-item which call this function simultaneously.
+This `fragment` must have a group range of 1, and a group index of 0.
 
 _Remarks_: Each call to the function returns a different group. There are
 no guarantees that the group will contain all work-items executing the same
