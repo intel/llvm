@@ -31,12 +31,18 @@
 
 #pragma once
 
+#include <sycl/feature_test.hpp>
+
+// TODO(syclcompat-lib-reviewers): this should not be required
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
 
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
+#endif
 #include <sycl/ext/oneapi/experimental/complex/complex.hpp>
+#include <syclcompat/traits.hpp>
 
 namespace syclcompat {
 namespace detail {
@@ -46,18 +52,18 @@ namespace complex_namespace = sycl::ext::oneapi::experimental;
 template <typename ValueT>
 using complex_type = detail::complex_namespace::complex<ValueT>;
 
+template <typename T>
+constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
+  std::is_same_v<std::decay_t<T>, uint32_t>;
+
 template <typename ValueT>
 inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
   return sycl::clamp(val, min_val, max_val);
 }
-
-template <typename T>
-constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
-                               std::is_same_v<std::decay_t<T>, uint32_t>;
-
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-// TODO: Follow the process to add this to the extension. If added,
-// remove this functionality from the header.
+// TODO(syclcompat-lib-reviewers): Follow the process to add this (& other math
+// fns) to the bfloat16 math function extension. If added, remove this
+// functionality from the header.
 template <>
 inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
                                          sycl::ext::oneapi::bfloat16 min_val,
