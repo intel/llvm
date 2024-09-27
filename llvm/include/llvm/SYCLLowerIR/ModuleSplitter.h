@@ -37,7 +37,7 @@ class OptionCategory;
 
 namespace module_split {
 
-constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-split-status";
+constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
 
 extern cl::OptionCategory &getModuleSplitCategory();
 
