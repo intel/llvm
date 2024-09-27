@@ -747,11 +747,11 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
-    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
-                      UR_RESULT_ERROR_UNINITIALIZED,
-                      static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
+    if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
+      logger::error("SysMan support is unavailable on this system. Please "
+                    "check your level zero driver installation.");
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
@@ -760,30 +760,57 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
-    ZE2UR_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
+
+    zes_device_handle_t ZesDevice = Device->ZeDevice;
+    struct ur_zes_device_handle_data_t ZesDeviceData = {};
+    // If legacy sysman is enabled thru the environment variable, then zesInit
+    // will fail, but sysman is still usable so go the legacy route.
+    if (!SysManEnv) {
+      auto It = Device->Platform->ZedeviceToZesDeviceMap.find(Device->ZeDevice);
+      if (It == Device->Platform->ZedeviceToZesDeviceMap.end()) {
+        // no matching device
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      } else {
+        ZesDeviceData =
+            Device->Platform->ZedeviceToZesDeviceMap[Device->ZeDevice];
+        ZesDevice = ZesDeviceData.ZesDevice;
+      }
+    }
+
+    ZE2UR_CALL(zesDeviceEnumMemoryModules, (ZesDevice, &MemCount, nullptr));
     if (MemCount != 0) {
       std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
       ZE2UR_CALL(zesDeviceEnumMemoryModules,
-                 (ZeDevice, &MemCount, ZesMemHandles.data()));
+                 (ZesDevice, &MemCount, ZesMemHandles.data()));
       for (auto &ZesMemHandle : ZesMemHandles) {
         ZesStruct<zes_mem_properties_t> ZesMemProperties;
         ZE2UR_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZesMemProperties));
         // For root-device report memory from all memory modules since that
         // is what totally available in the default implicit scaling mode.
         // For sub-devices only report memory local to them.
-        if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
-                                          ZesMemProperties.subdeviceId) {
+        if (SysManEnv) {
+          if (!Device->isSubDevice() ||
+              Device->ZeDeviceProperties->subdeviceId ==
+                  ZesMemProperties.subdeviceId) {
 
-          ZesStruct<zes_mem_state_t> ZesMemState;
-          ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
-          FreeMemory += ZesMemState.free;
+            ZesStruct<zes_mem_state_t> ZesMemState;
+            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+            FreeMemory += ZesMemState.free;
+          }
+        } else {
+          if (ZesDeviceData.SubDeviceId == ZesMemProperties.subdeviceId ||
+              !ZesDeviceData.SubDevice) {
+            ZesStruct<zes_mem_state_t> ZesMemState;
+            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+            FreeMemory += ZesMemState.free;
+          }
         }
       }
     }
     if (MemCount > 0) {
       return ReturnValue(std::min(GlobalMemSize, FreeMemory));
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
