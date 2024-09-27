@@ -148,7 +148,6 @@ set(LLVM_TEST_DEPENDS
           sanstats
           spirv-to-ir-wrapper
           sycl-post-link
-          sycl-module-split
           split-file
           verify-uselistorder
           yaml-bench

@@ -6,7 +6,7 @@
 ; RUN: FileCheck %s -input-file=%t.files_2.ll --check-prefixes CHECK-MODULE2,CHECK
 ; RUN: FileCheck %s -input-file=%t.files_2.sym --check-prefixes CHECK-MODULE2-TXT
 ;
-; RUN: sycl-module-split -split=kernel -S < %s -o %t2.files
+; RUN: llvm-split -sycl-split=kernel -S < %s -o %t2.files
 ; RUN: FileCheck %s -input-file=%t2.files_0.ll --check-prefixes CHECK-MODULE0,CHECK
 ; RUN: FileCheck %s -input-file=%t2.files_0.sym --check-prefixes CHECK-MODULE0-TXT
 ; RUN: FileCheck %s -input-file=%t2.files_1.ll --check-prefixes CHECK-MODULE1,CHECK
