@@ -68,18 +68,18 @@ template <typename T, typename U> struct container_common_type<T, U> {
 template <typename T, typename U>
 using container_common_type_t = typename container_common_type<T, U>::type;
 
-template <typename ValueT> struct should_skip {
+template <typename ...ValueT> struct should_skip {
   bool operator()(const sycl::device &dev) const {
-    if constexpr (std::is_same_v<ValueT, double> ||
-                  contained_is_same_v<ValueT, double>) {
+    if constexpr ((std::is_same_v<ValueT, double> || ...) ||
+                  (contained_is_same_v<ValueT, double> || ...)) {
       if (!dev.has(sycl::aspect::fp64)) {
         std::cout << "  sycl::aspect::fp64 not supported by the SYCL device."
                   << std::endl;
         return true;
       }
     }
-    if constexpr (std::is_same_v<ValueT, sycl::half> ||
-                  contained_is_same_v<ValueT, sycl::half>) {
+    if constexpr ((std::is_same_v<ValueT, sycl::half> || ...) ||
+                  (contained_is_same_v<ValueT, sycl::half> || ...)) {
       if (!dev.has(sycl::aspect::fp16)) {
         std::cout << "  sycl::aspect::fp16 not supported by the SYCL device."
                   << std::endl;
@@ -139,9 +139,9 @@ public:
   BinaryOpTestLauncher(const syclcompat::dim3 &grid,
                        const syclcompat::dim3 &threads,
                        const size_t data_size = 1)
-      : OpTestLauncher{
-            grid, threads, data_size,
-            should_skip<ValueT>()(syclcompat::get_current_device())} {
+      : OpTestLauncher{grid, threads, data_size,
+                       should_skip<ValueT, ValueU, ResultT>()(
+                           syclcompat::get_current_device())} {
     if (skip_)
       return;
     op1_ = syclcompat::malloc<ValueT>(data_size);
@@ -183,7 +183,7 @@ public:
                       const size_t data_size = 1)
       : OpTestLauncher{
             grid, threads, data_size,
-            should_skip<ValueT>()(syclcompat::get_current_device())} {
+            should_skip<ValueT, ResultT>()(syclcompat::get_current_device())} {
     if (skip_)
       return;
     op_ = syclcompat::malloc<ValueT>(data_size);
