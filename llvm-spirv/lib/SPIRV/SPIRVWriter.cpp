@@ -1909,14 +1909,7 @@ static int transAtomicOrdering(llvm::AtomicOrdering Ordering) {
 
 SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
                                               SPIRVBasicBlock *BB) {
-  SmallVector<StringRef> SSIDs;
-  ST->getContext().getSyncScopeNames(SSIDs);
-
-  spv::Scope S;
-  // Fill unknown syncscope value to default Device scope.
-  if (!OCLStrMemScopeMap::find(SSIDs[ST->getSyncScopeID()].str(), &S)) {
-    S = ScopeDevice;
-  }
+  spv::Scope S = toSPIRVScope(ST->getContext(), ST->getSyncScopeID());
 
   std::vector<Value *> Ops{ST->getPointerOperand(), getUInt32(M, S),
                            getUInt32(M, transAtomicOrdering(ST->getOrdering())),
@@ -1929,14 +1922,7 @@ SPIRVValue *LLVMToSPIRVBase::transAtomicStore(StoreInst *ST,
 
 SPIRVValue *LLVMToSPIRVBase::transAtomicLoad(LoadInst *LD,
                                              SPIRVBasicBlock *BB) {
-  SmallVector<StringRef> SSIDs;
-  LD->getContext().getSyncScopeNames(SSIDs);
-
-  spv::Scope S;
-  // Fill unknown syncscope value to default Device scope.
-  if (!OCLStrMemScopeMap::find(SSIDs[LD->getSyncScopeID()].str(), &S)) {
-    S = ScopeDevice;
-  }
+  spv::Scope S = toSPIRVScope(LD->getContext(), LD->getSyncScopeID());
 
   std::vector<Value *> Ops{
       LD->getPointerOperand(), getUInt32(M, S),
@@ -2595,21 +2581,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     auto MemSem = OCLMemOrderMap::map(static_cast<OCLMemOrderKind>(Ordering));
     std::vector<Value *> Operands(4);
     Operands[0] = ARMW->getPointerOperand();
-    // To get the memory scope argument we use ARMW->getSyncScopeID(), but
-    // atomicrmw LLVM instruction is not aware of OpenCL(or SPIR-V) memory scope
-    // enumeration. If the scope is not set and assuming the produced SPIR-V
-    // module will be consumed in an OpenCL environment, we can use the same
-    // memory scope as OpenCL atomic functions that don't have memory_scope
-    // argument i.e. memory_scope_device. See the OpenCL C specification
-    // p6.13.11. "Atomic Functions"
-    SmallVector<StringRef> SSIDs;
-    ARMW->getContext().getSyncScopeNames(SSIDs);
-
-    spv::Scope S;
-    // Fill unknown syncscope value to default Device scope.
-    if (!OCLStrMemScopeMap::find(SSIDs[ARMW->getSyncScopeID()].str(), &S)) {
-      S = ScopeDevice;
-    }
+    spv::Scope S = toSPIRVScope(ARMW->getContext(), ARMW->getSyncScopeID());
     Operands[1] = getUInt32(M, S);
     Operands[2] = getUInt32(M, MemSem);
     Operands[3] = ARMW->getValOperand();
@@ -5220,13 +5192,7 @@ SPIRVValue *LLVMToSPIRVBase::transFenceInst(FenceInst *FI,
   }
 
   Module *M = FI->getParent()->getModule();
-  SmallVector<StringRef> SSIDs;
-  FI->getContext().getSyncScopeNames(SSIDs);
-  spv::Scope S;
-  // Treat all llvm.fence instructions as having CrossDevice scope by default
-  if (!OCLStrMemScopeMap::find(SSIDs[FI->getSyncScopeID()].str(), &S)) {
-    S = ScopeCrossDevice;
-  }
+  spv::Scope S = toSPIRVScope(FI->getContext(), FI->getSyncScopeID());
 
   SPIRVValue *RetScope = transConstant(getUInt32(M, S));
   SPIRVValue *Val = transConstant(getUInt32(M, MemorySemantics));

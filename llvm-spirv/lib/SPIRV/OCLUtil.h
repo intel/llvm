@@ -580,6 +580,30 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
 }
 
+/// Maps LLVM SyncScope into SPIR-V Scope.
+///
+/// \param [in] Ctx Context for the LLVM SyncScope
+/// \param [in] Id SyncScope::ID value which needs to be mapped to SPIR-V Scope
+inline spv::Scope toSPIRVScope(const LLVMContext &Ctx, SyncScope::ID Id) {
+  // We follow Clang/LLVM convention by which the default is System scope, which
+  // in SPIR-V maps to CrossDevice scope. This is in order to ensure that the
+  // resulting SPIR-V is conservatively correct (i.e. always works), under the
+  // assumption that it is the responsibility of the higher level language to
+  // choose a narrower scope, if desired.
+  switch (Id) {
+  case SyncScope::SingleThread:
+    return spv::ScopeInvocation;
+  case SyncScope::System:
+    return spv::ScopeCrossDevice;
+  default:
+    SmallVector<StringRef> SSIDs;
+    Ctx.getSyncScopeNames(SSIDs);
+    spv::Scope S = ScopeCrossDevice; // Default to CrossDevice scope.
+    OCLStrMemScopeMap::find(SSIDs[Id].str(), &S);
+    return S;
+  }
+}
+
 /// Performs conversion from OpenCL memory_scope into SPIR-V Scope.
 ///
 /// Supports both constant and non-constant values. To handle the latter case,
