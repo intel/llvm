@@ -11,6 +11,11 @@ struct KernelFunctor {
     KernelFunctor(sycl::accessor<size_t, 1, sycl::access_mode::write> Acc)
         : Acc(Acc) {}
 
+    auto get(sycl::ext::oneapi::experimental::properties_tag) {
+        return sycl::ext::oneapi::experimental::properties{
+            sycl::ext::oneapi::experimental::sub_group_size<8>};
+    }
+
     void operator()(sycl::nd_item<1> NdItem) const {
         auto SG = NdItem.get_sub_group();
         if (NdItem.get_global_linear_id() == 0) {
