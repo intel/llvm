@@ -1471,8 +1471,12 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
           llvm::MemoryBuffer::getFileOrSTDIN(*UnbundledFile, /*isText=*/true);
       if (std::error_code EC = ObjList.getError())
         return createFileError(*UnbundledFile, EC);
-      (*ObjList)->getBuffer().split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
-                                    /*KeepEmpty=*/false);
+      // Create a copy of the list we can reference even after we close
+      // the file.
+      StringRef UnbundledArchiveList =
+          Args.MakeArgString((*ObjList)->getBuffer());
+      UnbundledArchiveList.split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
+                                 /*KeepEmpty=*/false);
     } else {
       ObjectFilePaths.push_back(*UnbundledFile);
     }
