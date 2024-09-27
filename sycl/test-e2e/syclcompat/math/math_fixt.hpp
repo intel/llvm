@@ -51,8 +51,22 @@ static constexpr bool contained_is_floating_point_v = false;
 template <typename Container>
 static constexpr bool contained_is_floating_point_v<
     Container, std::void_t<typename Container::value_type>> =
-    std::is_floating_point_v<typename Container::value_type> ||
-    std::is_same_v<typename Container::value_type, sycl::half>;
+    syclcompat::is_floating_point_v<typename Container::value_type>;
+
+template <typename... Ts> struct container_common_type;
+
+template <template <typename, int> typename Container, typename T, typename U,
+          int Size>
+struct container_common_type<Container<T, Size>, Container<U, Size>> {
+  using type = Container<std::common_type_t<T, U>, Size>;
+};
+
+template <typename T, typename U> struct container_common_type<T, U> {
+  using type = std::common_type_t<T, U>;
+};
+
+template <typename T, typename U>
+using container_common_type_t = typename container_common_type<T, U>::type;
 
 template <typename ValueT> struct should_skip {
   bool operator()(const sycl::device &dev) const {
@@ -79,17 +93,24 @@ template <typename ValueT> struct should_skip {
 #define CHECK(ResultT, RESULT, EXPECTED)                                       \
   if constexpr (std::is_integral_v<ResultT>) {                                 \
     assert(RESULT == EXPECTED);                                                \
-  } else if constexpr (std::is_floating_point_v<ResultT> ||                    \
-                       std::is_same_v<ResultT, sycl::half>) {                  \
-    if (sycl::isnan(RESULT))                                                   \
-      assert(sycl::isnan(EXPECTED));                                           \
+  } else if constexpr (contained_is_integral_v<ResultT>) {                     \
+    for (size_t i = 0; i < RESULT.size(); i++)                                 \
+      assert(RESULT[i] == EXPECTED[i]);                                        \
+  } else if constexpr (syclcompat::is_floating_point_v<ResultT>) {             \
+    if (syclcompat::detail::isnan(RESULT))                                     \
+      assert(syclcompat::detail::isnan(EXPECTED));                             \
     else                                                                       \
       assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE);                       \
   } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
-    for (size_t i = 0; i < RESULT.size(); i++)                                 \
-      assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);                 \
+    for (size_t i = 0; i < RESULT.size(); i++) {                               \
+      if (syclcompat::detail::isnan(RESULT[i])) {                              \
+        assert(syclcompat::detail::isnan(EXPECTED[i]));                        \
+      } else {                                                                 \
+        assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);               \
+      }                                                                        \
+    }                                                                          \
   } else {                                                                     \
-    static_assert(0, "Math_fixt.hpp should not have arrived here.");           \
+    static_assert(0, "math_fixt.hpp should not have arrived here.");           \
   }
 
 class OpTestLauncher {
@@ -107,7 +128,7 @@ public:
 
 // Templated ResultT to support both arithmetic and boolean operators
 template <typename ValueT, typename ValueU,
-          typename ResultT = std::common_type_t<ValueT, ValueU>>
+          typename ResultT = container_common_type_t<ValueT, ValueU>>
 class BinaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op1_;
