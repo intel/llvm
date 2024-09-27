@@ -116,6 +116,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
+  # TODO: Update 'UNIFIED_RUNTIME_REPO' and 'UNIFIED_RUNTIME_TAG' after the
+  # corresponding UR commit is merged in the main oneapi-src/unified-runtime.
   set(UNIFIED_RUNTIME_REPO "https://github.com/GeorgeWeb/unified-runtime.git")
   # commit 897bcfb10a7e13b8e413278550e845322f6bd560 (HEAD, origin/main, origin/HEAD)
   # Merge: 18514924 71cdf253
@@ -123,7 +125,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Thu Sep 19 14:35:55 2024 +0100
   #   Merge pull request #2022 from nrspruit/add_3_channel_image_support
   #   [L0] Add 3-channel image support
-  set(UNIFIED_RUNTIME_TAG 73ca4832abd86cd43405b2f53517d36d2b246bee)
+  set(UNIFIED_RUNTIME_TAG ed6fbadf7490cade5dc51c68ba3faf928e7a24cc)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
