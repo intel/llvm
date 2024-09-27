@@ -151,7 +151,7 @@ permissions:
 
 jobs:
   run:
-    if: inputs.skip_run == 'false'
+    if: inputs.skip_run == 'false' || github.event_name == 'workflow_run'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
