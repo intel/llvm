@@ -146,7 +146,6 @@ on:
           - false
           - true
 
-
 permissions:
   contents: read
 
