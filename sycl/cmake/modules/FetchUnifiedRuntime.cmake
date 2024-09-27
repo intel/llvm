@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ad43e28add70e59dd0881043a7a2ab46947ba089
-  # Merge: fa9ebe7b 53abe070
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Mon Sep 16 10:20:10 2024 +0100
-  #     Merge pull request #2060 from martygrant/martin/supressSystemErrorsOnWindows
-  #     [Loader] Suppress system errors when loading adapters on Windows
-  set(UNIFIED_RUNTIME_TAG ad43e28add70e59dd0881043a7a2ab46947ba089)
+  # commit ce0325da13048af40acd61bd43ef88bafd84c6b3
+  # Merge: 2ad32681 668c5e5d
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 26 10:51:57 2024 +0200
+  #     Merge pull request #2134 from nrspruit/fix_multi_device_event_driver_in_order_syclos
+  #     [L0] Fix Multi Device Event handling and remove unhandled events from in order wait list
+  set(UNIFIED_RUNTIME_TAG ce0325da13048af40acd61bd43ef88bafd84c6b3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

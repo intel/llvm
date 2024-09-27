@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
@@ -124,14 +124,14 @@ std::string getUniqueFilename(const std::string &base_name) {
 std::vector<std::vector<char>>
 getProgramBinaryData(const ur_program_handle_t &NativePrg,
                      const device &Device) {
-  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
+  auto Adapter = detail::getSyclObjImpl(Device)->getAdapter();
   unsigned int DeviceNum = 0;
-  Plugin->call<UrApiKind::urProgramGetInfo>(
+  Adapter->call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin->call<UrApiKind::urProgramGetInfo>(
+  Adapter->call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -142,7 +142,7 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin->call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
+  Adapter->call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
   return Result;

@@ -404,7 +404,7 @@ public:
                                   ur_program_handle_t &UrProgram) {
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
     auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
@@ -418,12 +418,12 @@ public:
       Properties.pNext = nullptr;
       Properties.count = Metadata.size();
       Properties.pMetadatas = Metadata.data();
-      BinaryStatus = Plugin->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
+      BinaryStatus = Adapter->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
           ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
           (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
 
       if (BinaryStatus == UR_RESULT_SUCCESS) {
-        ur_result_t Error = Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
+        ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
             UrProgram,
             /*num devices =*/1, &UrDevice, UserArgs.c_str());
 
@@ -445,7 +445,7 @@ public:
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -469,10 +469,10 @@ public:
           // the compilation log.
           const auto &SourceStr = std::get<std::string>(this->Source);
           std::vector<uint32_t> IPVersionVec(Devices.size());
-          std::transform(DeviceVec.begin(), DeviceVec.end(),
-                         IPVersionVec.begin(), [&](ur_device_handle_t d) {
+          std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
+           [&](ur_device_handle_t d) {
                            uint32_t ipVersion = 0;
-                           Plugin->call<UrApiKind::urDeviceGetInfo>(
+                           Adapter->call<UrApiKind::urDeviceGetInfo>(
                                d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
                                &ipVersion, nullptr);
                            return ipVersion;
@@ -490,7 +490,6 @@ public:
           return Result;
         }
         if (Language == syclex::source_language::sycl) {
-          // const auto &SourceStr = std::get<std::string>(this->Source);
           return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
                                                BuildOptions, LogPtr,
                                                RegisteredKernelNames);
@@ -500,40 +499,40 @@ public:
                               "languages at this time");
       }();
 
-      Plugin->call<UrApiKind::urProgramCreateWithIL>(
-          ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
-          &UrProgram);
-      // program created by urProgramCreateWithIL is implicitly retained.
-      if (UrProgram == nullptr)
-        throw sycl::exception(
-            sycl::make_error_code(errc::invalid),
-            "urProgramCreateWithIL resulted in a null program handle.");
+    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
+                                                   spirv.data(), spirv.size(),
+                                                   nullptr, &UrProgram);
+    // program created by urProgramCreateWithIL is implicitly retained.
+    if (UrProgram == nullptr)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "urProgramCreateWithIL resulted in a null program handle.");
 
-      std::string XsFlags = extractXsFlags(BuildOptions);
-      auto Res = Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
-          UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-      if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-        Res = Plugin->call_nocheck<UrApiKind::urProgramBuild>(
-            ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
-      }
-      Plugin->checkUrResult<errc::build>(Res);
+    std::string XsFlags = extractXsFlags(BuildOptions);
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
+    }
+    Adapter->checkUrResult<errc::build>(Res);
 
     } // if(!FetchedFromCache)
 
     // Get the number of kernels in the program.
     size_t NumKernels;
-    Plugin->call<UrApiKind::urProgramGetInfo>(
+    Adapter->call<UrApiKind::urProgramGetInfo>(
         UrProgram, UR_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
         nullptr);
 
     // Get the kernel names.
     size_t KernelNamesSize;
-    Plugin->call<UrApiKind::urProgramGetInfo>(
+    Adapter->call<UrApiKind::urProgramGetInfo>(
         UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');
-    Plugin->call<UrApiKind::urProgramGetInfo>(
+    Adapter->call<UrApiKind::urProgramGetInfo>(
         UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
         &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
@@ -593,10 +592,10 @@ public:
         detail::getSyclObjImpl(MDeviceImages[0]);
     ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
     ur_kernel_handle_t UrKernel = nullptr;
-    Plugin->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
-                                            &UrKernel);
+    Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
+                                             &UrKernel);
     // Kernel created by urKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(

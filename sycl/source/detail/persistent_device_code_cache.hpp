@@ -187,7 +187,7 @@ public:
                   const SerializedObj &SpecConsts,
                   const std::string &BuildOptionsString);
 
-  static std::vector<std::vector<char>> // ur_program_handle_t
+  static std::vector<std::vector<char>>
   getCompiledKernelFromDisc(const device &Device,
                             const std::string &BuildOptionsString,
                             const std::string SourceStr);

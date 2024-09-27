@@ -63,7 +63,7 @@ and all kernel executions in the applications are added as nodes in this
 global graph. In the SYCL runtime, there is no obvious location where the
 creation of the global graph can be inserted as many objects are
 instantiated statically. Currently, we embed the graph creation in the
-Unified Runtime (UR) layer `initializePlugins()` call. In this call, we will
+Unified Runtime (UR) layer `initializeAdapters()` call. In this call, we will
 perform two operations:
 
 1. Initialize all listeners and create a trace event to represent the graph.
