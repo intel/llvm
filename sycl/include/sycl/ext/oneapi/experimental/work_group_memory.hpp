@@ -54,12 +54,12 @@ public:
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
             typename = std::enable_if_t<!sycl::detail::is_unbounded_array_v<T>>>
-  work_group_memory(handler &cgh)
+  work_group_memory(handler &)
       : sycl::detail::work_group_memory_impl(sizeof(work_group_memory),
                                              sizeof(DataT)) {}
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
-  work_group_memory(size_t num, handler &cgh)
+  work_group_memory(size_t num, handler &)
       : sycl::detail::work_group_memory_impl(
             sizeof(work_group_memory),
             num * sizeof(std::remove_extent_t<DataT>)) {}
