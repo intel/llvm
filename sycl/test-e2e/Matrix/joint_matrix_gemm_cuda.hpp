@@ -196,7 +196,7 @@ void test(queue &q) {
               joint_matrix_load(
                   sg, sub_b,
                   accB.template get_multi_ptr<access::decorated::no>(), k * K,
-                  n * N, load_stride_B, stride_B);
+                  n * N, stride_B);
 #else
               auto load_stride_A = layout_A == layout::row_major
                                        ? (k * K) + (m * M * Big_K)
