@@ -103,8 +103,8 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              void *user_data);
 }
 
-class plugin;
-using PluginPtr = std::shared_ptr<plugin>;
+class Adapter;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 // TODO: To be removed as this was only introduced for esimd which was removed.
 template <sycl::backend BE>
@@ -126,11 +126,11 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
 void *getURLoaderLibrary();
 
 // Performs UR one-time initialization.
-std::vector<PluginPtr> &
+std::vector<AdapterPtr> &
 initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 
-// Get the plugin serving given backend.
-template <backend BE> const PluginPtr &getPlugin();
+// Get the adapter serving given backend.
+template <backend BE> const AdapterPtr &getAdapter();
 
 // The SYCL_UR_TRACE sets what we will trace.
 // This is a bit-mask of various things we'd want to trace.

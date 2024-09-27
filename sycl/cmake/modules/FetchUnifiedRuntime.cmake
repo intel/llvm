@@ -119,12 +119,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # TODO: Update 'UNIFIED_RUNTIME_REPO' and 'UNIFIED_RUNTIME_TAG' after the
   # corresponding UR commit is merged in the main oneapi-src/unified-runtime.
   set(UNIFIED_RUNTIME_REPO "https://github.com/GeorgeWeb/unified-runtime.git")
-  # commit 897bcfb10a7e13b8e413278550e845322f6bd560 (HEAD, origin/main, origin/HEAD)
-  # Merge: 18514924 71cdf253
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Sep 19 14:35:55 2024 +0100
-  #   Merge pull request #2022 from nrspruit/add_3_channel_image_support
-  #   [L0] Add 3-channel image support
+  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
+  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
+  # Date:   Wed Sep 25 15:55:05 2024 +0100
+  #     Associate queue with device in context (#1992)
+  #     Making a native queue doesn't require hDevice to be non null, but this
+  #     associates the queue with a null device, even if hContext contains valid
+  #     devices.
   set(UNIFIED_RUNTIME_TAG ed6fbadf7490cade5dc51c68ba3faf928e7a24cc)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")

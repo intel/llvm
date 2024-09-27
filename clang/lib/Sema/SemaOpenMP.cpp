@@ -21,6 +21,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclOpenMP.h"
 #include "clang/AST/OpenMPClause.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/StmtCXX.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
@@ -1255,16 +1256,8 @@ static const ValueDecl *getCanonicalDecl(const ValueDecl *D) {
   if (const auto *CED = dyn_cast<OMPCapturedExprDecl>(D))
     if (const auto *ME = dyn_cast<MemberExpr>(getExprAsWritten(CED->getInit())))
       D = ME->getMemberDecl();
-  const auto *VD = dyn_cast<VarDecl>(D);
-  const auto *FD = dyn_cast<FieldDecl>(D);
-  if (VD != nullptr) {
-    VD = VD->getCanonicalDecl();
-    D = VD;
-  } else {
-    assert(FD);
-    FD = FD->getCanonicalDecl();
-    D = FD;
-  }
+
+  D = cast<ValueDecl>(D->getCanonicalDecl());
   return D;
 }
 
@@ -7404,7 +7397,8 @@ SemaOpenMP::checkOpenMPDeclareVariantFunction(SemaOpenMP::DeclGroupPtrTy DG,
         return std::nullopt;
       }
       VariantRefCast = SemaRef.PerformImplicitConversion(
-          VariantRef, FnPtrType.getUnqualifiedType(), Sema::AA_Converting);
+          VariantRef, FnPtrType.getUnqualifiedType(),
+          AssignmentAction::Converting);
       if (!VariantRefCast.isUsable())
         return std::nullopt;
     }
@@ -7697,6 +7691,52 @@ struct LoopIterationSpace final {
   Expr *FinalCondition = nullptr;
 };
 
+/// Scan an AST subtree, checking that no decls in the CollapsedLoopVarDecls
+/// set are referenced.  Used for verifying loop nest structure before
+/// performing a loop collapse operation.
+class ForSubExprChecker final : public RecursiveASTVisitor<ForSubExprChecker> {
+  const llvm::SmallPtrSetImpl<const Decl *> &CollapsedLoopVarDecls;
+  VarDecl *ForbiddenVar = nullptr;
+  SourceRange ErrLoc;
+
+public:
+  explicit ForSubExprChecker(
+      const llvm::SmallPtrSetImpl<const Decl *> &CollapsedLoopVarDecls)
+      : CollapsedLoopVarDecls(CollapsedLoopVarDecls) {}
+
+  // We want to visit implicit code, i.e. synthetic initialisation statements
+  // created during range-for lowering.
+  bool shouldVisitImplicitCode() const { return true; }
+
+  bool VisitDeclRefExpr(DeclRefExpr *E) {
+    ValueDecl *VD = E->getDecl();
+    if (!isa<VarDecl, BindingDecl>(VD))
+      return true;
+    VarDecl *V = VD->getPotentiallyDecomposedVarDecl();
+    if (V->getType()->isReferenceType()) {
+      VarDecl *VD = V->getDefinition();
+      if (VD->hasInit()) {
+        Expr *I = VD->getInit();
+        DeclRefExpr *DRE = dyn_cast<DeclRefExpr>(I);
+        if (!DRE)
+          return true;
+        V = DRE->getDecl()->getPotentiallyDecomposedVarDecl();
+      }
+    }
+    Decl *Canon = V->getCanonicalDecl();
+    if (CollapsedLoopVarDecls.contains(Canon)) {
+      ForbiddenVar = V;
+      ErrLoc = E->getSourceRange();
+      return false;
+    }
+
+    return true;
+  }
+
+  VarDecl *getForbiddenVar() const { return ForbiddenVar; }
+  SourceRange getErrRange() const { return ErrLoc; }
+};
+
 /// Helper class for checking canonical form of the OpenMP loops and
 /// extracting iteration space of each loop in the loop nest, that will be used
 /// for IR generation.
@@ -7711,6 +7751,8 @@ class OpenMPIterationSpaceChecker {
   SourceLocation DefaultLoc;
   /// A location for diagnostics (when increment is not compatible).
   SourceLocation ConditionLoc;
+  /// The set of variables declared within the (to be collapsed) loop nest.
+  const llvm::SmallPtrSetImpl<const Decl *> &CollapsedLoopVarDecls;
   /// A source location for referring to loop init later.
   SourceRange InitSrcRange;
   /// A source location for referring to condition later.
@@ -7754,10 +7796,13 @@ class OpenMPIterationSpaceChecker {
   Expr *Condition = nullptr;
 
 public:
-  OpenMPIterationSpaceChecker(Sema &SemaRef, bool SupportsNonRectangular,
-                              DSAStackTy &Stack, SourceLocation DefaultLoc)
+  OpenMPIterationSpaceChecker(
+      Sema &SemaRef, bool SupportsNonRectangular, DSAStackTy &Stack,
+      SourceLocation DefaultLoc,
+      const llvm::SmallPtrSetImpl<const Decl *> &CollapsedLoopDecls)
       : SemaRef(SemaRef), SupportsNonRectangular(SupportsNonRectangular),
-        Stack(Stack), DefaultLoc(DefaultLoc), ConditionLoc(DefaultLoc) {}
+        Stack(Stack), DefaultLoc(DefaultLoc), ConditionLoc(DefaultLoc),
+        CollapsedLoopVarDecls(CollapsedLoopDecls) {}
   /// Check init-expr for canonical loop form and save loop counter
   /// variable - #Var and its initialization value - #LB.
   bool checkAndSetInit(Stmt *S, bool EmitDiags = true);
@@ -8078,6 +8123,16 @@ bool OpenMPIterationSpaceChecker::checkAndSetInit(Stmt *S, bool EmitDiags) {
     if (!ExprTemp->cleanupsHaveSideEffects())
       S = ExprTemp->getSubExpr();
 
+  if (!CollapsedLoopVarDecls.empty()) {
+    ForSubExprChecker FSEC{CollapsedLoopVarDecls};
+    if (!FSEC.TraverseStmt(S)) {
+      SourceRange Range = FSEC.getErrRange();
+      SemaRef.Diag(Range.getBegin(), diag::err_omp_loop_bad_collapse_var)
+          << Range.getEnd() << 0 << FSEC.getForbiddenVar();
+      return true;
+    }
+  }
+
   InitSrcRange = S->getSourceRange();
   if (Expr *E = dyn_cast<Expr>(S))
     S = E->IgnoreParens();
@@ -8181,6 +8236,17 @@ bool OpenMPIterationSpaceChecker::checkAndSetCond(Expr *S) {
   }
   Condition = S;
   S = getExprAsWritten(S);
+
+  if (!CollapsedLoopVarDecls.empty()) {
+    ForSubExprChecker FSEC{CollapsedLoopVarDecls};
+    if (!FSEC.TraverseStmt(S)) {
+      SourceRange Range = FSEC.getErrRange();
+      SemaRef.Diag(Range.getBegin(), diag::err_omp_loop_bad_collapse_var)
+          << Range.getEnd() << 1 << FSEC.getForbiddenVar();
+      return true;
+    }
+  }
+
   SourceLocation CondLoc = S->getBeginLoc();
   auto &&CheckAndSetCond =
       [this, IneqCondIsCanonical](BinaryOperatorKind Opcode, const Expr *LHS,
@@ -8279,6 +8345,16 @@ bool OpenMPIterationSpaceChecker::checkAndSetInc(Expr *S) {
     if (!ExprTemp->cleanupsHaveSideEffects())
       S = ExprTemp->getSubExpr();
 
+  if (!CollapsedLoopVarDecls.empty()) {
+    ForSubExprChecker FSEC{CollapsedLoopVarDecls};
+    if (!FSEC.TraverseStmt(S)) {
+      SourceRange Range = FSEC.getErrRange();
+      SemaRef.Diag(Range.getBegin(), diag::err_omp_loop_bad_collapse_var)
+          << Range.getEnd() << 2 << FSEC.getForbiddenVar();
+      return true;
+    }
+  }
+
   IncrementSrcRange = S->getSourceRange();
   S = S->IgnoreParens();
   if (auto *UO = dyn_cast<UnaryOperator>(S)) {
@@ -8342,9 +8418,10 @@ tryBuildCapture(Sema &SemaRef, Expr *Capture,
   if (SemaRef.CurContext->isDependentContext() || Capture->containsErrors())
     return Capture;
   if (Capture->isEvaluatable(SemaRef.Context, Expr::SE_AllowSideEffects))
-    return SemaRef.PerformImplicitConversion(
-        Capture->IgnoreImpCasts(), Capture->getType(), Sema::AA_Converting,
-        /*AllowExplicit=*/true);
+    return SemaRef.PerformImplicitConversion(Capture->IgnoreImpCasts(),
+                                             Capture->getType(),
+                                             AssignmentAction::Converting,
+                                             /*AllowExplicit=*/true);
   auto I = Captures.find(Capture);
   if (I != Captures.end())
     return buildCapture(SemaRef, Capture, I->second, Name);
@@ -8444,7 +8521,7 @@ calculateNumIters(Sema &SemaRef, Scope *S, SourceLocation DefaultLoc,
           SemaRef
               .PerformImplicitConversion(
                   SemaRef.ActOnParenExpr(DefaultLoc, DefaultLoc, Upper).get(),
-                  CastType, Sema::AA_Converting)
+                  CastType, AssignmentAction::Converting)
               .get();
       Lower = SemaRef.ActOnParenExpr(DefaultLoc, DefaultLoc, Lower).get();
       NewStep = SemaRef.ActOnParenExpr(DefaultLoc, DefaultLoc, NewStep.get());
@@ -8728,8 +8805,9 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
                                : Type->hasSignedIntegerRepresentation();
     Type = C.getIntTypeForBitwidth(NewSize, IsSigned);
     if (!SemaRef.Context.hasSameType(Diff.get()->getType(), Type)) {
-      Diff = SemaRef.PerformImplicitConversion(
-          Diff.get(), Type, Sema::AA_Converting, /*AllowExplicit=*/true);
+      Diff = SemaRef.PerformImplicitConversion(Diff.get(), Type,
+                                               AssignmentAction::Converting,
+                                               /*AllowExplicit=*/true);
       if (!Diff.isUsable())
         return nullptr;
     }
@@ -8747,7 +8825,8 @@ Expr *OpenMPIterationSpaceChecker::buildNumIterations(
                        C.getTypeSize(Type) < NewSize);
       if (!SemaRef.Context.hasSameType(Diff.get()->getType(), NewType)) {
         Diff = SemaRef.PerformImplicitConversion(Diff.get(), NewType,
-                                                 Sema::AA_Converting, true);
+                                                 AssignmentAction::Converting,
+                                                 /*AllowExplicit=*/true);
         if (!Diff.isUsable())
           return nullptr;
       }
@@ -8819,7 +8898,7 @@ std::pair<Expr *, Expr *> OpenMPIterationSpaceChecker::buildMinMaxValues(
           SemaRef.Context.getUnsignedPointerDiffType())) {
     Diff = SemaRef.PerformImplicitConversion(
         Diff.get(), SemaRef.Context.getUnsignedPointerDiffType(),
-        Sema::AA_Converting, /*AllowExplicit=*/true);
+        AssignmentAction::Converting, /*AllowExplicit=*/true);
   }
   if (!Diff.isUsable())
     return std::make_pair(nullptr, nullptr);
@@ -8847,7 +8926,7 @@ std::pair<Expr *, Expr *> OpenMPIterationSpaceChecker::buildMinMaxValues(
   // Convert to the original type.
   if (SemaRef.Context.hasSameType(Diff.get()->getType(), VarType))
     Diff = SemaRef.PerformImplicitConversion(Diff.get(), VarType,
-                                             Sema::AA_Converting,
+                                             AssignmentAction::Converting,
                                              /*AllowExplicit=*/true);
   if (!Diff.isUsable())
     return std::make_pair(nullptr, nullptr);
@@ -8882,7 +8961,7 @@ Expr *OpenMPIterationSpaceChecker::buildPreCond(
     return SemaRef
         .PerformImplicitConversion(
             SemaRef.ActOnIntegerConstant(SourceLocation(), 1).get(),
-            SemaRef.Context.BoolTy, /*Action=*/Sema::AA_Casting,
+            SemaRef.Context.BoolTy, /*Action=*/AssignmentAction::Casting,
             /*AllowExplicit=*/true)
         .get();
 
@@ -8903,7 +8982,8 @@ Expr *OpenMPIterationSpaceChecker::buildPreCond(
     if (!SemaRef.Context.hasSameUnqualifiedType(CondExpr.get()->getType(),
                                                 SemaRef.Context.BoolTy))
       CondExpr = SemaRef.PerformImplicitConversion(
-          CondExpr.get(), SemaRef.Context.BoolTy, /*Action=*/Sema::AA_Casting,
+          CondExpr.get(), SemaRef.Context.BoolTy,
+          /*Action=*/AssignmentAction::Casting,
           /*AllowExplicit=*/true);
   }
 
@@ -9000,8 +9080,9 @@ void SemaOpenMP::ActOnOpenMPLoopInitialization(SourceLocation ForLoc,
     return;
 
   DSAStack->loopStart();
+  llvm::SmallPtrSet<const Decl *, 1> EmptyDeclSet;
   OpenMPIterationSpaceChecker ISC(SemaRef, /*SupportsNonRectangular=*/true,
-                                  *DSAStack, ForLoc);
+                                  *DSAStack, ForLoc, EmptyDeclSet);
   if (!ISC.checkAndSetInit(Init, /*EmitDiags=*/false)) {
     if (ValueDecl *D = ISC.getLoopDecl()) {
       auto *VD = dyn_cast<VarDecl>(D);
@@ -9098,7 +9179,8 @@ static bool checkOpenMPIterationSpace(
     Expr *OrderedLoopCountExpr,
     SemaOpenMP::VarsWithInheritedDSAType &VarsWithImplicitDSA,
     llvm::MutableArrayRef<LoopIterationSpace> ResultIterSpaces,
-    llvm::MapVector<const Expr *, DeclRefExpr *> &Captures) {
+    llvm::MapVector<const Expr *, DeclRefExpr *> &Captures,
+    const llvm::SmallPtrSetImpl<const Decl *> &CollapsedLoopVarDecls) {
   bool SupportsNonRectangular = !isOpenMPLoopTransformationDirective(DKind);
   // OpenMP [2.9.1, Canonical Loop Form]
   //   for (init-expr; test-expr; incr-expr) structured-block
@@ -9137,7 +9219,8 @@ static bool checkOpenMPIterationSpace(
     return false;
 
   OpenMPIterationSpaceChecker ISC(SemaRef, SupportsNonRectangular, DSA,
-                                  For ? For->getForLoc() : CXXFor->getForLoc());
+                                  For ? For->getForLoc() : CXXFor->getForLoc(),
+                                  CollapsedLoopVarDecls);
 
   // Check init.
   Stmt *Init = For ? For->getInit() : CXXFor->getBeginStmt();
@@ -9317,7 +9400,7 @@ buildCounterInit(Sema &SemaRef, Scope *S, SourceLocation Loc, ExprResult VarRef,
   if (!SemaRef.Context.hasSameType(NewStart.get()->getType(),
                                    VarRef.get()->getType())) {
     NewStart = SemaRef.PerformImplicitConversion(
-        NewStart.get(), VarRef.get()->getType(), Sema::AA_Converting,
+        NewStart.get(), VarRef.get()->getType(), AssignmentAction::Converting,
         /*AllowExplicit=*/true);
     if (!NewStart.isUsable())
       return ExprError();
@@ -9393,7 +9476,8 @@ static ExprResult buildCounterUpdate(
     if (!SemaRef.Context.hasSameType(Update.get()->getType(),
                                      VarRef.get()->getType())) {
       Update = SemaRef.PerformImplicitConversion(
-          Update.get(), VarRef.get()->getType(), Sema::AA_Converting, true);
+          Update.get(), VarRef.get()->getType(), AssignmentAction::Converting,
+          /*AllowExplicit=*/true);
       if (!Update.isUsable())
         return ExprError();
     }
@@ -9415,8 +9499,8 @@ static ExprResult widenIterationCount(unsigned Bits, Expr *E, Sema &SemaRef) {
     return ExprResult(E);
   // OK to convert to signed, because new type has more bits than old.
   QualType NewType = C.getIntTypeForBitwidth(Bits, /*Signed=*/true);
-  return SemaRef.PerformImplicitConversion(E, NewType, Sema::AA_Converting,
-                                           true);
+  return SemaRef.PerformImplicitConversion(
+      E, NewType, AssignmentAction::Converting, /*AllowExplicit=*/true);
 }
 
 /// Check if the given expression \a E is a constant integer that fits
@@ -9504,6 +9588,39 @@ static Expr *buildPostUpdate(Sema &S, ArrayRef<Expr *> PostUpdates) {
   return PostUpdate;
 }
 
+/// Look for variables declared in the body parts of a for-loop nest.  Used
+/// for verifying loop nest structure before performing a loop collapse
+/// operation.
+class ForVarDeclFinder final : public RecursiveASTVisitor<ForVarDeclFinder> {
+  int NestingDepth = 0;
+  llvm::SmallPtrSetImpl<const Decl *> &VarDecls;
+
+public:
+  explicit ForVarDeclFinder(llvm::SmallPtrSetImpl<const Decl *> &VD)
+      : VarDecls(VD) {}
+
+  bool VisitForStmt(ForStmt *F) {
+    ++NestingDepth;
+    TraverseStmt(F->getBody());
+    --NestingDepth;
+    return false;
+  }
+
+  bool VisitCXXForRangeStmt(CXXForRangeStmt *RF) {
+    ++NestingDepth;
+    TraverseStmt(RF->getBody());
+    --NestingDepth;
+    return false;
+  }
+
+  bool VisitVarDecl(VarDecl *D) {
+    Decl *C = D->getCanonicalDecl();
+    if (NestingDepth > 0)
+      VarDecls.insert(C);
+    return true;
+  }
+};
+
 /// Called on a for stmt to check itself and nested loops (if any).
 /// \return Returns 0 if one of the collapsed stmts is not canonical for loop,
 /// number of collapsed loops otherwise.
@@ -9516,6 +9633,7 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
   unsigned NestedLoopCount = 1;
   bool SupportsNonPerfectlyNested = (SemaRef.LangOpts.OpenMP >= 50) &&
                                     !isOpenMPLoopTransformationDirective(DKind);
+  llvm::SmallPtrSet<const Decl *, 4> CollapsedLoopVarDecls;
 
   if (CollapseLoopCountExpr) {
     // Found 'collapse' clause - calculate collapse number.
@@ -9523,6 +9641,9 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
     if (!CollapseLoopCountExpr->isValueDependent() &&
         CollapseLoopCountExpr->EvaluateAsInt(Result, SemaRef.getASTContext())) {
       NestedLoopCount = Result.Val.getInt().getLimitedValue();
+
+      ForVarDeclFinder FVDF{CollapsedLoopVarDecls};
+      FVDF.TraverseStmt(AStmt);
     } else {
       Built.clear(/*Size=*/1);
       return 1;
@@ -9560,11 +9681,13 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
           SupportsNonPerfectlyNested, NumLoops,
           [DKind, &SemaRef, &DSA, NumLoops, NestedLoopCount,
            CollapseLoopCountExpr, OrderedLoopCountExpr, &VarsWithImplicitDSA,
-           &IterSpaces, &Captures](unsigned Cnt, Stmt *CurStmt) {
+           &IterSpaces, &Captures,
+           &CollapsedLoopVarDecls](unsigned Cnt, Stmt *CurStmt) {
             if (checkOpenMPIterationSpace(
                     DKind, CurStmt, SemaRef, DSA, Cnt, NestedLoopCount,
                     NumLoops, CollapseLoopCountExpr, OrderedLoopCountExpr,
-                    VarsWithImplicitDSA, IterSpaces, Captures))
+                    VarsWithImplicitDSA, IterSpaces, Captures,
+                    CollapsedLoopVarDecls))
               return true;
             if (Cnt > 0 && Cnt >= NestedLoopCount &&
                 IterSpaces[Cnt].CounterVar) {
@@ -9637,19 +9760,19 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
   // true).
   auto PreCond = ExprResult(IterSpaces[0].PreCond);
   Expr *N0 = IterSpaces[0].NumIterations;
-  ExprResult LastIteration32 =
-      widenIterationCount(/*Bits=*/32,
-                          SemaRef
-                              .PerformImplicitConversion(
-                                  N0->IgnoreImpCasts(), N0->getType(),
-                                  Sema::AA_Converting, /*AllowExplicit=*/true)
-                              .get(),
-                          SemaRef);
+  ExprResult LastIteration32 = widenIterationCount(
+      /*Bits=*/32,
+      SemaRef
+          .PerformImplicitConversion(N0->IgnoreImpCasts(), N0->getType(),
+                                     AssignmentAction::Converting,
+                                     /*AllowExplicit=*/true)
+          .get(),
+      SemaRef);
   ExprResult LastIteration64 = widenIterationCount(
       /*Bits=*/64,
       SemaRef
           .PerformImplicitConversion(N0->IgnoreImpCasts(), N0->getType(),
-                                     Sema::AA_Converting,
+                                     AssignmentAction::Converting,
                                      /*AllowExplicit=*/true)
           .get(),
       SemaRef);
@@ -9675,7 +9798,7 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
           CurScope, Loc, BO_Mul, LastIteration32.get(),
           SemaRef
               .PerformImplicitConversion(N->IgnoreImpCasts(), N->getType(),
-                                         Sema::AA_Converting,
+                                         AssignmentAction::Converting,
                                          /*AllowExplicit=*/true)
               .get());
     if (LastIteration64.isUsable())
@@ -9683,7 +9806,7 @@ checkOpenMPLoop(OpenMPDirectiveKind DKind, Expr *CollapseLoopCountExpr,
           CurScope, Loc, BO_Mul, LastIteration64.get(),
           SemaRef
               .PerformImplicitConversion(N->IgnoreImpCasts(), N->getType(),
-                                         Sema::AA_Converting,
+                                         AssignmentAction::Converting,
                                          /*AllowExplicit=*/true)
               .get());
   }
@@ -11423,7 +11546,7 @@ bool OpenMPAtomicUpdateChecker::checkStatement(Stmt *S, unsigned DiagId,
     if (Update.isInvalid())
       return true;
     Update = SemaRef.PerformImplicitConversion(Update.get(), X->getType(),
-                                               Sema::AA_Casting);
+                                               AssignmentAction::Casting);
     if (Update.isInvalid())
       return true;
     UpdateExpr = Update.get();
@@ -15540,7 +15663,7 @@ static bool findOMPAllocatorHandleT(Sema &S, SourceLocation Loc,
       break;
     }
     Res = S.PerformImplicitConversion(Res.get(), AllocatorHandleEnumTy,
-                                      Sema::AA_Initializing,
+                                      AssignmentAction::Initializing,
                                       /*AllowExplicit=*/true);
     if (!Res.isUsable()) {
       ErrorFound = true;
@@ -15571,7 +15694,7 @@ OMPClause *SemaOpenMP::ActOnOpenMPAllocatorClause(Expr *A,
     return nullptr;
   Allocator = SemaRef.PerformImplicitConversion(
       Allocator.get(), DSAStack->getOMPAllocatorHandleT(),
-      Sema::AA_Initializing,
+      AssignmentAction::Initializing,
       /*AllowExplicit=*/true);
   if (Allocator.isInvalid())
     return nullptr;
@@ -22981,7 +23104,7 @@ OMPClause *SemaOpenMP::ActOnOpenMPAllocateClause(
       return nullptr;
     AllocatorRes = SemaRef.PerformImplicitConversion(
         AllocatorRes.get(), DSAStack->getOMPAllocatorHandleT(),
-        Sema::AA_Initializing,
+        AssignmentAction::Initializing,
         /*AllowExplicit=*/true);
     if (AllocatorRes.isInvalid())
       return nullptr;
@@ -23824,14 +23947,14 @@ ExprResult SemaOpenMP::ActOnOMPIteratorExpr(Scope *S,
 
     Expr *Begin = D.Range.Begin;
     if (!IsDeclTyDependent && Begin && !Begin->isTypeDependent()) {
-      ExprResult BeginRes =
-          SemaRef.PerformImplicitConversion(Begin, DeclTy, Sema::AA_Converting);
+      ExprResult BeginRes = SemaRef.PerformImplicitConversion(
+          Begin, DeclTy, AssignmentAction::Converting);
       Begin = BeginRes.get();
     }
     Expr *End = D.Range.End;
     if (!IsDeclTyDependent && End && !End->isTypeDependent()) {
-      ExprResult EndRes =
-          SemaRef.PerformImplicitConversion(End, DeclTy, Sema::AA_Converting);
+      ExprResult EndRes = SemaRef.PerformImplicitConversion(
+          End, DeclTy, AssignmentAction::Converting);
       End = EndRes.get();
     }
     Expr *Step = D.Range.Step;
