@@ -142,6 +142,7 @@ public:
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
   virtual unsigned getNumVariables() const = 0;
+  virtual std::vector<SPIRVValue *> getFunctionPointers() const = 0;
   virtual SourceLanguage getSourceLanguage(SPIRVWord *) const = 0;
   virtual std::set<std::string> &getSourceExtension() = 0;
   virtual SPIRVValue *getValue(SPIRVId TheId) const = 0;
@@ -552,6 +553,10 @@ public:
   bool shouldPreserveOCLKernelArgTypeMetadataThroughString() const noexcept {
     return TranslationOpts
         .shouldPreserveOCLKernelArgTypeMetadataThroughString();
+  }
+
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
   }
 
   bool preserveAuxData() const noexcept {

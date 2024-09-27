@@ -142,6 +142,13 @@ public:
   SPIRVConstant *getLiteralAsConstant(unsigned Literal) override;
   unsigned getNumFunctions() const override { return FuncVec.size(); }
   unsigned getNumVariables() const override { return VariableVec.size(); }
+  std::vector<SPIRVValue *> getFunctionPointers() const override {
+    std::vector<SPIRVValue *> Res;
+    for (auto *C : ConstVec)
+      if (C->getOpCode() == OpConstantFunctionPointerINTEL)
+        Res.emplace_back(C);
+    return Res;
+  }
   SourceLanguage getSourceLanguage(SPIRVWord *Ver = nullptr) const override {
     if (Ver)
       *Ver = SrcLangVer;

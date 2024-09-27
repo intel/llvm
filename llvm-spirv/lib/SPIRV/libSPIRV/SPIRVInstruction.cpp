@@ -282,6 +282,11 @@ SPIRVInstruction *createInstFromSpecConstantOp(SPIRVSpecConstantOp *Inst) {
   auto OC = static_cast<Op>(Ops[0]);
   assert(isSpecConstantOpAllowedOp(OC) &&
          "Op code not allowed for OpSpecConstantOp");
+  auto *Const = Inst->getOperand(1);
+  // LLVM would eliminate a bitcast from a function pointer in a constexpr
+  // context. Cut this short here to avoid necessity to align address spaces
+  if (OC == OpBitcast && Const->getOpCode() == OpConstantFunctionPointerINTEL)
+    return static_cast<SPIRVInstruction *>(Const);
   Ops.erase(Ops.begin(), Ops.begin() + 1);
   auto *BM = Inst->getModule();
   auto *RetInst = SPIRVInstTemplateBase::create(
