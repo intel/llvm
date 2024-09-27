@@ -37,7 +37,7 @@ entry:
 }
 
 attributes #0 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="foo.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
-attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="/localdisk2/nsarnie/llvm_assert2/libdevice/fallback-cassert.cpp" "sycl-optlevel"="2" }
+attributes #1 = { convergent mustprogress norecurse nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="bar.cpp" "sycl-optlevel"="2" }
 attributes #2 = { convergent nounwind }
 
 !0 = !{}
