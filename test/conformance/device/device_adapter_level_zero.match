@@ -1,4 +1,3 @@
 {{NONDETERMINISTIC}}
 urDeviceCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle
 {{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
-{{OPT}}urDeviceGetInfoTest.Success/UR_DEVICE_INFO_GLOBAL_MEM_FREE
