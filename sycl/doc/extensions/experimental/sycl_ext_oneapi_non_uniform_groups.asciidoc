@@ -488,9 +488,8 @@ _Constraints_: Available only if `ParentGroup` is `sycl::sub_group` or
 `sycl::chunk`.
 `ChunkSize` must be positive and a power of 2.
 
-_Preconditions_: `ChunkSize` must be less than or equal to the result of
-`parent.get_max_local_range()`.
-`parent.get_local_linear_range()` must be evenly divisible by `ChunkSize`.
+_Preconditions_: `parent.get_local_linear_range()` must be evenly divisible by
+`ChunkSize`.
 
 _Effects:_ Blocks until all work-items in `parent` have reached this
 synchronization point.
