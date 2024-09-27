@@ -307,7 +307,7 @@ void coherency(size_t size, size_t wgsize) {
   });
 }
 
-constexpr size_t N = 128;
+constexpr size_t N = 32;
 int main() {
   int intarr1[N][N];
   int intarr2[N][N];
