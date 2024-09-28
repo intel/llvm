@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
+// REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
 // -- Test the kernel_compiler with OpenCL source.
