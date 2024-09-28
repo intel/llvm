@@ -9,20 +9,24 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
-// The leak check env var is set even if it might be ignored by some backends.
-
 // -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out
+// RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
 // -- Test again, with caching.
 // 'reading-from-cache' is just a string we pass to differentiate between the
 // two runs.
 
-// DEFINE: %{cache_vars} = env UR_L0_LEAKS_DEBUG=1 env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
+// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
 // RUN: rm -rf %t/cache_dir
 // RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
 // RUN:  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// -- Add leak check.
+// RUN: rm -rf %t/cache_dir
+// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:   %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: Code caching: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: *** Code caching: kernel_compiler using cached binary
