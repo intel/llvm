@@ -9,6 +9,7 @@
 #include "Compiler.h"
 #include "ByteCodeEmitter.h"
 #include "Context.h"
+#include "FixedPoint.h"
 #include "Floating.h"
 #include "Function.h"
 #include "InterpShared.h"
@@ -470,6 +471,7 @@ bool Compiler<Emitter>::VisitCastExpr(const CastExpr *CE) {
   }
 
   case CK_IntegralToBoolean:
+  case CK_FixedPointToBoolean:
   case CK_BooleanToSignedIntegral:
   case CK_IntegralCast: {
     if (DiscardResult)
@@ -670,6 +672,26 @@ bool Compiler<Emitter>::VisitCastExpr(const CastExpr *CE) {
                                ToSize, CE);
   };
 
+  case CK_IntegralToFixedPoint: {
+    if (!this->visit(SubExpr))
+      return false;
+
+    auto Sem = Ctx.getASTContext().getFixedPointSemantics(CE->getType());
+    uint32_t I;
+    std::memcpy(&I, &Sem, sizeof(Sem));
+    return this->emitCastIntegralFixedPoint(classifyPrim(SubExpr->getType()), I,
+                                            CE);
+  }
+  case CK_FloatingToFixedPoint: {
+    if (!this->visit(SubExpr))
+      return false;
+
+    auto Sem = Ctx.getASTContext().getFixedPointSemantics(CE->getType());
+    uint32_t I;
+    std::memcpy(&I, &Sem, sizeof(Sem));
+    return this->emitCastFloatingFixedPoint(I, CE);
+  }
+
   case CK_ToVoid:
     return discard(SubExpr);
 
@@ -718,6 +740,16 @@ bool Compiler<Emitter>::VisitImaginaryLiteral(const ImaginaryLiteral *E) {
 }
 
 template <class Emitter>
+bool Compiler<Emitter>::VisitFixedPointLiteral(const FixedPointLiteral *E) {
+  assert(E->getType()->isFixedPointType());
+  assert(classifyPrim(E) == PT_FixedPoint);
+
+  auto Sem = Ctx.getASTContext().getFixedPointSemantics(E->getType());
+  APInt Value = E->getValue();
+  return this->emitConstFixedPoint(FixedPoint(Value, Sem), E);
+}
+
+template <class Emitter>
 bool Compiler<Emitter>::VisitParenExpr(const ParenExpr *E) {
   return this->delegate(E->getSubExpr());
 }
@@ -750,6 +782,8 @@ bool Compiler<Emitter>::VisitBinaryOperator(const BinaryOperator *BO) {
        RHS->getType()->isAnyComplexType()) &&
       BO->isComparisonOp())
     return this->emitComplexComparison(LHS, RHS, BO);
+  if (LHS->getType()->isFixedPointType() || RHS->getType()->isFixedPointType())
+    return this->VisitFixedPointBinOp(BO);
 
   if (BO->isPtrMemOp()) {
     if (!this->visit(LHS))
@@ -1444,6 +1478,55 @@ bool Compiler<Emitter>::VisitVectorBinOp(const BinaryOperator *E) {
   if (DiscardResult && E->isCompoundAssignmentOp() && !this->emitPopPtr(E))
     return false;
   return true;
+}
+
+template <class Emitter>
+bool Compiler<Emitter>::VisitFixedPointBinOp(const BinaryOperator *E) {
+  const Expr *LHS = E->getLHS();
+  const Expr *RHS = E->getRHS();
+
+  assert(LHS->getType()->isFixedPointType() ||
+         RHS->getType()->isFixedPointType());
+
+  if (!this->visit(LHS))
+    return false;
+  if (!LHS->getType()->isFixedPointType()) {
+    auto Sem = Ctx.getASTContext().getFixedPointSemantics(LHS->getType());
+    uint32_t I;
+    std::memcpy(&I, &Sem, sizeof(Sem));
+    if (!this->emitCastIntegralFixedPoint(classifyPrim(LHS->getType()), I, E))
+      return false;
+  }
+  if (!this->visit(RHS))
+    return false;
+  if (!RHS->getType()->isFixedPointType()) {
+    auto Sem = Ctx.getASTContext().getFixedPointSemantics(RHS->getType());
+    uint32_t I;
+    std::memcpy(&I, &Sem, sizeof(Sem));
+    if (!this->emitCastIntegralFixedPoint(classifyPrim(RHS->getType()), I, E))
+      return false;
+  }
+
+  switch (E->getOpcode()) {
+  case BO_EQ:
+    return this->emitEQFixedPoint(E);
+  case BO_NE:
+    return this->emitNEFixedPoint(E);
+#if 0
+  case BO_LT:
+    return this->emitLTFixedPoint(E);
+  case BO_LE:
+    return this->emitLEFixedPoint(E);
+  case BO_GT:
+    return this->emitGTFixedPoint(E);
+  case BO_GE:
+    return this->emitGEFixedPoint(E);
+#endif
+  default:
+    return this->emitInvalid(E);
+  }
+
+  llvm_unreachable("unhandled binop opcode");
 }
 
 template <class Emitter>
@@ -3685,9 +3768,13 @@ bool Compiler<Emitter>::visitZeroInitializer(PrimType T, QualType QT,
     return this->emitNullFnPtr(nullptr, E);
   case PT_MemberPtr:
     return this->emitNullMemberPtr(nullptr, E);
-  case PT_Float: {
+  case PT_Float:
     return this->emitConstFloat(APFloat::getZero(Ctx.getFloatSemantics(QT)), E);
+  case PT_FixedPoint: {
+    auto Sem = Ctx.getASTContext().getFixedPointSemantics(E->getType());
+    return this->emitConstFixedPoint(FixedPoint::Zero(Sem), E);
   }
+    llvm_unreachable("Implement");
   }
   llvm_unreachable("unknown primitive type");
 }
@@ -3798,6 +3885,7 @@ bool Compiler<Emitter>::emitConst(T Value, PrimType Ty, const Expr *E) {
   case PT_Float:
   case PT_IntAP:
   case PT_IntAPS:
+  case PT_FixedPoint:
     llvm_unreachable("Invalid integral type");
     break;
   }
@@ -5293,7 +5381,7 @@ bool Compiler<Emitter>::compileDestructor(const CXXDestructorDecl *Dtor) {
       if (!D->isPrimitive() && !D->isPrimitiveArray()) {
         if (!this->emitGetPtrField(Field.Offset, SourceInfo{}))
           return false;
-        if (!this->emitDestruction(D))
+        if (!this->emitDestruction(D, SourceInfo{}))
           return false;
         if (!this->emitPopPtr(SourceInfo{}))
           return false;
@@ -5307,7 +5395,7 @@ bool Compiler<Emitter>::compileDestructor(const CXXDestructorDecl *Dtor) {
 
     if (!this->emitGetPtrBase(Base.Offset, SourceInfo{}))
       return false;
-    if (!this->emitRecordDestruction(Base.R))
+    if (!this->emitRecordDestruction(Base.R, {}))
       return false;
     if (!this->emitPopPtr(SourceInfo{}))
       return false;
@@ -6148,7 +6236,7 @@ bool Compiler<Emitter>::emitComplexComparison(const Expr *LHS, const Expr *RHS,
 /// on the stack.
 /// Emit destruction of record types (or arrays of record types).
 template <class Emitter>
-bool Compiler<Emitter>::emitRecordDestruction(const Record *R) {
+bool Compiler<Emitter>::emitRecordDestruction(const Record *R, SourceInfo Loc) {
   assert(R);
   assert(!R->isAnonymousUnion());
   const CXXDestructorDecl *Dtor = R->getDestructor();
@@ -6161,15 +6249,16 @@ bool Compiler<Emitter>::emitRecordDestruction(const Record *R) {
     return false;
   assert(DtorFunc->hasThisPointer());
   assert(DtorFunc->getNumParams() == 1);
-  if (!this->emitDupPtr(SourceInfo{}))
+  if (!this->emitDupPtr(Loc))
     return false;
-  return this->emitCall(DtorFunc, 0, SourceInfo{});
+  return this->emitCall(DtorFunc, 0, Loc);
 }
 /// When calling this, we have a pointer of the local-to-destroy
 /// on the stack.
 /// Emit destruction of record types (or arrays of record types).
 template <class Emitter>
-bool Compiler<Emitter>::emitDestruction(const Descriptor *Desc) {
+bool Compiler<Emitter>::emitDestruction(const Descriptor *Desc,
+                                        SourceInfo Loc) {
   assert(Desc);
   assert(!Desc->isPrimitive());
   assert(!Desc->isPrimitiveArray());
@@ -6193,13 +6282,13 @@ bool Compiler<Emitter>::emitDestruction(const Descriptor *Desc) {
     }
 
     for (ssize_t I = Desc->getNumElems() - 1; I >= 0; --I) {
-      if (!this->emitConstUint64(I, SourceInfo{}))
+      if (!this->emitConstUint64(I, Loc))
         return false;
-      if (!this->emitArrayElemPtrUint64(SourceInfo{}))
+      if (!this->emitArrayElemPtrUint64(Loc))
         return false;
-      if (!this->emitDestruction(ElemDesc))
+      if (!this->emitDestruction(ElemDesc, Loc))
         return false;
-      if (!this->emitPopPtr(SourceInfo{}))
+      if (!this->emitPopPtr(Loc))
         return false;
     }
     return true;
@@ -6209,7 +6298,7 @@ bool Compiler<Emitter>::emitDestruction(const Descriptor *Desc) {
   if (Desc->ElemRecord->isAnonymousUnion())
     return true;
 
-  return this->emitRecordDestruction(Desc->ElemRecord);
+  return this->emitRecordDestruction(Desc->ElemRecord, Loc);
 }
 
 namespace clang {
