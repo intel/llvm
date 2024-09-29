@@ -2161,6 +2161,319 @@ void WG_PS_CD(p1i8_p1f32_u32_p1i8)(int8_t *keys, float *vals, uint32_t n,
 }
 
 DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1u8_u32_p1i8)(uint16_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1u8_u32_p1i8)(uint16_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1i8_u32_p1i8)(uint16_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1i8_u32_p1i8)(uint16_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1u16_u32_p1i8)(uint16_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1u16_u32_p1i8)(uint16_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1i16_u32_p1i8)(uint16_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1i16_u32_p1i8)(uint16_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1u32_u32_p1i8)(uint16_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1u32_u32_p1i8)(uint16_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1i32_u32_p1i8)(uint16_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1i32_u32_p1i8)(uint16_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1u64_u32_p1i8)(uint16_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1u64_u32_p1i8)(uint16_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1i64_u32_p1i8)(uint16_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1i64_u32_p1i8)(uint16_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u16_p1f32_u32_p1i8)(uint16_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u16_p1f32_u32_p1i8)(uint16_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1u8_u32_p1i8)(int16_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1u8_u32_p1i8)(int16_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1i8_u32_p1i8)(int16_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1i8_u32_p1i8)(int16_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1u16_u32_p1i8)(int16_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1u16_u32_p1i8)(int16_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1i16_u32_p1i8)(int16_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1i16_u32_p1i8)(int16_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1u32_u32_p1i8)(int16_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1u32_u32_p1i8)(int16_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1i32_u32_p1i8)(int16_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1i32_u32_p1i8)(int16_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1u64_u32_p1i8)(int16_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1u64_u32_p1i8)(int16_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1i64_u32_p1i8)(int16_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1i64_u32_p1i8)(int16_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i16_p1f32_u32_p1i8)(int16_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i16_p1f32_u32_p1i8)(int16_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1u8_u32_p1i8)(uint32_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1i8_u32_p1i8)(uint32_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1i8_u32_p1i8)(uint32_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1u16_u32_p1i8)(uint32_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1u16_u32_p1i8)(uint32_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1i16_u32_p1i8)(uint32_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1i16_u32_p1i8)(uint32_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
 void WG_PS_CA(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
                                     uint8_t *scratch) {
   private_merge_sort_key_value_close(keys, vals, n, scratch,
@@ -2172,6 +2485,447 @@ void WG_PS_CD(p1u32_p1u32_u32_p1i8)(uint32_t *keys, uint32_t *vals, uint32_t n,
                                     uint8_t *scratch) {
   private_merge_sort_key_value_close(keys, vals, n, scratch,
                                      std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1i32_u32_p1i8)(uint32_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1i32_u32_p1i8)(uint32_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1u64_u32_p1i8)(uint32_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1u64_u32_p1i8)(uint32_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1i64_u32_p1i8)(uint32_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1i64_u32_p1i8)(uint32_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u32_p1f32_u32_p1i8)(uint32_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u32_p1f32_u32_p1i8)(uint32_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1u8_u32_p1i8)(int32_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1u8_u32_p1i8)(int32_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1i8_u32_p1i8)(int32_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1i8_u32_p1i8)(int32_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1u16_u32_p1i8)(int32_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1u16_u32_p1i8)(int32_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1i16_u32_p1i8)(int32_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1i16_u32_p1i8)(int32_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1u32_u32_p1i8)(int32_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1u32_u32_p1i8)(int32_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1i32_u32_p1i8)(int32_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1i32_u32_p1i8)(int32_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1u64_u32_p1i8)(int32_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1u64_u32_p1i8)(int32_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1i64_u32_p1i8)(int32_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1i64_u32_p1i8)(int32_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i32_p1f32_u32_p1i8)(int32_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i32_p1f32_u32_p1i8)(int32_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1u8_u32_p1i8)(uint64_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1u8_u32_p1i8)(uint64_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1i8_u32_p1i8)(uint64_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1i8_u32_p1i8)(uint64_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1u16_u32_p1i8)(uint64_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1u16_u32_p1i8)(uint64_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1i16_u32_p1i8)(uint64_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1i16_u32_p1i8)(uint64_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1u32_u32_p1i8)(uint64_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1u32_u32_p1i8)(uint64_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1i32_u32_p1i8)(uint64_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1i32_u32_p1i8)(uint64_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1u64_u32_p1i8)(uint64_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1u64_u32_p1i8)(uint64_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1i64_u32_p1i8)(uint64_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1i64_u32_p1i8)(uint64_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1u64_p1f32_u32_p1i8)(uint64_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1u64_p1f32_u32_p1i8)(uint64_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch,
+                                     std::greater_equal<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1u8_u32_p1i8)(int64_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1u8_u32_p1i8)(int64_t *keys, uint8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1i8_u32_p1i8)(int64_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1i8_u32_p1i8)(int64_t *keys, int8_t *vals, uint32_t n,
+                                   uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint8_t *>(vals), n,
+                                     scratch, std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1u16_u32_p1i8)(int64_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1u16_u32_p1i8)(int64_t *keys, uint16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1i16_u32_p1i8)(int64_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1i16_u32_p1i8)(int64_t *keys, int16_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint16_t *>(vals),
+                                     n, scratch, std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1u32_u32_p1i8)(int64_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1u32_u32_p1i8)(int64_t *keys, uint32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1i32_u32_p1i8)(int64_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1i32_u32_p1i8)(int64_t *keys, int32_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1u64_u32_p1i8)(int64_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1u64_u32_p1i8)(int64_t *keys, uint64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, vals, n, scratch,
+                                     std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1i64_u32_p1i8)(int64_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1i64_u32_p1i8)(int64_t *keys, int64_t *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint64_t *>(vals),
+                                     n, scratch, std::greater_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CA(p1i64_p1f32_u32_p1i8)(int64_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::less_equal<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void WG_PS_CD(p1i64_p1f32_u32_p1i8)(int64_t *keys, float *vals, uint32_t n,
+                                    uint8_t *scratch) {
+  private_merge_sort_key_value_close(keys, reinterpret_cast<uint32_t *>(vals),
+                                     n, scratch, std::greater_equal<int64_t>{});
 }
 
 #endif // __SPIR__ || __SPIRV__
