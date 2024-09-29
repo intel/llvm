@@ -208,3 +208,52 @@ public:
     CHECK(ResultT, res_h_, expected);
   }
 };
+
+// Templated ResultT to support both arithmetic and boolean operators
+template <typename ValueT, typename ValueU, typename ValueV,
+          typename ResultT = std::common_type_t<ValueT, ValueU, ValueV>>
+class TernaryOpTestLauncher : OpTestLauncher {
+protected:
+  ValueT *op1_;
+  ValueU *op2_;
+  ValueV *op2_;
+  ResultT res_h_, *res_;
+
+public:
+  TernaryOpTestLauncher(const syclcompat::dim3 &grid,
+                        const syclcompat::dim3 &threads,
+                        const size_t data_size = 1)
+      : OpTestLauncher{
+            grid, threads, data_size,
+            should_skip<ValueT>()(syclcompat::get_current_device())} {
+    if (skip_)
+      return;
+    op1_ = syclcompat::malloc<ValueT>(data_size);
+    op2_ = syclcompat::malloc<ValueU>(data_size);
+    op3_ = syclcompat::malloc<ValueU>(data_size);
+    res_ = syclcompat::malloc<ResultT>(data_size);
+  };
+
+  virtual ~TernaryOpTestLauncher() {
+    if (skip_)
+      return;
+    syclcompat::free(op1_);
+    syclcompat::free(op2_);
+    syclcompat::free(op3_);
+    syclcompat::free(res_);
+  }
+
+  template <auto Kernel>
+  void launch_test(ValueT op1, ValueU op2, ValueU op3, ResultT expected) {
+    if (skip_)
+      return;
+    syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
+    syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
+    syclcompat::memcpy<ValueU>(op3_, &op3, data_size_);
+    syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, op3_, res_);
+    syclcompat::wait();
+    syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
+
+    CHECK(ResultT, res_h_, expected);
+  };
+};
