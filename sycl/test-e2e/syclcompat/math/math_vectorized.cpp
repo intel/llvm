@@ -84,6 +84,51 @@ void test_vectorized_sum_abs_diff(ValueT op1, ValueT op2, unsigned expected) {
                                                                     expected);
 }
 
+template <typename BinaryOp1, typename BinaryOp2, typename ValueT>
+void vectorized_ternary_kernel(ValueT *a, ValueT *b, ValueT *c, unsigned *r,
+                               bool need_relu) {
+  unsigned ua = static_cast<unsigned>(*a);
+  unsigned ub = static_cast<unsigned>(*b);
+  unsigned uc = static_cast<unsigned>(*c);
+  *r = syclcompat::vectorized_ternary<sycl::short2>(ua, ub, uc, BinaryOp1(),
+                                                    BinaryOp2(), need_relu);
+}
+
+template <typename BinaryOp1, typename BinaryOp2, typename ValueT>
+void test_vectorized_ternary(ValueT op1, ValueT op2, ValueT op3,
+                             unsigned expected, bool need_relu = false) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+
+  TernaryOpTestLauncher<ValueT, ValueT, unsigned>(grid, threads)
+      .template launch_test<
+          vectorized_binary_kernel<BinaryOp1, BinaryOp2, ValueT>>(
+          op1, op2, op3, expected, need_relu);
+}
+
+template <typename BinaryOp, typename ValueT>
+void vectorized_with_pred_kernel(ValueT *a, ValueT *b, unsigned *r,
+                                 bool *pred_hi, bool *pred_lo) {
+  unsigned ua = static_cast<unsigned>(*a);
+  unsigned ub = static_cast<unsigned>(*b);
+
+  *r = syclcompat::vectorized_with_pred<short>(ua, ub, BinaryOp(), pred_hi,
+                                               pred_lo);
+}
+
+template <typename ValueT>
+void test_vectorized_with_pred(ValueT op1, ValueT op2, unsigned expected,
+                               bool *pred_hi, bool *pred_lo) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+
+  BinaryOpTestLauncher<ValueT, ValueT, unsigned>(grid, threads)
+      .template launch_test<vectorized_with_pred_kernel<ValueT>>(
+          op1, op2, expected, pred_hi, pred_lo);
+}
+
 int main() {
   test_vectorized_binary<syclcompat::abs_diff, uint32_t>(0x00010002, 0x00040002,
                                                          0x00030000);
@@ -101,6 +146,27 @@ int main() {
                                                         0xFFF8FFFD);
   test_vectorized_unary<syclcompat::abs, uint32_t>(0xFFFBFFFD, 0x00050003);
   test_vectorized_sum_abs_diff<uint32_t>(0x00010002, 0x00040002, 0x00000003);
+  test_vectorized_ternary<std::plus<>, syclcompat::maximum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000);
+  test_vectorized_ternary<std::plus<>, syclcompat::maximum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000, true);
+  test_vectorized_ternary<std::plus<>, syclcompat::minimum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000);
+  test_vectorized_ternary<std::plus<>, syclcompat::minimum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000, true);
+  test_vectorized_ternary<syclcompat::maximum, syclcompat::maximum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000);
+  test_vectorized_ternary<syclcompat::maximum, syclcompat::maximum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000, true);
+  test_vectorized_ternary<syclcompat::minimum, syclcompat::minimum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000);
+  test_vectorized_ternary<syclcompat::minimum, syclcompat::minimum, uint32_t>(
+      0x00010002, 0x00040002, 0x00080004, 0x00030000, true);
+  bool pred_hi, bool pred_lo;
+  test_vectorized_with_pred<syclcompat::maximum, uint32_t>(
+      0x00010002, 0x00040002, 0x00030000, &pred_hi, &pred_lo);
+  test_vectorized_with_pred<syclcompat::minimum, uint32_t>(
+      0x00010002, 0x00040002, 0x00030000, &pred_hi, &pred_lo);
 
   return 0;
 }
