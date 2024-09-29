@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
-  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
-  # Date:   Wed Sep 25 15:55:05 2024 +0100
-  #     Associate queue with device in context (#1992)
-  #     Making a native queue doesn't require hDevice to be non null, but this
-  #     associates the queue with a null device, even if hContext contains valid
-  #     devices.
-  set(UNIFIED_RUNTIME_TAG 2ad32681efd2c977f2c1f7f3a30d572d4c15499c)
+  # commit ce0325da13048af40acd61bd43ef88bafd84c6b3
+  # Merge: 2ad32681 668c5e5d
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 26 10:51:57 2024 +0200
+  #     Merge pull request #2134 from nrspruit/fix_multi_device_event_driver_in_order_syclos
+  #     [L0] Fix Multi Device Event handling and remove unhandled events from in order wait list
+  set(UNIFIED_RUNTIME_TAG ce0325da13048af40acd61bd43ef88bafd84c6b3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
