@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7384e2d7b908de0b2bca9f3c57827ea84698864e
-  # Merge: ed85c3e2 a32549b4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Sep 20 14:56:40 2024 +0100
-  #   Merge pull request #2108 from pbalcer/fix-perf-tracing-logs
-  #   fix perf regression in tracing layer
-  set(UNIFIED_RUNTIME_TAG 7384e2d7b908de0b2bca9f3c57827ea84698864e)
+  # commit ce0325da13048af40acd61bd43ef88bafd84c6b3
+  # Merge: 2ad32681 668c5e5d
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Sep 26 10:51:57 2024 +0200
+  #     Merge pull request #2134 from nrspruit/fix_multi_device_event_driver_in_order_syclos
+  #     [L0] Fix Multi Device Event handling and remove unhandled events from in order wait list
+  set(UNIFIED_RUNTIME_TAG ce0325da13048af40acd61bd43ef88bafd84c6b3)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

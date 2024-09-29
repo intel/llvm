@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,7 +27,7 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class plugin;
+class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
@@ -137,9 +137,9 @@ public:
   /// \return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
-  /// \return the Plugin associated with the context of this event.
+  /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const PluginPtr &getPlugin();
+  const AdapterPtr &getAdapter();
 
   /// Associate event with the context.
   ///
