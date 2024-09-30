@@ -750,12 +750,26 @@ inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    return sycl::ext::oneapi::experimental::fmax(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
+
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
+}
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b) {
   return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
 }
 
@@ -769,12 +783,26 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    return sycl::ext::oneapi::experimental::fmin(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
+
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
+}
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b) {
   return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
 }
 
