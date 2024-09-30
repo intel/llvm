@@ -45,23 +45,12 @@ using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
-// Get the value of a property from a property list
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename PropertyListT>
-struct GetPropertyValueFromPropList {};
-
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename... Props>
 struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    detail::properties_t<Props...>> {
-  using prop_val_t = std::conditional_t<
-      detail::ContainsProperty<PropKey, std::tuple<Props...>>::value,
-      typename detail::FindCompileTimePropertyValueType<
-          PropKey, std::tuple<Props...>>::type,
-      DefaultPropVal>;
-  static constexpr ConstType value =
-      detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
+                                    detail::properties_t<Props...>>
+    : GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                   std::tuple<Props...>> {};
 
 // Get the value of alignment from a property list
 // If alignment is not present in the property list, set to default value 0
