@@ -283,7 +283,7 @@ list to be passed along.
 *Example: spir64_gen enabling options*
 
 > --gpu-tool-arg="-device pvc -options extraopt_pvc"
---gpu-tool-arg="-device skl -options -extraopt_skl"
+--gpu-tool-arg="-options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -302,15 +302,15 @@ For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the 
   ``--offload-arch=sm_80`` to target an NVidia Tesla A100, 
   ``--offload-arch=gfx90a`` to target an AMD Instinct MI250X, or 
   ``--offload-arch=sm_80,gfx90a`` to target both.
-For Intel Graphics AOT target, valid values for ``--offload-arch`` are the
+
+For Intel Graphics AOT target, valid values for ``--offload-arch`` are mapped to
 valid device names accepted by OCLOC (the Intel GPU AOT compiler) via the ``-device`` option.
 
 SYCL offloading with ``--offload-arch`` for Intel CPUs and Intel GPUs is currently enabled only with ``--offload-new-driver`` option.
 
-.. code-block:: console
-    Example:
-    $ clang++ -fsycl -offload-arch=bdw --offload-new-driver foo.cpp -c // SYCL AOT for Intel GPU.
-    $ clang++ -fsycl -offload-arch=broadwell --offload-new-driver foo.cpp -c // SYCL AOT for Intel CPU.
+>    Example:
+>    $ clang++ -fsycl -offload-arch=bdw --offload-new-driver foo.cpp -c // SYCL AOT for Intel GPU.
+>    $ clang++ -fsycl -offload-arch=broadwell --offload-new-driver foo.cpp -c // SYCL AOT for Intel CPU.
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel GPUs and the corresponding `-device` value passed to OCLOC.
 
