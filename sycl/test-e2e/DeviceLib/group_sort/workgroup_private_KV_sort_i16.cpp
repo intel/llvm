@@ -20,8 +20,8 @@ using namespace sycl;
 
 template <typename KeyT, typename ValT, size_t WG_SZ, size_t NUM,
           typename SortHelper>
-void test_work_group_KV_private_sort(sycl::queue &q, KeyT keys[NUM],
-                                     ValT vals[NUM], SortHelper gsh) {
+void test_work_group_KV_private_sort(sycl::queue &q, const KeyT keys[NUM],
+                                     const ValT vals[NUM], SortHelper gsh) {
   static_assert((NUM % WG_SZ == 0),
                 "Input number must be divisible by work group size!");
 
@@ -29,9 +29,6 @@ void test_work_group_KV_private_sort(sycl::queue &q, KeyT keys[NUM],
   ValT input_vals[NUM];
   memcpy(&input_keys[0], &keys[0], NUM * sizeof(KeyT));
   memcpy(&input_vals[0], &vals[0], NUM * sizeof(ValT));
-  for (size_t idx = 0; idx < NUM; ++idx) {
-    std::cout << "key: " << input_keys[idx] << ", val: " << input_vals[idx] << std::endl;
-  }
   size_t scratch_size = 2 * NUM * (sizeof(KeyT) + sizeof(ValT)) +
                         std::max(alignof(KeyT), alignof(ValT));
   uint8_t *scratch_ptr =
@@ -56,10 +53,10 @@ void test_work_group_KV_private_sort(sycl::queue &q, KeyT keys[NUM],
 #endif
   std::stable_sort(sorted_vec.begin(), sorted_vec.end(), kv_tuple_comp);
 
-  for (size_t idx = 0; idx < NUM; ++idx) {
+  /* for (size_t idx = 0; idx < NUM; ++idx) {
     std::cout << "key: " << std::get<0>(sorted_vec[idx]) << " val: " <<
   (int64_t)std::get<1>(sorted_vec[idx]) << std::endl;
-  }
+  }*/
 
   nd_range<1> num_items((range<1>(wg_size)), (range<1>(wg_size)));
   {
@@ -311,7 +308,7 @@ int main() {
 #endif
 #endif
     };
-#if 0
+
     constexpr static int NUM1 = 32;
     test_work_group_KV_private_sort<int16_t, uint8_t, 1, NUM1,
                                     decltype(work_group_sorter1)>(
@@ -575,7 +572,7 @@ int main() {
         q, ikeys, ivals7, work_group_sorter7);
     std::cout << "KV private sort <Key: int16_t, Val: uint64_t> NUM = " << NUM6
               << ", WG = 30 pass." << std::endl;
-#endif
+
     constexpr static int NUM7 = 21;
     test_work_group_KV_private_sort<int16_t, int64_t, 1, NUM7,
                                     decltype(work_group_sorter8)>(
