@@ -241,9 +241,8 @@ limitations of these events.
 
 - *Regular SYCL events*: These are normal SYCL events as defined in the SYCL
 specification. See {events-spec}[the SYCL specification] for reference. These
-include eager submissions to a SYCL queue, events returned from submitting an
-executable `command_graph` for execution and events obtained via
-`command_graph<graph_state::executable>::get_event()`.
+include eager submissions to a SYCL queue and events returned from submitting an
+executable `command_graph` for execution.
 
 Please note that these definitions are only for clarity within this
 specification. There are no distinct event object types, and all events
@@ -2249,8 +2248,9 @@ for (size_t i = 0; i < GraphIterations; i++){
 }
 ----
 
-These events cannot be used to define dependencies between graphs. These should
-instead be defined as described in <<inter-graph-dependencies, this section>>.
+These events cannot be used to define dependencies between graphs and attempting
+to do so will result in an error being thrown. These should instead be defined
+as described in <<inter-graph-dependencies, this section>>.
 
 ==== Adding External Event Dependencies To Graphs [[external-event-dependencies]]
 
