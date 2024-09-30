@@ -19,6 +19,17 @@
 #include <umf/pools/pool_proxy.h>
 #include <umf/providers/provider_level_zero.h>
 
+namespace umf {
+ur_result_t getProviderNativeError(const char *providerName,
+                                   int32_t nativeError) {
+  if (strcmp(providerName, "Level Zero") == 0) {
+    return ze2urResult(static_cast<ze_result_t>(nativeError));
+  }
+
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
+
 static usm::DisjointPoolAllConfigs initializeDisjointPoolConfig() {
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
 
