@@ -396,6 +396,8 @@ struct ConflictingProperties<max_work_group_size_key, Properties>
   using WGSizeVal = GetWGPropertyFromPropList<work_group_size_key, Properties>;
   using MaxWGSizeVal =
       GetWGPropertyFromPropList<max_work_group_size_key, Properties>;
+  // If work_group_size_key doesn't exist in the list of properties, WGSize is
+  // an empty array and so Dims == 0.
   static constexpr size_t Dims = WGSizeVal::WGSize.size();
   static_assert(
       Dims == 0 || Dims == MaxWGSizeVal::WGSize.size(),
