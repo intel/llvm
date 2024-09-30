@@ -308,9 +308,9 @@ valid device names accepted by OCLOC (the Intel GPU AOT compiler) via the ``-dev
 
 SYCL offloading with ``--offload-arch`` for Intel CPUs and Intel GPUs is currently enabled only with ``--offload-new-driver`` option.
 
-``  Example:``
-``    $ clang++ -fsycl -offload-arch=bdw --offload-new-driver foo.cpp -c // SYCL AOT for Intel GPU.``
-``    $ clang++ -fsycl -offload-arch=broadwell --offload-new-driver foo.cpp -c // SYCL AOT for Intel CPU.``
+``  Example:``    
+``  $ clang++ -fsycl -offload-arch=bdw --offload-new-driver foo.cpp -c // SYCL AOT for Intel GPU.``     
+``  $ clang++ -fsycl -offload-arch=broadwell --offload-new-driver foo.cpp -c // SYCL AOT for Intel CPU.``   
 
 The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel GPUs and the corresponding `-device` value passed to OCLOC.
 
