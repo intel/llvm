@@ -314,7 +314,7 @@ class fragment {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
-  using linear_id_type = uint32_t;
+  using linear_id_type = typename ParentGroup::linear_id_type;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
 
@@ -514,7 +514,7 @@ class chunk {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
-  using linear_id_type = uint32_t;
+  using linear_id_type = typename ParentGroup::linear_id_type;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
 
