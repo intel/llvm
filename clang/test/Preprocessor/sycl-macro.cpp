@@ -8,7 +8,7 @@
 // RUN: --check-prefix=CHECK-NO-SYCL_FIT_IN_INT %s
 // RUN: %clang_cc1 %s  -triple nvptx64-nvidia-cuda -target-cpu sm_80 -fsycl-is-device -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-CUDA %s -DARCH_CODE=800
-// RUN: %clangxx %s -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --offload-arch=sm_80 -E -dM | FileCheck \
+// RUN: %clangxx %s -fsycl -nocudalib -fno-sycl-libspirv -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --offload-arch=sm_80 -E -dM | FileCheck \
 // RUN: --check-prefix=CHECK-CUDA-SYCL-DRIVER %s
 // RUN: %clang_cc1 %s  -triple amdgcn-amd-amdhsa -target-cpu gfx906 -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-HIP %s
 
