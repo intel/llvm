@@ -2175,17 +2175,31 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     }
 
     if (NeedCopy) {
-
-      // Generate the waitlist for the Copy calls based on the passed in
-      // dependencies, if they exist.
+      // Wait on all dependency events passed in to ensure that the memory which
+      // is being init is updated correctly.
       _ur_ze_event_list_t waitlist;
       waitlist.ZeEventList = nullptr;
-      waitlist.Length = numWaitEvents;
-      if (numWaitEvents != 0) {
-        waitlist.ZeEventList = new ze_event_handle_t[numWaitEvents];
-        for (uint32_t i = 0; i < numWaitEvents; i++) {
-          waitlist.ZeEventList[i] = phWaitEvents[i]->ZeEvent;
+      waitlist.Length = 0;
+      uint32_t EventListIndex = 0;
+      for (unsigned i = 0; i < numWaitEvents; ++i) {
+        if (phWaitEvents[i]->HostVisibleEvent) {
+          ZE2UR_CALL(zeEventHostSynchronize,
+                     (phWaitEvents[i]->ZeEvent, UINT64_MAX));
+        } else {
+          // Generate the waitlist for the Copy calls based on the passed in
+          // dependencies, if they exist for device only.
+          if (waitlist.ZeEventList == nullptr) {
+            waitlist.ZeEventList = new ze_event_handle_t[numWaitEvents];
+          }
+          waitlist.ZeEventList[EventListIndex] = phWaitEvents[i]->ZeEvent;
+          waitlist.Length++;
+          EventListIndex++;
         }
+      }
+      if (waitlist.Length > 0) {
+        ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                   (UrContext->ZeCommandListInit, waitlist.Length,
+                    waitlist.ZeEventList));
       }
 
       // Copy valid buffer data to this allocation.
@@ -2225,8 +2239,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         if (!HostAllocation.Valid) {
           ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                      (UrContext->ZeCommandListInit, HostAllocation.ZeHandle,
-                      ZeHandleSrc, Size, nullptr, waitlist.Length,
-                      waitlist.ZeEventList));
+                      ZeHandleSrc, Size, nullptr, 0u, nullptr));
           // Mark the host allocation data  as valid so it can be reused.
           // It will be invalidated below if the current access is not
           // read-only.
@@ -2234,17 +2247,17 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         }
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, ZeHandle,
-                    HostAllocation.ZeHandle, Size, nullptr, waitlist.Length,
-                    waitlist.ZeEventList));
+                    HostAllocation.ZeHandle, Size, nullptr, 0u, nullptr));
       } else {
         // Perform P2P copy.
         std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, ZeHandle, ZeHandleSrc, Size,
-                    nullptr, waitlist.Length, waitlist.ZeEventList));
+                    nullptr, 0u, nullptr));
       }
-      if (waitlist.ZeEventList)
+      if (waitlist.ZeEventList) {
         delete waitlist.ZeEventList;
+      }
     }
     Allocation.Valid = true;
     LastDeviceWithValidAllocation = Device;
