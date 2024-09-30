@@ -58,9 +58,9 @@ constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
 
 // Helper constexpr bool to avoid ugly macros where possible
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-  constexpr bool support_bfloat16_math = true;
+constexpr bool support_bfloat16_math = true;
 #else
-  constexpr bool support_bfloat16_math = false;
+constexpr bool support_bfloat16_math = false;
 #endif
 
 template <typename ValueT>
@@ -2291,23 +2291,24 @@ inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
 // ops return bfloat16)
 // TODO(syclcompat-lib-reviewers) Move this to bfloat extension
 namespace std {
-    template <>
-    struct common_type<sycl::ext::oneapi::bfloat16> {
-        using type = sycl::ext::oneapi::bfloat16;
-    };
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
 
-    template <>
-    struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
-        using type = sycl::ext::oneapi::bfloat16;
-    };
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
 
-    template <typename T>
-    struct common_type<sycl::ext::oneapi::bfloat16, T> {
-        using type = sycl::ext::oneapi::bfloat16; //std::common_type_t<float, T>;  // sycl::ext::oneapi::bfloat16 promotes to float
-    };
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16; // std::common_type_t<float, T>;  //
+                                            // sycl::ext::oneapi::bfloat16
+                                            // promotes to float
+};
 
-    template <typename T>
-    struct common_type<T, sycl::ext::oneapi::bfloat16> {
-        using type = sycl::ext::oneapi::bfloat16; //std::common_type_t<T, float>;  // sycl::ext::oneapi::bfloat16 promotes to float
-    };
-}
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16; // std::common_type_t<T, float>;  //
+                                            // sycl::ext::oneapi::bfloat16
+                                            // promotes to float
+};
+} // namespace std
