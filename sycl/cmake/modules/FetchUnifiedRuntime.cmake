@@ -116,15 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
-  # commit 2ad32681efd2c977f2c1f7f3a30d572d4c15499c
-  # Author: Hugh Delaney <hugh.delaney@codeplay.com>
-  # Date:   Wed Sep 25 15:55:05 2024 +0100
-  #     Associate queue with device in context (#1992)
-  #     Making a native queue doesn't require hDevice to be non null, but this
-  #     associates the queue with a null device, even if hContext contains valid
-  #     devices.
-  set(UNIFIED_RUNTIME_TAG d944ff3391dfbe69db453406bd0bbcb78716dee0)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 22962057df1b9d538e08088a7b75d9d8e7c29f90 (HEAD, origin/main, origin/HEAD)
+  # Merge: e824ddc2 f0a1c433
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Sep 27 16:54:04 2024 +0100
+  #     Merge pull request #2017 from nrspruit/new_sysman_init
+  #     [L0] Use zesInit for SysMan API usage
+  set(UNIFIED_RUNTIME_TAG 22962057df1b9d538e08088a7b75d9d8e7c29f90)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
