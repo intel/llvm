@@ -1779,6 +1779,10 @@ template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
 
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
+
 // Performs 2 elements comparison and returns the smaller one. If either of
 // inputs is NaN, then return NaN.
 template <typename ValueT, typename ValueU>
@@ -1787,6 +1791,10 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
 
 inline float pow(const float a, const int b) { return sycl::pown(a, b); }
 inline double pow(const double a, const int b) { return sycl::pown(a, b); }
