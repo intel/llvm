@@ -535,6 +535,7 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
     }
   }
 
+#if 0
   if (isInPrimaryFile() && getLangOpts().SYCLIsHost &&
       !getPreprocessorOpts().IncludeFooter.empty()) {
     SourceManager &SourceMgr = getSourceManager();
@@ -555,6 +556,7 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       return false;
     }
   }
+#endif
 
   // If this is the end of the main file, form an EOF token.
   assert(CurLexer && "Got EOF but no current lexer set!");

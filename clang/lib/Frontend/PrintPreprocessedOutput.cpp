@@ -272,10 +272,18 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
   if (UseLineDirectives) {
-    *OS << "#line" << ' ' << LineNo << ' ' << '"';
-    OS->write_escaped(CurFilename);
+    if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
+	CurFilename != PP.getPreprocessorOpts().IncludeHeader) {
+      *OS << "#line" << ' ' << LineNo << ' ' << '"';
+      OS->write_escaped(CurFilename);
+      *OS << '"';
+    }
+    //    *OS << "#line" << ' ' << LineNo << ' ' << '"';
+    //    OS->write_escaped(CurFilename);
     *OS << '"';
   } else {
+    if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
+	CurFilename != PP.getPreprocessorOpts().IncludeHeader) {
     *OS << '#' << ' ' << LineNo << ' ' << '"';
     OS->write_escaped(CurFilename);
     *OS << '"';
@@ -287,6 +295,7 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
       OS->write(" 3", 2);
     else if (FileType == SrcMgr::C_ExternCSystem)
       OS->write(" 3 4", 4);
+    }
   }
   *OS << '\n';
 }
@@ -417,13 +426,26 @@ void PrintPPOutputPPCallbacks::FileChanged(SourceLocation Loc,
 
   switch (Reason) {
   case PPCallbacks::EnterFile:
+#if 0
+     // Don't print the header and footer lines in the pre-processed output.
+    if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
+        CurFilename != PP.getPreprocessorOpts().IncludeHeader)
+#endif
     WriteLineInfo(CurLine, " 1", 2);
     break;
   case PPCallbacks::ExitFile:
+#if 0
+    if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
+        CurFilename != PP.getPreprocessorOpts().IncludeHeader)
+#endif
     WriteLineInfo(CurLine, " 2", 2);
     break;
   case PPCallbacks::SystemHeaderPragma:
   case PPCallbacks::RenameFile:
+#if 0
+    if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
+        CurFilename != PP.getPreprocessorOpts().IncludeHeader)
+#endif
     WriteLineInfo(CurLine);
     break;
   }
@@ -914,7 +936,7 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
   FileID FooterFileID = SourceMgr.ComputeValidFooterFileID(Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
   // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(Footer);
+  // Callbacks->WriteFooterInfo(Footer);
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
   // print out the content of the integration footer.
@@ -1187,6 +1209,7 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
 
+#if 0
   if (!PP.getPreprocessorOpts().IncludeFooter.empty() &&
       !PP.IncludeFooterProcessed) {
     assert(PP.getLangOpts().SYCLIsHost &&
@@ -1195,7 +1218,7 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
     PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
                        Callbacks);
   }
-
+#endif
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).
   PP.RemovePragmaHandler(MicrosoftExtHandler.get());
