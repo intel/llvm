@@ -21,9 +21,31 @@ etors:
     - name: COMMAND_BUFFER_SUPPORT_EXP
       value: "0x1000"
       desc: "[$x_bool_t] Returns true if the device supports the use of command-buffers."
-    - name: COMMAND_BUFFER_UPDATE_SUPPORT_EXP
+    - name: COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP
+      desc: "[$x_device_command_buffer_update_capability_flags_t] Command-buffer update capabilities of the device"
       value: "0x1001"
-      desc: "[$x_bool_t] Returns true if the device supports updating the kernel commands in a command-buffer."
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Device kernel execution capability"
+class: $xDevice
+name: $x_device_command_buffer_update_capability_flags_t
+etors:
+    - name: KERNEL_ARGUMENTS
+      value: "$X_BIT(0)"
+      desc: "Device supports updating the kernel arguments in command-buffer commands."
+    - name: LOCAL_WORK_SIZE
+      value: "$X_BIT(1)"
+      desc: "Device supports updating the local work-group size in command-buffer commands."
+    - name: GLOBAL_WORK_SIZE
+      value: "$X_BIT(2)"
+      desc: "Device supports updating the global work-group size in command-buffer commands."
+    - name: GLOBAL_WORK_OFFSET
+      value: "$X_BIT(3)"
+      desc: "Device supports updating the global work offset in command-buffer commands."
+    - name: KERNEL_HANDLE
+      value: "$X_BIT(4)"
+      desc: "Device supports updating the kernel handle in command-buffer commands."
+
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -127,7 +149,7 @@ members:
       desc: "[in] Argument index."
     - type: "const ur_kernel_arg_mem_obj_properties_t *"
       name: pProperties
-      desc: "[in][optinal] Pointer to memory object properties."
+      desc: "[in][optional] Pointer to memory object properties."
     - type: $x_mem_handle_t
       name: hNewMemObjArg
       desc: "[in][optional] Handle of memory object to set at argument index."
@@ -142,7 +164,7 @@ members:
       desc: "[in] Argument index."
     - type: "const ur_kernel_arg_pointer_properties_t *"
       name: pProperties
-      desc: "[in][optinal] Pointer to USM pointer properties."
+      desc: "[in][optional] Pointer to USM pointer properties."
     - type: "const void *"
       name: pNewPointerArg
       desc: "[in][optional] USM pointer to memory location holding the argument value to set at argument index."
@@ -160,7 +182,7 @@ members:
       desc: "[in] Argument size."
     - type: "const ur_kernel_arg_value_properties_t *"
       name: pProperties
-      desc: "[in][optinal] Pointer to value properties."
+      desc: "[in][optional] Pointer to value properties."
     - type: "const void *"
       name: pNewValueArg
       desc: "[in][optional] Argument value representing matching kernel arg type to set at argument index."
@@ -170,6 +192,12 @@ desc: "Descriptor type for updating a kernel launch command."
 base: $x_base_desc_t
 name: $x_exp_command_buffer_update_kernel_launch_desc_t
 members:
+    - type: $x_kernel_handle_t
+      name: hNewKernel
+      desc: |
+        [in][optional] The new kernel handle. If this parameter is nullptr, the current kernel handle in `hCommand`
+        will be used. If a kernel handle is passed, it must be a valid kernel alternative as defined in
+        $xCommandBufferAppendKernelLaunchExp.
     - type: uint32_t
       name: numNewMemObjArgs
       desc: "[in] Length of pNewMemObjArgList."
@@ -193,13 +221,23 @@ members:
       desc: "[in][optional][range(0, numNewValueArgs)] An array describing the new kernel value arguments for the command."
     - type: "size_t*"
       name: pNewGlobalWorkOffset
-      desc: "[in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the offset used to calculate the global ID."
+      desc: |
+        [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the offset used
+        to calculate the global ID. If this parameter is nullptr, the current global work offset will be used. This parameter is required if `newWorkDim` is different from the current work dimensions
+        in the command.
     - type: "size_t*"
       name: pNewGlobalWorkSize
-      desc: "[in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the number of global work-items."
+      desc: |
+        [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the number of
+        global work-items. If this parameter is nullptr, the current global work size in `hCommand` will be used.
+        This parameter is required if `newWorkDim` is different from the current work dimensions in the command.
     - type: "size_t*"
       name: pNewLocalWorkSize
-      desc: "[in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the number of work-items that make up a work-group. If newWorkDim is non-zero and pNewLocalWorkSize is nullptr, then runtime implementation will choose the work-group size. If newWorkDim is zero and pNewLocalWorkSize is nullptr, then the local work size is unchanged."
+      desc: |
+        [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned values that describe the number of
+        work-items that make up a work-group. If `pNewGlobalWorkSize` is set and `pNewLocalWorkSize` is nullptr,
+        then the runtime implementation will choose the local work size. If `pNewGlobalWorkSize` is nullptr and
+        `pNewLocalWorkSize` is nullptr, the current local work size in the command will be used.
 --- #--------------------------------------------------------------------------
 type: typedef
 desc: "A value that identifies a command inside of a command-buffer, used for defining dependencies between commands in the same command-buffer."
@@ -306,7 +344,16 @@ params:
       desc: "[in] Global work size to use when executing kernel."
     - type: "const size_t*"
       name: pLocalWorkSize
-      desc: "[in][optional] Local work size to use when executing kernel."
+      desc: "[in][optional] Local work size to use when executing kernel. If this parameter is nullptr, then a local work size will be generated by the implementation."
+    - type: uint32_t
+      name: "numKernelAlternatives"
+      desc: "[in] The number of kernel alternatives provided in phKernelAlternatives."
+    - type: $x_kernel_handle_t*
+      name: "phKernelAlternatives"
+      desc: |
+            [in][optional][range(0, numKernelAlternatives)] List of kernel handles that might be used to update the kernel in this
+            command after the command-buffer is finalized. The default kernel `hKernel` is implicitly marked as an alternative. It's
+            invalid to specify it as part of this list.
     - type: uint32_t
       name: numSyncPointsInWaitList
       desc: "[in] The number of sync points in the provided dependency list."
@@ -325,7 +372,10 @@ returns:
     - $X_RESULT_ERROR_INVALID_KERNEL
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "`phKernelAlternatives == NULL && numKernelAlternatives > 0`"
+        - "`phKernelAlternatives != NULL && numKernelAlternatives == 0`"
+        - "If `phKernelAlternatives` contains `hKernel`"
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         - "`pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`"
@@ -909,25 +959,23 @@ params:
     - type: "const $x_exp_command_buffer_update_kernel_launch_desc_t*"
       name: pUpdateKernelLaunch
       desc: "[in] Struct defining how the kernel command is to be updated."
-
 returns:
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If update functionality is not supported by the device."
     - $X_RESULT_ERROR_INVALID_OPERATION:
         - "If $x_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to."
         - "If the command-buffer `hCommand` belongs to has not been finalized."
-        - "If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`."
-        - "If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL."
-        - "If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size."
-        - "If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size."
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
     - $X_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
     - $X_RESULT_ERROR_INVALID_ENUMERATION
-    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
+    - $X_RESULT_ERROR_INVALID_WORK_DIMENSION:
+        - "`pUpdateKernelLaunch->newWorkDim < 1 || pUpdateKernelLaunch->newWorkDim > 3`"
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
-    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "If `pUpdateKernelLaunch->hNewKernel` was not passed to the `hKernel` or `phKernelAlternatives` parameters of $xCommandBufferAppendKernelLaunchExp when this command was created."
+        - "If `pUpdateKernelLaunch->newWorkDim` is different from the current workDim in `hCommand` and, pUpdateKernelLaunch->pNewGlobalWorkSize, or pUpdateKernelLaunch->pNewGlobalWorkOffset are nullptr."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
