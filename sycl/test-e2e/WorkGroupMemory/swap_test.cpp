@@ -5,7 +5,6 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/group_barrier.hpp>
-#include <sycl/sycl.hpp>
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 sycl::queue q;
