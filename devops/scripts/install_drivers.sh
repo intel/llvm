@@ -128,7 +128,7 @@ InstallIGFX () {
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*deb" \
+    | grep ".*u22\.04.*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
   IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)

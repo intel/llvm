@@ -84,11 +84,11 @@ else:
         "unable to inject shared library path on '{}'".format(platform.system())
     )
 
-# The mock plugin currently appears as an opencl plugin, but could be changed in
-# the future. To avoid it being filtered out we set the filter to use the *
+# The mock adapter currently appears as an opencl adapter, but could be changed
+# in the future. To avoid it being filtered out we set the filter to use the *
 # wildcard.
 config.environment["ONEAPI_DEVICE_SELECTOR"] = "*:*"
-lit_config.note("Using Mock Plugin.")
+lit_config.note("Using Mock Adapter.")
 
 config.environment["SYCL_CACHE_DIR"] = config.llvm_obj_root + "/sycl_cache"
 lit_config.note("SYCL cache directory: {}".format(config.environment["SYCL_CACHE_DIR"]))

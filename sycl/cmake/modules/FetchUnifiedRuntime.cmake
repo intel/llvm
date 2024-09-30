@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cfecab08e6e6dbb694f614b4f6271a258a41fc10
-  # Merge: 10fd78c1 5bebef5d
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 17 12:26:35 2024 +0100
-  #   Merge pull request #1874 from PietroGhg/pietro/membarrier
-  #   [NATIVECPU] Support atomic fence queries
-  set(UNIFIED_RUNTIME_TAG cfecab08e6e6dbb694f614b4f6271a258a41fc10)
+  # commit 22962057df1b9d538e08088a7b75d9d8e7c29f90 (HEAD, origin/main, origin/HEAD)
+  # Merge: e824ddc2 f0a1c433
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Sep 27 16:54:04 2024 +0100
+  #     Merge pull request #2017 from nrspruit/new_sysman_init
+  #     [L0] Use zesInit for SysMan API usage
+  set(UNIFIED_RUNTIME_TAG 22962057df1b9d538e08088a7b75d9d8e7c29f90)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
