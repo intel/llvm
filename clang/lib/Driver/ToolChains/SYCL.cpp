@@ -599,6 +599,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       // NativeCPU links against libclc (libspirv)
       if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
         return true;
+      // AMDGCN links against our libdevice (devicelib)
       if (IsAMDGCN && InputFilename.starts_with("devicelib-"))
         return true;
       // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
