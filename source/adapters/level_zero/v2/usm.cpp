@@ -85,8 +85,22 @@ makePool(umf_disjoint_pool_params_t *poolParams,
   params.level_zero_device_handle =
       poolDescriptor.hDevice ? poolDescriptor.hDevice->ZeDevice : nullptr;
   params.memory_type = urToUmfMemoryType(poolDescriptor.type);
-  // TODO: handle memory residency:
-  // set resident_device_handles and resident_device_count
+
+  std::vector<ze_device_handle_t> residentZeHandles;
+
+  if (poolDescriptor.type == UR_USM_TYPE_DEVICE) {
+    assert(params.level_zero_device_handle);
+    auto residentHandles =
+        poolDescriptor.hContext->getP2PDevices(poolDescriptor.hDevice);
+    residentZeHandles.push_back(params.level_zero_device_handle);
+    for (auto &device : residentHandles) {
+      residentZeHandles.push_back(device->ZeDevice);
+    }
+
+    params.resident_device_handles = residentZeHandles.data();
+    params.resident_device_count = residentZeHandles.size();
+  }
+
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), &params);
   if (ret != UMF_RESULT_SUCCESS) {
