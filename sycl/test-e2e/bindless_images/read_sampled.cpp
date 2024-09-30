@@ -284,7 +284,8 @@ bool runTests(sycl::range<1> dims, sycl::range<1> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
@@ -440,7 +441,8 @@ bool runTests(sycl::range<2> dims, sycl::range<2> localSize, float offset,
   // normalized and unnormalized coords.
   sycl::addressing_mode addrModes[4] = {
       sycl::addressing_mode::repeat, sycl::addressing_mode::mirrored_repeat,
-      sycl::addressing_mode::clamp_to_edge, sycl::addressing_mode::clamp};
+      sycl::addressing_mode::clamp_to_edge,
+      sycl::addressing_mode::ext_oneapi_clamp_to_border};
 
   sycl::filtering_mode filtModes[2] = {sycl::filtering_mode::nearest,
                                        sycl::filtering_mode::linear};
