@@ -82,14 +82,16 @@ template <typename ValueT, typename ValueU = ValueT>
 void test_syclcompat_fmin_nan() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
+  using ValueTU = std::common_type_t<ValueT, ValueU>;
+
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
   const ValueT op1 = static_cast<ValueT>(5);
   const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  const std::common_type_t<ValueT, ValueU> res =
-      static_cast<std::common_type_t<ValueT, ValueU>>(5);
+  const ValueTU res =
+      static_cast<ValueTU>(5);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op2, res);
@@ -134,14 +136,16 @@ template <typename ValueT, typename ValueU = ValueT>
 void test_syclcompat_fmax_nan() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
+  using ValueTU = std::common_type_t<ValueT, ValueU>;
+
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
   const ValueT op1 = static_cast<ValueT>(5);
   const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  const std::common_type_t<ValueT, ValueU> res =
-      static_cast<std::common_type_t<ValueT, ValueU>>(10);
+  const ValueTU res =
+      static_cast<ValueTU>(10);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op2, res);

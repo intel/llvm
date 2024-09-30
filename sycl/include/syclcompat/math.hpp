@@ -56,6 +56,13 @@ template <typename T>
 constexpr bool is_int32_type = std::is_same_v<std::decay_t<T>, int32_t> ||
   std::is_same_v<std::decay_t<T>, uint32_t>;
 
+// Helper constexpr bool to avoid ugly macros where possible
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+  constexpr bool support_bfloat16_math = true;
+#else
+  constexpr bool support_bfloat16_math = false;
+#endif
+
 template <typename ValueT>
 inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
   return sycl::clamp(val, min_val, max_val);
@@ -750,7 +757,8 @@ inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+  if constexpr (detail::support_bfloat16_math &&
+                std::is_same_v<std::common_type_t<ValueT, ValueU>,
                                sycl::ext::oneapi::bfloat16>) {
     return sycl::ext::oneapi::experimental::fmax(
         static_cast<std::common_type_t<ValueT, ValueU>>(a),
@@ -783,7 +791,8 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
+  if constexpr (detail::support_bfloat16_math &&
+                std::is_same_v<std::common_type_t<ValueT, ValueU>,
                                sycl::ext::oneapi::bfloat16>) {
     return sycl::ext::oneapi::experimental::fmin(
         static_cast<std::common_type_t<ValueT, ValueU>>(a),
