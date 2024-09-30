@@ -535,7 +535,7 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
     }
   }
 
-#if 0
+#if 1
   if (isInPrimaryFile() && getLangOpts().SYCLIsHost &&
       !getPreprocessorOpts().IncludeFooter.empty()) {
     SourceManager &SourceMgr = getSourceManager();

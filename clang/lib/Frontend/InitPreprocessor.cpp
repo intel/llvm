@@ -1669,10 +1669,12 @@ void clang::InitializePreprocessor(Preprocessor &PP,
     if (!InitOpts.IncludeHeader.empty()) {
       AddImplicitInclude(Builder, InitOpts.IncludeHeader);
     }
+#if 0
     // Process -include-internal-footer directive.
     if (!InitOpts.IncludeFooter.empty()) {
       AddImplicitInclude(Builder, InitOpts.IncludeFooter);
     }
+#endif
   }
   #endif
 
