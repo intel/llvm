@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include "../fixtures.h"
 #include <array>
 #include <cstring>
 
@@ -38,7 +38,8 @@ struct USMFillCommandTest
         // Append kernel command to command-buffer and close command-buffer
         ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
             updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-            &global_size, &local_size, 0, nullptr, nullptr, &command_handle));
+            &global_size, &local_size, 0, nullptr, 0, nullptr, nullptr,
+            &command_handle));
         ASSERT_NE(command_handle, nullptr);
 
         ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -71,7 +72,7 @@ struct USMFillCommandTest
     static constexpr size_t local_size = 4;
     static constexpr size_t global_size = 32;
     static constexpr size_t global_offset = 0;
-    static constexpr size_t n_dimensions = 1;
+    static constexpr uint32_t n_dimensions = 1;
     static constexpr size_t allocation_size = sizeof(val) * global_size;
     void *shared_ptr = nullptr;
     void *new_shared_ptr = nullptr;
@@ -120,16 +121,17 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
-        0,                                   // numNewMemObjArgs
-        1,                                   // numNewPointerArgs
-        1,                                   // numNewValueArgs
-        static_cast<uint32_t>(n_dimensions), // newWorkDim
-        nullptr,                             // pNewMemObjArgList
-        &new_output_desc,                    // pNewPointerArgList
-        &new_input_desc,                     // pNewValueArgList
-        nullptr,                             // pNewGlobalWorkOffset
-        &new_global_size,                    // pNewGlobalWorkSize
-        &new_local_size,                     // pNewLocalWorkSize
+        kernel,           // hNewKernel
+        0,                // numNewMemObjArgs
+        1,                // numNewPointerArgs
+        1,                // numNewValueArgs
+        n_dimensions,     // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        &new_output_desc, // pNewPointerArgList
+        &new_input_desc,  // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        &new_global_size, // pNewGlobalWorkSize
+        &new_local_size,  // pNewLocalWorkSize
     };
 
     // Update kernel and enqueue command-buffer again
@@ -173,10 +175,11 @@ TEST_P(USMFillCommandTest, UpdateBeforeEnqueue) {
     ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr,                                                        // pNext
+        kernel,           // hNewKernel
         0,                // numNewMemObjArgs
         1,                // numNewPointerArgs
         1,                // numNewValueArgs
-        0,                // newWorkDim
+        n_dimensions,     // newWorkDim
         nullptr,          // pNewMemObjArgList
         &new_output_desc, // pNewPointerArgList
         &new_input_desc,  // pNewValueArgList
@@ -234,7 +237,7 @@ struct USMMultipleFillCommandTest
             // Append kernel and store returned handle
             ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
                 updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-                &elements, &local_size, 0, nullptr, nullptr,
+                &elements, &local_size, 0, nullptr, 0, nullptr, nullptr,
                 &command_handles[k]));
             ASSERT_NE(command_handles[k], nullptr);
         }
@@ -324,10 +327,11 @@ TEST_P(USMMultipleFillCommandTest, UpdateAllKernels) {
         ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
             UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
             nullptr,          // pNext
+            kernel,           // hNewKernel
             0,                // numNewMemObjArgs
             1,                // numNewPointerArgs
             1,                // numNewValueArgs
-            0,                // newWorkDim
+            n_dimensions,     // newWorkDim
             nullptr,          // pNewMemObjArgList
             &new_output_desc, // pNewPointerArgList
             &new_input_desc,  // pNewValueArgList

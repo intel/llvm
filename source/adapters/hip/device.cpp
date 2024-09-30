@@ -903,9 +903,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-
-  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int DriverVersion = 0;
     UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
 
@@ -916,6 +914,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // The version is returned as (10000000 major + 1000000 minor + patch).
     const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
     return ReturnValue(DriverVersion >= CmdBufDriverMinVersion);
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    int DriverVersion = 0;
+    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
+    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
+    if (DriverVersion < CmdBufDriverMinVersion) {
+      return ReturnValue(
+          static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
+    }
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities =
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    return ReturnValue(UpdateCapabilities);
   }
   default:
     break;
