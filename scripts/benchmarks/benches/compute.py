@@ -65,7 +65,7 @@ class ComputeBenchmark(Benchmark):
         self.bench.setup()
         self.benchmark_bin = os.path.join(self.bench.bins, self.bench_name)
 
-    def run(self, env_vars) -> Result:
+    def run(self, env_vars) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -78,7 +78,7 @@ class ComputeBenchmark(Benchmark):
 
         result = self.run_bench(command, env_vars)
         (label, mean) = self.parse_output(result)
-        return Result(label=label, value=mean, command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better())
+        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better()) ]
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)

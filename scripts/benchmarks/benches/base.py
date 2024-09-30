@@ -6,7 +6,6 @@
 import os
 import shutil
 from pathlib import Path
-import subprocess  # nosec B404
 from .result import Result
 from .options import options
 from utils.utils import run
@@ -57,7 +56,7 @@ class Benchmark:
     def setup(self):
         raise NotImplementedError()
 
-    def run(self, env_vars) -> Result:
+    def run(self, env_vars) -> list[Result]:
         raise NotImplementedError()
 
     def teardown(self):
