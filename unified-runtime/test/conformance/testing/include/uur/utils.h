@@ -475,10 +475,10 @@ getDriverVersion(ur_device_handle_t hDevice) {
       if (major < minMajor || (major == minMajor && minor < minMinor) ||       \
           (major == minMajor && minor == minMinor && patch < minPatch)) {      \
         GTEST_SKIP() << "Skipping test because driver version is too old for " \
-                     << adapterName << ". "                                    \
-                     << "Driver version: " << major << "." << minor << "."     \
-                     << patch << " Minimum required version: " << minMajor     \
-                     << "." << minMinor << "." << minPatch;                    \
+                     << adapterName << ". " << "Driver version: " << major     \
+                     << "." << minor << "." << patch                           \
+                     << " Minimum required version: " << minMajor << "."       \
+                     << minMinor << "." << minPatch;                           \
       }                                                                        \
     }                                                                          \
   } while (0)

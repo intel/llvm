@@ -85,11 +85,15 @@ EXPORTS
 	urEnqueueReadHostPipe
 	urEnqueueTimestampRecordingExp
 	urEnqueueUSMAdvise
+	urEnqueueUSMDeviceAllocExp
 	urEnqueueUSMFill
 	urEnqueueUSMFill2D
+	urEnqueueUSMFreeExp
+	urEnqueueUSMHostAllocExp
 	urEnqueueUSMMemcpy
 	urEnqueueUSMMemcpy2D
 	urEnqueueUSMPrefetch
+	urEnqueueUSMSharedAllocExp
 	urEnqueueWriteHostPipe
 	urEventCreateWithNativeHandle
 	urEventGetInfo
@@ -282,11 +286,15 @@ EXPORTS
 	urPrintEnqueueReadHostPipeParams
 	urPrintEnqueueTimestampRecordingExpParams
 	urPrintEnqueueUsmAdviseParams
+	urPrintEnqueueUsmDeviceAllocExpParams
 	urPrintEnqueueUsmFillParams
 	urPrintEnqueueUsmFill_2dParams
+	urPrintEnqueueUsmFreeExpParams
+	urPrintEnqueueUsmHostAllocExpParams
 	urPrintEnqueueUsmMemcpyParams
 	urPrintEnqueueUsmMemcpy_2dParams
 	urPrintEnqueueUsmPrefetchParams
+	urPrintEnqueueUsmSharedAllocExpParams
 	urPrintEnqueueWriteHostPipeParams
 	urPrintEventCreateWithNativeHandleParams
 	urPrintEventGetInfoParams
@@ -312,6 +320,8 @@ EXPORTS
 	urPrintExpEnqueueExtProperties
 	urPrintExpEnqueueNativeCommandFlags
 	urPrintExpEnqueueNativeCommandProperties
+	urPrintExpEnqueueUsmAllocFlags
+	urPrintExpEnqueueUsmAllocProperties
 	urPrintExpExternalMemDesc
 	urPrintExpExternalMemType
 	urPrintExpExternalSemaphoreDesc

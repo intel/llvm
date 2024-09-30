@@ -1,0 +1,216 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for enqueuing asynchronous USM allocations"
+ordinal: "99"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support USM allocation enqueuing."
+name: $x_device_info_t
+etors:
+    - name: ENQUEUE_USM_ALLOCATIONS_EXP
+      value: "0x2023"
+      desc: "[$x_bool_t] returns true if the device supports USM allocation enqueueing"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Command Type experimental enumerations."
+name: $x_command_t
+etors:
+    - name: ENQUEUE_USM_DEVICE_ALLOC_EXP
+      value: "0x2005"
+      desc: Event created by $xEnqueueUSMDeviceAllocExp
+    - name: ENQUEUE_USM_SHARED_ALLOC_EXP
+      value: "0x2006"
+      desc: Event created by $xEnqueueUSMSharedAllocExp
+    - name: ENQUEUE_USM_HOST_ALLOC_EXP
+      value: "0x2007"
+      desc: Event created by $xEnqueueUSMHostAllocExp
+    - name: ENQUEUE_USM_FREE_EXP
+      value: "0x2008"
+      desc: Event created by $xEnqueueUSMFreeExp
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Enqueue USM allocation flags"
+name: $x_exp_enqueue_usm_alloc_flags_t
+etors:
+    - name: TBD
+      desc: "reserved for future use."
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Enqueue USM allocation properties"
+name: $x_exp_enqueue_usm_alloc_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_enqueue_usm_alloc_flags_t
+      name: flags
+      desc: "[in] enqueue USM allocation flags"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ENQUEUE_USM_ALLOC_PROPERTIES
+      desc: $x_exp_enqueue_usm_alloc_properties_t
+      value: "0x3001"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an asynchronous USM device allocation"
+class: $xEnqueue
+name: USMDeviceAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] handle of the USM memory pool"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_enqueue_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue asynchronous USM allocation properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the asynchronous USM device allocation"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an asynchronous USM shared allocation"
+class: $xEnqueue
+name: USMSharedAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] handle of the USM memory pool"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_enqueue_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue asynchronous USM allocation properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the asynchronous USM shared allocation"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an asynchronous USM host allocation"
+class: $xEnqueue
+name: USMHostAllocExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] handle of the USM memory pool"
+      name: pPool
+    - type: const size_t
+      desc: "[in] minimum size in bytes of the USM memory object to be allocated"
+      name: size
+    - type: const $x_exp_enqueue_usm_alloc_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the enqueue asynchronous USM allocation properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: void**
+      name: ppMem
+      desc: "[out] pointer to USM memory object"
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the asynchronous USM host allocation"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue an asynchronous USM deallocation"
+class: $xEnqueue
+name: USMFreeExp
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: $x_usm_pool_handle_t
+      desc: "[in][optional] handle of the USM memory pool"
+      name: pPool
+    - type: void*
+      name: pMem
+      desc: "[in] pointer to USM memory object"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: const $x_event_handle_t*
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: "[out][optional] return an event object that identifies the asynchronous USM deallocation"
+returns:
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST

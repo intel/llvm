@@ -601,6 +601,18 @@ etors:
 - name: PHYSICAL_MEM_GET_INFO
   desc: Enumerator for $xPhysicalMemGetInfo
   value: '249'
+- name: ENQUEUE_USM_DEVICE_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMDeviceAllocExp
+  value: '250'
+- name: ENQUEUE_USM_SHARED_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMSharedAllocExp
+  value: '251'
+- name: ENQUEUE_USM_HOST_ALLOC_EXP
+  desc: Enumerator for $xEnqueueUSMHostAllocExp
+  value: '252'
+- name: ENQUEUE_USM_FREE_EXP
+  desc: Enumerator for $xEnqueueUSMFreeExp
+  value: '253'
 ---
 type: enum
 desc: Defines structure types

@@ -429,6 +429,14 @@ typedef enum ur_function_t {
   UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,
   /// Enumerator for ::urPhysicalMemGetInfo
   UR_FUNCTION_PHYSICAL_MEM_GET_INFO = 249,
+  /// Enumerator for ::urEnqueueUSMDeviceAllocExp
+  UR_FUNCTION_ENQUEUE_USM_DEVICE_ALLOC_EXP = 250,
+  /// Enumerator for ::urEnqueueUSMSharedAllocExp
+  UR_FUNCTION_ENQUEUE_USM_SHARED_ALLOC_EXP = 251,
+  /// Enumerator for ::urEnqueueUSMHostAllocExp
+  UR_FUNCTION_ENQUEUE_USM_HOST_ALLOC_EXP = 252,
+  /// Enumerator for ::urEnqueueUSMFreeExp
+  UR_FUNCTION_ENQUEUE_USM_FREE_EXP = 253,
   /// @cond
   UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -536,6 +544,8 @@ typedef enum ur_structure_type_t {
   UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION = 0x2007,
   /// ::ur_exp_enqueue_native_command_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES = 0x3000,
+  /// ::ur_exp_enqueue_usm_alloc_properties_t
+  UR_STRUCTURE_TYPE_EXP_ENQUEUE_USM_ALLOC_PROPERTIES = 0x3001,
   /// ::ur_exp_enqueue_ext_properties_t
   UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES = 0x4000,
   /// @cond
@@ -2290,6 +2300,9 @@ typedef enum ur_device_info_t {
   /// [::ur_exp_device_2d_block_array_capability_flags_t] return a bit-field
   /// of Intel GPU 2D block array capabilities
   UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP = 0x2022,
+  /// [::ur_bool_t] returns true if the device supports USM allocation
+  /// enqueueing
+  UR_DEVICE_INFO_ENQUEUE_USM_ALLOCATIONS_EXP = 0x2023,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -2315,7 +2328,7 @@ typedef enum ur_device_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName`
+///         + `::UR_DEVICE_INFO_ENQUEUE_USM_ALLOCATIONS_EXP < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -7055,6 +7068,14 @@ typedef enum ur_command_t {
   UR_COMMAND_TIMESTAMP_RECORDING_EXP = 0x2002,
   /// Event created by ::urEnqueueNativeCommandExp
   UR_COMMAND_ENQUEUE_NATIVE_EXP = 0x2004,
+  /// Event created by ::urEnqueueUSMDeviceAllocExp
+  UR_COMMAND_ENQUEUE_USM_DEVICE_ALLOC_EXP = 0x2005,
+  /// Event created by ::urEnqueueUSMSharedAllocExp
+  UR_COMMAND_ENQUEUE_USM_SHARED_ALLOC_EXP = 0x2006,
+  /// Event created by ::urEnqueueUSMHostAllocExp
+  UR_COMMAND_ENQUEUE_USM_HOST_ALLOC_EXP = 0x2007,
+  /// Event created by ::urEnqueueUSMFreeExp
+  UR_COMMAND_ENQUEUE_USM_FREE_EXP = 0x2008,
   /// @cond
   UR_COMMAND_FORCE_UINT32 = 0x7fffffff
   /// @endcond
@@ -8956,6 +8977,195 @@ typedef enum ur_exp_device_2d_block_array_capability_flag_t {
 /// @brief Bit Mask for validating
 /// ur_exp_device_2d_block_array_capability_flags_t
 #define UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAGS_MASK 0xfffffffc
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime Experimental API for enqueuing asynchronous
+// USM allocations
+#if !defined(__GNUC__)
+#pragma region async_alloc_(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue USM allocation flags
+typedef uint32_t ur_exp_enqueue_usm_alloc_flags_t;
+typedef enum ur_exp_enqueue_usm_alloc_flag_t {
+  /// reserved for future use.
+  UR_EXP_ENQUEUE_USM_ALLOC_FLAG_TBD = UR_BIT(0),
+  /// @cond
+  UR_EXP_ENQUEUE_USM_ALLOC_FLAG_FORCE_UINT32 = 0x7fffffff
+  /// @endcond
+
+} ur_exp_enqueue_usm_alloc_flag_t;
+/// @brief Bit Mask for validating ur_exp_enqueue_usm_alloc_flags_t
+#define UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK 0xfffffffe
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue USM allocation properties
+typedef struct ur_exp_enqueue_usm_alloc_properties_t {
+  /// [in] type of this structure, must be
+  /// ::UR_STRUCTURE_TYPE_EXP_ENQUEUE_USM_ALLOC_PROPERTIES
+  ur_structure_type_t stype;
+  /// [in,out][optional] pointer to extension-specific structure
+  void *pNext;
+  /// [in] enqueue USM allocation flags
+  ur_exp_enqueue_usm_alloc_flags_t flags;
+
+} ur_exp_enqueue_usm_alloc_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an asynchronous USM device allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM device allocation
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an asynchronous USM shared allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM shared allocation
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an asynchronous USM host allocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `NULL != pProperties && ::UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK &
+///         pProperties->flags`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM host allocation
+    ur_event_handle_t *phEvent);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue an asynchronous USM deallocation
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMem`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM deallocation
+    ur_event_handle_t *phEvent);
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -13506,6 +13716,64 @@ typedef struct ur_enqueue_events_wait_with_barrier_ext_params_t {
   const ur_event_handle_t **pphEventWaitList;
   ur_event_handle_t **pphEvent;
 } ur_enqueue_events_wait_with_barrier_ext_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMDeviceAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_device_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_enqueue_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_device_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMSharedAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_shared_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_enqueue_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_shared_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMHostAllocExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_host_alloc_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  const size_t *psize;
+  const ur_exp_enqueue_usm_alloc_properties_t **ppProperties;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  void ***pppMem;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_host_alloc_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueUSMFreeExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_usm_free_exp_params_t {
+  ur_queue_handle_t *phQueue;
+  ur_usm_pool_handle_t *ppPool;
+  void **ppMem;
+  uint32_t *pnumEventsInWaitList;
+  const ur_event_handle_t **pphEventWaitList;
+  ur_event_handle_t **pphEvent;
+} ur_enqueue_usm_free_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp

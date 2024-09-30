@@ -145,15 +145,15 @@ options:
                       << "]";
           } else {
             std::cout << "[adapter(" << adapterIndex << "," << adapter_backend
-                      << "):"
-                      << "platform(" << platformIndex << "):"
-                      << "device(" << deviceIndex << "," << device_type << ")]";
+                      << "):" << "platform(" << platformIndex
+                      << "):" << "device(" << deviceIndex << "," << device_type
+                      << ")]";
           }
 
           std::cout << " " << urinfo::getPlatformName(platform) << ", "
                     << urinfo::getDeviceName(device) << " "
-                    << urinfo::getDeviceVersion(device) << " "
-                    << "[" << urinfo::getDeviceDriverVersion(device) << "]\n";
+                    << urinfo::getDeviceVersion(device) << " " << "["
+                    << urinfo::getDeviceDriverVersion(device) << "]\n";
 
           adapter_device_id++;
         }
@@ -163,16 +163,14 @@ options:
 
   void printDetail() {
     std::cout << "\n"
-              << "[loader]:"
-              << "\n";
+              << "[loader]:" << "\n";
     urinfo::printLoaderConfigInfos(loaderConfig);
 
     for (size_t adapterIndex = 0; adapterIndex < adapters.size();
          adapterIndex++) {
       auto adapter = adapters[adapterIndex];
       std::cout << "\n"
-                << "[adapter(" << adapterIndex << ")]:"
-                << "\n";
+                << "[adapter(" << adapterIndex << ")]:" << "\n";
       urinfo::printAdapterInfos(adapter);
 
       size_t numPlatforms = adapterPlatformsMap[adapter].size();
@@ -180,19 +178,17 @@ options:
            platformIndex++) {
         auto platform = adapterPlatformsMap[adapter][platformIndex];
         std::cout << "\n"
-                  << "[adapter(" << adapterIndex << "),"
-                  << "platform(" << platformIndex << ")]:"
-                  << "\n";
+                  << "[adapter(" << adapterIndex << ")," << "platform("
+                  << platformIndex << ")]:" << "\n";
         urinfo::printPlatformInfos(platform);
 
         size_t numDevices = platformDevicesMap[platform].size();
         for (size_t deviceI = 0; deviceI < numDevices; deviceI++) {
           auto device = platformDevicesMap[platform][deviceI];
           std::cout << "\n"
-                    << "[adapter(" << adapterIndex << "),"
-                    << "platform(" << platformIndex << "),"
-                    << "device(" << deviceI << ")]:"
-                    << "\n";
+                    << "[adapter(" << adapterIndex << ")," << "platform("
+                    << platformIndex << ")," << "device(" << deviceI
+                    << ")]:" << "\n";
           urinfo::printDeviceInfos(device);
         }
       }

@@ -1118,6 +1118,33 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueKernelLaunchCustomExp_t)(
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMDeviceAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMDeviceAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_enqueue_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMSharedAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMSharedAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_enqueue_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMHostAllocExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMHostAllocExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, const size_t,
+    const ur_exp_enqueue_usm_alloc_properties_t *, uint32_t,
+    const ur_event_handle_t *, void **, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueUSMFreeExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueUSMFreeExp_t)(
+    ur_queue_handle_t, ur_usm_pool_handle_t, void *, uint32_t,
+    const ur_event_handle_t *, ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
 typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
     ur_queue_handle_t, ur_kernel_handle_t, uint32_t, const size_t *,
@@ -1142,6 +1169,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueNativeCommandExp_t)(
 /// @brief Table of EnqueueExp functions pointers
 typedef struct ur_enqueue_exp_dditable_t {
   ur_pfnEnqueueKernelLaunchCustomExp_t pfnKernelLaunchCustomExp;
+  ur_pfnEnqueueUSMDeviceAllocExp_t pfnUSMDeviceAllocExp;
+  ur_pfnEnqueueUSMSharedAllocExp_t pfnUSMSharedAllocExp;
+  ur_pfnEnqueueUSMHostAllocExp_t pfnUSMHostAllocExp;
+  ur_pfnEnqueueUSMFreeExp_t pfnUSMFreeExp;
   ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
   ur_pfnEnqueueTimestampRecordingExp_t pfnTimestampRecordingExp;
   ur_pfnEnqueueNativeCommandExp_t pfnNativeCommandExp;

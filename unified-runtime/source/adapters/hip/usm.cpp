@@ -478,3 +478,123 @@ ur_result_t umfPoolMallocHelper(ur_usm_pool_handle_t hPool, void **ppMem,
   }
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_enqueue_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM device allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_enqueue_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM shared allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,         ///< [in][optional] handle of the USM memory pool
+    const size_t size, ///< [in] minimum size in bytes of the USM memory object
+                       ///< to be allocated
+    const ur_exp_enqueue_usm_alloc_properties_t
+        *pProperties, ///< [in][optional] pointer to the enqueue asynchronous
+                      ///< USM allocation properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    void **ppMem,         ///< [out] pointer to USM memory object
+    ur_event_handle_t
+        *phEvent ///< [out][optional] return an event object that identifies the
+                 ///< asynchronous USM host allocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = size;
+  std::ignore = pProperties;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = ppMem;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    ur_usm_pool_handle_t
+        pPool,  ///< [in][optional] handle of the USM memory pooliptor
+    void *pMem, ///< [in] pointer to USM memory object
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                          ///< pointer to a list of events that must be complete
+                          ///< before the kernel execution. If nullptr, the
+                          ///< numEventsInWaitList must be 0, indicating no wait
+                          ///< events.
+    ur_event_handle_t *phEvent ///< [out][optional] return an event object that
+                               ///< identifies the asynchronous USM deallocation
+) {
+  std::ignore = hQueue;
+  std::ignore = pPool;
+  std::ignore = pMem;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

@@ -728,3 +728,48 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
     [[maybe_unused]] size_t *pPropSizeRet) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] ur_usm_pool_handle_t pPool,
+    [[maybe_unused]] const size_t size,
+    [[maybe_unused]] const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] void **ppMem,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] ur_usm_pool_handle_t pPool,
+    [[maybe_unused]] const size_t size,
+    [[maybe_unused]] const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] void **ppMem,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] ur_usm_pool_handle_t pPool,
+    [[maybe_unused]] const size_t size,
+    [[maybe_unused]] const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] void **ppMem,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] ur_usm_pool_handle_t pPool, [[maybe_unused]] void *pMem,
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_event_handle_t *phEvent) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

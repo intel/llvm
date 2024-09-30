@@ -496,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     if (pPropValue == NULL && pPropSizeRet == NULL)
       return UR_RESULT_ERROR_INVALID_NULL_POINTER;
 
-    if (UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP < propName)
+    if (UR_DEVICE_INFO_ENQUEUE_USM_ALLOCATIONS_EXP < propName)
       return UR_RESULT_ERROR_INVALID_ENUMERATION;
 
     if (propSize == 0 && pPropValue != NULL)
@@ -6575,6 +6575,267 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMDeviceAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMDeviceAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM device allocation
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMDeviceAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMDeviceAllocExp;
+
+  if (nullptr == pfnUSMDeviceAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMDeviceAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMSharedAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMSharedAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM shared allocation
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMSharedAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMSharedAllocExp;
+
+  if (nullptr == pfnUSMSharedAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMSharedAllocExp(hQueue, pPool, size, pProperties,
+                                            numEventsInWaitList,
+                                            phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMHostAllocExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMHostAllocExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] minimum size in bytes of the USM memory object to be allocated
+    const size_t size,
+    /// [in][optional] pointer to the enqueue asynchronous USM allocation
+    /// properties
+    const ur_exp_enqueue_usm_alloc_properties_t *pProperties,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out] pointer to USM memory object
+    void **ppMem,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM host allocation
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMHostAllocExp =
+      getContext()->urDdiTable.EnqueueExp.pfnUSMHostAllocExp;
+
+  if (nullptr == pfnUSMHostAllocExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == ppMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (NULL != pProperties &&
+        UR_EXP_ENQUEUE_USM_ALLOC_FLAGS_MASK & pProperties->flags)
+      return UR_RESULT_ERROR_INVALID_ENUMERATION;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result =
+      pfnUSMHostAllocExp(hQueue, pPool, size, pProperties, numEventsInWaitList,
+                         phEventWaitList, ppMem, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueUSMFreeExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueUSMFreeExp(
+    /// [in] handle of the queue object
+    ur_queue_handle_t hQueue,
+    /// [in][optional] handle of the USM memory pool
+    ur_usm_pool_handle_t pPool,
+    /// [in] pointer to USM memory object
+    void *pMem,
+    /// [in] size of the event wait list
+    uint32_t numEventsInWaitList,
+    /// [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    /// events that must be complete before the kernel execution.
+    /// If nullptr, the numEventsInWaitList must be 0, indicating no wait
+    /// events.
+    const ur_event_handle_t *phEventWaitList,
+    /// [out][optional] return an event object that identifies the
+    /// asynchronous USM deallocation
+    ur_event_handle_t *phEvent) {
+  auto pfnUSMFreeExp = getContext()->urDdiTable.EnqueueExp.pfnUSMFreeExp;
+
+  if (nullptr == pfnUSMFreeExp) {
+    return UR_RESULT_ERROR_UNINITIALIZED;
+  }
+
+  if (getContext()->enableParameterValidation) {
+    if (NULL == hQueue)
+      return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+
+    if (NULL == pMem)
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+
+    if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+      for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+        if (phEventWaitList[i] == NULL) {
+          return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+      }
+    }
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(hQueue)) {
+    getContext()->refCountContext->logInvalidReference(hQueue);
+  }
+
+  if (getContext()->enableLifetimeValidation &&
+      !getContext()->refCountContext->isReferenceValid(pPool)) {
+    getContext()->refCountContext->logInvalidReference(pPool);
+  }
+
+  ur_result_t result = pfnUSMFreeExp(hQueue, pPool, pMem, numEventsInWaitList,
+                                     phEventWaitList, phEvent);
+
+  return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMPitchedAllocExp
 __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     /// [in] handle of the context object
@@ -10201,6 +10462,20 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
   dditable.pfnKernelLaunchCustomExp = pDdiTable->pfnKernelLaunchCustomExp;
   pDdiTable->pfnKernelLaunchCustomExp =
       ur_validation_layer::urEnqueueKernelLaunchCustomExp;
+
+  dditable.pfnUSMDeviceAllocExp = pDdiTable->pfnUSMDeviceAllocExp;
+  pDdiTable->pfnUSMDeviceAllocExp =
+      ur_validation_layer::urEnqueueUSMDeviceAllocExp;
+
+  dditable.pfnUSMSharedAllocExp = pDdiTable->pfnUSMSharedAllocExp;
+  pDdiTable->pfnUSMSharedAllocExp =
+      ur_validation_layer::urEnqueueUSMSharedAllocExp;
+
+  dditable.pfnUSMHostAllocExp = pDdiTable->pfnUSMHostAllocExp;
+  pDdiTable->pfnUSMHostAllocExp = ur_validation_layer::urEnqueueUSMHostAllocExp;
+
+  dditable.pfnUSMFreeExp = pDdiTable->pfnUSMFreeExp;
+  pDdiTable->pfnUSMFreeExp = ur_validation_layer::urEnqueueUSMFreeExp;
 
   dditable.pfnCooperativeKernelLaunchExp =
       pDdiTable->pfnCooperativeKernelLaunchExp;
