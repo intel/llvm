@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ce0325da13048af40acd61bd43ef88bafd84c6b3
-  # Merge: 2ad32681 668c5e5d
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Sep 26 10:51:57 2024 +0200
-  #     Merge pull request #2134 from nrspruit/fix_multi_device_event_driver_in_order_syclos
-  #     [L0] Fix Multi Device Event handling and remove unhandled events from in order wait list
-  set(UNIFIED_RUNTIME_TAG ce0325da13048af40acd61bd43ef88bafd84c6b3)
+  # commit 22962057df1b9d538e08088a7b75d9d8e7c29f90 (HEAD, origin/main, origin/HEAD)
+  # Merge: e824ddc2 f0a1c433
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Sep 27 16:54:04 2024 +0100
+  #     Merge pull request #2017 from nrspruit/new_sysman_init
+  #     [L0] Use zesInit for SysMan API usage
+  set(UNIFIED_RUNTIME_TAG 22962057df1b9d538e08088a7b75d9d8e7c29f90)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
