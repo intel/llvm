@@ -2437,6 +2437,21 @@ public:
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
+  /// Defines and invokes a SYCL kernel function for the specified range and
+  /// offsets.
+  ///
+  /// The SYCL kernel function is defined as SYCL kernel object.
+  ///
+  /// \param NDRange is a ND-range defining global and local sizes as
+  /// well as offset.
+  /// \param Properties is the properties.
+  /// \param Kernel is a SYCL kernel function.
+  template <typename PropertiesT, int Dims>
+  void parallel_for(nd_range<Dims> NDRange, PropertiesT Properties,
+                    kernel Kernel) {
+    parallel_for_impl(NDRange, Properties, Kernel);
+  }
+
   /// Reductions @{
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
