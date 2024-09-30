@@ -28,14 +28,22 @@ struct ur_context_handle_t_ : _ur_object {
   ur_platform_handle_t getPlatform() const;
   const std::vector<ur_device_handle_t> &getDevices() const;
   ur_usm_pool_handle_t getDefaultUSMPool();
+  const std::vector<ur_device_handle_t> &
+  getP2PDevices(ur_device_handle_t hDevice) const;
 
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.
   bool isValidDevice(ur_device_handle_t Device) const;
 
-  const v2::raii::ze_context_handle_t hContext;
-  const std::vector<ur_device_handle_t> hDevices;
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCache;
+
+private:
+  const v2::raii::ze_context_handle_t hContext;
+  const std::vector<ur_device_handle_t> hDevices;
+
+  // P2P devices for each device in the context, indexed by device id.
+  const std::vector<std::vector<ur_device_handle_t>> p2pAccessDevices;
+
   ur_usm_pool_handle_t_ defaultUSMPool;
 };
