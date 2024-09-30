@@ -231,13 +231,13 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
 }
 
 template <typename ValueT> inline bool isnan(const ValueT a) {
-  return sycl::isnan(a);
+  if constexpr (detail::support_bfloat16_math &&
+                std::is_same_v<ValueT, sycl::ext::oneapi::bfloat16>) {
+    return sycl::ext::oneapi::experimental::isnan(a);
+  } else {
+    return sycl::isnan(a);
+  }
 }
-#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
-  return sycl::ext::oneapi::experimental::isnan(a);
-}
-#endif
 
 // FIXME(syclcompat-lib-reviewers): move bfe outside detail once perf is
 // improved & semantics understood
