@@ -1474,7 +1474,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
-  UpdateDesc.hNewKernel = nullptr;
+  UpdateDesc.hNewKernel = UrKernel;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
