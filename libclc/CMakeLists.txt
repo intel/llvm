@@ -239,8 +239,10 @@ if( ENABLE_RUNTIME_SUBNORMAL )
        RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/${file}.ll
     )
-    install( FILES $<TARGET_PROPERTY:${file},TARGET_FILE> ARCHIVE
-      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
+    install(
+      FILES $<TARGET_PROPERTY:${file},TARGET_FILE>
+      DESTINATION "${CMAKE_INSTALL_DATADIR}/clc"
+    )
   endforeach()
 endif()
 
