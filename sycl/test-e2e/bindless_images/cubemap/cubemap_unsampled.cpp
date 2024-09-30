@@ -177,7 +177,7 @@ sycl::range<2> getCubeGlobal(size_t index) {
   return globalSizes[index % 3];
 }
 
-sycl::range<3> getCubeSubgroup(size_t index) {
+sycl::range<3> getCubeLocal(size_t index) {
 
   const std::vector<sycl::range<3>> localSizes = {
       {3, 3, 1}, {5, 5, 3}, {4, 4, 2}};
@@ -194,125 +194,125 @@ int main() {
   printTestName("Running cube int\n");
   failed |= run_test<int32_t, 1, sycl::image_channel_type::signed_int32,
                      class int_cube>(getCubeGlobal(sizeIndex),
-                                     getCubeSubgroup(sizeIndex), seed);
+                                     getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube int2\n");
   failed |= run_test<int32_t, 2, sycl::image_channel_type::signed_int32,
                      class int2_cube>(getCubeGlobal(sizeIndex),
-                                      getCubeSubgroup(sizeIndex), seed);
+                                      getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube int4\n");
   failed |= run_test<int32_t, 4, sycl::image_channel_type::signed_int32,
                      class int4_cube>(getCubeGlobal(sizeIndex),
-                                      getCubeSubgroup(sizeIndex), seed);
+                                      getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned int\n");
   failed |= run_test<uint32_t, 1, sycl::image_channel_type::unsigned_int32,
                      class uint_cube>(getCubeGlobal(sizeIndex),
-                                      getCubeSubgroup(sizeIndex), seed);
+                                      getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned int2\n");
   failed |= run_test<uint32_t, 2, sycl::image_channel_type::unsigned_int32,
                      class uint2_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned int4\n");
   failed |= run_test<uint32_t, 4, sycl::image_channel_type::unsigned_int32,
                      class uint4_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube short\n");
   failed |= run_test<short, 1, sycl::image_channel_type::signed_int16,
                      class short_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube short2\n");
   failed |= run_test<short, 2, sycl::image_channel_type::signed_int16,
                      class short2_cube>(getCubeGlobal(sizeIndex),
-                                        getCubeSubgroup(sizeIndex), seed);
+                                        getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube short4\n");
   failed |= run_test<short, 4, sycl::image_channel_type::signed_int16,
                      class short4_cube>(getCubeGlobal(sizeIndex),
-                                        getCubeSubgroup(sizeIndex), seed);
+                                        getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned short\n");
   failed |=
       run_test<unsigned short, 1, sycl::image_channel_type::unsigned_int16,
                class ushort_cube>(getCubeGlobal(sizeIndex),
-                                  getCubeSubgroup(sizeIndex), seed);
+                                  getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned short2\n");
   failed |=
       run_test<unsigned short, 2, sycl::image_channel_type::unsigned_int16,
                class ushort2_cube>(getCubeGlobal(sizeIndex),
-                                   getCubeSubgroup(sizeIndex), seed);
+                                   getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned short4\n");
   failed |=
       run_test<unsigned short, 4, sycl::image_channel_type::unsigned_int16,
                class ushort4_cube>(getCubeGlobal(sizeIndex),
-                                   getCubeSubgroup(sizeIndex), seed);
+                                   getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube char\n");
   failed |= run_test<signed char, 1, sycl::image_channel_type::signed_int8,
                      class char_cube>(getCubeGlobal(sizeIndex),
-                                      getCubeSubgroup(sizeIndex), seed);
+                                      getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube char2\n");
   failed |= run_test<signed char, 2, sycl::image_channel_type::signed_int8,
                      class char2_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube char4\n");
   failed |= run_test<signed char, 4, sycl::image_channel_type::signed_int8,
                      class char4_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned char\n");
   failed |= run_test<unsigned char, 1, sycl::image_channel_type::unsigned_int8,
                      class uchar_cube>(getCubeGlobal(sizeIndex),
-                                       getCubeSubgroup(sizeIndex), seed);
+                                       getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned char2\n");
   failed |= run_test<unsigned char, 2, sycl::image_channel_type::unsigned_int8,
                      class uchar2_cube>(getCubeGlobal(sizeIndex),
-                                        getCubeSubgroup(sizeIndex), seed);
+                                        getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube unsigned char4\n");
   failed |= run_test<unsigned char, 4, sycl::image_channel_type::unsigned_int8,
                      class uchar4_cube>(getCubeGlobal(sizeIndex),
-                                        getCubeSubgroup(sizeIndex), seed);
+                                        getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube float\n");
   failed |=
       run_test<float, 1, sycl::image_channel_type::fp32, class float_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube float2\n");
   failed |=
       run_test<float, 2, sycl::image_channel_type::fp32, class float2_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube float4\n");
   failed |=
       run_test<float, 4, sycl::image_channel_type::fp32, class float4_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube half\n");
   failed |=
       run_test<sycl::half, 1, sycl::image_channel_type::fp16, class half_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube half2\n");
   failed |=
       run_test<sycl::half, 2, sycl::image_channel_type::fp16, class half2_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
   sizeIndex++;
   printTestName("Running cube half4\n");
   failed |=
       run_test<sycl::half, 4, sycl::image_channel_type::fp16, class half4_cube>(
-          getCubeGlobal(sizeIndex), getCubeSubgroup(sizeIndex), seed);
+          getCubeGlobal(sizeIndex), getCubeLocal(sizeIndex), seed);
 
   if (failed) {
     std::cerr << "An error has occured!\n";
