@@ -369,14 +369,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               UR_RESULT_ERROR_INVALID_VALUE);
   }
 
-  CUgraphNode GraphNode;
+  try {
+    CUgraphNode GraphNode;
 
-  std::vector<CUgraphNode> DepsList;
-  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                        pSyncPointWaitList, DepsList));
+    std::vector<CUgraphNode> DepsList;
+    UR_CHECK_ERROR(getNodesFromSyncPoints(
+        hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
 
-  if (*pGlobalWorkSize == 0) {
-    try {
+    if (*pGlobalWorkSize == 0) {
       // Create an empty node if the kernel workload size is zero
       UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
                                          DepsList.data(), DepsList.size()));
@@ -386,25 +386,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       if (pSyncPoint) {
         *pSyncPoint = SyncPoint;
       }
-    } catch (ur_result_t Err) {
-      return Err;
+      return UR_RESULT_SUCCESS;
     }
-    return UR_RESULT_SUCCESS;
-  }
 
-  // Set the number of threads per block to the number of threads per warp
-  // by default unless user has provided a better number
-  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
-  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+    // Set the number of threads per block to the number of threads per warp
+    // by default unless user has provided a better number
+    size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+    size_t BlocksPerGrid[3] = {1u, 1u, 1u};
 
-  uint32_t LocalSize = hKernel->getLocalSize();
-  CUfunction CuFunc = hKernel->get();
-  UR_CHECK_ERROR(
-      setKernelParams(hCommandBuffer->Context, hCommandBuffer->Device, workDim,
-                      pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
-                      hKernel, CuFunc, ThreadsPerBlock, BlocksPerGrid));
+    uint32_t LocalSize = hKernel->getLocalSize();
+    CUfunction CuFunc = hKernel->get();
+    UR_CHECK_ERROR(setKernelParams(
+        hCommandBuffer->Context, hCommandBuffer->Device, workDim,
+        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, hKernel, CuFunc,
+        ThreadsPerBlock, BlocksPerGrid));
 
-  try {
     // Set node param structure with the kernel related data
     auto &ArgIndices = hKernel->getArgIndices();
     CUDA_KERNEL_NODE_PARAMS NodeParams = {};
