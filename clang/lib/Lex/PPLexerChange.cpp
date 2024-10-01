@@ -539,6 +539,7 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
       !getPreprocessorOpts().IncludeFooter.empty()) {
     SourceManager &SourceMgr = getSourceManager();
     SourceLocation Loc = CurLexer->getFileLoc();
+
     FileID FooterFileID =
         SourceMgr.ComputeValidFooterFileID(getPreprocessorOpts().IncludeFooter);
     if (!FooterFileID.isInvalid() && !IncludeFooterProcessed) {
