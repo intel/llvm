@@ -1,0 +1,49 @@
+name: Source Checks
+
+on: [push, pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  source-checks:
+    name: Source Checks
+    # TODO: Make this run on Windows (#888)
+    runs-on: 'ubuntu-22.04'
+
+    steps:
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - name: Install apt packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y doxygen
+
+    - name: Setup PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    - name: Install pip packages
+      run: pip install -r third_party/requirements.txt
+
+    # Required for CMake
+    - name: Install libhwloc
+      run: .github/scripts/install_hwloc.sh
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DUR_ENABLE_TRACING=OFF
+        -DCMAKE_BUILD_TYPE=Debug
+        -DUR_BUILD_TESTS=OFF
+        -DUR_FORMAT_CPP_STYLE=ON
+
+    - name: Verify that each source file contains a license
+      run: cmake --build ${{github.workspace}}/build --target verify-licenses
+
+    - name: Generate source from spec, check for uncommitted diff
+      run: cmake --build ${{github.workspace}}/build --target check-generated
