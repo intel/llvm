@@ -42,3 +42,10 @@
 // CHK-ALL: [[DEVLIB:[0-9]+]]: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
 // CHK-ALL: {{[0-9]+}}: linker, {{{.*}}[[DEVLIB]]{{.*}}}, ir, (device-sycl, gfx906)
 
+// Check that llvm-link uses the "-only-needed" flag.
+// Not using the flag breaks kernel bundles.
+// RUN: %clangxx -### -nogpulib --sysroot=%S/Inputs/SYCL \
+// RUN: -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
+
+// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib--amd.bc"{{.*}}
