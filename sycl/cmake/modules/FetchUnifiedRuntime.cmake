@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 532a4ecb72da4876cef61a4ae4d638e27ad609d5
-  # Merge: 22962057 d944ff33
+  # commit 0247d0966ca8c5d1e3245f375e48e6c997bed9af
+  # Merge: 675dd292 04ffc909
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 30 10:43:10 2024 +0100
-  #     Merge pull request #1924 from Bensuo/fabio/cmd_buffer_kernel_update
-  #     Add support for command-buffer kernel updates
-  set(UNIFIED_RUNTIME_TAG 532a4ecb72da4876cef61a4ae4d638e27ad609d5)
+  # Date:   Tue Oct 1 17:10:58 2024 +0100
+  #     Merge pull request #2154 from npmiller/fix-graph-exce
+  #     [CUDA][HIP] Fix exceptions throwing from adapter
+  set(UNIFIED_RUNTIME_TAG 0247d0966ca8c5d1e3245f375e48e6c997bed9af)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
