@@ -15,8 +15,8 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/group_barrier.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
 #include "helpers.hpp"
@@ -29,40 +29,40 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 class BaseOp {
 public:
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
-  virtual int apply(int *, sycl::nd_item<1>) = 0;
+  virtual int apply(int *, sycl::group<1>) = 0;
 };
 
 class SumOp : public BaseOp {
 public:
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
-  virtual int apply(int *LocalData, sycl::nd_item<1> It) {
-    LocalData[It.get_local_id()] += It.get_local_id();
-    sycl::group_barrier(It.get_group());
+  virtual int apply(int *LocalData, sycl::group<1> WG) {
+    LocalData[WG.get_local_id()] += WG.get_local_id();
+    sycl::group_barrier(WG);
     int Res = 0;
-    if (It.get_group().leader()) {
-      for (size_t I = 0; I < It.get_local_range().size(); ++I) {
+    if (WG.leader()) {
+      for (size_t I = 0; I < WG.get_local_range().size(); ++I) {
         Res += LocalData[I];
       }
     }
 
-    return sycl::group_broadcast(It.get_group(), Res);
+    return sycl::group_broadcast(WG, Res);
   }
 };
 
 class MultiplyOp : public BaseOp {
 public:
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
-  virtual int apply(int *LocalData, sycl::nd_item<1> It) {
-    LocalData[It.get_local_id()] += It.get_local_id();
-    sycl::group_barrier(It.get_group());
+  virtual int apply(int *LocalData, sycl::group<1> WG) {
+    LocalData[WG.get_local_id()] += WG.get_local_id();
+    sycl::group_barrier(WG);
     int Res = 1;
-    if (It.get_group().leader()) {
-      for (size_t I = 0; I < It.get_local_range().size(); ++I) {
+    if (WG.leader()) {
+      for (size_t I = 0; I < WG.get_local_range().size(); ++I) {
         Res *= LocalData[I];
       }
     }
 
-    return sycl::group_broadcast(It.get_group(), Res);
+    return sycl::group_broadcast(WG, Res);
   }
 };
 
@@ -72,8 +72,10 @@ int main() try {
   sycl::queue q;
 
   auto *DeviceStorage = sycl::malloc_shared<storage_t>(1, q);
-  sycl::range G{512};
-  sycl::range L{32};
+  // Let's keep ranges small, or otherwise we will encounter integer overflow
+  // (which is a UB) in MultiplyOp::apply.
+  sycl::range G{16};
+  sycl::range L{4};
 
   constexpr oneapi::properties props{oneapi::assume_indirect_calls};
   for (unsigned TestCase = 0; TestCase < 2; ++TestCase) {
@@ -95,9 +97,8 @@ int main() try {
         LocalAcc[It.get_local_id()] = DataAcc[It.get_global_id()];
         auto *Ptr = DeviceStorage->getAs<BaseOp>();
         DataAcc[It.get_global_id()] = Ptr->apply(
-            LocalAcc.template get_multi_ptr<sycl::access::decorated::no>()
-                .get(),
-            It);
+            LocalAcc.get_multi_ptr<sycl::access::decorated::no>().get(),
+            It.get_group());
       });
     });
 
@@ -117,13 +118,19 @@ int main() try {
         size_t GID = WorkGroupID * L.size() + LID;
         LocalHostData[LID] = HostData[GID];
 
-        // Below is an equivalent of apply's body, but it combains both SumOp
-        // and MultiplyOp and hence conditions based on TestCase.
-        LocalHostData[LID] = LID;
+        // Below (including other loops) is an equivalent of apply's body, but
+        // it combains both SumOp and MultiplyOp and hence conditions based on
+        // TestCase.
+        LocalHostData[LID] += LID;
+      }
 
-        // group barrier which is no-op here
+      // Group barrier is simulated by splitting work-group loop in two.
+      // Even though Res is a private variable in the kernel, here we have to
+      // declare it in an outer scope (making it local) so it survies our
+      // barriers emulation.
+      int Res = (TestCase == 0) ? 0 : 1;
 
-        int Res = (TestCase == 0) ? 0 : 1;
+      for (size_t LID = 0; LID < L.size(); ++LID) {
         if (LID == 0) { // if that is a group leader
           for (size_t NestedLID = 0; NestedLID < L.size(); ++NestedLID) {
             if (TestCase == 0)
@@ -132,16 +139,27 @@ int main() try {
               Res *= LocalHostData[NestedLID];
           }
         }
+      }
 
-        // group broadcast:
-        for (size_t LID = 0; LID < L.size(); ++LID)
-          HostData[GID] = Res;
+      // Group broadcast involves a barrier, so we once again splitting
+      // work-group loop.
+      for (size_t LID = 0; LID < L.size(); ++LID) {
+        // GID - global id
+        size_t GID = WorkGroupID * L.size() + LID;
+        // The broadcast itself: all work-items get result computed by a
+        // work-group leader.
+        HostData[GID] = Res;
       }
     }
 
     sycl::host_accessor HostAcc(DataStorage);
-    for (size_t I = 0; I < HostData.size(); ++I)
-      assert(HostAcc[I] == HostData[I]);
+    for (size_t I = 0; I < HostData.size(); ++I) {
+      if (!HostAcc[I] == HostData[I]) {
+        std::cout << "Mismatch at index " << I << ": " << HostAcc[I]
+                  << " != " << HostData[I] << std::endl;
+        assert(HostAcc[I] == HostData[I]);
+      }
+    }
   }
 
   sycl::free(DeviceStorage, q);
