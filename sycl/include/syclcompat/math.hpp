@@ -838,24 +838,20 @@ pow(const ValueT a, const ValueU b) {
 /// \param [in] a The input value
 /// \returns the relu saturation result
 template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>, ValueT>
 relu(const ValueT a) {
   if (!detail::isnan(a) && a < ValueT(0))
     return ValueT(0);
   return a;
 }
 template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
                         sycl::vec<ValueT, 2>>
 relu(const sycl::vec<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
                         sycl::marray<ValueT, 2>>
 relu(const sycl::marray<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
