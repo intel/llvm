@@ -9,7 +9,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
-constexpr size_t NumArgs = 4;
+constexpr size_t NumArgs = 2;
 
 struct __attribute__((packed)) kernel_arg_t {
   int in1;
