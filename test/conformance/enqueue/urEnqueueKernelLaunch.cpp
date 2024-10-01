@@ -180,6 +180,8 @@ TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
         queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
         nullptr, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
+    // We specify this subgroup size in the kernel source, and then the kernel
+    // queries for its subgroup size at runtime and writes it to the buffer.
     ValidateBuffer<size_t>(buffer, sizeof(size_t), 8);
 }
 
