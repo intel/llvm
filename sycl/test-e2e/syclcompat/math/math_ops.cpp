@@ -34,7 +34,7 @@
 template <typename ValueT, typename ValueU>
 inline void max_kernel(ValueT *a, ValueU *b,
                        std::common_type_t<ValueT, ValueU> *r) {
-  *r = syclcompat::max(*a, *b);
+  *r = syclcompat::max<ValueT, ValueU>(*a, *b);
 }
 
 template <typename ValueT, typename ValueU = ValueT>
@@ -54,7 +54,7 @@ void test_syclcompat_max() {
 template <typename ValueT, typename ValueU>
 inline void min_kernel(ValueT *a, ValueU *b,
                        std::common_type_t<ValueT, ValueU> *r) {
-  *r = syclcompat::min(*a, *b);
+  *r = syclcompat::min<ValueT,ValueU>(*a, *b);
 }
 
 template <typename ValueT, typename ValueU = ValueT>
@@ -342,8 +342,15 @@ int main() {
   // Basic testing of deduction to avoid combinatorial explosion
   test_syclcompat_max<double, float>();
   test_syclcompat_max<long, int>();
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+  test_syclcompat_max<sycl::ext::oneapi::bfloat16, float>();
+#endif
+
   test_syclcompat_min<double, float>();
   test_syclcompat_min<long, int>();
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+  test_syclcompat_min<sycl::ext::oneapi::bfloat16, float>();
+#endif
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmin_nan);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_container_syclcompat_fmin_nan);

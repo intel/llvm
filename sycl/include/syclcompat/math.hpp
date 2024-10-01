@@ -732,7 +732,7 @@ cbrt(ValueT val) {
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
 // `std::int64_t` type arguments are acceptable.
-// sycl::half supported as well.
+// sycl::half supported as well, and sycl::ext::oneapi::bfloat16 if available.
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_integral_v<ValueT> &&
                             std::is_integral_v<ValueU>,
@@ -741,15 +741,23 @@ min(ValueT a, ValueU b) {
   return sycl::min(static_cast<std::common_type_t<ValueT, ValueU>>(a),
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
+
 template <typename ValueT, typename ValueU>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                            std::is_floating_point_v<ValueU>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
+                            syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
-  return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (detail::support_bfloat16_math &&
+                std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    return sycl::ext::oneapi::experimental::fmin(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
-inline sycl::half min(sycl::half a, sycl::half b) { return sycl::fmin(a, b); }
 
 template <typename ValueT, typename ValueU>
 inline std::enable_if_t<std::is_integral_v<ValueT> &&
@@ -760,14 +768,21 @@ max(ValueT a, ValueU b) {
                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
 }
 template <typename ValueT, typename ValueU>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> &&
-                            std::is_floating_point_v<ValueU>,
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
+                            syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
-  return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                    static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  if constexpr (detail::support_bfloat16_math &&
+                std::is_same_v<std::common_type_t<ValueT, ValueU>,
+                               sycl::ext::oneapi::bfloat16>) {
+    return sycl::ext::oneapi::experimental::fmax(
+        static_cast<std::common_type_t<ValueT, ValueU>>(a),
+        static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  } else {
+    return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
+                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
+  }
 }
-inline sycl::half max(sycl::half a, sycl::half b) { return sycl::fmax(a, b); }
 
 /// Performs 2 elements comparison and returns the bigger one. If either of
 /// inputs is NaN, then return NaN.
@@ -779,16 +794,7 @@ inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  if constexpr (detail::support_bfloat16_math &&
-                std::is_same_v<std::common_type_t<ValueT, ValueU>,
-                               sycl::ext::oneapi::bfloat16>) {
-    return sycl::ext::oneapi::experimental::fmax(
-        static_cast<std::common_type_t<ValueT, ValueU>>(a),
-        static_cast<std::common_type_t<ValueT, ValueU>>(b));
-  } else {
-    return sycl::fmax(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
-  }
+  return syclcompat::max(a, b);
 }
 
 template <typename ValueT, typename ValueU>
@@ -813,16 +819,7 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
                                                    const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  if constexpr (detail::support_bfloat16_math &&
-                std::is_same_v<std::common_type_t<ValueT, ValueU>,
-                               sycl::ext::oneapi::bfloat16>) {
-    return sycl::ext::oneapi::experimental::fmin(
-        static_cast<std::common_type_t<ValueT, ValueU>>(a),
-        static_cast<std::common_type_t<ValueT, ValueU>>(b));
-  } else {
-    return sycl::fmin(static_cast<std::common_type_t<ValueT, ValueU>>(a),
-                      static_cast<std::common_type_t<ValueT, ValueU>>(b));
-  }
+  return syclcompat::min(a,b);
 }
 
 template <typename ValueT, typename ValueU>
