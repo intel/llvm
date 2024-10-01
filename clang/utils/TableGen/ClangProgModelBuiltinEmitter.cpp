@@ -1369,7 +1369,7 @@ void EmitClangOpenCLBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
   NameChecker.Emit();
 }
 
-void EmitClangSPIRVBuiltins(RecordKeeper &Records, raw_ostream &OS) {
+void EmitClangSPIRVBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
   BuiltinNameEmitter NameChecker(Records, OS, "SPIRV");
   NameChecker.Emit();
 }
