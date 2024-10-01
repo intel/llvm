@@ -44,8 +44,7 @@
 
 // Check that llvm-link uses the "-only-needed" flag.
 // Not using the flag breaks kernel bundles.
-// RUN: %clangxx -### -std=c++11 --sysroot=%S/Inputs/SYCL \
-// RUN:  -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 
 // CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib--cuda.bc"{{.*}}
