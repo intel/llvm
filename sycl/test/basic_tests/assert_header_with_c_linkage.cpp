@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -c %s
 
-// Verify that compilation works when assert.h is wrapped by a C linkage 
-// specification. 
+// Verify that compilation works when assert.h is wrapped by a C linkage
+// specification.
 
 #ifdef __cplusplus
 extern "C" {
