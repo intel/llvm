@@ -413,11 +413,10 @@ public:
       ur_device_handle_t UrDevice = getSyclObjImpl(Devices[0])->getHandleRef();
       ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
       ur_program_properties_t Properties = {};
-      std::vector<ur_program_metadata_t> Metadata = {};
       Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
       Properties.pNext = nullptr;
-      Properties.count = Metadata.size();
-      Properties.pMetadatas = Metadata.data();
+      Properties.count = 0;
+      Properties.pMetadatas = nullptr;
       BinaryStatus = Adapter->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
           ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
           (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
@@ -427,9 +426,7 @@ public:
             UrProgram,
             /*num devices =*/1, &UrDevice, UserArgs.c_str());
 
-        if (Error == UR_RESULT_SUCCESS) {
-          return true;
-        }
+        return (Error == UR_RESULT_SUCCESS);
       }
     }
     return false;
