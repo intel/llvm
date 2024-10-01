@@ -117,7 +117,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/againull/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG 88f2f3b89d0e0e92c552432b2f8ef4a271c7ab32)
+  set(UNIFIED_RUNTIME_TAG 550df8a622a3bae8113d8e8d9c6deafba0464a87)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
