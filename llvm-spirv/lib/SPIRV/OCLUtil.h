@@ -535,17 +535,18 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   F->setLinkage(GlobalValue::PrivateLinkage);
 
   LLVMContext &Ctx = M->getContext();
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  IRBuilder<> IRB(BB);
+  BasicBlock *EntryBB = BasicBlock::Create(Ctx, "entry", F);
+  IRBuilder<> EntryIRB(EntryBB);
+  AllocaInst *Result = EntryIRB.CreateAlloca(Ty, nullptr, "result");
   SwitchInst *SI;
   F->arg_begin()->setName("key");
   if (KeyMask) {
     Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
-    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    Value *NewKey = EntryIRB.CreateAnd(MaskV, F->arg_begin());
     NewKey->setName("key.masked");
-    SI = IRB.CreateSwitch(NewKey, BB);
+    SI = EntryIRB.CreateSwitch(NewKey, EntryBB);
   } else {
-    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+    SI = EntryIRB.CreateSwitch(F->arg_begin(), EntryBB);
   }
 
   if (!DefaultCase) {
@@ -555,17 +556,27 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
     SI->setDefaultDest(DefaultBB);
   }
 
+  BasicBlock *ExitBB = BasicBlock::Create(Ctx, "exit", F);
+  BasicBlock *CaseBB = nullptr;
   Map.foreach ([&](int Key, int Val) {
     if (IsReverse)
       std::swap(Key, Val);
-    BasicBlock *CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
+    CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
     IRBuilder<> CaseIRB(CaseBB);
-    CaseIRB.CreateRet(CaseIRB.getInt32(Val));
-    SI->addCase(IRB.getInt32(Key), CaseBB);
+    CaseIRB.CreateStore(CaseIRB.getInt32(Val), Result);
+    CaseIRB.CreateBr(ExitBB);
+    SI->addCase(EntryIRB.getInt32(Key), CaseBB);
     if (Key == DefaultCase)
       SI->setDefaultDest(CaseBB);
   });
-  assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
+
+  ExitBB->moveAfter(CaseBB);
+  IRBuilder<> ExitIRB(ExitBB);
+  LoadInst *RetVal = ExitIRB.CreateLoad(Ty, Result, "retVal");
+  ExitIRB.CreateRet(RetVal);
+
+  assert(SI->getDefaultDest() != EntryBB &&
+         "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
 }
 

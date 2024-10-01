@@ -58,12 +58,12 @@ static constexpr char UseSpvEnv[]("SYCL_USE_KERNEL_SPV");
 /// This function enables ITT annotations in SPIR-V module by setting
 /// a specialization constant if INTEL_LIBITTNOTIFY64 env variable is set.
 static void enableITTAnnotationsIfNeeded(const ur_program_handle_t &Prog,
-                                         const PluginPtr &Plugin) {
+                                         const AdapterPtr &Adapter) {
   if (SYCLConfig<INTEL_ENABLE_OFFLOAD_ANNOTATIONS>::get() != nullptr) {
     constexpr char SpecValue = 1;
     ur_specialization_constant_info_t SpecConstInfo = {
         ITTSpecConstId, sizeof(char), &SpecValue};
-    Plugin->call<UrApiKind::urProgramSetSpecializationConstants>(
+    Adapter->call<UrApiKind::urProgramSetSpecializationConstants>(
         Prog, 1, &SpecConstInfo);
   }
 }
@@ -76,13 +76,13 @@ static ur_program_handle_t
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
                     const std::vector<ur_program_metadata_t> Metadata) {
-  const PluginPtr &Plugin = Context->getPlugin();
+  const AdapterPtr &Adapter = Context->getAdapter();
 #ifndef _NDEBUG
   uint32_t NumDevices = 0;
-  Plugin->call<UrApiKind::urContextGetInfo>(Context->getHandleRef(),
-                                            UR_CONTEXT_INFO_NUM_DEVICES,
-                                            sizeof(NumDevices), &NumDevices,
-                                            /*param_value_size_ret=*/nullptr);
+  Adapter->call<UrApiKind::urContextGetInfo>(Context->getHandleRef(),
+                                             UR_CONTEXT_INFO_NUM_DEVICES,
+                                             sizeof(NumDevices), &NumDevices,
+                                             /*param_value_size_ret=*/nullptr);
   assert(NumDevices > 0 &&
          "Only a single device is supported for AOT compilation");
 #endif
@@ -95,7 +95,7 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   Properties.pNext = nullptr;
   Properties.count = Metadata.size();
   Properties.pMetadatas = Metadata.data();
-  Plugin->call<UrApiKind::urProgramCreateWithBinary>(
+  Adapter->call<UrApiKind::urProgramCreateWithBinary>(
       Context->getHandleRef(), UrDevice, DataLen, Data, &Properties, &Program);
 
   if (BinaryStatus != UR_RESULT_SUCCESS) {
@@ -112,9 +112,9 @@ static ur_program_handle_t createSpirvProgram(const ContextImplPtr Context,
                                               const unsigned char *Data,
                                               size_t DataLen) {
   ur_program_handle_t Program = nullptr;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<UrApiKind::urProgramCreateWithIL>(Context->getHandleRef(), Data,
-                                                 DataLen, nullptr, &Program);
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urProgramCreateWithIL>(Context->getHandleRef(), Data,
+                                                  DataLen, nullptr, &Program);
   return Program;
 }
 
@@ -323,7 +323,7 @@ appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
 static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
-                                          const PluginPtr &) {
+                                          const AdapterPtr &) {
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -457,8 +457,8 @@ static void applyOptionsFromImage(std::string &CompileOpts,
                                   std::string &LinkOpts,
                                   const RTDeviceBinaryImage &Img,
                                   const std::vector<device> &Devices,
-                                  const PluginPtr &Plugin) {
-  appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
+                                  const AdapterPtr &Adapter) {
+  appendCompileOptionsFromImage(CompileOpts, Img, Devices, Adapter);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
@@ -555,7 +555,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
                                  const device &Dev) {
   const std::shared_ptr<detail::device_impl> &DeviceImpl =
       detail::getSyclObjImpl(Dev);
-  auto &Plugin = DeviceImpl->getPlugin();
+  auto &Adapter = DeviceImpl->getAdapter();
 
   const ur_device_handle_t &URDeviceHandle = DeviceImpl->getHandleRef();
 
@@ -569,7 +569,7 @@ static bool compatibleWithDevice(RTDeviceBinaryImage *BinImage,
   ur_device_binary_t UrBinary{};
   UrBinary.pDeviceTargetSpec = getUrDeviceTarget(DevBin->DeviceTargetSpec);
 
-  ur_result_t Error = Plugin->call_nocheck<UrApiKind::urDeviceSelectBinary>(
+  ur_result_t Error = Adapter->call_nocheck<UrApiKind::urDeviceSelectBinary>(
       URDeviceHandle, &UrBinary,
       /*num bin images = */ (uint32_t)1, &SuitableImageID);
   if (Error != UR_RESULT_SUCCESS && Error != UR_RESULT_ERROR_INVALID_BINARY)
@@ -707,9 +707,10 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
 
 static void
 setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
-                           ur_program_handle_t Prog, const PluginPtr &Plugin) {
+                           ur_program_handle_t Prog,
+                           const AdapterPtr &Adapter) {
   // Set ITT annotation specialization constant if needed.
-  enableITTAnnotationsIfNeeded(Prog, Plugin);
+  enableITTAnnotationsIfNeeded(Prog, Adapter);
 
   std::lock_guard<std::mutex> Lock{InputImpl->get_spec_const_data_lock()};
   const std::map<std::string, std::vector<device_image_impl::SpecConstDescT>>
@@ -724,7 +725,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
         ur_specialization_constant_info_t SpecConstInfo = {
             SpecIDDesc.ID, SpecIDDesc.Size,
             SpecConsts.data() + SpecIDDesc.BlobOffset};
-        Plugin->call<UrApiKind::urProgramSetSpecializationConstants>(
+        Adapter->call<UrApiKind::urProgramSetSpecializationConstants>(
             Prog, 1, &SpecConstInfo);
       }
     }
@@ -759,7 +760,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   }
 
   ur_bool_t MustBuildOnSubdevice = true;
-  ContextImpl->getPlugin()->call<UrApiKind::urDeviceGetInfo>(
+  ContextImpl->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
       RootDevImpl->getHandleRef(), UR_DEVICE_INFO_BUILD_ON_SUBDEVICE,
       sizeof(ur_bool_t), &MustBuildOnSubdevice, nullptr);
 
@@ -790,8 +791,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, &CompileOpts,
                  &LinkOpts, SpecConsts, &DeviceImagesToLink, &AllImages] {
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Plugin);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, {Device}, Adapter);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
@@ -800,7 +801,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     if (!DeviceCodeWasInCache) {
       if (Img.supportsSpecConstants())
-        enableITTAnnotationsIfNeeded(NativePrg, Plugin);
+        enableITTAnnotationsIfNeeded(NativePrg, Adapter);
     }
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
@@ -837,7 +838,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
             createURProgram(*BinImg, Context, Device);
 
         if (BinImg->supportsSpecConstants())
-          setSpecializationConstants(DeviceImageImpl, NativePrg, Plugin);
+          setSpecializationConstants(DeviceImageImpl, NativePrg, Adapter);
 
         ProgramsToLink.push_back(NativePrg);
       }
@@ -849,7 +850,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
                                   SYCL_DEVICE_BINARY_TYPE_SPIRV);
     // Those extra programs won't be used anymore, just the final linked result
     for (ur_program_handle_t Prg : ProgramsToLink)
-      Plugin->call<UrApiKind::urProgramRelease>(Prg);
+      Adapter->call<UrApiKind::urProgramRelease>(Prg);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -889,7 +890,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   assert(BuildResult != nullptr && "Invalid build result");
 
   ur_program_handle_t ResProgram = BuildResult->Val;
-  auto Plugin = ContextImpl->getPlugin();
+  auto Adapter = ContextImpl->getAdapter();
 
   // If we linked any extra device images, then we need to
   // cache them as well.
@@ -900,7 +901,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
     if (DidInsert) {
       // For every cached copy of the program, we need to increment its refcount
-      Plugin->call<UrApiKind::urProgramRetain>(ResProgram);
+      Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
     }
   }
 
@@ -908,7 +909,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // program.
-  ContextImpl->getPlugin()->call<UrApiKind::urProgramRetain>(ResProgram);
+  ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(ResProgram);
   return ResProgram;
 }
 
@@ -946,9 +947,9 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     if (std::get<Kernel>(ret_tuple)) {
       // Pulling a copy of a kernel and program from the cache,
       // so we need to retain those resources.
-      ContextImpl->getPlugin()->call<UrApiKind::urKernelRetain>(
+      ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
           std::get<Kernel>(ret_tuple));
-      ContextImpl->getPlugin()->call<UrApiKind::urProgramRetain>(
+      ContextImpl->getAdapter()->call<UrApiKind::urProgramRetain>(
           std::get<Program>(ret_tuple));
       return ret_tuple;
     }
@@ -960,16 +961,16 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   auto BuildF = [this, &Program, &KernelName, &ContextImpl] {
     ur_kernel_handle_t Kernel = nullptr;
 
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    Plugin->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
         Program, KernelName.c_str(), &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
     if (ContextImpl->getPlatformImpl()->supports_usm()) {
-      // Some UR Plugins (like OpenCL) require this call to enable USM
+      // Some UR Adapters (like OpenCL) require this call to enable USM
       // For others, UR will turn this into a NOP.
       const ur_bool_t UrTrue = true;
-      Plugin->call<UrApiKind::urKernelSetExecInfo>(
+      Adapter->call<UrApiKind::urKernelSetExecInfo>(
           Kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
           nullptr, &UrTrue);
     }
@@ -1003,7 +1004,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  ContextImpl->getPlugin()->call<UrApiKind::urKernelRetain>(
+  ContextImpl->getAdapter()->call<UrApiKind::urKernelRetain>(
       KernelArgMaskPair.first);
   Cache.saveKernel(key, ret_val);
   return ret_val;
@@ -1013,10 +1014,10 @@ ur_program_handle_t
 ProgramManager::getUrProgramFromUrKernel(ur_kernel_handle_t Kernel,
                                          const ContextImplPtr Context) {
   ur_program_handle_t Program;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
-                                           sizeof(ur_program_handle_t),
-                                           &Program, nullptr);
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urKernelGetInfo>(Kernel, UR_KERNEL_INFO_PROGRAM,
+                                            sizeof(ur_program_handle_t),
+                                            &Program, nullptr);
   return Program;
 }
 
@@ -1024,25 +1025,25 @@ std::string
 ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
                                    const ContextImplPtr Context) {
   size_t URDevicesSize = 0;
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES, 0,
-                                            nullptr, &URDevicesSize);
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                             0, nullptr, &URDevicesSize);
   std::vector<ur_device_handle_t> URDevices(URDevicesSize /
                                             sizeof(ur_device_handle_t));
-  Plugin->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
-                                            URDevicesSize, URDevices.data(),
-                                            nullptr);
+  Adapter->call<UrApiKind::urProgramGetInfo>(Program, UR_PROGRAM_INFO_DEVICES,
+                                             URDevicesSize, URDevices.data(),
+                                             nullptr);
   std::string Log = "The program was built for " +
                     std::to_string(URDevices.size()) + " devices";
   for (ur_device_handle_t &Device : URDevices) {
     std::string DeviceBuildInfoString;
     size_t DeviceBuildInfoStrSize = 0;
-    Plugin->call<UrApiKind::urProgramGetBuildInfo>(
+    Adapter->call<UrApiKind::urProgramGetBuildInfo>(
         Program, Device, UR_PROGRAM_BUILD_INFO_LOG, 0, nullptr,
         &DeviceBuildInfoStrSize);
     if (DeviceBuildInfoStrSize > 0) {
       std::vector<char> DeviceBuildInfo(DeviceBuildInfoStrSize);
-      Plugin->call<UrApiKind::urProgramGetBuildInfo>(
+      Adapter->call<UrApiKind::urProgramGetBuildInfo>(
           Program, Device, UR_PROGRAM_BUILD_INFO_LOG, DeviceBuildInfoStrSize,
           DeviceBuildInfo.data(), nullptr);
       DeviceBuildInfoString = std::string(DeviceBuildInfo.data());
@@ -1050,13 +1051,13 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 
     std::string DeviceNameString;
     size_t DeviceNameStrSize = 0;
-    Plugin->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME, 0,
-                                             nullptr, &DeviceNameStrSize);
+    Adapter->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME, 0,
+                                              nullptr, &DeviceNameStrSize);
     if (DeviceNameStrSize > 0) {
       std::vector<char> DeviceName(DeviceNameStrSize);
-      Plugin->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME,
-                                               DeviceNameStrSize,
-                                               DeviceName.data(), nullptr);
+      Adapter->call<UrApiKind::urDeviceGetInfo>(Device, UR_DEVICE_INFO_NAME,
+                                                DeviceNameStrSize,
+                                                DeviceName.data(), nullptr);
       DeviceNameString = std::string(DeviceName.data());
     }
     Log += "\nBuild program log for '" + DeviceNameString + "':\n" +
@@ -1151,17 +1152,17 @@ static const char *getDeviceLibExtensionStr(DeviceLibExt Extension) {
   return Ext->second;
 }
 
-static ur_result_t doCompile(const PluginPtr &Plugin,
+static ur_result_t doCompile(const AdapterPtr &Adapter,
                              ur_program_handle_t Program, uint32_t NumDevs,
                              ur_device_handle_t *Devs, ur_context_handle_t Ctx,
                              const char *Opts) {
   // Try to compile with given devices, fall back to compiling with the program
   // context if unsupported by the adapter
-  auto Result = Plugin->call_nocheck<UrApiKind::urProgramCompileExp>(
+  auto Result = Adapter->call_nocheck<UrApiKind::urProgramCompileExp>(
       Program, NumDevs, Devs, Opts);
   if (Result == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    return Plugin->call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
-                                                             Opts);
+    return Adapter->call_nocheck<UrApiKind::urProgramCompile>(Ctx, Program,
+                                                              Opts);
   }
   return Result;
 }
@@ -1190,13 +1191,13 @@ static ur_program_handle_t loadDeviceLibFallback(const ContextImplPtr Context,
                     std::string("Failed to load ") + LibFileName);
   }
 
-  const PluginPtr &Plugin = Context->getPlugin();
+  const AdapterPtr &Adapter = Context->getAdapter();
   // TODO no spec constants are used in the std libraries, support in the future
   // Do not use compile options for library programs: it is not clear if user
   // options (image options) are supposed to be applied to library program as
   // well, and what actually happens to a SPIR-V program if we apply them.
   ur_result_t Error =
-      doCompile(Plugin, LibProg, 1, &Device, Context->getHandleRef(), "");
+      doCompile(Adapter, LibProg, 1, &Device, Context->getHandleRef(), "");
   if (Error != UR_RESULT_SUCCESS) {
     CachedLibPrograms.erase(LibProgIt);
     throw detail::set_ur_error(
@@ -1347,7 +1348,7 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
   uint32_t ImgInd = 0;
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
-  getSyclObjImpl(Context)->getPlugin()->call<UrApiKind::urDeviceSelectBinary>(
+  getSyclObjImpl(Context)->getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), UrBinaries.data(),
       UrBinaries.size(), &ImgInd);
   return DeviceFilteredImgs[ImgInd];
@@ -1432,7 +1433,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
         getUrDeviceTarget(RawImgs[BinaryCount]->DeviceTargetSpec);
   }
 
-  getSyclObjImpl(Context)->getPlugin()->call<UrApiKind::urDeviceSelectBinary>(
+  getSyclObjImpl(Context)->getAdapter()->call<UrApiKind::urDeviceSelectBinary>(
       getSyclObjImpl(Device)->getHandleRef(), UrBinaries.data(),
       UrBinaries.size(), &ImgInd);
 
@@ -1557,16 +1558,16 @@ ProgramManager::ProgramPtr ProgramManager::build(
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
   static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
 
-  const PluginPtr &Plugin = Context->getPlugin();
+  const AdapterPtr &Adapter = Context->getAdapter();
   if (LinkPrograms.empty() && ExtraProgramsToLink.empty() && !ForceLink) {
     const std::string &Options = LinkOptions.empty()
                                      ? CompileOptions
                                      : (CompileOptions + " " + LinkOptions);
-    ur_result_t Error = Plugin->call_nocheck<UrApiKind::urProgramBuildExp>(
+    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
         Program.get(),
         /*num devices =*/1, &Device, Options.c_str());
     if (Error == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Error = Plugin->call_nocheck<UrApiKind::urProgramBuild>(
+      Error = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
           Context->getHandleRef(), Program.get(), Options.c_str());
     }
 
@@ -1581,29 +1582,29 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   // Include the main program and compile/link everything together
   if (!CreatedFromBinary) {
-    auto Res = doCompile(Plugin, Program.get(), /*num devices =*/1, &Device,
+    auto Res = doCompile(Adapter, Program.get(), /*num devices =*/1, &Device,
                          Context->getHandleRef(), CompileOptions.c_str());
-    Plugin->checkUrResult<errc::build>(Res);
+    Adapter->checkUrResult<errc::build>(Res);
   }
   LinkPrograms.push_back(Program.get());
 
   for (ur_program_handle_t Prg : ExtraProgramsToLink) {
     if (!CreatedFromBinary) {
-      auto Res = doCompile(Plugin, Prg, /*num devices =*/1, &Device,
+      auto Res = doCompile(Adapter, Prg, /*num devices =*/1, &Device,
                            Context->getHandleRef(), CompileOptions.c_str());
-      Plugin->checkUrResult<errc::build>(Res);
+      Adapter->checkUrResult<errc::build>(Res);
     }
     LinkPrograms.push_back(Prg);
   }
 
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    auto Res = Plugin->call_nocheck<UrApiKind::urProgramLinkExp>(
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
         Context->getHandleRef(),
         /*num devices =*/1, &Device, LinkPrograms.size(), LinkPrograms.data(),
         LinkOptions.c_str(), &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck<UrApiKind::urProgramLink>(
+      Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
           Context->getHandleRef(), LinkPrograms.size(), LinkPrograms.data(),
           LinkOptions.c_str(), &LinkedProg);
     }
@@ -1629,7 +1630,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
                     getProgramBuildLog(LinkedProg, Context)),
           Error);
     }
-    Plugin->checkUrResult(Error);
+    Adapter->checkUrResult(Error);
   }
   return Program;
 }
@@ -2338,8 +2339,8 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
 
-  const PluginPtr &Plugin =
-      getSyclObjImpl(InputImpl->get_context())->getPlugin();
+  const AdapterPtr &Adapter =
+      getSyclObjImpl(InputImpl->get_context())->getAdapter();
 
   // TODO: Add support for creating non-SPIRV programs from multiple devices.
   if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2358,7 +2359,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                                              InputImpl->get_context(), Devs[0]);
 
   if (InputImpl->get_bin_image_ref()->supportsSpecConstants())
-    setSpecializationConstants(InputImpl, Prog, Plugin);
+    setSpecializationConstants(InputImpl, Prog, Adapter);
 
   DeviceImageImplPtr ObjectImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), InputImpl->get_context(), Devs,
@@ -2375,11 +2376,11 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
   std::string CompileOptions;
   applyCompileOptionsFromEnvironment(CompileOptions);
   appendCompileOptionsFromImage(
-      CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
+      CompileOptions, *(InputImpl->get_bin_image_ref()), Devs, Adapter);
   // Should always come last!
   appendCompileEnvironmentVariablesThatAppend(CompileOptions);
   ur_result_t Error = doCompile(
-      Plugin, ObjectImpl->get_ur_program_ref(), Devs.size(), URDevices.data(),
+      Adapter, ObjectImpl->get_ur_program_ref(), Devs.size(), URDevices.data(),
       getSyclObjImpl(InputImpl->get_context()).get()->getHandleRef(),
       CompileOptions.c_str());
   if (Error != UR_RESULT_SUCCESS)
@@ -2417,16 +2418,16 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   appendLinkEnvironmentVariablesThatAppend(LinkOptionsStr);
   const context &Context = getSyclObjImpl(DeviceImage)->get_context();
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
+  const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
   ur_program_handle_t LinkedProg = nullptr;
   auto doLink = [&] {
-    auto Res = Plugin->call_nocheck<UrApiKind::urProgramLinkExp>(
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramLinkExp>(
         ContextImpl->getHandleRef(), URDevices.size(), URDevices.data(),
         URPrograms.size(), URPrograms.data(), LinkOptionsStr.c_str(),
         &LinkedProg);
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck<UrApiKind::urProgramLink>(
+      Res = Adapter->call_nocheck<UrApiKind::urProgramLink>(
           ContextImpl->getHandleRef(), URPrograms.size(), URPrograms.data(),
           LinkOptionsStr.c_str(), &LinkedProg);
     }
@@ -2536,8 +2537,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   auto BuildF = [this, &Context, &Img, &Devs, &CompileOpts, &LinkOpts,
                  &InputImpl, SpecConsts] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Plugin);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    applyOptionsFromImage(CompileOpts, LinkOpts, Img, Devs, Adapter);
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
@@ -2559,7 +2560,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     if (!DeviceCodeWasInCache &&
         InputImpl->get_bin_image_ref()->supportsSpecConstants())
-      setSpecializationConstants(InputImpl, NativePrg, Plugin);
+      setSpecializationConstants(InputImpl, NativePrg, Adapter);
 
     UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
     auto programRelease =
@@ -2632,9 +2633,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
-  auto CacheOtherDevices = [ResProgram, &Plugin]() {
-    Plugin->call<UrApiKind::urProgramRetain>(ResProgram);
+  const AdapterPtr &Adapter = ContextImpl->getAdapter();
+  auto CacheOtherDevices = [ResProgram, &Adapter]() {
+    Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
     return ResProgram;
   };
 
@@ -2654,7 +2655,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // devive_image_impl shares ownership of PIProgram with, at least, program
   // cache. The ref counter will be descremented in the destructor of
   // device_image_impl
-  Plugin->call<UrApiKind::urProgramRetain>(ResProgram);
+  Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
 
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
@@ -2682,14 +2683,14 @@ ProgramManager::getOrCreateKernel(const context &Context,
   auto BuildF = [this, &Program, &KernelName, &Ctx] {
     ur_kernel_handle_t Kernel = nullptr;
 
-    const PluginPtr &Plugin = Ctx->getPlugin();
-    Plugin->call<UrApiKind::urKernelCreate>(Program, KernelName.c_str(),
-                                            &Kernel);
+    const AdapterPtr &Adapter = Ctx->getAdapter();
+    Adapter->call<UrApiKind::urKernelCreate>(Program, KernelName.c_str(),
+                                             &Kernel);
 
     // Only set UR_USM_INDIRECT_ACCESS if the platform can handle it.
     if (Ctx->getPlatformImpl()->supports_usm()) {
       bool EnableAccess = true;
-      Plugin->call<UrApiKind::urKernelSetExecInfo>(
+      Adapter->call<UrApiKind::urKernelSetExecInfo>(
           Kernel, UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS, sizeof(ur_bool_t),
           nullptr, &EnableAccess);
     }
@@ -2721,7 +2722,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
   // stored in the cache, and one handle is returned to the
   // caller. In that case, we need to increase the ref count of the
   // kernel.
-  Ctx->getPlugin()->call<UrApiKind::urKernelRetain>(BuildResult->Val.first);
+  Ctx->getAdapter()->call<UrApiKind::urKernelRetain>(BuildResult->Val.first);
   return std::make_tuple(BuildResult->Val.first,
                          &(BuildResult->MBuildResultMutex),
                          BuildResult->Val.second);
@@ -2774,7 +2775,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
     std::cerr << ">>> Adding the kernel to the cache.\n";
   auto Program = createURProgram(Img, Context, Device);
   auto DeviceImpl = detail::getSyclObjImpl(Device);
-  auto &Plugin = DeviceImpl->getPlugin();
+  auto &Adapter = DeviceImpl->getAdapter();
   UrFuncInfo<UrApiKind::urProgramRelease> programReleaseInfo;
   auto programRelease =
       programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
@@ -2791,7 +2792,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
             /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
-  Plugin->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
+  Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram.get(), KernelName.c_str(), &UrKernel);
   {
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
