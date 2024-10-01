@@ -317,6 +317,24 @@ template <typename ValueT> void test_clamp() {
       .template launch_test<clamp_kernel<ValueT>>(op3, expect3);
 }
 
+template <template <typename T, int Dim> typename ContainerT, typename ValueT> void test_container_clamp() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  ValueT op1 = static_cast<ValueT>(7);
+  ValueT expect1 = static_cast<ValueT>(7);
+
+  ValueT op2 = static_cast<ValueT>(MAX_CLAMP + 1);
+  ValueT expect2 = static_cast<ValueT>(MAX_CLAMP);
+
+  using ContT = ContainerT<ValueT, 2>;
+  const ContT op4{op1, op2};
+  const ContT expect4{expect1, expect2};
+  UnaryOpTestLauncher<ContT>(grid, threads)
+      .template launch_test<clamp_kernel<ContT>>(op4, expect4);
+}
+
 int main() {
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_max);
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_min);
@@ -356,6 +374,8 @@ int main() {
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_isnan);
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_clamp);
+  INSTANTIATE_ALL_CONTAINER_TYPES(vec_type_list, sycl::vec, test_container_clamp);
+  INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray, test_container_clamp);
 
   return 0;
 }

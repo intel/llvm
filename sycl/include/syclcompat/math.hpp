@@ -81,6 +81,28 @@ inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
     return max_val;
   return val;
 }
+
+template <typename T, int Size>
+inline std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                        sycl::vec<T, Size>>
+clamp(sycl::vec<T, Size> val, sycl::vec<T, Size> min_val,
+      sycl::vec<T, Size> max_val) {
+  return [&val, &min_val, &max_val]<int... I>(std::integer_sequence<int, I...>) {
+    return sycl::vec<T, Size>{
+        clamp<sycl::ext::oneapi::bfloat16>(val[I], min_val[I], max_val[I])...};
+  }(std::make_integer_sequence<int, Size>{});
+}
+
+template <typename T, std::size_t Size>
+inline std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                        sycl::marray<T, Size>>
+clamp(sycl::marray<T, Size> val, sycl::marray<T, Size> min_val,
+      sycl::marray<T, Size> max_val) {
+  return [&val, &min_val, &max_val]<std::size_t... I>(std::index_sequence<I...>) {
+    return sycl::marray<T, Size>{
+        clamp<sycl::ext::oneapi::bfloat16>(val[I], min_val[I], max_val[I])...};
+  }(std::make_index_sequence<Size>{});
+}
 #endif
 
 template <typename VecT, class BinaryOperation, class = void>
