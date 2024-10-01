@@ -10,6 +10,7 @@
 // according to the current state of NDEBUG each time that <cassert> is
 // included.
 
+extern "C++" {
 #if defined(__has_include_next)
 #include_next <cassert>
 #else
@@ -42,3 +43,4 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
 #endif
 #endif
 #endif
+}
