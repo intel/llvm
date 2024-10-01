@@ -60,11 +60,6 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
@@ -143,6 +138,11 @@
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
+// CHECK-NEXT: detail/cl.h
+// CHECK-NEXT: CL/cl.h
+// CHECK-NEXT: CL/cl_version.h
+// CHECK-NEXT: CL/cl_platform.h
+// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def
