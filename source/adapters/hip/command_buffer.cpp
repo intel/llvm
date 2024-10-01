@@ -339,14 +339,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               UR_RESULT_ERROR_INVALID_VALUE);
   }
 
-  hipGraphNode_t GraphNode;
-  std::vector<hipGraphNode_t> DepsList;
+  try {
+    hipGraphNode_t GraphNode;
+    std::vector<hipGraphNode_t> DepsList;
 
-  UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
-                                        pSyncPointWaitList, DepsList));
+    UR_CHECK_ERROR(getNodesFromSyncPoints(
+        hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
 
-  if (*pGlobalWorkSize == 0) {
-    try {
+    if (*pGlobalWorkSize == 0) {
       // Create an empty node if the kernel workload size is zero
       UR_CHECK_ERROR(hipGraphAddEmptyNode(&GraphNode, hCommandBuffer->HIPGraph,
                                           DepsList.data(), DepsList.size()));
@@ -356,24 +356,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       if (pSyncPoint) {
         *pSyncPoint = SyncPoint;
       }
-    } catch (ur_result_t Err) {
-      return Err;
+      return UR_RESULT_SUCCESS;
     }
-    return UR_RESULT_SUCCESS;
-  }
 
-  // Set the number of threads per block to the number of threads per warp
-  // by default unless user has provided a better number
-  size_t ThreadsPerBlock[3] = {64u, 1u, 1u};
-  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+    // Set the number of threads per block to the number of threads per warp
+    // by default unless user has provided a better number
+    size_t ThreadsPerBlock[3] = {64u, 1u, 1u};
+    size_t BlocksPerGrid[3] = {1u, 1u, 1u};
 
-  uint32_t LocalSize = hKernel->getLocalSize();
-  hipFunction_t HIPFunc = hKernel->get();
-  UR_CHECK_ERROR(setKernelParams(
-      hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-      pLocalWorkSize, hKernel, HIPFunc, ThreadsPerBlock, BlocksPerGrid));
+    uint32_t LocalSize = hKernel->getLocalSize();
+    hipFunction_t HIPFunc = hKernel->get();
+    UR_CHECK_ERROR(setKernelParams(
+        hCommandBuffer->Device, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, hKernel, HIPFunc, ThreadsPerBlock, BlocksPerGrid));
 
-  try {
     // Set node param structure with the kernel related data
     auto &ArgIndices = hKernel->getArgIndices();
     hipKernelNodeParams NodeParams;
