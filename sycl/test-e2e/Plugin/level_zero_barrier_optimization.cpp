@@ -36,7 +36,7 @@ int main() {
     // CHECK: Test1
     // CHECK: ---> urEnqueueEventsWaitWithBarrier
     // CHECK: ZE ---> zeEventCreate
-    // CHECK: ZE ---> zeCommandListAppendWaitOnEvents
+    // CHECK-OPT: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
     // CHECK: ) -> UR_RESULT_SUCCESS
     auto BarrierEvent = Q2.ext_oneapi_submit_barrier({EventA, EventB});
@@ -56,7 +56,7 @@ int main() {
     // CHECK: Test2
     // CHECK: ---> urEnqueueEventsWaitWithBarrier
     // CHECK-OPT: ZE ---> {{zeEventCreate|zeEventHostReset}}
-    // CHECK: ZE ---> zeCommandListAppendWaitOnEvents
+    // CHECK-OPT: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
     // CHECK: ) -> UR_RESULT_SUCCESS
     auto BarrierEvent = Q1.ext_oneapi_submit_barrier({EventA, EventB});

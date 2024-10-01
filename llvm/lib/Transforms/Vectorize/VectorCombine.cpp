@@ -1412,8 +1412,7 @@ bool VectorCombine::foldShuffleOfBinops(Instruction &I) {
     return false;
 
   // Don't introduce poison into div/rem.
-  if (any_of(OldMask, [](int M) { return M == PoisonMaskElem; }) &&
-      B0->isIntDivRem())
+  if (llvm::is_contained(OldMask, PoisonMaskElem) && B0->isIntDivRem())
     return false;
 
   // TODO: Add support for addlike etc.
@@ -1440,7 +1439,7 @@ bool VectorCombine::foldShuffleOfBinops(Instruction &I) {
       M -= NumSrcElts;
   };
 
-  SmallVector<int> NewMask0(OldMask.begin(), OldMask.end());
+  SmallVector<int> NewMask0(OldMask);
   TargetTransformInfo::ShuffleKind SK0 = TargetTransformInfo::SK_PermuteTwoSrc;
   if (X == Z) {
     llvm::for_each(NewMask0, ConvertToUnary);
@@ -1448,7 +1447,7 @@ bool VectorCombine::foldShuffleOfBinops(Instruction &I) {
     Z = PoisonValue::get(BinOpTy);
   }
 
-  SmallVector<int> NewMask1(OldMask.begin(), OldMask.end());
+  SmallVector<int> NewMask1(OldMask);
   TargetTransformInfo::ShuffleKind SK1 = TargetTransformInfo::SK_PermuteTwoSrc;
   if (Y == W) {
     llvm::for_each(NewMask1, ConvertToUnary);
@@ -1630,7 +1629,7 @@ bool VectorCombine::foldShuffleOfShuffles(Instruction &I) {
     return false;
 
   // Merge shuffles - replace index to the RHS poison arg with PoisonMaskElem,
-  SmallVector<int, 16> NewMask(OuterMask.begin(), OuterMask.end());
+  SmallVector<int, 16> NewMask(OuterMask);
   for (int &M : NewMask) {
     if (0 <= M && M < (int)NumImmElts) {
       M = (InnerMask0[M] >= (int)NumSrcElts) ? PoisonMaskElem : InnerMask0[M];

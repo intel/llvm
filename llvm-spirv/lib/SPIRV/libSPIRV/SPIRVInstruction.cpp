@@ -146,6 +146,8 @@ SPIRVInstruction::getOperandTypes(const std::vector<SPIRVValue *> &Ops) {
     SPIRVType *Ty = nullptr;
     if (I->getOpCode() == OpFunction)
       Ty = reinterpret_cast<SPIRVFunction *>(I)->getFunctionType();
+    else if (I->getOpCode() == OpTypeCooperativeMatrixKHR)
+      Ty = reinterpret_cast<SPIRVType *>(I);
     else
       Ty = I->getType();
 
