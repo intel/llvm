@@ -213,10 +213,6 @@ public:
   /// If set, the UNIX timestamp specified by SOURCE_DATE_EPOCH.
   std::optional<uint64_t> SourceDateEpoch;
 
-  /// If set, the preprocessor reports an error when processing #pragma mc_func
-  /// on AIX.
-  bool ErrorOnPragmaMcfuncOnAIX = true;
-
 public:
   PreprocessorOptions() : PrecompiledPreambleBytes(0, false) {}
 
@@ -254,7 +250,6 @@ public:
     PrecompiledPreambleBytes.first = 0;
     PrecompiledPreambleBytes.second = false;
     RetainExcludedConditionalBlocks = false;
-    ErrorOnPragmaMcfuncOnAIX = true;
   }
 };
 
