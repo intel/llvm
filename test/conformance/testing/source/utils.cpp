@@ -562,6 +562,12 @@ ur_result_t GetDeviceUSMSystemSharedSupport(
         device, UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT, support);
 }
 
+ur_result_t GetDeviceUSMPoolSupport(ur_device_handle_t device,
+                                    ur_bool_t &support) {
+    return GetDeviceInfo<ur_bool_t>(device, UR_DEVICE_INFO_USM_POOL_SUPPORT,
+                                    support);
+}
+
 ur_result_t GetDeviceUUID(ur_device_handle_t device, std::string &uuid) {
     return GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_UUID, uuid);
 }

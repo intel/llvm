@@ -3,9 +3,19 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "uur/utils.h"
 #include <uur/fixtures.h>
 
-using urUSMPoolCreateTest = uur::urContextTest;
+struct urUSMPoolCreateTest : uur::urContextTest {
+    void SetUp() {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urContextTest::SetUp());
+        ur_bool_t poolSupport = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
+        if (!poolSupport) {
+            GTEST_SKIP() << "USM pools are not supported.";
+        }
+    }
+};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolCreateTest);
 
 TEST_P(urUSMPoolCreateTest, Success) {
