@@ -5,6 +5,8 @@
 
 #include "fixtures.hpp"
 
+#include <algorithm>
+
 struct urLoaderConfigGetInfoWithParamTest
     : LoaderConfigTest,
       ::testing::WithParamInterface<ur_loader_config_info_t> {
