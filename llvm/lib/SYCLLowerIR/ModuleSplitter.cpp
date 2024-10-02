@@ -1381,7 +1381,7 @@ convertProcessingSettingsToString(const ModuleProcessingSettings &S) {
 }
 
 Expected<std::vector<ProcessedModule>>
-SYCLPostLinkProcess(std::unique_ptr<Module> M,
+SYCLOffloadFinalize(std::unique_ptr<Module> M,
                     ModuleProcessingSettings Settings) {
   ModuleDesc MD = std::move(M);
   // FIXME: false arguments are temporary for now.

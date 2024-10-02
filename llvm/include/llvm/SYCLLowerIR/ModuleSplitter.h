@@ -321,10 +321,10 @@ convertProcessingSettingsToString(const ModuleProcessingSettings &S);
 Expected<std::vector<ProcessedModule>>
 parseProcessedModulesFromFile(StringRef File);
 
-/// Performs post-link processing of the given module \p M according to the
-/// given \p Settings.
+/// Performs the offload finale processing of the given module \p M according
+/// to the given \p Settings.
 Expected<std::vector<ProcessedModule>>
-SYCLPostLinkProcess(std::unique_ptr<Module> M,
+SYCLOffloadFinalize(std::unique_ptr<Module> M,
                     ModuleProcessingSettings Settings);
 
 bool isESIMDFunction(const Function &F);

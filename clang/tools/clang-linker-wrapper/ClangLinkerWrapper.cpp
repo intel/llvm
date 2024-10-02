@@ -773,16 +773,16 @@ void logSYCLLibraryInvocation(
                     convertProcessingSettingsToString(Settings));
 }
 
-/// Invokes SYCL Post Link library for SYCL offloading.
+/// Invokes SYCL processing library for SYCL offload finalization.
 ///
 /// \param InputFiles the list of input LLVM IR files.
 /// \param Args Encompasses all arguments for linking and wrapping device code.
-///  It will be parsed to generate options required to be passed to SYCL Post
-///  Link library.
+///  It will be parsed to generate options required to be passed to SYCL
+///  library.
 /// \param Mode The splitting mode.
-/// \returns The vector of split modules.
+/// \returns The vector of processed modules.
 static Expected<std::vector<module_split::ProcessedModule>>
-runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
+runSYCLOffloadFinalize(ArrayRef<StringRef> InputFiles, const ArgList &Args,
                        module_split::IRSplitMode Mode) {
   std::vector<module_split::ProcessedModule> OutputModules;
   llvm::module_split::ModuleProcessingSettings Settings;
@@ -808,7 +808,7 @@ runSYCLPostLinkLibrary(ArrayRef<StringRef> InputFiles, const ArgList &Args,
       return createStringError(inconvertibleErrorCode(), Err.getMessage());
 
     auto ModulesOrErr =
-        module_split::SYCLPostLinkProcess(std::move(M), Settings);
+        module_split::SYCLOffloadFinalize(std::move(M), Settings);
     if (!ModulesOrErr)
       return ModulesOrErr.takeError();
 
@@ -2403,8 +2403,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       auto ProcessedModulesOrErr =
           UseSYCLPostLinkTool
               ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
-              : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode);
+              : sycl::runSYCLOffloadFinalize(InputFilesSYCL, LinkerArgs,
+                                             *SYCLModuleSplitMode);
       if (!ProcessedModulesOrErr)
         return ProcessedModulesOrErr.takeError();
 
