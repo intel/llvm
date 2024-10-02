@@ -239,6 +239,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
   auto [pWaitEvents, numWaitEvents] =
       getWaitListView(phEventWaitList, numEventsInWaitList, handler);
 
+  // TODO: consider migrating memory to the device if memory buffers are used
+
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::zeCommandListAppendLaunchKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,

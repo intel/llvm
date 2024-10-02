@@ -12,6 +12,7 @@
 
 #include <ur_api.h>
 
+#include "../device.hpp"
 #include "common.hpp"
 
 struct ur_mem_handle_t_ : _ur_object {
@@ -48,8 +49,13 @@ struct ur_device_mem_handle_t : public ur_mem_handle_t_ {
   void *getPtr(ur_device_handle_t) override;
 
 private:
-  std::vector<char> buffer;
-
   // Vector of per-device allocations indexed by device->Id
   std::vector<void *> deviceAllocations;
+
+  // Specifies device on which the latest allocation resides.
+  // If null, there is no allocation.
+  ur_device_handle_t activeAllocationDevice;
+
+  ur_result_t migrateBufferTo(ur_device_handle_t hDevice, void *src,
+                              size_t size);
 };
