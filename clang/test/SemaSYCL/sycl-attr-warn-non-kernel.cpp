@@ -54,7 +54,7 @@ public:
 int main() {
   sycl::queue q;
 
-  // Show that the functors don't issuing diagnostics.
+  // Show that the functors don't issue diagnostics.
   Functor8 f8;
   FunctorSubGroupSize4 fs4;
   Functor16x16 f16x16;
