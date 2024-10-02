@@ -306,8 +306,8 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
                  pm1B * prefRow) *
                     (colsB)*vnniFactor +
                 (n2 * NCache2 * vnniFactor + pn1B * prefCol);
-            if ((prefetch_offsetB + (prefRow * colsA * vnniFactor) +
-                 prefCol) < (rowsA * colsA))
+            if ((prefetch_offsetB + (prefRow * colsB * vnniFactor) +
+                 prefCol) < (rowsB * colsB))
               joint_matrix_prefetch<prefRow, prefCol>(
                   sg, B + prefetch_offsetB, colsB * vnniFactor,
                   layout::row_major,
