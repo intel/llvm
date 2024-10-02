@@ -184,62 +184,19 @@ void kernel_mul(int *result) {
   *result = r;
 }
 
-template <typename T>
-std::array<T,2> complex_mul(std::array<T, 2> a, std::array<T, 2> b){
-  std::array<T, 2> result;
-  result[0] = (a[0] * b[0]) - (a[1] * b[1]);
-  result[1] = (a[0] * b[1]) + (a[1] * b[0]);
-  return result;
-}
-
-template <typename T>
-std::array<T,2> complex_add(std::array<T, 2> a, std::array<T, 2> b){
-  return {a[0] + b[0], a[1] + b[1]};
-}
-
-template <typename T> void mul_add_groundtruth() {
-
-  using complex_t = std::complex<double>;
-  using arr_t = std::array<T, 2>;
-
-  arr_t d1 = arr_t({static_cast<T>(5.4), static_cast<T>(-6.3)});
-  arr_t d2 = arr_t({static_cast<T>(-7.2), static_cast<T>(8.1)});
-  arr_t d3 = arr_t({static_cast<T>(1.0), static_cast<T>(-1.0)});
-
-  arr_t f1 = arr_t({static_cast<T>(1.8), static_cast<T>(-2.7)});
-  arr_t f2 = arr_t({static_cast<T>(-3.6), static_cast<T>(4.5)});
-  arr_t f3 = arr_t({static_cast<T>(1.0), static_cast<T>(-1.0)});
-
-  arr_t ra1 = complex_add(complex_mul(d1, d2), d3);
-  arr_t ra2 = complex_add(complex_mul(f1, f2), f3);
-
-  T expect[4] = {13.150000, 88.100000, 6.670001, 16.820000};
-
-  // complex_t r1 = d1 * d2 + d3;
-  // complex_t r2 = f1 * f2 + f3;
-
-  std::cout << "r1: " << static_cast<T>(ra1[0]) << ", "
-            << static_cast<T>(ra1[1]) << std::endl;
-  std::cout << "Expect 1: " << expect[0] << ", " << expect[1] << std::endl;
-  std::cout << "r2: " << static_cast<T>(ra2[0]) << ", "
-            << static_cast<T>(ra2[1]) << std::endl;
-  std::cout << "Expect 2: " << expect[2] << ", " << expect[3] << std::endl;
-}
-
-template <typename T>
 void kernel_mul_add(int *result) {
-  sycl::vec<T, 2> d1, d2, d3;
-  sycl::vec<T, 2> f1, f2, f3;
-  sycl::marray<T, 2> m_d1, m_d2, m_d3;
-  sycl::marray<T, 2> m_f1, m_f2, m_f3;
+  sycl::double2 d1, d2, d3;
+  sycl::float2 f1, f2, f3;
+  sycl::marray<double, 2> m_d1, m_d2, m_d3;
+  sycl::marray<float, 2> m_f1, m_f2, m_f3;
 
-  d1 = sycl::vec<T, 2>(5.4, -6.3);
-  d2 = sycl::vec<T, 2>(-7.2, 8.1);
-  d3 = sycl::vec<T, 2>(1.0, -1.0);
+  d1 = sycl::double2(5.4, -6.3);
+  d2 = sycl::double2(-7.2, 8.1);
+  d3 = sycl::double2(1.0, -1.0);
 
-  f1 = sycl::vec<T, 2>(1.8, -2.7);
-  f2 = sycl::vec<T, 2>(-3.6, 4.5);
-  f3 = sycl::vec<T, 2>(1.0, -1.0);
+  f1 = sycl::float2(1.8, -2.7);
+  f2 = sycl::float2(-3.6, 4.5);
+  f3 = sycl::float2(1.0, -1.0);
 
   bool r = true;
   float expect[4] = {13.150000, 88.100000, 6.670001, 16.820000};
@@ -250,13 +207,13 @@ void kernel_mul_add(int *result) {
   auto a2 = syclcompat::cmul_add(f1, f2, f3);
   r = r && check(a2, expect + 2);
 
-  m_d1 = sycl::marray<T, 2>(5.4, -6.3);
-  m_d2 = sycl::marray<T, 2>(-7.2, 8.1);
-  m_d3 = sycl::marray<T, 2>(1.0, -1.0);
+  m_d1 = sycl::marray<double, 2>(5.4, -6.3);
+  m_d2 = sycl::marray<double, 2>(-7.2, 8.1);
+  m_d3 = sycl::marray<double, 2>(1.0, -1.0);
 
-  m_f1 = sycl::marray<T, 2>(1.8, -2.7);
-  m_f2 = sycl::marray<T, 2>(-3.6, 4.5);
-  m_f3 = sycl::marray<T, 2>(1.0, -1.0);
+  m_f1 = sycl::marray<float, 2>(1.8, -2.7);
+  m_f2 = sycl::marray<float, 2>(-3.6, 4.5);
+  m_f3 = sycl::marray<float, 2>(1.0, -1.0);
 
   auto a3 = syclcompat::cmul_add(m_d1, m_d2, m_d3);
   r = r && check(a3, expect);
@@ -284,11 +241,9 @@ void test_conj() {
   ComplexLauncher<kernel_conj>().launch();
 }
 
-template <typename T>
 void test_mul_add() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  mul_add_groundtruth<T>();
-  ComplexLauncher<kernel_mul_add<T>>().launch();
+  ComplexLauncher<kernel_mul_add>().launch();
 }
 
 int main() {
@@ -296,7 +251,7 @@ int main() {
   test_mul();
   test_div();
   test_conj();
-  INSTANTIATE_ALL_TYPES(fp_type_list, test_mul_add);
+  test_mul_add();
 
   return 0;
 }

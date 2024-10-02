@@ -946,28 +946,6 @@ inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
   t = t * u + v;
   return sycl::marray<ValueT, 2>{t.real(), t.imag()};
 }
-template <>
-inline sycl::vec<sycl::ext::oneapi::bfloat16, 2>
-cmul_add(const sycl::vec<sycl::ext::oneapi::bfloat16, 2> a,
-         const sycl::vec<sycl::ext::oneapi::bfloat16, 2> b,
-         const sycl::vec<sycl::ext::oneapi::bfloat16, 2> c) {
-  sycl::ext::oneapi::experimental::complex<float> t(a[0], a[1]);
-  sycl::ext::oneapi::experimental::complex<float> u(b[0], b[1]);
-  sycl::ext::oneapi::experimental::complex<float> v(c[0], c[1]);
-  t = t * u + v;
-  return sycl::vec<sycl::ext::oneapi::bfloat16, 2>{t.real(), t.imag()};
-}
-template <>
-inline sycl::marray<sycl::ext::oneapi::bfloat16, 2>
-cmul_add(const sycl::marray<sycl::ext::oneapi::bfloat16, 2> a,
-         const sycl::marray<sycl::ext::oneapi::bfloat16, 2> b,
-         const sycl::marray<sycl::ext::oneapi::bfloat16, 2> c) {
-  sycl::ext::oneapi::experimental::complex<float> t(a[0], a[1]);
-  sycl::ext::oneapi::experimental::complex<float> u(b[0], b[1]);
-  sycl::ext::oneapi::experimental::complex<float> v(c[0], c[1]);
-  t = t * u + v;
-  return sycl::marray<sycl::ext::oneapi::bfloat16, 2>{t.real(), t.imag()};
-}
 
 /// A sycl::abs wrapper functors.
 struct abs {
