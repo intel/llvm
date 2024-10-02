@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 0247d0966ca8c5d1e3245f375e48e6c997bed9af
-  # Merge: 675dd292 04ffc909
+  # commit 00f958f375205fd86309f95b925141cf664ff955
+  # Merge: cc2d5909 98a67a2e
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Oct 1 17:10:58 2024 +0100
-  #     Merge pull request #2154 from npmiller/fix-graph-exce
-  #     [CUDA][HIP] Fix exceptions throwing from adapter
-  set(UNIFIED_RUNTIME_TAG 0247d0966ca8c5d1e3245f375e48e6c997bed9af)
+  # Date:   Wed Oct 2 09:51:21 2024 +0100
+  #     Merge pull request #2139 from nrspruit/zeHandle_copy_dependencies
+  #     [L0] Pass and track event dependencies required before executing Memory
+  #     Copy buffer inits
+  set(UNIFIED_RUNTIME_TAG 00f958f375205fd86309f95b925141cf664ff955)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
