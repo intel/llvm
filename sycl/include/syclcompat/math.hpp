@@ -843,10 +843,10 @@ inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
 pow(const ValueT a, const ValueU b) {
   return sycl::pow(a, static_cast<ValueT>(b));
 }
-
-// TODO: calling pow with non-floating point values is currently defaulting to
-// double, which fails on devices without aspect::fp64. This has to be properly
-// documented, and maybe changed to support all devices.
+// TODO(syclcompat-lib-reviewers)  calling pow with non-floating point values
+// is currently defaulting to double, which fails on devices without
+// aspect::fp64. This has to be properly documented, and maybe changed to
+// support all devices.
 template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
 pow(const ValueT a, const ValueU b) {
