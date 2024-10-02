@@ -306,9 +306,9 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
              "Incorrect swap!");
     }
   }
-  
+
   // Same as above but use an unbounded array as temporary storage
-{
+  {
     sycl::buffer<T, 2> buf_a{a[0], sycl::range{N, N}};
     sycl::buffer<T, 2> buf_b{b[0], sycl::range{N, N}};
     q.submit([&](sycl::handler &cgh) {
@@ -325,7 +325,7 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
         acc_b[i][j] = temp2[i][j];
       });
     });
-  } 
+  }
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
       // Four swaps are the same as no swap
