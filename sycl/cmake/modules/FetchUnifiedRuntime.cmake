@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 22962057df1b9d538e08088a7b75d9d8e7c29f90 (HEAD, origin/main, origin/HEAD)
-  # Merge: e824ddc2 f0a1c433
+  # commit 0247d0966ca8c5d1e3245f375e48e6c997bed9af
+  # Merge: 675dd292 04ffc909
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Sep 27 16:54:04 2024 +0100
-  #     Merge pull request #2017 from nrspruit/new_sysman_init
-  #     [L0] Use zesInit for SysMan API usage
-  set(UNIFIED_RUNTIME_TAG 22962057df1b9d538e08088a7b75d9d8e7c29f90)
+  # Date:   Tue Oct 1 17:10:58 2024 +0100
+  #     Merge pull request #2154 from npmiller/fix-graph-exce
+  #     [CUDA][HIP] Fix exceptions throwing from adapter
+  set(UNIFIED_RUNTIME_TAG 0247d0966ca8c5d1e3245f375e48e6c997bed9af)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
