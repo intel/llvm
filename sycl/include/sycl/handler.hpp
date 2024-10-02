@@ -171,8 +171,6 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
-class work_group_memory_impl;
-size_t getWorkGroupMemoryOwnSize(work_group_memory_impl *);
 class handler_impl;
 class kernel_impl;
 class queue_impl;
@@ -720,8 +718,7 @@ private:
       const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
           &Arg) {
     addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg,
-           detail::getWorkGroupMemoryOwnSize(
-               static_cast<detail::work_group_memory_impl *>(&Arg)),
+           0,
            ArgIndex);
   }
 

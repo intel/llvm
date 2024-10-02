@@ -186,6 +186,29 @@ void swap_array_1d(T (&a)[N], T (&b)[N], size_t batch_size) {
   for (int i = 0; i < N; ++i) {
     assert(a[i] == old_b[i] && b[i] == old_a[i] && "Incorrect swap!");
   }
+
+  // Same as above but use an unbounded array as temporary storage
+  {
+    sycl::buffer<T, 1> buf_a{a, N};
+    sycl::buffer<T, 1> buf_b{b, N};
+    q.submit([&](sycl::handler &cgh) {
+      sycl::accessor acc_a{buf_a, cgh};
+      sycl::accessor acc_b{buf_b, cgh};
+      syclexp::work_group_memory<T[]> temp{N, cgh};
+      sycl::nd_range<1> ndr{size, wgsize};
+      cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
+        const auto i = it.get_global_id();
+        auto ptr = &temp;
+        (*ptr)[i] = acc_a[i];
+        acc_a[i] = acc_b[i];
+        acc_b[i] = (*ptr)[i];
+      });
+    });
+  }
+  // Four swaps same as no swap
+  for (int i = 0; i < N; ++i) {
+    assert(a[i] == old_a[i] && b[i] == old_b[i] && "Incorrect swap!");
+  }
 }
 
 template <typename T, size_t N>
@@ -280,6 +303,33 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
     for (int j = 0; j < N; ++j) {
       // Three swaps are the same as one swap
       assert(a[i][j] == old_b[i][j] && b[i][j] == old_a[i][j] &&
+             "Incorrect swap!");
+    }
+  }
+  
+  // Same as above but use an unbounded array as temporary storage
+{
+    sycl::buffer<T, 2> buf_a{a[0], sycl::range{N, N}};
+    sycl::buffer<T, 2> buf_b{b[0], sycl::range{N, N}};
+    q.submit([&](sycl::handler &cgh) {
+      sycl::accessor acc_a{buf_a, cgh};
+      sycl::accessor acc_b{buf_b, cgh};
+      syclexp::work_group_memory<T[][N]> temp{N, cgh};
+      sycl::nd_range<2> ndr{size, wgsize};
+      cgh.parallel_for(ndr, [=](sycl::nd_item<2> it) {
+        const auto i = it.get_global_id()[0];
+        const auto j = it.get_global_id()[1];
+        temp[i][j] = acc_a[i][j];
+        acc_a[i][j] = acc_b[i][j];
+        syclexp::work_group_memory<T[][N]> temp2{temp};
+        acc_b[i][j] = temp2[i][j];
+      });
+    });
+  } 
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      // Four swaps are the same as no swap
+      assert(a[i][j] == old_a[i][j] && b[i][j] == old_b[i][j] &&
              "Incorrect swap!");
     }
   }
