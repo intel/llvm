@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Mon Sep 30 10:43:10 2024 +0100
   #     Merge pull request #1924 from Bensuo/fabio/cmd_buffer_kernel_update
   #     Add support for command-buffer kernel updates
-  set(UNIFIED_RUNTIME_TAG 017d8f385ac569ac15cf408129febfcc3e1037a7)
+  set(UNIFIED_RUNTIME_TAG 6acd91a7d300d9c305c8789fb1f0a30391e52e2a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
