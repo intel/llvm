@@ -12,6 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
