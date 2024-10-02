@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
