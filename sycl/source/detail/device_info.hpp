@@ -13,6 +13,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
