@@ -1050,6 +1050,8 @@ ur_result_t urDeviceGetInfo(
     }
     return ReturnValue(UpdateCapabilities);
   }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
     // On L0 bindless images are supported.
     return ReturnValue(true);

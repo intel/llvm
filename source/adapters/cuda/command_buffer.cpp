@@ -26,6 +26,14 @@ commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) {
     return UR_RESULT_SUCCESS;
   }
 
+  // Release the memory allocated to the CudaGraph
+  UR_CHECK_ERROR(cuGraphDestroy(CommandBuffer->CudaGraph));
+
+  // Release the memory allocated to the CudaGraphExec
+  if (CommandBuffer->CudaGraphExec) {
+    UR_CHECK_ERROR(cuGraphExecDestroy(CommandBuffer->CudaGraphExec));
+  }
+
   delete CommandBuffer;
   return UR_RESULT_SUCCESS;
 }
@@ -38,6 +46,17 @@ commandHandleReleaseInternal(ur_exp_command_buffer_command_handle_t Command) {
 
   // Decrement parent command-buffer internal ref count
   commandBufferReleaseInternal(Command->CommandBuffer);
+
+  // We create the ur_event_t returned to the user for a signal node using
+  // `makeWithNative` which sets `HasOwnership` to false. Therefore destruction
+  // of the `ur_event_t` object doesn't free the underlying CuEvent_t object and
+  // we need to do it manually ourselves.
+  if (Command->SignalNode) {
+    CUevent SignalEvent;
+    UR_CHECK_ERROR(
+        cuGraphEventRecordNodeGetEvent(Command->SignalNode, &SignalEvent));
+    UR_CHECK_ERROR(cuEventDestroy(SignalEvent));
+  }
 
   delete Command;
   return UR_RESULT_SUCCESS;
@@ -61,28 +80,45 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   // Release the device
   UR_TRACE(urDeviceRelease(Device));
-
-  // Release the memory allocated to the CudaGraph
-  cuGraphDestroy(CudaGraph);
-
-  // Release the memory allocated to the CudaGraphExec
-  if (CudaGraphExec) {
-    cuGraphExecDestroy(CudaGraphExec);
-  }
 }
 
-ur_exp_command_buffer_command_handle_t_::
-    ur_exp_command_buffer_command_handle_t_(
-        ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-        CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
-        const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
-        const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
-        ur_kernel_handle_t *KernelAlternatives)
-    : CommandBuffer(CommandBuffer), Kernel(Kernel), ValidKernelHandles(),
-      Node(Node), Params(Params), WorkDim(WorkDim), RefCountInternal(1),
-      RefCountExternal(1) {
-  CommandBuffer->incrementInternalReferenceCount();
+std::unique_ptr<ur_event_handle_t_>
+ur_exp_command_buffer_handle_t_::addSignalNode(CUgraphNode DepNode,
+                                               CUgraphNode &SignalNode) {
+  CUevent Event;
+  UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
+  UR_CHECK_ERROR(
+      cuGraphAddEventRecordNode(&SignalNode, CudaGraph, &DepNode, 1, Event));
 
+  return std::unique_ptr<ur_event_handle_t_>(
+      ur_event_handle_t_::makeWithNative(Context, Event));
+}
+
+ur_result_t ur_exp_command_buffer_handle_t_::addWaitNodes(
+    std::vector<CUgraphNode> &DepsList, uint32_t NumEventsInWaitList,
+    const ur_event_handle_t *EventWaitList) {
+  std::vector<CUgraphNode> WaitNodes(NumEventsInWaitList);
+  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+    CUevent Event = EventWaitList[i]->get();
+    UR_CHECK_ERROR(cuGraphAddEventWaitNode(
+        &WaitNodes[i], CudaGraph, DepsList.data(), DepsList.size(), Event));
+  }
+  // Set DepsLists as an output parameter for communicating the list of wait
+  // nodes created.
+  DepsList = WaitNodes;
+  return UR_RESULT_SUCCESS;
+}
+
+kernel_command_handle::kernel_command_handle(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+    CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
+    const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
+    const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
+    ur_kernel_handle_t *KernelAlternatives, CUgraphNode SignalNode,
+    std::vector<CUgraphNode> WaitNodes)
+    : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                              WaitNodes),
+      Kernel(Kernel), Params(Params), WorkDim(WorkDim) {
   const size_t CopySize = sizeof(size_t) * WorkDim;
   std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
   std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
@@ -105,6 +141,15 @@ ur_exp_command_buffer_command_handle_t_::
     ValidKernelHandles.insert(KernelAlternatives,
                               KernelAlternatives + NumKernelAlternatives);
   }
+};
+
+ur_exp_command_buffer_command_handle_t_::
+    ur_exp_command_buffer_command_handle_t_(
+        ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
+        CUgraphNode SignalNode, std::vector<CUgraphNode> WaitNodes)
+    : CommandBuffer(CommandBuffer), Node(Node), SignalNode(SignalNode),
+      WaitNodes(WaitNodes), RefCountInternal(1), RefCountExternal(1) {
+  CommandBuffer->incrementInternalReferenceCount();
 }
 
 /// Helper function for finding the Cuda Nodes associated with the
@@ -163,16 +208,26 @@ static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
   Params.Depth = 1;
 }
 
-// Helper function for enqueuing memory fills
+// Helper function for enqueuing memory fills. Templated on the CommandType
+// enum class for the type of fill being created.
+template <class T>
 static ur_result_t enqueueCommandBufferFillHelper(
     ur_exp_command_buffer_handle_t CommandBuffer, void *DstDevice,
     const CUmemorytype_enum DstType, const void *Pattern, size_t PatternSize,
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *RetSyncPoint) {
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_exp_command_buffer_sync_point_t *RetSyncPoint,
+    ur_event_handle_t *RetEvent,
+    ur_exp_command_buffer_command_handle_t *RetCommand) {
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
                                         SyncPointWaitList, DepsList));
+
+  if (NumEventsInWaitList) {
+    UR_CHECK_ERROR(CommandBuffer->addWaitNodes(DepsList, NumEventsInWaitList,
+                                               EventWaitList));
+  }
 
   try {
     // Graph node added to graph, if multiple nodes are created this will
@@ -270,10 +325,27 @@ static ur_result_t enqueueCommandBufferFillHelper(
       }
     }
 
+    CUgraphNode SignalNode = nullptr;
+    if (RetEvent) {
+      auto SignalEvent = CommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *RetEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = CommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = CommandBuffer->addSyncPoint(SyncPointNode);
     if (RetSyncPoint) {
       *RetSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        NumEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new T(CommandBuffer, GraphNode, SignalNode, WaitNodes);
+    CommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (RetCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *RetCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -356,7 +428,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numKernelAlternatives, ur_kernel_handle_t *phKernelAlternatives,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t *phCommand) {
   // Preconditions
   UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
@@ -376,13 +449,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     UR_CHECK_ERROR(getNodesFromSyncPoints(
         hCommandBuffer, numSyncPointsInWaitList, pSyncPointWaitList, DepsList));
 
+    if (numEventsInWaitList) {
+      UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                  phEventWaitList));
+    }
+
     if (*pGlobalWorkSize == 0) {
       // Create an empty node if the kernel workload size is zero
-      UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
-                                         DepsList.data(), DepsList.size()));
+      if (!phEvent) {
+        UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode,
+                                           hCommandBuffer->CudaGraph,
+                                           DepsList.data(), DepsList.size()));
+      } else {
+        CUevent Event = nullptr;
+        UR_CHECK_ERROR(cuEventCreate(&Event, CU_EVENT_DEFAULT));
+        UR_CHECK_ERROR(
+            cuGraphAddEventRecordNode(&GraphNode, hCommandBuffer->CudaGraph,
+                                      DepsList.data(), DepsList.size(), Event));
+
+        auto RetEventUP = std::unique_ptr<ur_event_handle_t_>(
+            ur_event_handle_t_::makeWithNative(hCommandBuffer->Context, Event));
+
+        *phEvent = RetEventUP.release();
+      }
+
+      // Add signal node if external return event is used.
+      CUgraphNode SignalNode = nullptr;
+      if (phEvent) {
+        auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+        *phEvent = SignalEvent.release();
+      }
 
       // Get sync point and register the cuNode with it.
-      auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+      CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+      auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
       if (pSyncPoint) {
         *pSyncPoint = SyncPoint;
       }
@@ -422,25 +522,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     if (LocalSize != 0)
       hKernel->clearLocalSize();
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
     }
 
-    auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
-        hCommandBuffer,      hKernel,        GraphNode,
-        NodeParams,          workDim,        pGlobalWorkOffset,
-        pGlobalWorkSize,     pLocalWorkSize, numKernelAlternatives,
-        phKernelAlternatives};
-
-    NewCommand->incrementInternalReferenceCount();
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new kernel_command_handle(
+        hCommandBuffer, hKernel, GraphNode, NodeParams, workDim,
+        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize,
+        numKernelAlternatives, phKernelAlternatives, SignalNode, WaitNodes);
     hCommandBuffer->CommandHandles.push_back(NewCommand);
 
     if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
       *phCommand = NewCommand;
     }
-
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -451,11 +558,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
     size_t size, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     CUDA_MEMCPY3D NodeParams = {};
@@ -466,10 +580,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new usm_memcpy_command_handle(hCommandBuffer, GraphNode,
+                                                    SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -482,7 +615,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
 
@@ -493,6 +628,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto Src = std::get<BufferMem>(hSrcMem->Mem)
@@ -508,10 +648,28 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_copy_command_handle(hCommandBuffer, GraphNode,
+                                                     SignalNode, WaitNodes);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -526,11 +684,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto SrcPtr =
@@ -547,10 +712,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_copy_rect_command_handle(
+        hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -564,11 +748,18 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     size_t offset, size_t size, const void *pSrc,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto Dst = std::get<BufferMem>(hBuffer->Mem)
@@ -582,10 +773,29 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_write_command_handle(hCommandBuffer, GraphNode,
+                                                      SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -598,11 +808,18 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
     size_t offset, size_t size, void *pDst, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto Src = std::get<BufferMem>(hBuffer->Mem)
@@ -616,10 +833,29 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_read_command_handle(hCommandBuffer, GraphNode,
+                                                     SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -635,11 +871,18 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto DstPtr =
@@ -655,10 +898,29 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_write_rect_command_handle(
+        hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -674,11 +936,18 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   CUgraphNode GraphNode;
   std::vector<CUgraphNode> DepsList;
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
+
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
 
   try {
     auto SrcPtr =
@@ -694,10 +963,29 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
         &NodeParams, hCommandBuffer->Device->getNativeContext()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new buffer_read_rect_command_handle(
+        hCommandBuffer, GraphNode, SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -710,7 +998,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     size_t /*Size*/, ur_usm_migration_flags_t /*Flags*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   // Prefetch cmd is not supported by Cuda Graph.
   // We implement it as an empty node to enforce dependencies.
   CUgraphNode GraphNode;
@@ -719,17 +1009,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
 
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
+
   try {
     // Add an empty node to preserve dependencies.
     UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
                                        DepsList.data(), DepsList.size()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
     }
 
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new usm_prefetch_command_handle(hCommandBuffer, GraphNode,
+                                                      SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
+    }
   } catch (ur_result_t Err) {
     return Err;
   }
@@ -741,7 +1054,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     size_t /*Size*/, ur_usm_advice_flags_t /*Advice*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   // Mem-Advise cmd is not supported by Cuda Graph.
   // We implement it as an empty node to enforce dependencies.
   CUgraphNode GraphNode;
@@ -750,15 +1065,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   UR_CHECK_ERROR(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
                                         pSyncPointWaitList, DepsList));
 
+  if (numEventsInWaitList) {
+    UR_CHECK_ERROR(hCommandBuffer->addWaitNodes(DepsList, numEventsInWaitList,
+                                                phEventWaitList));
+  }
+
   try {
     // Add an empty node to preserve dependencies.
     UR_CHECK_ERROR(cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
                                        DepsList.data(), DepsList.size()));
 
+    // Add signal node if external return event is used.
+    CUgraphNode SignalNode = nullptr;
+    if (phEvent) {
+      auto SignalEvent = hCommandBuffer->addSignalNode(GraphNode, SignalNode);
+      *phEvent = SignalEvent.release();
+    }
+
     // Get sync point and register the cuNode with it.
-    auto SyncPoint = hCommandBuffer->addSyncPoint(GraphNode);
+    CUgraphNode SyncPointNode = SignalNode ? SignalNode : GraphNode;
+    auto SyncPoint = hCommandBuffer->addSyncPoint(SyncPointNode);
     if (pSyncPoint) {
       *pSyncPoint = SyncPoint;
+    }
+
+    std::vector<CUgraphNode> WaitNodes =
+        numEventsInWaitList ? DepsList : std::vector<CUgraphNode>();
+    auto NewCommand = new usm_advise_command_handle(hCommandBuffer, GraphNode,
+                                                    SignalNode, WaitNodes);
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      NewCommand->incrementInternalReferenceCount();
+      *phCommand = NewCommand;
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -772,7 +1111,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const void *pPattern, size_t patternSize, size_t offset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
@@ -787,9 +1128,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
   auto DstDevice = std::get<BufferMem>(hBuffer->Mem)
                        .getPtrWithOffset(hCommandBuffer->Device, offset);
 
-  return enqueueCommandBufferFillHelper(
+  return enqueueCommandBufferFillHelper<buffer_fill_command_handle>(
       hCommandBuffer, &DstDevice, CU_MEMORYTYPE_DEVICE, pPattern, patternSize,
-      size, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+      size, numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+      phEventWaitList, pSyncPoint, phEvent, phCommand);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
@@ -797,17 +1139,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const void *pPattern, size_t patternSize, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   auto PatternIsValid = (pPattern != nullptr);
 
   auto PatternSizeIsValid = ((patternSize & (patternSize - 1)) == 0) &&
                             (patternSize > 0); // is a positive power of two
 
   UR_ASSERT(PatternIsValid && PatternSizeIsValid, UR_RESULT_ERROR_INVALID_SIZE);
-  return enqueueCommandBufferFillHelper(
+  return enqueueCommandBufferFillHelper<usm_fill_command_handle>(
       hCommandBuffer, pPtr, CU_MEMORYTYPE_UNIFIED, pPattern, patternSize, size,
-      numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+      numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+      phEventWaitList, pSyncPoint, phEvent, phCommand);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
@@ -867,12 +1211,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-validateCommandDesc(ur_exp_command_buffer_command_handle_t Command,
+validateCommandDesc(kernel_command_handle *Command,
                     const ur_exp_command_buffer_update_kernel_launch_desc_t
                         *UpdateCommandDesc) {
-
   auto CommandBuffer = Command->CommandBuffer;
-
   // Update requires the command-buffer to be finalized and updatable.
   if (!CommandBuffer->CudaGraphExec || !CommandBuffer->IsUpdatable) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -976,10 +1318,9 @@ updateKernelArguments(ur_device_handle_t Device,
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-updateCommand(ur_exp_command_buffer_command_handle_t Command,
+updateCommand(kernel_command_handle *Command,
               const ur_exp_command_buffer_update_kernel_launch_desc_t
                   *UpdateCommandDesc) {
-
   if (UpdateCommandDesc->hNewKernel) {
     Command->Kernel = UpdateCommandDesc->hNewKernel;
   }
@@ -1013,30 +1354,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
 
-  UR_CHECK_ERROR(validateCommandDesc(hCommand, pUpdateKernelLaunch));
+  if (hCommand->getCommandType() != CommandType::Kernel) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  auto KernelCommandHandle = static_cast<kernel_command_handle *>(hCommand);
+
+  UR_CHECK_ERROR(validateCommandDesc(KernelCommandHandle, pUpdateKernelLaunch));
   UR_CHECK_ERROR(
       updateKernelArguments(CommandBuffer->Device, pUpdateKernelLaunch));
-  UR_CHECK_ERROR(updateCommand(hCommand, pUpdateKernelLaunch));
+  UR_CHECK_ERROR(updateCommand(KernelCommandHandle, pUpdateKernelLaunch));
 
   // If no work-size is provided make sure we pass nullptr to setKernelParams so
   // it can guess the local work size.
-  const bool ProvidedLocalSize = !hCommand->isNullLocalSize();
-  size_t *LocalWorkSize = ProvidedLocalSize ? hCommand->LocalWorkSize : nullptr;
+  const bool ProvidedLocalSize = !KernelCommandHandle->isNullLocalSize();
+  size_t *LocalWorkSize =
+      ProvidedLocalSize ? KernelCommandHandle->LocalWorkSize : nullptr;
 
   // Set the number of threads per block to the number of threads per warp
   // by default unless user has provided a better number.
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
   size_t BlocksPerGrid[3] = {1u, 1u, 1u};
-  CUfunction CuFunc = hCommand->Kernel->get();
+  CUfunction CuFunc = KernelCommandHandle->Kernel->get();
   auto Result = setKernelParams(
-      CommandBuffer->Context, CommandBuffer->Device, hCommand->WorkDim,
-      hCommand->GlobalWorkOffset, hCommand->GlobalWorkSize, LocalWorkSize,
-      hCommand->Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
+      CommandBuffer->Context, CommandBuffer->Device,
+      KernelCommandHandle->WorkDim, KernelCommandHandle->GlobalWorkOffset,
+      KernelCommandHandle->GlobalWorkSize, LocalWorkSize,
+      KernelCommandHandle->Kernel, CuFunc, ThreadsPerBlock, BlocksPerGrid);
   if (Result != UR_RESULT_SUCCESS) {
     return Result;
   }
 
-  CUDA_KERNEL_NODE_PARAMS &Params = hCommand->Params;
+  CUDA_KERNEL_NODE_PARAMS &Params = KernelCommandHandle->Params;
 
   Params.func = CuFunc;
   Params.gridDimX = BlocksPerGrid[0];
@@ -1045,13 +1394,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   Params.blockDimX = ThreadsPerBlock[0];
   Params.blockDimY = ThreadsPerBlock[1];
   Params.blockDimZ = ThreadsPerBlock[2];
-  Params.sharedMemBytes = hCommand->Kernel->getLocalSize();
+  Params.sharedMemBytes = KernelCommandHandle->Kernel->getLocalSize();
   Params.kernelParams =
-      const_cast<void **>(hCommand->Kernel->getArgIndices().data());
+      const_cast<void **>(KernelCommandHandle->Kernel->getArgIndices().data());
 
-  CUgraphNode Node = hCommand->Node;
+  CUgraphNode Node = KernelCommandHandle->Node;
   CUgraphExec CudaGraphExec = CommandBuffer->CudaGraphExec;
   UR_CHECK_ERROR(cuGraphExecKernelNodeSetParams(CudaGraphExec, Node, &Params));
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_event_handle_t *phEvent) {
+  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
+
+  // Update requires command-buffer to be finalized
+  if (!CommandBuffer->CudaGraphExec) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Update requires command-buffer to be created with update enabled
+  if (!CommandBuffer->IsUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Error to try to update the signal event, when a signal event wasn't set on
+  // creation
+  CUgraphNode SignalNode = hCommand->SignalNode;
+  if (phEvent != nullptr && SignalNode == nullptr) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  CUevent SignalEvent;
+  UR_CHECK_ERROR(cuGraphEventRecordNodeGetEvent(SignalNode, &SignalEvent));
+
+  if (phEvent) {
+    *phEvent = std::unique_ptr<ur_event_handle_t_>(
+                   ur_event_handle_t_::makeWithNative(CommandBuffer->Context,
+                                                      SignalEvent))
+                   .release();
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList) {
+  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
+
+  // Update requires command-buffer to be finalized
+  if (!CommandBuffer->CudaGraphExec) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Update requires command-buffer to be created with update enabled
+  if (!CommandBuffer->IsUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Error if number of wait nodes is not the same as when node was created
+  std::vector<CUgraphNode> &WaitNodes = hCommand->WaitNodes;
+  if (NumEventsInWaitList != WaitNodes.size()) {
+    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+  }
+
+  CUgraphExec CudaGraphExec = CommandBuffer->CudaGraphExec;
+  for (uint32_t i = 0; i < NumEventsInWaitList; i++) {
+    ur_event_handle_t WaitEvent = phEventWaitList[i];
+    UR_CHECK_ERROR(cuGraphExecEventWaitNodeSetEvent(CudaGraphExec, WaitNodes[i],
+                                                    WaitEvent->get()));
+  }
+
   return UR_RESULT_SUCCESS;
 }
 

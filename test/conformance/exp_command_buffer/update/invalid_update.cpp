@@ -37,8 +37,8 @@ struct InvalidUpdateTest
         // Append kernel command to command-buffer
         ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
             updatable_cmd_buf_handle, kernel, n_dimensions, &global_offset,
-            &global_size, &local_size, 0, nullptr, 0, nullptr, nullptr,
-            &command_handle));
+            &global_size, &local_size, 0, nullptr, 0, nullptr, 0, nullptr,
+            nullptr, nullptr, &command_handle));
         ASSERT_NE(command_handle, nullptr);
     }
 
@@ -122,7 +122,8 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
     ur_exp_command_buffer_command_handle_t test_command_handle = nullptr;
     EXPECT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         test_cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        &local_size, 0, nullptr, 0, nullptr, nullptr, &test_command_handle));
+        &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+        &test_command_handle));
     EXPECT_NE(test_command_handle, nullptr);
 
     EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));

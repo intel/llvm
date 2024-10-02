@@ -1092,6 +1092,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         getDeviceCommandBufferUpdateCapabilities(Dev, UpdateCapabilities));
     return ReturnValue(UpdateCapabilities);
   }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
