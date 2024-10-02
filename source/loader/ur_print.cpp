@@ -1444,6 +1444,22 @@ ur_result_t urPrintCommandBufferUpdateKernelLaunchExpParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintCommandBufferUpdateSignalEventExpParams(
+    const struct ur_command_buffer_update_signal_event_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferUpdateWaitEventsExpParams(
+    const struct ur_command_buffer_update_wait_events_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintCommandBufferGetInfoExpParams(
     const struct ur_command_buffer_get_info_exp_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {

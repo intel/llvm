@@ -35,18 +35,78 @@
       logger::always("UR <--- {}({})", #Call, Result);                         \
   }
 
-// Handle to a kernel command.
-//
-// Struct that stores all the information related to a kernel command in a
-// command-buffer, such that the command can be recreated. When handles can
-// be returned from other command types this struct will need refactored.
+enum class CommandType {
+  Kernel,
+  USMMemcpy,
+  USMFill,
+  MemBufferCopy,
+  MemBufferCopyRect,
+  MemBufferRead,
+  MemBufferReadRect,
+  MemBufferWrite,
+  MemBufferWriteRect,
+  MemBufferFill,
+  USMPrefetch,
+  USMAdvise
+};
+
+// Command handle that can be returned from command append entry-points.
+// Implemented as an abstract base class that handles for the specific
+// command types derive from.
 struct ur_exp_command_buffer_command_handle_t_ {
   ur_exp_command_buffer_command_handle_t_(
+      ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
+      CUgraphNode SignalNode, std::vector<CUgraphNode> WaitNodes);
+
+  virtual ~ur_exp_command_buffer_command_handle_t_() {}
+
+  virtual CommandType getCommandType() const noexcept = 0;
+
+  uint32_t incrementInternalReferenceCount() noexcept {
+    return ++RefCountInternal;
+  }
+  uint32_t decrementInternalReferenceCount() noexcept {
+    return --RefCountInternal;
+  }
+
+  uint32_t incrementExternalReferenceCount() noexcept {
+    return ++RefCountExternal;
+  }
+  uint32_t decrementExternalReferenceCount() noexcept {
+    return --RefCountExternal;
+  }
+  uint32_t getExternalReferenceCount() const noexcept {
+    return RefCountExternal;
+  }
+
+  // Parent UR command-buffer.
+  ur_exp_command_buffer_handle_t CommandBuffer;
+  // Node created in graph for the command.
+  CUgraphNode Node;
+  // An optional EventRecordNode that's a successor of Node to signal
+  // dependent commands outwith the command-buffer.
+  CUgraphNode SignalNode;
+  // Optional list of EventWait Nodes to wait on commands from outside of the
+  // command-buffer.
+  std::vector<CUgraphNode> WaitNodes;
+
+private:
+  std::atomic_uint32_t RefCountInternal;
+  std::atomic_uint32_t RefCountExternal;
+};
+
+struct kernel_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  kernel_command_handle(
       ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
       CUgraphNode Node, CUDA_KERNEL_NODE_PARAMS Params, uint32_t WorkDim,
       const size_t *GlobalWorkOffsetPtr, const size_t *GlobalWorkSizePtr,
       const size_t *LocalWorkSizePtr, uint32_t NumKernelAlternatives,
-      ur_kernel_handle_t *KernelAlternatives);
+      ur_kernel_handle_t *KernelAlternatives, CUgraphNode SignalNode,
+      std::vector<CUgraphNode> WaitNodes);
+
+  CommandType getCommandType() const noexcept override {
+    return CommandType::Kernel;
+  }
 
   void setGlobalOffset(const size_t *GlobalWorkOffsetPtr) {
     const size_t CopySize = sizeof(size_t) * WorkDim;
@@ -84,42 +144,142 @@ struct ur_exp_command_buffer_command_handle_t_ {
     return 0 == std::memcmp(LocalWorkSize, Zeros, sizeof(LocalWorkSize));
   }
 
-  uint32_t incrementInternalReferenceCount() noexcept {
-    return ++RefCountInternal;
-  }
-  uint32_t decrementInternalReferenceCount() noexcept {
-    return --RefCountInternal;
-  }
-
-  uint32_t incrementExternalReferenceCount() noexcept {
-    return ++RefCountExternal;
-  }
-  uint32_t decrementExternalReferenceCount() noexcept {
-    return --RefCountExternal;
-  }
-  uint32_t getExternalReferenceCount() const noexcept {
-    return RefCountExternal;
-  }
-
-  ur_exp_command_buffer_handle_t CommandBuffer;
-
   // The currently active kernel handle for this command.
   ur_kernel_handle_t Kernel;
 
   // Set of all the kernel handles that can be used when updating this command.
   std::unordered_set<ur_kernel_handle_t> ValidKernelHandles;
 
-  CUgraphNode Node;
   CUDA_KERNEL_NODE_PARAMS Params;
 
   uint32_t WorkDim;
   size_t GlobalWorkOffset[3];
   size_t GlobalWorkSize[3];
   size_t LocalWorkSize[3];
+};
 
-private:
-  std::atomic_uint32_t RefCountInternal;
-  std::atomic_uint32_t RefCountExternal;
+struct usm_memcpy_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  usm_memcpy_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                            CUgraphNode Node, CUgraphNode SignalNode,
+                            std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::USMMemcpy;
+  }
+};
+
+struct usm_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  usm_fill_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                          CUgraphNode Node, CUgraphNode SignalNode,
+                          std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::USMFill;
+  }
+};
+
+struct buffer_copy_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  buffer_copy_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                             CUgraphNode Node, CUgraphNode SignalNode,
+                             std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferCopy;
+  }
+};
+
+struct buffer_copy_rect_command_handle
+    : ur_exp_command_buffer_command_handle_t_ {
+  buffer_copy_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                                  CUgraphNode Node, CUgraphNode SignalNode,
+                                  std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferCopyRect;
+  }
+};
+
+struct buffer_read_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  buffer_read_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                             CUgraphNode Node, CUgraphNode SignalNode,
+                             std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferRead;
+  }
+};
+
+struct buffer_read_rect_command_handle
+    : ur_exp_command_buffer_command_handle_t_ {
+  buffer_read_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                                  CUgraphNode Node, CUgraphNode SignalNode,
+                                  std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferReadRect;
+  }
+};
+
+struct buffer_write_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  buffer_write_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                              CUgraphNode Node, CUgraphNode SignalNode,
+                              std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferWrite;
+  }
+};
+
+struct buffer_write_rect_command_handle
+    : ur_exp_command_buffer_command_handle_t_ {
+  buffer_write_rect_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                                   CUgraphNode Node, CUgraphNode SignalNode,
+                                   std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferWriteRect;
+  }
+};
+
+struct buffer_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  buffer_fill_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                             CUgraphNode Node, CUgraphNode SignalNode,
+                             std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::MemBufferFill;
+  }
+};
+
+struct usm_prefetch_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  usm_prefetch_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                              CUgraphNode Node, CUgraphNode SignalNode,
+                              std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::USMPrefetch;
+  }
+};
+
+struct usm_advise_command_handle : ur_exp_command_buffer_command_handle_t_ {
+  usm_advise_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
+                            CUgraphNode Node, CUgraphNode SignalNode,
+                            std::vector<CUgraphNode> WaitNodes)
+      : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
+                                                WaitNodes) {}
+  CommandType getCommandType() const noexcept override {
+    return CommandType::USMAdvise;
+  }
 };
 
 struct ur_exp_command_buffer_handle_t_ {
@@ -127,7 +287,7 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
                                   ur_device_handle_t Device, bool IsUpdatable);
 
-  ~ur_exp_command_buffer_handle_t_();
+  virtual ~ur_exp_command_buffer_handle_t_();
 
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          CUgraphNode CuNode) {
@@ -138,6 +298,24 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_exp_command_buffer_sync_point_t getNextSyncPoint() const {
     return NextSyncPoint;
   }
+
+  // Creates a cuEvent object and adds a cuGraphAddEventRecordNode node to the
+  // graph.
+  // @param[in] DepNode Node for the EventRecord node to depend on.
+  // @param[out] SignalNode Node created by cuGraphAddEventRecordNode.
+  // @return UR event backed by CuEvent object that will be recorded to.
+  std::unique_ptr<ur_event_handle_t_> addSignalNode(CUgraphNode DepNode,
+                                                    CUgraphNode &SignalNode);
+
+  // Adds a cuGraphAddEventWaitNodes node to the graph
+  // @param[in,out] Dependencies for each of the wait nodes created. Set to the
+  // list of wait nodes created on success.
+  // @param[in] NumEventsInWaitList Number of wait nodes to create.
+  // @param[in] UR events wrapping the cuEvent objects the nodes will wait on.
+  // @returns UR_RESULT_SUCCESS or an error
+  ur_result_t addWaitNodes(std::vector<CUgraphNode> &DepsList,
+                           uint32_t NumEventsInWaitList,
+                           const ur_event_handle_t *EventWaitList);
 
   // Helper to register next sync point
   // @param CuNode Node to register as next sync point

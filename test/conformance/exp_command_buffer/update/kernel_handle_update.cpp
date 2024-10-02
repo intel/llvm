@@ -270,7 +270,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, Success) {
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
         &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-        KernelAlternatives.data(), 0, nullptr, nullptr, CommandHandle.ptr()));
+        KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -298,7 +299,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
         &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-        KernelAlternatives.data(), 0, nullptr, nullptr, CommandHandle.ptr()));
+        KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -335,7 +337,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
         &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-        KernelAlternatives.data(), 0, nullptr, nullptr, CommandHandle.ptr()));
+        KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -366,8 +369,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, KernelAlternativeNotRegistered) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-        &(SaxpyKernel->LocalSize), 0, nullptr, 0, nullptr, nullptr,
-        CommandHandle.ptr()));
+        &(SaxpyKernel->LocalSize), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+        nullptr, CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -392,7 +395,8 @@ TEST_P(urCommandBufferKernelHandleUpdateTest,
                          SaxpyKernel->NDimensions, &(SaxpyKernel->GlobalOffset),
                          &(SaxpyKernel->GlobalSize), &(SaxpyKernel->LocalSize),
                          KernelAlternatives.size(), KernelAlternatives.data(),
-                         0, nullptr, nullptr, &CommandHandle));
+                         0, nullptr, 0, nullptr, nullptr, nullptr,
+                         &CommandHandle));
 }
 
 using urCommandBufferValidUpdateParametersTest =
@@ -408,7 +412,8 @@ TEST_P(urCommandBufferValidUpdateParametersTest,
         updatable_cmd_buf_handle, FillUSM2DKernel->Kernel,
         FillUSM2DKernel->NDimensions, FillUSM2DKernel->GlobalOffset.data(),
         FillUSM2DKernel->GlobalSize.data(), FillUSM2DKernel->LocalSize.data(),
-        0, nullptr, 0, nullptr, nullptr, CommandHandle.ptr()));
+        0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
@@ -447,7 +452,8 @@ TEST_P(urCommandBufferValidUpdateParametersTest, UpdateOnlyLocalWorkSize) {
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
         &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
-        KernelAlternatives.data(), 0, nullptr, nullptr, CommandHandle.ptr()));
+        KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));

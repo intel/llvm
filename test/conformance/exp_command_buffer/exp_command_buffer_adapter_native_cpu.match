@@ -29,3 +29,10 @@
 {{OPT}}USMSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncTest.Basic/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncTest.InterCommandBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncTest.SignalWaitBeforeEnqueue/SYCL_NATIVE_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncUpdateTest.Basic/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncUpdateTest.TwoWaitEvents/SYCL_NATIVE_CPU___SYCL_Native_CPU__X_{{.*}}
+{{OPT}}KernelCommandEventSyncUpdateTest.InvalidWaitUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}KernelCommandEventSyncUpdateTest.InvalidSignalUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

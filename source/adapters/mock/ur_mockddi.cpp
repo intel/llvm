@@ -8366,8 +8366,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
     ur_exp_command_buffer_command_handle_t
         *phCommand ///< [out][optional] Handle to this command.
     ) try {
@@ -8384,7 +8393,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         &phKernelAlternatives,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
+        &numEventsInWaitList,
+        &phEventWaitList,
         &pSyncPoint,
+        &phEvent,
         &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
@@ -8404,6 +8416,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
         // optional output handle
         if (phCommand) {
             *phCommand = mock::createDummyHandle<
@@ -8441,14 +8457,34 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_command_buffer_append_usm_memcpy_exp_params_t params = {
-        &hCommandBuffer,     &pDst,      &pSrc, &size, &numSyncPointsInWaitList,
-        &pSyncPointWaitList, &pSyncPoint};
+        &hCommandBuffer,
+        &pDst,
+        &pSrc,
+        &size,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8467,6 +8503,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8501,15 +8546,35 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     ur_command_buffer_append_usm_fill_exp_params_t params = {
-        &hCommandBuffer,     &pMemory,   &pPattern,
-        &patternSize,        &size,      &numSyncPointsInWaitList,
-        &pSyncPointWaitList, &pSyncPoint};
+        &hCommandBuffer,
+        &pMemory,
+        &pPattern,
+        &patternSize,
+        &size,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8528,6 +8593,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8562,8 +8636,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8576,7 +8661,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         &size,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8595,6 +8684,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8629,8 +8727,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8642,7 +8751,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         &pSrc,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8661,6 +8774,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8694,8 +8816,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8707,7 +8840,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         &pDst,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8726,6 +8863,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8767,8 +8913,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8785,7 +8942,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         &dstSlicePitch,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8804,6 +8965,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8851,8 +9021,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8869,7 +9050,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         &pSrc,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8888,6 +9073,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -8933,8 +9127,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8951,7 +9156,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         &pDst,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -8970,6 +9179,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -9005,8 +9223,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -9019,7 +9248,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         &size,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -9038,6 +9271,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -9070,8 +9312,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -9082,7 +9335,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         &flags,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -9101,6 +9358,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -9133,8 +9399,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -9145,7 +9422,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         &advice,
         &numSyncPointsInWaitList,
         &pSyncPointWaitList,
-        &pSyncPoint};
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &pSyncPoint,
+        &phEvent,
+        &phCommand};
 
     auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_before_callback(
@@ -9164,6 +9445,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         result = replaceCallback(&params);
     } else {
 
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        // optional output handle
+        if (phCommand) {
+            *phCommand = mock::createDummyHandle<
+                ur_exp_command_buffer_command_handle_t>();
+        }
         result = UR_RESULT_SUCCESS;
     }
 
@@ -9376,6 +9666,107 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
         mock::getCallbacks().get_after_callback(
             "urCommandBufferUpdateKernelLaunchExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateSignalEventExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer command to update.
+    ur_event_handle_t *phSignalEvent ///< [out] Event to be signaled.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_command_buffer_update_signal_event_exp_params_t params = {
+        &hCommand, &phSignalEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferUpdateSignalEventExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferUpdateSignalEventExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        *phSignalEvent = mock::createDummyHandle<ur_event_handle_t>();
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferUpdateSignalEventExp"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateWaitEventsExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer command to update.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_command_buffer_update_wait_events_exp_params_t params = {
+        &hCommand, &numEventsInWaitList, &phEventWaitList};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urCommandBufferUpdateWaitEventsExp"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urCommandBufferUpdateWaitEventsExp"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urCommandBufferUpdateWaitEventsExp"));
     if (afterCallback) {
         return afterCallback(&params);
     }
@@ -10436,6 +10827,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     pDdiTable->pfnUpdateKernelLaunchExp =
         driver::urCommandBufferUpdateKernelLaunchExp;
+
+    pDdiTable->pfnUpdateSignalEventExp =
+        driver::urCommandBufferUpdateSignalEventExp;
+
+    pDdiTable->pfnUpdateWaitEventsExp =
+        driver::urCommandBufferUpdateWaitEventsExp;
 
     pDdiTable->pfnGetInfoExp = driver::urCommandBufferGetInfoExp;
 
