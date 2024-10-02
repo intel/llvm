@@ -1220,6 +1220,13 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
+// This fixture can provide a kernel, but it doesn't build the kernel at SetUp,
+// instead Build() must be invoked separately. This is for tests that wish to
+// check device capabilities to determine whether the test should run before
+// trying to load any device code.
+//
+// For a fixture that provides the kernel at SetUp, inherit from urKernelTest
+// instead.
 struct urBaseKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
@@ -1252,6 +1259,8 @@ struct urKernelTest : urBaseKernelTest {
     }
 };
 
+// Parameterized version of urBaseKernelTest, the comments on that fixture
+// clarify why you'd want to use this instead of urKernelTestWithParam.
 template <class T>
 struct urBaseKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
@@ -1386,11 +1395,13 @@ struct KernelLaunchHelper {
     uint32_t current_arg_index = 0;
 };
 
+// Parameterized kernel fixture with execution helpers, for the difference
+// between this and urKernelExecutionTestWithParam see the comment on
+// urBaseKernelTest.
 template <typename T>
 struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::Build());
     }
 
     void TearDown() override {
@@ -1429,6 +1440,8 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     std::vector<ur_mem_handle_t> buffer_args;
 };
 
+// Kernel fixture with execution helpers, for the difference between this and
+// urKernelExecutionTest see the comment on urBaseKernelTest.
 struct urBaseKernelExecutionTest : urBaseKernelTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
