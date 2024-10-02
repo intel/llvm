@@ -10,6 +10,7 @@
 
 #include <detail/adapter.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>

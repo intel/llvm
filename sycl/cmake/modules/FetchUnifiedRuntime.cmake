@@ -116,14 +116,15 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit d0a50523006fa6f283da6a36811081add3bb22fc
-  # Merge: 804851e4 04deb8b3
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Aug 20 16:28:30 2024 +0100
-  #    Merge pull request #1940 from RossBrunton/ross/urcall
-  #    [XPTI] Use `ur.call` rather than `ur` in XPTI
-  set(UNIFIED_RUNTIME_TAG bcf2244dccdef352afaf4d4520526573876981e3)
+  set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:sycl/unified-runtime.git")
+  # commit 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a
+  # Merge: 5276c534 bcf2244d
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Oct 2 15:04:33 2024 +0100
+  #     Merge pull request #2056 from Seanst98/sean/usm-normalized-fix
+  #
+  #     [CUDA][Bindless] Address USM normalized type image creation failure and functionality
+  set(UNIFIED_RUNTIME_TAG 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

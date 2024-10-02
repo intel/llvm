@@ -10,6 +10,7 @@
 
 #include <detail/adapter.hpp>
 #include <detail/event_impl.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/info/info_desc.hpp>

@@ -14,6 +14,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
