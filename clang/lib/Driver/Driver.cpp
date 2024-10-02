@@ -6369,7 +6369,7 @@ class OffloadingActionBuilder final {
           if (GpuInitHasErrors)
             return true;
 
-          int I = 0;
+          int GenIndex = 0;
           // Fill SYCLTargetInfoList
           for (auto &TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
@@ -6382,10 +6382,21 @@ class OffloadingActionBuilder final {
               // is the target device.
               if (TT.isSPIR() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-                StringRef Device(GpuArchList[I].second);
+                // Multiple spir64_gen targets are allowed to be used via the
+                // -fsycl-targets=spir64_gen and -fsycl-targets=intel_gpu_*
+                // specifiers. Using an index through the known GpuArchList
+                // values, increment through them accordingly to allow for
+                // the multiple settings as well as preventing re-use.
+                while (TT != GpuArchList[GenIndex].first &&
+                       GenIndex < GpuArchList.size())
+                  ++GenIndex;
+                if (GpuArchList[GenIndex].first != TT)
+                  // No match.
+                  continue;
+                StringRef Device(GpuArchList[GenIndex].second);
                 SYCLTargetInfoList.emplace_back(
                     *TCIt, Device.empty() ? nullptr : Device.data());
-                ++I;
+                ++GenIndex;
                 continue;
               }
               SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
@@ -6399,7 +6410,6 @@ class OffloadingActionBuilder final {
               }
               assert(OffloadArch && "Failed to find matching arch.");
               SYCLTargetInfoList.emplace_back(*TCIt, OffloadArch);
-              ++I;
             }
           }
         }
