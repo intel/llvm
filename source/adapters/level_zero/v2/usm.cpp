@@ -184,6 +184,10 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
+  return umf::umf2urResult(umfFree(ptr));
+}
+
 namespace ur::level_zero {
 ur_result_t urUSMPoolCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object

@@ -24,6 +24,7 @@ struct ur_usm_pool_handle_t_ : _ur_object {
   ur_result_t allocate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                        const ur_usm_desc_t *pUSMDesc, ur_usm_type_t type,
                        size_t size, void **ppRetMem);
+  ur_result_t free(void *ptr);
 
 private:
   ur_context_handle_t hContext;
