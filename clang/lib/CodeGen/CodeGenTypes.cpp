@@ -488,14 +488,14 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
         return Ty;
     }
   }
-  // An incomplete array AST type is typically lowered to an array of length zero in LLVM IR.
-  // For SYCL devices, this is incompatible with SPIRV which does not accept arrays of length zero
-  // so we explicitly intercept this case to instead lower to an array of length 1 instead.
-  if (Context.getLangOpts().SYCLIsDevice) 
-	if (T->isIncompleteArrayType()) {
-		return llvm::ArrayType::get(ConvertType(cast<ArrayType>(T)->getElementType()), 1);
-}
-}
+  // An incomplete array AST type is typically lowered to an array of length
+  // zero in LLVM IR. For SYCL devices, this is incompatible with SPIRV which
+  // does not accept arrays of length zero so we explicitly intercept this case
+  // to instead lower to an array of length 1 instead.
+  if (Context.getLangOpts().SYCLIsDevice)
+    if (T->isIncompleteArrayType())
+      return llvm::ArrayType::get(
+          ConvertType(cast<ArrayType>(T)->getElementType()), 1);
 
   // RecordTypes are cached and processed specially.
   if (const RecordType *RT = dyn_cast<RecordType>(Ty))
