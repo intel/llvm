@@ -99,6 +99,29 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urMultiDeviceContextTestTemplate<1>::TearDown());
     }
+
+    void runBackgroundCheck(std::vector<uur::raii::Event> &Events) {
+        std::vector<std::thread> threads;
+        for (size_t i = 0; i < Events.size(); i++) {
+            threads.emplace_back([&, i] {
+                ur_event_status_t status;
+                do {
+                    ASSERT_SUCCESS(urEventGetInfo(
+                        Events[i].get(), UR_EVENT_INFO_COMMAND_EXECUTION_STATUS,
+                        sizeof(ur_event_status_t), &status, nullptr));
+                } while (status != UR_EVENT_STATUS_COMPLETE);
+
+                auto ExpectedValue = InitialValue + i + 1;
+                for (uint32_t j = 0; j < ArraySize; ++j) {
+                    ASSERT_EQ(reinterpret_cast<uint32_t *>(SharedMem[i])[j],
+                              ExpectedValue);
+                }
+            });
+        }
+        for (auto &thread : threads) {
+            thread.join();
+        }
+    }
 };
 
 template <typename Param>
@@ -189,26 +212,24 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
 
     auto useEvents = std::get<1>(GetParam()).value;
 
-    std::vector<uur::raii::Event> Events(numOps * 2);
+    std::vector<uur::raii::Event> kernelEvents(numOps);
+    std::vector<uur::raii::Event> memcpyEvents(numOps - 1);
+
+    ur_event_handle_t *lastMemcpyEvent = nullptr;
+    ur_event_handle_t *kernelEvent = nullptr;
+    ur_event_handle_t *memcpyEvent = nullptr;
+
     for (size_t i = 0; i < numOps; i++) {
-        size_t waitNum = 0;
-        ur_event_handle_t *lastEvent = nullptr;
-        ur_event_handle_t *kernelEvent = nullptr;
-        ur_event_handle_t *memcpyEvent = nullptr;
-
         if (useEvents) {
-            // Events are: kernelEvent0, memcpyEvent0, kernelEvent1, ...
-            waitNum = i > 0 ? 1 : 0;
-            lastEvent = i > 0 ? Events[i * 2 - 1].ptr() : nullptr;
-
-            kernelEvent = Events[i * 2].ptr();
-            memcpyEvent = Events[i * 2 + 1].ptr();
+            lastMemcpyEvent = memcpyEvent;
+            kernelEvent = kernelEvents[i].ptr();
+            memcpyEvent = i < numOps - 1 ? memcpyEvents[i].ptr() : nullptr;
         }
 
         // execute kernel that increments each element by 1
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
             queue, kernels[i], n_dimensions, &global_offset, &ArraySize,
-            nullptr, waitNum, lastEvent, kernelEvent));
+            nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
         // copy the memory (input for the next kernel)
         if (i < numOps - 1) {
@@ -220,11 +241,9 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     }
 
     if (useEvents) {
-        // TODO: just wait on the last event, once urEventWait is implemented
-        // by V2 L0 adapter
-        urQueueFinish(queue);
+        ASSERT_SUCCESS(urEventWait(1, kernelEvents.back().ptr()));
     } else {
-        urQueueFinish(queue);
+        ASSERT_SUCCESS(urQueueFinish(queue));
     }
 
     size_t ExpectedValue = InitialValue;
@@ -237,12 +256,41 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     }
 }
 
-struct VoidParam {};
+template <typename T>
+inline std::string
+printParams(const testing::TestParamInfo<typename T::ParamType> &info) {
+    std::stringstream ss;
+
+    auto param1 = std::get<0>(info.param);
+    ss << (param1.value ? "" : "No") << param1.name;
+
+    auto param2 = std::get<1>(info.param);
+    ss << (param2.value ? "" : "No") << param2.name;
+
+    if constexpr (std::tuple_size_v < typename T::ParamType >> 2) {
+        auto param3 = std::get<2>(info.param);
+    }
+
+    return ss.str();
+}
+
 using urEnqueueKernelLaunchIncrementMultiDeviceTest =
-    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<VoidParam>;
+    urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam<
+        std::tuple<uur::BoolTestParam, uur::BoolTestParam>>;
+
+INSTANTIATE_TEST_SUITE_P(
+    , urEnqueueKernelLaunchIncrementMultiDeviceTest,
+    testing::Combine(
+        testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEventWait")),
+        testing::ValuesIn(
+            uur::BoolTestParam::makeBoolParam("RunBackgroundCheck"))),
+    printParams<urEnqueueKernelLaunchIncrementMultiDeviceTest>);
 
 // Do a chain of kernelLaunch(dev0) -> memcpy(dev0, dev1) -> kernelLaunch(dev1) ... ops
-TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
+TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
+    auto waitOnEvent = std::get<0>(GetParam()).value;
+    auto runBackgroundCheck = std::get<1>(GetParam()).value;
+
     size_t returned_size;
     ASSERT_SUCCESS(urDeviceGetInfo(devices[0], UR_DEVICE_INFO_EXTENSIONS, 0,
                                    nullptr, &returned_size));
@@ -265,19 +313,22 @@ TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
 
-    std::vector<uur::raii::Event> Events(devices.size() * 2);
+    std::vector<uur::raii::Event> kernelEvents(devices.size());
+    std::vector<uur::raii::Event> memcpyEvents(devices.size() - 1);
+
+    ur_event_handle_t *lastMemcpyEvent = nullptr;
+    ur_event_handle_t *kernelEvent = nullptr;
+    ur_event_handle_t *memcpyEvent = nullptr;
+
     for (size_t i = 0; i < devices.size(); i++) {
-        // Events are: kernelEvent0, memcpyEvent0, kernelEvent1, ...
-        size_t waitNum = i > 0 ? 1 : 0;
-        ur_event_handle_t *lastEvent =
-            i > 0 ? Events[i * 2 - 1].ptr() : nullptr;
-        ur_event_handle_t *kernelEvent = Events[i * 2].ptr();
-        ur_event_handle_t *memcpyEvent = Events[i * 2 + 1].ptr();
+        lastMemcpyEvent = memcpyEvent;
+        kernelEvent = kernelEvents[i].ptr();
+        memcpyEvent = i < devices.size() - 1 ? memcpyEvents[i].ptr() : nullptr;
 
         // execute kernel that increments each element by 1
         ASSERT_SUCCESS(urEnqueueKernelLaunch(
             queues[i], kernels[i], n_dimensions, &global_offset, &ArraySize,
-            nullptr, waitNum, lastEvent, kernelEvent));
+            nullptr, bool(lastMemcpyEvent), lastMemcpyEvent, kernelEvent));
 
         // copy the memory to next device
         if (i < devices.size() - 1) {
@@ -287,9 +338,18 @@ TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
         }
     }
 
-    // synchronize on the last queue only, this has to ensure all the operations
+    // While the device(s) execute, loop over the events and if completed, verify the results
+    if (runBackgroundCheck) {
+        this->runBackgroundCheck(kernelEvents);
+    }
+
+    // synchronize on the last queue/event only, this has to ensure all the operations
     // are completed
-    urQueueFinish(queues.back());
+    if (waitOnEvent) {
+        ASSERT_SUCCESS(urEventWait(1, kernelEvents.back().ptr()));
+    } else {
+        ASSERT_SUCCESS(urQueueFinish(queues.back()));
+    }
 
     size_t ExpectedValue = InitialValue;
     for (size_t i = 0; i < devices.size(); i++) {
@@ -299,20 +359,6 @@ TEST_F(urEnqueueKernelLaunchIncrementMultiDeviceTest, Success) {
                       ExpectedValue);
         }
     }
-}
-
-template <typename T>
-inline std::string
-printParams(const testing::TestParamInfo<typename T::ParamType> &info) {
-    std::stringstream ss;
-
-    auto param1 = std::get<0>(info.param);
-    auto param2 = std::get<1>(info.param);
-
-    ss << (param1.value ? "" : "No") << param1.name;
-    ss << (param2.value ? "" : "No") << param2.name;
-
-    return ss.str();
 }
 
 using urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest =
@@ -374,9 +420,11 @@ TEST_P(urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest, Success) {
                                    ArraySize * sizeof(uint32_t), useEvents,
                                    lastEvent, signalEvent));
 
-            urQueueFinish(queue);
-            // TODO: when useEvents is implemented for L0 v2 adapter
-            // wait on event instead
+            if (useEvents) {
+                ASSERT_SUCCESS(urEventWait(1, Events.back().ptr()));
+            } else {
+                ASSERT_SUCCESS(urQueueFinish(queue));
+            }
 
             size_t ExpectedValue = InitialValue;
             ExpectedValue += numOpsPerThread;
