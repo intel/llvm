@@ -10,5 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %{build} -o %toff.out -DOFFSET
+// RUN: %{run} %toff.out
+
 #include "common.hpp"
 #include "joint_matrix_bfloat16_impl.hpp"

@@ -48,13 +48,29 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                         layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
-
+#ifdef OFFSET
+           joint_matrix_load(
+               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
+               sg_startx * TM, sg_starty / sg_size * TN, N, layout::row_major);
+#else
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
+#endif
            for (int k = 0; k < K / TK; k += 1) { //
+#ifdef OFFSET
+             joint_matrix_load(
+                 sg, sub_a,
+                 accA.template get_multi_ptr<access::decorated::no>(),
+                 sg_startx * TM, k * TK, K);
+             joint_matrix_load(
+                 sg, sub_b,
+                 accB.template get_multi_ptr<access::decorated::no>(),
+                 k * TK / 2, sg_starty / sg_size * TN * 2, N * 2);
+
+#else
              joint_matrix_load(
                  sg, sub_a,
                  accA.template get_multi_ptr<access::decorated::no>() +
@@ -65,13 +81,20 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k * TK / 2) * (N * 2) + sg_starty / sg_size * TN * 2,
                  N * 2);
+#endif
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
+#ifdef OFFSET
+           joint_matrix_store(
+               sg, sub_c, accC.template get_multi_ptr<access::decorated::no>(),
+               sg_startx * TM, sg_starty / sg_size * TN, N, layout::row_major);
+#else
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
                    (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
+#endif
          }); // parallel for
    }).wait();
 }
