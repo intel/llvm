@@ -357,7 +357,13 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i
 template <typename T, typename TResult, size_t vnniFactor, size_t TM, size_t TN,
           size_t TK, size_t MCache1, size_t NCache1, size_t KCache1,
           size_t MCache2, size_t NCache2, size_t KCache2>
-void test(size_t matrix_size) {
+void test(size_t matrix_size_input) {
+#ifdef RUNTIME_DIM
+  size_t matrix_size = matrix_size_input;
+#else
+  constexpr size_t matrix_size = MATRIX_SIZE;
+#endif
+
   assert(matrix_size >= TM && matrix_size >= TK && matrix_size >= TN &&
          "invalid matrix size");
   assert((matrix_size % TM) == 0 && (matrix_size % TN) == 0 &&
@@ -393,7 +399,7 @@ void test(size_t matrix_size) {
   double duration =
         joint_matmul<        
 #if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
-                    MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE, MATRIX_SIZE,
+                    matrix_size, matrix_size, matrix_size, matrix_size,
 #endif // ARG_DIM, RUNTIME_DIM
                     vnniFactor, T, TResult, TM, TN, TK, MCache1, NCache1,
                     KCache1, MCache2, NCache2, KCache2>
@@ -430,7 +436,7 @@ int main(
 #endif //RUNTIME_DIM
   ) {
 
-size_t matrix_size = MATRIX_SIZE;
+size_t matrix_size = -1;
 #ifdef RUNTIME_DIM
   // Check for command line argument
   if (argc == 2) {
