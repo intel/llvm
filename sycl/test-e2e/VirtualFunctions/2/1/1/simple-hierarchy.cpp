@@ -1,5 +1,4 @@
-// UNSUPPORTED: cuda, hip, acc
-// FIXME: replace unsupported with an aspect check once we have it
+// REQUIRES: aspect-ext_oneapi_virtual_functions
 //
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
