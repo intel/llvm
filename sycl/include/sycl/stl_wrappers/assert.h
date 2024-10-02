@@ -10,13 +10,13 @@
 // according to the current state of NDEBUG each time that <cassert> is
 // included.
 
-extern "C++" {
 #if defined(__has_include_next)
 #include_next <assert.h>
 #else
 #include <../ucrt/assert.h>
 #endif
 
+extern "C++" {
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
 
