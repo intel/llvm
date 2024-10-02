@@ -1750,8 +1750,7 @@ getSpellingListIndex(const std::vector<FlattenedSpelling> &SpellingList,
 }
 
 static void writeAttrAccessorDefinition(const Record &R, raw_ostream &OS) {
-  std::vector<const Record *> Accessors =
-      R.getValueAsListOfConstDefs("Accessors");
+  std::vector<const Record *> Accessors = R.getValueAsListOfDefs("Accessors");
   if (Accessors.empty())
     return;
 
@@ -1968,7 +1967,7 @@ struct AttributeSubjectMatchRule {
 
   std::vector<const Record *> getSubjects() const {
     return (Constraint ? Constraint : MetaSubject)
-        ->getValueAsListOfConstDefs("Subjects");
+        ->getValueAsListOfDefs("Subjects");
   }
 
   std::vector<const Record *> getLangOpts() const {
@@ -1976,11 +1975,11 @@ struct AttributeSubjectMatchRule {
       // Lookup the options in the sub-rule first, in case the sub-rule
       // overrides the rules options.
       std::vector<const Record *> Opts =
-          Constraint->getValueAsListOfConstDefs("LangOpts");
+          Constraint->getValueAsListOfDefs("LangOpts");
       if (!Opts.empty())
         return Opts;
     }
-    return MetaSubject->getValueAsListOfConstDefs("LangOpts");
+    return MetaSubject->getValueAsListOfDefs("LangOpts");
   }
 
   // Abstract rules are used only for sub-rules
@@ -2109,7 +2108,7 @@ PragmaClangAttributeSupport::PragmaClangAttributeSupport(
                                        const Record *Constraint) {
     Rules.emplace_back(MetaSubject, Constraint);
     for (const Record *Subject :
-         SubjectContainer->getValueAsListOfConstDefs("Subjects")) {
+         SubjectContainer->getValueAsListOfDefs("Subjects")) {
       bool Inserted =
           SubjectsToRules
               .try_emplace(Subject, RuleOrAggregateRuleSet::getRule(
@@ -2514,7 +2513,7 @@ static void emitClangAttrTypeArgList(const RecordKeeper &Records,
   std::map<std::string, FSIVecTy> FSIMap;
   for (const auto *Attr : Records.getAllDerivedDefinitions("Attr")) {
     // Determine whether the first argument is a type.
-    std::vector<const Record *> Args = Attr->getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = Attr->getValueAsListOfDefs("Args");
     if (Args.empty())
       continue;
 
@@ -2592,7 +2591,7 @@ static void emitClangAttrVariadicIdentifierArgList(const RecordKeeper &Records,
   std::map<std::string, FSIVecTy> FSIMap;
   for (const auto *A : Records.getAllDerivedDefinitions("Attr")) {
     // Determine whether the first argument is a variadic identifier.
-    std::vector<const Record *> Args = A->getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = A->getValueAsListOfDefs("Args");
     if (Args.empty() || !isVariadicIdentifierArgument(Args[0]))
       continue;
     generateFlattenedSpellingInfo(*A, FSIMap);
@@ -2625,7 +2624,7 @@ emitClangAttrUnevaluatedStringLiteralList(const RecordKeeper &Records,
   std::map<std::string, FSIVecTy> FSIMap;
   for (const auto *Attr : Records.getAllDerivedDefinitions("Attr")) {
     // Determine whether there are any string arguments.
-    uint32_t ArgMask = MakeMask(Attr->getValueAsListOfConstDefs("Args"));
+    uint32_t ArgMask = MakeMask(Attr->getValueAsListOfDefs("Args"));
     if (!ArgMask)
       continue;
     generateFlattenedSpellingInfo(*Attr, FSIMap, ArgMask);
@@ -2641,7 +2640,7 @@ static void emitClangAttrIdentifierArgList(const RecordKeeper &Records,
   std::map<std::string, FSIVecTy> FSIMap;
   for (const auto *Attr : Records.getAllDerivedDefinitions("Attr")) {
     // Determine whether the first argument is an identifier.
-    std::vector<const Record *> Args = Attr->getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = Attr->getValueAsListOfDefs("Args");
     if (Args.empty() || !isIdentifierArgument(Args[0]))
       continue;
     generateFlattenedSpellingInfo(*Attr, FSIMap);
@@ -2659,7 +2658,7 @@ static void emitClangAttrStrictIdentifierArgList(const RecordKeeper &Records,
     if (!Attr->getValueAsBit("StrictEnumParameters"))
       continue;
     // Check that there is really an identifier argument.
-    std::vector<const Record *> Args = Attr->getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = Attr->getValueAsListOfDefs("Args");
     if (none_of(Args, [&](const Record *R) { return isIdentifierArgument(R); }))
       continue;
     generateFlattenedSpellingInfo(*Attr, FSIMap);
@@ -2681,7 +2680,7 @@ static void emitClangAttrThisIsaIdentifierArgList(const RecordKeeper &Records,
   std::map<std::string, FSIVecTy> FSIMap;
   for (const auto *A : Records.getAllDerivedDefinitions("Attr")) {
     // Determine whether the first argument is a variadic identifier.
-    std::vector<const Record *> Args = A->getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = A->getValueAsListOfDefs("Args");
     if (Args.empty() || !keywordThisIsaIdentifierInArgument(Args[0]))
       continue;
     generateFlattenedSpellingInfo(*A, FSIMap);
@@ -2775,8 +2774,7 @@ static void emitAttributes(const RecordKeeper &Records, raw_ostream &OS,
     else
       OS << "\n// " << R.getName() << "Attr implementation\n\n";
 
-    std::vector<const Record *> ArgRecords =
-        R.getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> ArgRecords = R.getValueAsListOfDefs("Args");
     std::vector<std::unique_ptr<Argument>> Args;
     Args.reserve(ArgRecords.size());
 
@@ -3551,7 +3549,7 @@ void EmitClangAttrPCHRead(const RecordKeeper &Records, raw_ostream &OS) {
           std::make_unique<VariadicExprArgument>("DelayedArgs", R.getName());
       DelayedArgs->writePCHReadDecls(OS);
     }
-    ArgRecords = R.getValueAsListOfConstDefs("Args");
+    ArgRecords = R.getValueAsListOfDefs("Args");
     Args.clear();
     for (const auto *Arg : ArgRecords) {
       Args.emplace_back(createArgument(*Arg, R.getName()));
@@ -3590,7 +3588,7 @@ void EmitClangAttrPCHWrite(const RecordKeeper &Records, raw_ostream &OS) {
     if (!R.getValueAsBit("ASTNode"))
       continue;
     OS << "  case attr::" << R.getName() << ": {\n";
-    std::vector<const Record *> Args = R.getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = R.getValueAsListOfDefs("Args");
     if (R.isSubClassOf(InhClass) || !Args.empty())
       OS << "    const auto *SA = cast<" << R.getName()
          << "Attr>(A);\n";
@@ -3781,7 +3779,7 @@ void EmitClangRegularKeywordAttributeInfo(const RecordKeeper &Records,
     for (const auto &S : GetFlattenedSpellings(*R)) {
       if (!isRegularKeywordAttribute(S))
         continue;
-      std::vector<const Record *> Args = R->getValueAsListOfConstDefs("Args");
+      std::vector<const Record *> Args = R->getValueAsListOfDefs("Args");
       bool HasArgs = any_of(
           Args, [](const Record *Arg) { return !Arg->getValueAsBit("Fake"); });
 
@@ -4011,8 +4009,7 @@ void EmitClangAttrTemplateInstantiateHelper(ArrayRef<const Record *> Attrs,
       continue;
     }
 
-    std::vector<const Record *> ArgRecords =
-        R.getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> ArgRecords = R.getValueAsListOfDefs("Args");
     std::vector<std::unique_ptr<Argument>> Args;
     Args.reserve(ArgRecords.size());
 
@@ -4220,7 +4217,7 @@ static void GenerateAppertainsTo(const Record &Attr, raw_ostream &OS) {
 
   const Record *SubjectObj = Attr.getValueAsDef("Subjects");
   std::vector<const Record *> Subjects =
-      SubjectObj->getValueAsListOfConstDefs("Subjects");
+      SubjectObj->getValueAsListOfDefs("Subjects");
 
   // If the list of subjects is empty, it is assumed that the attribute
   // appertains to everything.
@@ -4352,7 +4349,7 @@ static void GenerateMutualExclusionsChecks(const Record &Attr,
   for (const Record *Exclusion :
        Records.getAllDerivedDefinitions("MutualExclusions")) {
     std::vector<const Record *> MutuallyExclusiveAttrs =
-        Exclusion->getValueAsListOfConstDefs("Exclusions");
+        Exclusion->getValueAsListOfDefs("Exclusions");
     auto IsCurAttr = [Attr](const Record *R) {
       return R->getName() == Attr.getName();
     };
@@ -4499,7 +4496,7 @@ static void GenerateLangOptRequirements(const Record &R,
                                         raw_ostream &OS) {
   // If the attribute has an empty or unset list of language requirements,
   // use the default handler.
-  std::vector<const Record *> LangOpts = R.getValueAsListOfConstDefs("LangOpts");
+  std::vector<const Record *> LangOpts = R.getValueAsListOfDefs("LangOpts");
 
   // Attributes inheriting from LanguageOptionsSpecificAttr may share their
   // ParseKind name with other attributes. Attributes like these are considered
@@ -4518,7 +4515,7 @@ static void GenerateLangOptRequirements(const Record &R,
         assert(!I.second->isValueUnset("LangOpts") &&
                "Attributes deriving from LanguageOptionsSpecificAttr must all "
                "define a LangOpts list.");
-        std::vector<Record *> LO = I.second->getValueAsListOfDefs("LangOpts");
+        std::vector<const Record *> LO = I.second->getValueAsListOfDefs("LangOpts");
         LangOpts.insert(LangOpts.end(), LO.begin(), LO.end());
       }
     }
@@ -4670,7 +4667,7 @@ static bool isParamExpr(const Record *Arg) {
 void GenerateIsParamExpr(const Record &Attr, raw_ostream &OS) {
   OS << "bool isParamExpr(size_t N) const override {\n";
   OS << "  return ";
-  auto Args = Attr.getValueAsListOfConstDefs("Args");
+  auto Args = Attr.getValueAsListOfDefs("Args");
   for (size_t I = 0; I < Args.size(); ++I)
     if (isParamExpr(Args[I]))
       OS << "(N == " << I << ") || ";
@@ -4835,7 +4832,7 @@ void EmitClangAttrParsedAttrImpl(const RecordKeeper &Records, raw_ostream &OS) {
     GenerateLangOptRequirements(Attr, Dupes, OS);
     GenerateTargetRequirements(Attr, Dupes, OS);
     GenerateSpellingTargetRequirements(
-        Attr, Attr.getValueAsListOfConstDefs("TargetSpecificSpellings"), OS);
+        Attr, Attr.getValueAsListOfDefs("TargetSpecificSpellings"), OS);
     GenerateSpellingIndexToSemanticSpelling(Attr, OS);
     PragmaAttributeSupport.generateStrictConformsTo(*I->second, OS);
     GenerateHandleDeclAttribute(Attr, OS);
@@ -5003,7 +5000,7 @@ void EmitClangAttrTextNodeDump(const RecordKeeper &Records, raw_ostream &OS) {
     if (Spellings.size() > 1 && !SpellingNamesAreCommon(Spellings))
       SS << "    OS << \" \" << A->getSpelling();\n";
 
-    std::vector<const Record *> Args = R.getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = R.getValueAsListOfDefs("Args");
     for (const auto *Arg : Args)
       createArgument(*Arg, R.getName())->writeDump(SS);
 
@@ -5033,7 +5030,7 @@ void EmitClangAttrNodeTraverse(const RecordKeeper &Records, raw_ostream &OS) {
     std::string FunctionContent;
     raw_string_ostream SS(FunctionContent);
 
-    std::vector<const Record *> Args = R.getValueAsListOfConstDefs("Args");
+    std::vector<const Record *> Args = R.getValueAsListOfDefs("Args");
     for (const auto *Arg : Args)
       createArgument(*Arg, R.getName())->writeDumpChildren(SS);
     if (Attr->getValueAsBit("AcceptsExprPack"))
@@ -5077,8 +5074,7 @@ void EmitClangAttrDocTable(const RecordKeeper &Records, raw_ostream &OS) {
   for (const auto *A : Records.getAllDerivedDefinitions("Attr")) {
     if (!A->getValueAsBit("ASTNode"))
       continue;
-    std::vector<const Record *> Docs =
-        A->getValueAsListOfConstDefs("Documentation");
+    std::vector<const Record *> Docs = A->getValueAsListOfDefs("Documentation");
     assert(!Docs.empty());
     // Only look at the first documentation if there are several.
     // (Currently there's only one such attr, revisit if this becomes common).
@@ -5298,7 +5294,7 @@ void EmitClangAttrDocs(const RecordKeeper &Records, raw_ostream &OS) {
   for (const auto *A : Records.getAllDerivedDefinitions("Attr")) {
     const Record &Attr = *A;
     std::vector<const Record *> Docs =
-        Attr.getValueAsListOfConstDefs("Documentation");
+        Attr.getValueAsListOfDefs("Documentation");
     for (const auto *D : Docs) {
       const Record &Doc = *D;
       const Record *Category = Doc.getValueAsDef("Category");

@@ -505,9 +505,8 @@ static void VerifySignature(ArrayRef<const Record *> Signature,
       }
 
       // Check number of data types.
-      unsigned NTypes = T->getValueAsDef("TypeList")
-                            ->getValueAsListOfConstDefs("List")
-                            .size();
+      unsigned NTypes =
+          T->getValueAsDef("TypeList")->getValueAsListOfDefs("List").size();
       if (NTypes != GenTypeTypes && NTypes != 1) {
         if (GenTypeTypes > 1) {
           // We already saw a gentype with a different number of types.
@@ -537,7 +536,7 @@ void BuiltinNameEmitter::GetOverloads() {
     StringRef BName = B->getValueAsString("Name");
     FctOverloadMap.try_emplace(BName);
 
-    auto Signature = B->getValueAsListOfConstDefs("Signature");
+    auto Signature = B->getValueAsListOfDefs("Signature");
     // Reuse signatures to avoid unnecessary duplicates.
     auto it =
         find_if(SignaturesList,
@@ -662,8 +661,8 @@ void BuiltinNameEmitter::EmitBuiltinTable() {
           Overload.first->getValueAsDef("MaxVersion")->getValueAsInt("ID");
 
       OS << "  { " << Overload.second << ", "
-         << Overload.first->getValueAsListOfConstDefs("Signature").size()
-         << ", " << (Overload.first->getValueAsBit("IsPure")) << ", "
+         << Overload.first->getValueAsListOfDefs("Signature").size() << ", "
+         << (Overload.first->getValueAsBit("IsPure")) << ", "
          << (Overload.first->getValueAsBit("IsConst")) << ", "
          << (Overload.first->getValueAsBit("IsConv")) << ", "
          << (Overload.first->getValueAsBit("IsVariadic")) << ", "
@@ -887,7 +886,7 @@ static QualType getOpenCLTypedefType(Sema &S, llvm::StringRef Name);
     // the plain scalar types for now; other type information such as vector
     // size and type qualifiers will be added after the switch statement.
     std::vector<const Record *> BaseTypes =
-        GenType->getValueAsDef("TypeList")->getValueAsListOfConstDefs("List");
+        GenType->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
 
     // Collect all QualTypes for a single vector size into TypeList.
     OS << "      SmallVector<QualType, " << BaseTypes.size() << "> TypeList;\n";
@@ -1075,8 +1074,7 @@ void OpenCLBuiltinFileEmitterBase::getTypeLists(
     std::vector<int64_t> &VectorList) const {
   bool isGenType = Type->isSubClassOf("GenericType");
   if (isGenType) {
-    TypeList =
-        Type->getValueAsDef("TypeList")->getValueAsListOfConstDefs("List");
+    TypeList = Type->getValueAsDef("TypeList")->getValueAsListOfDefs("List");
     VectorList =
         Type->getValueAsDef("VectorList")->getValueAsListOfInts("List");
     return;
@@ -1262,7 +1260,7 @@ void OpenCLBuiltinTestEmitter::emit() {
     StringRef Name = B->getValueAsString("Name");
 
     SmallVector<SmallVector<std::string, 2>, 4> FTypes;
-    expandTypesInSignature(B->getValueAsListOfConstDefs("Signature"), FTypes);
+    expandTypesInSignature(B->getValueAsListOfDefs("Signature"), FTypes);
 
     OS << "// Test " << Name << "\n";
 
@@ -1331,7 +1329,7 @@ void OpenCLBuiltinHeaderEmitter::emit() {
     std::string OptionalVersionEndif = emitVersionGuard(B);
 
     SmallVector<SmallVector<std::string, 2>, 4> FTypes;
-    expandTypesInSignature(B->getValueAsListOfConstDefs("Signature"), FTypes);
+    expandTypesInSignature(B->getValueAsListOfDefs("Signature"), FTypes);
 
     for (const auto &Signature : FTypes) {
       StringRef OptionalTypeExtEndif = emitTypeExtensionGuards(Signature);
