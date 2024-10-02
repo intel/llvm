@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Must not be guarded. C++ standard says the macro assert is redefined
-// according to the current state of NDEBUG each time that <cassert> is
+// according to the current state of NDEBUG each time that <assert.h> is
 // included.
 
 #if defined(__has_include_next)
