@@ -21,14 +21,15 @@ ur_result_t
 urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
                            ur_image_channel_order_t image_channel_order,
                            CUarray_format *return_cuda_format,
-                           size_t *return_pixel_types_size_bytes);
+                           size_t *return_pixel_types_size_bytes,
+                           unsigned int *return_normalized_dtype_flag);
 
 ur_result_t
 cudaToUrImageChannelFormat(CUarray_format cuda_format,
                            ur_image_channel_type_t *return_image_channel_type);
 
-ur_result_t urTextureCreate(ur_context_handle_t hContext,
-                            ur_sampler_desc_t SamplerDesc,
+ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const ur_image_desc_t *pImageDesc,
-                            CUDA_RESOURCE_DESC ResourceDesc,
+                            const CUDA_RESOURCE_DESC &ResourceDesc,
+                            const unsigned int normalized_dtype_flag,
                             ur_exp_image_native_handle_t *phRetImage);
