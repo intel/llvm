@@ -1736,12 +1736,8 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
 
 // cbrt function wrapper.
 template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
-cbrt(ValueT val) {
-  return sycl::cbrt(static_cast<ValueT>(val));
-}
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>, ValueT>
+cbrt(ValueT val);
 
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or

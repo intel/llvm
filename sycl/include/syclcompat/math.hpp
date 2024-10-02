@@ -721,11 +721,13 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a) {
 
 /// cbrt function wrapper.
 template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
+inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>, ValueT>
 cbrt(ValueT val) {
-  return sycl::cbrt(static_cast<ValueT>(val));
+  if constexpr (std::is_same_v<sycl::ext::oneapi::bfloat16, ValueT>) {
+    return static_cast<ValueT>(sycl::cbrt(static_cast<float>(val)));
+  } else {
+    return sycl::cbrt(static_cast<ValueT>(val));
+  }
 }
 
 // min/max function overloads.
