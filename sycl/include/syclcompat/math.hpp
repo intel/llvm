@@ -32,6 +32,7 @@
 #pragma once
 
 #include <sycl/feature_test.hpp>
+#include <type_traits>
 
 // TODO(syclcompat-lib-reviewers): this should not be required
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
@@ -578,9 +579,8 @@ unordered_compare_both(const ValueT a, const ValueT b,
 /// \param [in] binary_op functor that implements the binary operation
 /// \returns the comparison result
 template <typename ValueT, class BinaryOperation>
-inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
-                             const sycl::vec<ValueT, 2> b,
-                             const BinaryOperation binary_op) {
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op) {
   // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
   return ((-compare(a[0], b[0], binary_op)) << 16) |
          ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
@@ -594,9 +594,9 @@ inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
 /// \param [in] binary_op functor that implements the binary operation
 /// \returns the comparison result
 template <typename ValueT, class BinaryOperation>
-inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
-                                       const sycl::vec<ValueT, 2> b,
-                                       const BinaryOperation binary_op) {
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+unordered_compare_mask(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op) {
   return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
          ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
