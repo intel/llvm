@@ -264,6 +264,8 @@ returns:
       - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate device memory"
@@ -309,6 +311,8 @@ returns:
       - "`size` is greater than $X_DEVICE_INFO_MAX_MEM_ALLOC_SIZE."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate shared memory"
@@ -355,6 +359,8 @@ returns:
       - "If `UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT` and `UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT` are both false."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Free the USM memory object"
@@ -424,6 +430,8 @@ returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If any device associated with `hContext` reports `false` for $X_DEVICE_INFO_USM_POOL_SUPPORT"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Get a reference to the pool handle. Increment its reference count"
@@ -436,6 +444,7 @@ params:
       desc: "[in][retain] pointer to USM memory pool"
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Decrement the pool's reference count and delete the pool if the reference count becomes zero."
@@ -452,6 +461,7 @@ params:
       desc: "[in][release] pointer to USM memory pool"
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get USM memory pool information"
@@ -499,3 +509,4 @@ returns:
         - "`pPropValue == NULL && pPropSizeRet == NULL`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE

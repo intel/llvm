@@ -19,6 +19,11 @@ struct urUSMHostAllocTest
         }
 
         if (usePool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
         }

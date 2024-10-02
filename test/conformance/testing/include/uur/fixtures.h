@@ -846,6 +846,11 @@ struct urUSMDeviceAllocTest : urQueueTest {
 struct urUSMPoolTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_bool_t poolSupport = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
+        if (!poolSupport) {
+            GTEST_SKIP() << "USM pools are not supported.";
+        }
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
@@ -864,6 +869,11 @@ struct urUSMPoolTest : urContextTest {
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_bool_t poolSupport = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+        if (!poolSupport) {
+            GTEST_SKIP() << "USM pools are not supported.";
+        }
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
