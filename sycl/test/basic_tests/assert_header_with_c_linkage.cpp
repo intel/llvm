@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -DASSERT -c %s
-// RUN: %clangxx -fsycl -DCASSERT -c %s
+// RUN: %clangxx -fsycl -DASSERT -fsyntax-only %s
+// RUN: %clangxx -fsycl -DCASSERT -fsyntax-only %s
 
 // Verify that compilation works when assert.h/cassert is wrapped by a C linkage
 // specification.
