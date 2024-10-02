@@ -6990,8 +6990,10 @@ ExprResult SemaSYCL::ActOnUniqueStableNameExpr(SourceLocation OpLoc,
 }
 
 void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
-  // To avoid confusing, we skip issuing warnings for functors that are defined but not used.
-  if (SYCLKernelFunctions.contains(FD) || (FD->getOverloadedOperator() == OverloadedOperatorKind::OO_Call))
+  // To avoid confusing, we skip issuing warnings for functors that are defined
+  // but not used.
+  if (SYCLKernelFunctions.contains(FD) ||
+      (FD->getOverloadedOperator() == OverloadedOperatorKind::OO_Call))
     return;
 
   for (const auto *KernelAttr : std::vector<AttributeCommonInfo *>{
