@@ -9,10 +9,10 @@
 // XFAIL: arch-intel_gpu_pvc
 
 // RUN: %{build} -o %t_runtime_dim_vnni.out -ffp-model=precise -DRUNTIME_DIM -DVNNI
-// RUN: %{run} %t_runtime_dim_vnni.out
+// RUN: %{run} %t_runtime_dim_vnni.out 256
 
 // RUN: %{build} -o %t_runtime_dim.out -ffp-model=precise -DRUNTIME_DIM
-// RUN: %{run} %t_runtime_dim.out
+// RUN: %{run} %t_runtime_dim.out 256
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
