@@ -139,24 +139,6 @@ std::vector<platform> platform_impl::getAdapterPlatforms(AdapterPtr &Adapter,
   return Platforms;
 }
 
-std::vector<platform> platform_impl::get_unsupported_platforms() {
-  std::vector<platform> UnsupportedPlatforms;
-
-  std::vector<AdapterPtr> &Adapters = sycl::detail::ur::initializeUr();
-  // Ignore UR as it has to be supported.
-  for (auto &Adapter : Adapters) {
-    if (Adapter->hasBackend(backend::all)) {
-      continue; // skip UR
-    }
-    std::vector<platform> AdapterPlatforms =
-        getAdapterPlatforms(Adapter, /*Supported=*/false);
-    std::copy(AdapterPlatforms.begin(), AdapterPlatforms.end(),
-              std::back_inserter(UnsupportedPlatforms));
-  }
-
-  return UnsupportedPlatforms;
-}
-
 // This routine has the side effect of registering each platform's last device
 // id into each adapter, which is used for device counting.
 std::vector<platform> platform_impl::get_platforms() {
