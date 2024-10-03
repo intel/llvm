@@ -29,83 +29,138 @@ using namespace llvm::opt;
 
 // Struct that relates an AOT target value with
 // Intel CPUs and GPUs.
-struct StringToOffloadArchIntelMap {
+struct StringToOffloadArchSYCLMap {
   const char *ArchName;
-  OffloadArchIntel IntelArch;
+  SYCLSupportedOffloadArchs IntelArch;
 };
 
-// Mapping of valid --offload-arch values for Intel CPU and GPU
-// AOT targets.
-static const StringToOffloadArchIntelMap StringToArchNamesMap[] = {
-    {"skylake-avx512", OffloadArchIntel::SKYLAKEAVX512},
-    {"core-avx2", OffloadArchIntel::COREAVX2},
-    {"corei7-avx", OffloadArchIntel::COREI7AVX},
-    {"corei7", OffloadArchIntel::COREI7},
-    {"westmere", OffloadArchIntel::WESTMERE},
-    {"sandybridge", OffloadArchIntel::SANDYBRIDGE},
-    {"ivybridge", OffloadArchIntel::IVYBRIDGE},
-    {"broadwell", OffloadArchIntel::BROADWELL},
-    {"coffeelake", OffloadArchIntel::COFFEELAKE},
-    {"alderlake", OffloadArchIntel::ALDERLAKE},
-    {"skylake", OffloadArchIntel::SKYLAKE},
-    {"skx", OffloadArchIntel::SKX},
-    {"cascadelake", OffloadArchIntel::CASCADELAKE},
-    {"icelake-client", OffloadArchIntel::ICELAKECLIENT},
-    {"icelake-server", OffloadArchIntel::ICELAKESERVER},
-    {"sapphirerapids", OffloadArchIntel::SAPPHIRERAPIDS},
-    {"graniterapids", OffloadArchIntel::GRANITERAPIDS},
+// Mapping of supported SYCL offloading architectures.
+static const StringToOffloadArchSYCLMap StringToArchNamesMap[] = {
+    // Intel CPU mapping.
+    {"skylake-avx512", SYCLSupportedOffloadArchs::SKYLAKEAVX512},
+    {"core-avx2", SYCLSupportedOffloadArchs::COREAVX2},
+    {"corei7-avx", SYCLSupportedOffloadArchs::COREI7AVX},
+    {"corei7", SYCLSupportedOffloadArchs::COREI7},
+    {"westmere", SYCLSupportedOffloadArchs::WESTMERE},
+    {"sandybridge", SYCLSupportedOffloadArchs::SANDYBRIDGE},
+    {"ivybridge", SYCLSupportedOffloadArchs::IVYBRIDGE},
+    {"broadwell", SYCLSupportedOffloadArchs::BROADWELL},
+    {"coffeelake", SYCLSupportedOffloadArchs::COFFEELAKE},
+    {"alderlake", SYCLSupportedOffloadArchs::ALDERLAKE},
+    {"skylake", SYCLSupportedOffloadArchs::SKYLAKE},
+    {"skx", SYCLSupportedOffloadArchs::SKX},
+    {"cascadelake", SYCLSupportedOffloadArchs::CASCADELAKE},
+    {"icelake-client", SYCLSupportedOffloadArchs::ICELAKECLIENT},
+    {"icelake-server", SYCLSupportedOffloadArchs::ICELAKESERVER},
+    {"sapphirerapids", SYCLSupportedOffloadArchs::SAPPHIRERAPIDS},
+    {"graniterapids", SYCLSupportedOffloadArchs::GRANITERAPIDS},
     // Intel GPU mapping.
-    {"bdw", OffloadArchIntel::BDW},
-    {"skl", OffloadArchIntel::SKL},
-    {"kbl", OffloadArchIntel::KBL},
-    {"cfl", OffloadArchIntel::CFL},
-    {"apl", OffloadArchIntel::APL},
-    {"bxt", OffloadArchIntel::BXT},
-    {"glk", OffloadArchIntel::GLK},
-    {"whl", OffloadArchIntel::WHL},
-    {"aml", OffloadArchIntel::AML},
-    {"cml", OffloadArchIntel::CML},
-    {"icllp", OffloadArchIntel::ICLLP},
-    {"icl", OffloadArchIntel::ICL},
-    {"ehl", OffloadArchIntel::EHL},
-    {"jsl", OffloadArchIntel::JSL},
-    {"tgllp", OffloadArchIntel::TGLLP},
-    {"tgl", OffloadArchIntel::TGL},
-    {"rkl", OffloadArchIntel::RKL},
-    {"adl_s", OffloadArchIntel::ADL_S},
-    {"rpl_s", OffloadArchIntel::RPL_S},
-    {"adl_p", OffloadArchIntel::ADL_P},
-    {"adl_n", OffloadArchIntel::ADL_N},
-    {"dg1", OffloadArchIntel::DG1},
-    {"acm_g10", OffloadArchIntel::ACM_G10},
-    {"dg2_g10", OffloadArchIntel::DG2_G10},
-    {"acm_g11", OffloadArchIntel::ACM_G11},
-    {"dg2_g10", OffloadArchIntel::DG2_G10},
-    {"dg2_g11", OffloadArchIntel::DG2_G11},
-    {"acm_g12", OffloadArchIntel::ACM_G12},
-    {"dg2_g12", OffloadArchIntel::DG2_G12},
-    {"pvc", OffloadArchIntel::PVC},
-    {"pvc_vg", OffloadArchIntel::PVC_VG},
-    {"mtl_u", OffloadArchIntel::MTL_U},
-    {"mtl_s", OffloadArchIntel::MTL_S},
-    {"arl_u", OffloadArchIntel::ARL_U},
-    {"arl_s", OffloadArchIntel::ARL_S},
-    {"mtl_h", OffloadArchIntel::MTL_H},
-    {"arl_h", OffloadArchIntel::ARL_H},
-    {"bmg_g21", OffloadArchIntel::BMG_G21},
-    {"lnl_m", OffloadArchIntel::LNL_M}};
+    {"bdw", SYCLSupportedOffloadArchs::BDW},
+    {"skl", SYCLSupportedOffloadArchs::SKL},
+    {"kbl", SYCLSupportedOffloadArchs::KBL},
+    {"cfl", SYCLSupportedOffloadArchs::CFL},
+    {"apl", SYCLSupportedOffloadArchs::APL},
+    {"bxt", SYCLSupportedOffloadArchs::BXT},
+    {"glk", SYCLSupportedOffloadArchs::GLK},
+    {"whl", SYCLSupportedOffloadArchs::WHL},
+    {"aml", SYCLSupportedOffloadArchs::AML},
+    {"cml", SYCLSupportedOffloadArchs::CML},
+    {"icllp", SYCLSupportedOffloadArchs::ICLLP},
+    {"icl", SYCLSupportedOffloadArchs::ICL},
+    {"ehl", SYCLSupportedOffloadArchs::EHL},
+    {"jsl", SYCLSupportedOffloadArchs::JSL},
+    {"tgllp", SYCLSupportedOffloadArchs::TGLLP},
+    {"tgl", SYCLSupportedOffloadArchs::TGL},
+    {"rkl", SYCLSupportedOffloadArchs::RKL},
+    {"adl_s", SYCLSupportedOffloadArchs::ADL_S},
+    {"rpl_s", SYCLSupportedOffloadArchs::RPL_S},
+    {"adl_p", SYCLSupportedOffloadArchs::ADL_P},
+    {"adl_n", SYCLSupportedOffloadArchs::ADL_N},
+    {"dg1", SYCLSupportedOffloadArchs::DG1},
+    {"acm_g10", SYCLSupportedOffloadArchs::ACM_G10},
+    {"dg2_g10", SYCLSupportedOffloadArchs::DG2_G10},
+    {"acm_g11", SYCLSupportedOffloadArchs::ACM_G11},
+    {"dg2_g10", SYCLSupportedOffloadArchs::DG2_G10},
+    {"dg2_g11", SYCLSupportedOffloadArchs::DG2_G11},
+    {"acm_g12", SYCLSupportedOffloadArchs::ACM_G12},
+    {"dg2_g12", SYCLSupportedOffloadArchs::DG2_G12},
+    {"pvc", SYCLSupportedOffloadArchs::PVC},
+    {"pvc_vg", SYCLSupportedOffloadArchs::PVC_VG},
+    {"mtl_u", SYCLSupportedOffloadArchs::MTL_U},
+    {"mtl_s", SYCLSupportedOffloadArchs::MTL_S},
+    {"arl_u", SYCLSupportedOffloadArchs::ARL_U},
+    {"arl_s", SYCLSupportedOffloadArchs::ARL_S},
+    {"mtl_h", SYCLSupportedOffloadArchs::MTL_H},
+    {"arl_h", SYCLSupportedOffloadArchs::ARL_H},
+    {"bmg_g21", SYCLSupportedOffloadArchs::BMG_G21},
+    {"lnl_m", SYCLSupportedOffloadArchs::LNL_M},
+    // AMD GPU Mapping
+    {"gfx700", SYCLSupportedOffloadArchs::GFX700},
+    {"gfx701", SYCLSupportedOffloadArchs::GFX701},
+    {"gfx702", SYCLSupportedOffloadArchs::GFX702},
+    {"gfx801", SYCLSupportedOffloadArchs::GFX801},
+    {"gfx802", SYCLSupportedOffloadArchs::GFX802},
+    {"gfx803", SYCLSupportedOffloadArchs::GFX803},
+    {"gfx805", SYCLSupportedOffloadArchs::GFX805},
+    {"gfx810", SYCLSupportedOffloadArchs::GFX810},
+    {"gfx900", SYCLSupportedOffloadArchs::GFX900},
+    {"gfx902", SYCLSupportedOffloadArchs::GFX902},
+    {"gfx904", SYCLSupportedOffloadArchs::GFX904},
+    {"gfx906", SYCLSupportedOffloadArchs::GFX906},
+    {"gfx908", SYCLSupportedOffloadArchs::GFX908},
+    {"gfx909", SYCLSupportedOffloadArchs::GFX909},
+    {"gfx90a", SYCLSupportedOffloadArchs::GFX90A},
+    {"gfx90c", SYCLSupportedOffloadArchs::GFX90C},
+    {"gfx940", SYCLSupportedOffloadArchs::GFX940},
+    {"gfx941", SYCLSupportedOffloadArchs::GFX941},
+    {"gfx942", SYCLSupportedOffloadArchs::GFX942},
+    {"gfx1010", SYCLSupportedOffloadArchs::GFX1010},
+    {"gfx1011", SYCLSupportedOffloadArchs::GFX1011},
+    {"gfx1012", SYCLSupportedOffloadArchs::GFX1012},
+    {"gfx1013", SYCLSupportedOffloadArchs::GFX1013},
+    {"gfx1030", SYCLSupportedOffloadArchs::GFX1030},
+    {"gfx1031", SYCLSupportedOffloadArchs::GFX1031},
+    {"gfx1032", SYCLSupportedOffloadArchs::GFX1032},
+    {"gfx1033", SYCLSupportedOffloadArchs::GFX1033},
+    {"gfx1034", SYCLSupportedOffloadArchs::GFX1034},
+    {"gfx1035", SYCLSupportedOffloadArchs::GFX1035},
+    {"gfx1036", SYCLSupportedOffloadArchs::GFX1036},
+    {"gfx1100", SYCLSupportedOffloadArchs::GFX1100},
+    {"gfx1101", SYCLSupportedOffloadArchs::GFX1101},
+    {"gfx1102", SYCLSupportedOffloadArchs::GFX1102},
+    {"gfx1103", SYCLSupportedOffloadArchs::GFX1103},
+    {"gfx1150", SYCLSupportedOffloadArchs::GFX1150},
+    {"gfx1151", SYCLSupportedOffloadArchs::GFX1151},
+    {"gfx1200", SYCLSupportedOffloadArchs::GFX1200},
+    {"gfx1201", SYCLSupportedOffloadArchs::GFX1201},
+    // NVidia GPU Mapping.
+    {"sm_50", SYCLSupportedOffloadArchs::SM_50},
+    {"sm_52", SYCLSupportedOffloadArchs::SM_52},
+    {"sm_53", SYCLSupportedOffloadArchs::SM_53},
+    {"sm_60", SYCLSupportedOffloadArchs::SM_60},
+    {"sm_61", SYCLSupportedOffloadArchs::SM_61},
+    {"sm_62", SYCLSupportedOffloadArchs::SM_62},
+    {"sm_70", SYCLSupportedOffloadArchs::SM_70},
+    {"sm_72", SYCLSupportedOffloadArchs::SM_72},
+    {"sm_75", SYCLSupportedOffloadArchs::SM_75},
+    {"sm_80", SYCLSupportedOffloadArchs::SM_80},
+    {"sm_86", SYCLSupportedOffloadArchs::SM_86},
+    {"sm_87", SYCLSupportedOffloadArchs::SM_87},
+    {"sm_89", SYCLSupportedOffloadArchs::SM_89},
+    {"sm_90", SYCLSupportedOffloadArchs::SM_90},
+    {"sm_90a", SYCLSupportedOffloadArchs::SM_90A}};
 
 // Check if the user provided value for --offload-arch is a valid
 // Intel CPU or Intel GPU target.
-OffloadArchIntel
-clang::driver::StringToOffloadArchIntel(llvm::StringRef ArchNameAsString) {
+SYCLSupportedOffloadArchs
+clang::driver::StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString) {
   auto result = std::find_if(
       std::begin(StringToArchNamesMap), std::end(StringToArchNamesMap),
-      [ArchNameAsString](const StringToOffloadArchIntelMap &map) {
+      [ArchNameAsString](const StringToOffloadArchSYCLMap &map) {
         return ArchNameAsString == map.ArchName;
       });
   if (result == std::end(StringToArchNamesMap))
-    return OffloadArchIntel::UNKNOWN;
+    return SYCLSupportedOffloadArchs::UNKNOWN;
   return result->IntelArch;
 }
 

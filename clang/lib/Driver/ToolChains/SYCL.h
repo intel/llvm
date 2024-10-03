@@ -16,10 +16,10 @@
 namespace clang {
 namespace driver {
 
-// List of supported Intel values for CPUs
-// and GPUs.
-enum class OffloadArchIntel {
-  // CPUs
+// List of architectures (Intel CPU, Intel GPU, AMD GPU, NVidia GPU)
+// that support SYCL offloading.
+enum class SYCLSupportedOffloadArchs {
+  // Intel CPUs
   UNKNOWN,
   SKYLAKEAVX512,
   COREAVX2,
@@ -38,7 +38,7 @@ enum class OffloadArchIntel {
   ICELAKESERVER,
   SAPPHIRERAPIDS,
   GRANITERAPIDS,
-  // GPUs
+  // Intel GPUs
   BDW,
   SKL,
   KBL,
@@ -76,23 +76,93 @@ enum class OffloadArchIntel {
   MTL_H,
   ARL_H,
   BMG_G21,
-  LNL_M
+  LNL_M,
+  // AMD GPUs
+  GFX700,
+  GFX701,
+  GFX702,
+  GFX801,
+  GFX802,
+  GFX803,
+  GFX805,
+  GFX810,
+  GFX900,
+  GFX902,
+  GFX904,
+  GFX906,
+  GFX908,
+  GFX909,
+  GFX90A,
+  GFX90C,
+  GFX940,
+  GFX941,
+  GFX942,
+  GFX1010,
+  GFX1011,
+  GFX1012,
+  GFX1013,
+  GFX1030,
+  GFX1031,
+  GFX1032,
+  GFX1033,
+  GFX1034,
+  GFX1035,
+  GFX1036,
+  GFX1100,
+  GFX1101,
+  GFX1102,
+  GFX1103,
+  GFX1150,
+  GFX1151,
+  GFX1200,
+  GFX1201,
+  // NVidia GPUs.
+  SM_50,
+  SM_52,
+  SM_53,
+  SM_60,
+  SM_61,
+  SM_62,
+  SM_70,
+  SM_72,
+  SM_75,
+  SM_80,
+  SM_86,
+  SM_87,
+  SM_89,
+  SM_90,
+  SM_90A
 };
 
+// Check if the given Arch value is a valid SYCL supported AMD GPU.
+static inline bool IsSYCLSupportedAMDGPUArch(SYCLSupportedOffloadArchs Arch) {
+  return Arch >= SYCLSupportedOffloadArchs::GFX700 &&
+         Arch <= SYCLSupportedOffloadArchs::GFX1201;
+}
+
+// Check if the given Arch value is a valid SYCL supported NVidia GPU.
+static inline bool
+IsSYCLSupportedNVidiaGPUArch(SYCLSupportedOffloadArchs Arch) {
+  return Arch >= SYCLSupportedOffloadArchs::SM_50 &&
+         Arch <= SYCLSupportedOffloadArchs::SM_90A;
+}
+
 // Check if the given Arch value is a valid Intel CPU.
-static inline bool IsIntelCPUOffloadArch(OffloadArchIntel Arch) {
-  return Arch >= OffloadArchIntel::SKYLAKEAVX512 &&
-         Arch < OffloadArchIntel::BDW;
+static inline bool IsSYCLSupportedIntelCPUArch(SYCLSupportedOffloadArchs Arch) {
+  return Arch >= SYCLSupportedOffloadArchs::SKYLAKEAVX512 &&
+         Arch < SYCLSupportedOffloadArchs::BDW;
 }
 
 // Check if the given Arch value is a valid Intel GPU.
-static inline bool IsIntelGPUOffloadArch(OffloadArchIntel Arch) {
-  return Arch >= OffloadArchIntel::BDW && Arch <= OffloadArchIntel::LNL_M;
+static inline bool IsSYCLSupportedIntelGPUArch(SYCLSupportedOffloadArchs Arch) {
+  return Arch >= SYCLSupportedOffloadArchs::BDW &&
+         Arch <= SYCLSupportedOffloadArchs::LNL_M;
 }
 
-// Mapping of valid --offload-arch values for Intel CPU and GPU
-// AOT targets.
-OffloadArchIntel StringToOffloadArchIntel(llvm::StringRef ArchNameAsString);
+// Check if the user provided value for --offload-arch is a valid
+// Intel CPU or Intel GPU target.
+SYCLSupportedOffloadArchs
+StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString);
 
 // This is a mapping between the user provided --offload-arch value for Intel
 // GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU

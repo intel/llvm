@@ -1338,17 +1338,17 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Archs.insert(Arch);
     }
     for (StringRef Arch : Archs) {
-      if (NVPTXTriple && IsNVIDIAOffloadArch(StringToOffloadArch(
+      if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArchSYCL(
                              getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
         DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
       } else if (AMDTriple &&
-                 IsAMDOffloadArch(StringToOffloadArch(
+                 IsSYCLSupportedAMDGPUArch(StringToOffloadArchSYCL(
                      getProcessorFromTargetID(*AMDTriple, Arch)))) {
         DerivedArchs[AMDTriple->getTriple()].insert(Arch);
-      } else if (IsIntelCPUOffloadArch(StringToOffloadArchIntel(Arch))) {
+      } else if (IsSYCLSupportedIntelCPUArch(StringToOffloadArchSYCL(Arch))) {
         DerivedArchs[MakeSYCLDeviceTriple("spir64_x86_64").getTriple()].insert(
             Arch);
-      } else if (IsIntelGPUOffloadArch(StringToOffloadArchIntel(Arch))) {
+      } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch))) {
         StringRef IntelGPUArch;
         IntelGPUArch = mapIntelGPUArchName(Arch).data();
         DerivedArchs[MakeSYCLDeviceTriple("spir64_gen").getTriple()].insert(
