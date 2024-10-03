@@ -123,7 +123,9 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
   std::ignore = hProgram;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -138,21 +140,27 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   std::ignore = phPrograms;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
                                                         uint32_t,
                                                         ur_device_handle_t *,
                                                         const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
                                                       uint32_t,
                                                       ur_device_handle_t *,
                                                       const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled and linked,
+  // so urProgramBuild is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -161,7 +169,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
