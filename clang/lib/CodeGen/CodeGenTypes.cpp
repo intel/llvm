@@ -808,8 +808,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       SkippedLayout = true;
       ResultType = llvm::Type::getInt8Ty(getLLVMContext());
     }
-    ResultType = llvm::ArrayType::get(
-        ResultType, 0);
+    ResultType = llvm::ArrayType::get(ResultType, 0);
     break;
   }
   case Type::ArrayParameter:
