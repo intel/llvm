@@ -807,7 +807,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     if (!ResultType->isSized()) {
       SkippedLayout = true;
       ResultType = llvm::Type::getInt8Ty(getLLVMContext());
-    } 
+    }
     ResultType = llvm::ArrayType::get(ResultType, Context.getLangOpts().SYCLIsDevice ? 1 : 0);
     break;
   }
