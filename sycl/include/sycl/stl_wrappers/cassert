@@ -16,6 +16,7 @@
 #include <../include/cassert>
 #endif
 
+extern "C++" {
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
 
@@ -42,3 +43,4 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
 #endif
 #endif
 #endif
+}
