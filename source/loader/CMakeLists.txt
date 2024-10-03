@@ -19,6 +19,7 @@ add_ur_library(ur_loader
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
+install_ur_library(ur_loader)
 
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
@@ -100,13 +101,6 @@ if(UNIX)
         @ONLY)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libur_loader.pc" DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig" COMPONENT unified-runtime)
 endif()
-
-install(TARGETS ur_loader
-    EXPORT ${PROJECT_NAME}-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
-)
 
 target_sources(ur_loader
     PRIVATE
