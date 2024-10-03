@@ -8,14 +8,10 @@
 
 // Verify that '-fcuda-is-device' is not supplied when offloading SYCL on NVPTX
 // RUN: %clangxx -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --offload-arch=sm_80 -nocudalib -fno-sycl-libspirv %s 2>&1 \
-// RUN: | FileCheck --check-prefix=CHECK-CUDA-IS-DEVICE-NVPTX %s
-// CHECK-CUDA-IS-DEVICE-NVPTX: clang{{.*}} "-cc1" "-triple" "nvptx64-nvidia-cuda"
-// CHECK-CUDA-IS-DEVICE-NVPTX-NOT: "-fcuda-is-device"
-// CHECK-CUDA-IS-DEVICE-NVPTX-SAME: "-fsycl-is-device"
-
+// RUN: | FileCheck --check-prefix=CHECK-CUDA-IS-DEVICE -DTRIPLE=nvptx64-nvidia-cuda %s
 // Verify that '-fcuda-is-device' is not supplied when offloading SYCL on AMDGPU
 // RUN: %clangxx -### -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx90a -nogpulib -fno-sycl-libspirv %s 2>&1 \
-// RUN: | FileCheck --check-prefix=CHECK-CUDA-IS-DEVICE-AMDGPU %s
-// CHECK-CUDA-IS-DEVICE-AMDGPU: clang{{.*}} "-cc1" "-triple" "amdgcn-amd-amdhsa"
-// CHECK-CUDA-IS-DEVICE-AMDGPU-NOT: "-fcuda-is-device"
-// CHECK-CUDA-IS-DEVICE-AMDGPU-SAME: "-fsycl-is-device"
+// RUN: | FileCheck --check-prefix=CHECK-CUDA-IS-DEVICE -DTRIPLE=amdgcn-amd-amdhsa %s
+// CHECK-CUDA-IS-DEVICE: clang{{.*}} "-cc1" "-triple" "[[TRIPLE]]"
+// CHECK-CUDA-IS-DEVICE-NOT: "-fcuda-is-device"
+// CHECK-CUDA-IS-DEVICE-SAME: "-fsycl-is-device"
