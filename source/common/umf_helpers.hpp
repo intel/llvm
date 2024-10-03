@@ -162,11 +162,11 @@ auto memoryProviderMakeUnique(Args &&...args) {
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
 
     UMF_ASSIGN_OP(ops, T, alloc, UMF_RESULT_ERROR_UNKNOWN);
-    UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP_NORETURN(ops, T, get_last_native_error);
     UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops, T, get_name, "");
+    UMF_ASSIGN_OP(ops.ext, T, free, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, purge_force, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
