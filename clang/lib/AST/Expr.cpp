@@ -3697,6 +3697,7 @@ bool Expr::HasSideEffects(const ASTContext &Ctx,
   case SYCLUniqueStableIdExprClass:
   case PackIndexingExprClass:
   case HLSLOutArgExprClass:
+  case OpenACCAsteriskSizeExprClass:
     // These never have a side-effect.
     return false;
 
@@ -5464,4 +5465,14 @@ HLSLOutArgExpr *HLSLOutArgExpr::Create(const ASTContext &C, QualType Ty,
 
 HLSLOutArgExpr *HLSLOutArgExpr::CreateEmpty(const ASTContext &C) {
   return new (C) HLSLOutArgExpr(EmptyShell());
+}
+
+OpenACCAsteriskSizeExpr *OpenACCAsteriskSizeExpr::Create(const ASTContext &C,
+                                                         SourceLocation Loc) {
+  return new (C) OpenACCAsteriskSizeExpr(Loc, C.IntTy);
+}
+
+OpenACCAsteriskSizeExpr *
+OpenACCAsteriskSizeExpr::CreateEmpty(const ASTContext &C) {
+  return new (C) OpenACCAsteriskSizeExpr({}, C.IntTy);
 }

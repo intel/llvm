@@ -108,10 +108,14 @@ class ObjCSubscriptRefExpr;
 class ObjCIsaExpr;
 class ObjCIndirectCopyRestoreExpr;
 class ObjCMessageExpr;
+<<<<<<< HEAD
 class SYCLBuiltinNumFieldsExpr;
 class SYCLBuiltinNumBasesExpr;
 class SYCLBuiltinFieldTypeExpr;
 class SYCLBuiltinBaseTypeExpr;
+=======
+class OpenACCAsteriskSizeExpr;
+>>>>>>> d412cea8c4f26f451aee46641e384e8df62a5904
 
 // The following functions are called from constructors of `Expr`, so they
 // should not access anything beyond basic
@@ -209,6 +213,7 @@ ExprDependence computeDependence(ObjCSubscriptRefExpr *E);
 ExprDependence computeDependence(ObjCIsaExpr *E);
 ExprDependence computeDependence(ObjCIndirectCopyRestoreExpr *E);
 ExprDependence computeDependence(ObjCMessageExpr *E);
+ExprDependence computeDependence(OpenACCAsteriskSizeExpr *E);
 
 ExprDependence computeDependence(SYCLBuiltinNumFieldsExpr *E);
 ExprDependence computeDependence(SYCLBuiltinNumBasesExpr *E);
