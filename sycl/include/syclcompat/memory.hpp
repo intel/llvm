@@ -97,6 +97,9 @@ enum class target { device, local };
 
 using byte_t = uint8_t;
 
+/// Buffer type to be used in Memory Management runtime.
+typedef sycl::buffer<byte_t> buffer_t;
+
 /// Pitched 2D/3D memory data.
 class pitched_data {
 public:
@@ -158,6 +161,126 @@ struct memcpy_parameter {
 } // namespace experimental
 
 namespace detail {
+class mem_mgr {
+  mem_mgr() {
+    // Reserved address space, no real memory allocation happens here.
+#if defined(__linux__)
+    mapped_address_space =
+        (byte_t *)mmap(nullptr, mapped_region_size, PROT_NONE,
+                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#elif defined(_WIN64)
+    mapped_address_space = (byte_t *)VirtualAlloc(
+        NULL,               // NULL specified as the base address parameter
+        mapped_region_size, // Size of allocation
+        MEM_RESERVE,        // Allocate reserved pages
+        PAGE_NOACCESS);     // Protection = no access
+#else
+#error "Only support Windows and Linux."
+#endif
+    next_free = mapped_address_space;
+  };
+
+public:
+  using buffer_id_t = int;
+
+  struct allocation {
+    buffer_t buffer;
+    byte_t *alloc_ptr;
+    size_t size;
+  };
+
+  ~mem_mgr() {
+#if defined(__linux__)
+    munmap(mapped_address_space, mapped_region_size);
+#elif defined(_WIN64)
+    VirtualFree(mapped_address_space, 0, MEM_RELEASE);
+#else
+#error "Only support Windows and Linux."
+#endif
+  };
+
+  mem_mgr(const mem_mgr &) = delete;
+  mem_mgr &operator=(const mem_mgr &) = delete;
+  mem_mgr(mem_mgr &&) = delete;
+  mem_mgr &operator=(mem_mgr &&) = delete;
+
+  /// Allocate
+  void *mem_alloc(size_t size) {
+    if (!size)
+      return nullptr;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (next_free + size > mapped_address_space + mapped_region_size) {
+      throw std::runtime_error("dpct_malloc: out of memory for virtual memory pool");
+    }
+    // Allocation
+    sycl::range<1> r(size);
+    buffer_t buf(r);
+    allocation A{buf, next_free, size};
+    // Map allocation to device pointer
+    void *result = next_free;
+    m_map.emplace(next_free + size, A);
+    // Update pointer to the next free space.
+    next_free += (size + extra_padding + alignment - 1) & ~(alignment - 1);
+
+    return result;
+  }
+
+  /// Deallocate
+  void mem_free(const void *ptr) {
+    if (!ptr)
+      return;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = get_map_iterator(ptr);
+    m_map.erase(it);
+  }
+
+  /// map: device pointer -> allocation(buffer, alloc_ptr, size)
+  allocation translate_ptr(const void *ptr) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    auto it = get_map_iterator(ptr);
+    return it->second;
+  }
+
+  /// Check if the pointer represents device pointer or not.
+  bool is_device_ptr(const void *ptr) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return (mapped_address_space <= ptr) &&
+           (ptr < mapped_address_space + mapped_region_size);
+  }
+
+  /// Returns the instance of memory manager singleton.
+  static mem_mgr &instance() {
+    static mem_mgr m;
+    return m;
+  }
+
+private:
+  std::map<byte_t *, allocation> m_map;
+  mutable std::mutex m_mutex;
+  byte_t *mapped_address_space;
+  byte_t *next_free;
+  const size_t mapped_region_size = 128ull * 1024 * 1024 * 1024;
+  const size_t alignment = 256;
+  /// This padding may be defined to some positive value to debug
+  /// out of bound accesses.
+  const size_t extra_padding = 0;
+
+  std::map<byte_t *, allocation>::iterator get_map_iterator(const void *ptr) {
+    auto it = m_map.upper_bound((byte_t *)ptr);
+    if (it == m_map.end()) {
+      // Not a virtual pointer.
+      throw std::runtime_error("can not get buffer from non-virtual pointer");
+    }
+    const allocation &alloc = it->second;
+    if (ptr < alloc.alloc_ptr) {
+      // Out of bound.
+      // This may happen if there's a gap between allocations due to alignment
+      // or extra padding and pointer points to this gap.
+      throw std::runtime_error("invalid virtual pointer");
+    }
+    return it;
+  }
+};
 
 template <class T, memory_region Memory, size_t Dimension> class accessor;
 template <memory_region Memory, class T = byte_t> class memory_traits {
