@@ -283,11 +283,8 @@ public:
 
   void VisitDeclRefExpr(const DeclRefExpr *DRE);
   void VisitSYCLUniqueStableNameExpr(const SYCLUniqueStableNameExpr *E);
-<<<<<<< HEAD
   void VisitSYCLUniqueStableIdExpr(const SYCLUniqueStableIdExpr *E);
-=======
   void VisitOpenACCAsteriskSizeExpr(const OpenACCAsteriskSizeExpr *E);
->>>>>>> d412cea8c4f26f451aee46641e384e8df62a5904
   void VisitPredefinedExpr(const PredefinedExpr *PE);
   void VisitUnaryOperator(const UnaryOperator *UO);
   void VisitBinaryOperator(const BinaryOperator *BO);

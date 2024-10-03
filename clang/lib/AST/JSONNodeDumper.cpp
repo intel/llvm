@@ -1354,13 +1354,11 @@ void JSONNodeDumper::VisitSYCLUniqueStableNameExpr(
                 createQualType(E->getTypeSourceInfo()->getType()));
 }
 
-<<<<<<< HEAD
 void JSONNodeDumper::VisitSYCLUniqueStableIdExpr(
     const SYCLUniqueStableIdExpr *E) {}
-=======
+
 void JSONNodeDumper::VisitOpenACCAsteriskSizeExpr(
     const OpenACCAsteriskSizeExpr *E) {}
->>>>>>> d412cea8c4f26f451aee46641e384e8df62a5904
 
 void JSONNodeDumper::VisitPredefinedExpr(const PredefinedExpr *PE) {
   JOS.attribute("name", PredefinedExpr::getIdentKindName(PE->getIdentKind()));

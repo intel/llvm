@@ -963,7 +963,6 @@ ExprDependence clang::computeDependence(ObjCMessageExpr *E) {
   return D;
 }
 
-<<<<<<< HEAD
 ExprDependence clang::computeDependence(SYCLBuiltinNumFieldsExpr *E) {
   return toExprDependenceAsWritten(E->getSourceType()->getDependence()) &
          ~ExprDependence::Type;
@@ -986,10 +985,10 @@ ExprDependence clang::computeDependence(SYCLBuiltinBaseTypeExpr *E) {
            ~ExprDependence::Type;
   D |= E->getIndex()->getDependence();
   return D;
-=======
+}
+
 ExprDependence clang::computeDependence(OpenACCAsteriskSizeExpr *E) {
   // This represents a simple asterisk as typed, so cannot be dependent in any
   // way.
   return ExprDependence::None;
->>>>>>> d412cea8c4f26f451aee46641e384e8df62a5904
 }

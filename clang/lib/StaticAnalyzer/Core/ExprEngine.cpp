@@ -1970,11 +1970,8 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
     case Stmt::OMPArrayShapingExprClass:
     case Stmt::OMPIteratorExprClass:
     case Stmt::SYCLUniqueStableNameExprClass:
-<<<<<<< HEAD
     case Stmt::SYCLUniqueStableIdExprClass:
-=======
     case Stmt::OpenACCAsteriskSizeExprClass:
->>>>>>> d412cea8c4f26f451aee46641e384e8df62a5904
     case Stmt::TypeTraitExprClass: {
       Bldr.takeNodes(Pred);
       ExplodedNodeSet preVisit;
