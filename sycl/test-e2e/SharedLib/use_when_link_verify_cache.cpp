@@ -50,19 +50,19 @@ void run() {
 }
 int main() {
 #ifdef FOO_FIRST
-  // CHECK-FIRST: urProgramBuild
+  // CHECK-FIRST: <--- urProgramBuild
   // CHECK-FIRST: Foo: 1
   // CHECK-FIRST: Foo: 1
   assert(foo() == 1);
   assert(foo() == 1);
 #endif
-  // CHECK: urProgramBuild
+  // CHECK: <--- urProgramBuild
   // CHECK: Main: 2
   // CHECK: Main: 2
   run();
   run();
 #ifndef FOO_FIRST
-  // CHECK-LAST: urProgramBuild
+  // CHECK-LAST: <--- urProgramBuild
   // CHECK-LAST: Foo: 1
   // CHECK-LAST: Foo: 1
   assert(foo() == 1);
