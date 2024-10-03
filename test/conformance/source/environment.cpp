@@ -6,8 +6,11 @@
 #include <algorithm>
 #include <cstring>
 #include <fstream>
+#include <sstream>
 
+#include "ur_api.h"
 #include "ur_filesystem_resolved.hpp"
+#include "uur/checks.h"
 
 #ifdef KERNELS_ENVIRONMENT
 #include "kernel_entry_points.h"
@@ -23,31 +26,44 @@ constexpr char ERROR_NO_ADAPTER[] = "Could not load adapter";
 
 PlatformEnvironment *PlatformEnvironment::instance = nullptr;
 
-std::ostream &operator<<(std::ostream &out,
-                         const ur_platform_handle_t &platform) {
-    size_t size;
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, 0, nullptr, &size);
-    std::vector<char> name(size);
-    urPlatformGetInfo(platform, UR_PLATFORM_INFO_NAME, size, name.data(),
-                      nullptr);
-    out << name.data();
-    return out;
-}
+constexpr std::pair<const char *, ur_platform_backend_t> backends[] = {
+    {"LEVEL_ZERO", UR_PLATFORM_BACKEND_LEVEL_ZERO},
+    {"L0", UR_PLATFORM_BACKEND_LEVEL_ZERO},
+    {"OPENCL", UR_PLATFORM_BACKEND_OPENCL},
+    {"CUDA", UR_PLATFORM_BACKEND_CUDA},
+    {"HIP", UR_PLATFORM_BACKEND_HIP},
+    {"NATIVE_CPU", UR_PLATFORM_BACKEND_NATIVE_CPU},
+    {"UNKNOWN", UR_PLATFORM_BACKEND_UNKNOWN},
+    {"MOCK", UR_PLATFORM_BACKEND_UNKNOWN},
+};
+
+namespace {
+constexpr const char *backend_to_str(ur_platform_backend_t backend) {
+    for (auto b : backends) {
+        if (b.second == backend) {
+            return b.first;
+        }
+    }
+    return "INVALID";
+};
+
+ur_platform_backend_t str_to_backend(std::string str) {
+
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    for (auto b : backends) {
+        if (b.first == str) {
+            return b.second;
+        }
+    }
+    return UR_PLATFORM_BACKEND_UNKNOWN;
+};
+} // namespace
 
 std::ostream &operator<<(std::ostream &out,
                          const std::vector<ur_platform_handle_t> &platforms) {
     for (auto platform : platforms) {
         out << "\n  * \"" << platform << "\"";
     }
-    return out;
-}
-
-std::ostream &operator<<(std::ostream &out, const ur_device_handle_t &device) {
-    size_t size;
-    urDeviceGetInfo(device, UR_DEVICE_INFO_NAME, 0, nullptr, &size);
-    std::vector<char> name(size);
-    urDeviceGetInfo(device, UR_DEVICE_INFO_NAME, size, name.data(), nullptr);
-    out << name.data();
     return out;
 }
 
@@ -62,6 +78,10 @@ std::ostream &operator<<(std::ostream &out,
 uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
     : platform_options{parsePlatformOptions(argc, argv)} {
     instance = this;
+    // Check for errors from parsing platform options
+    if (!error.empty()) {
+        return;
+    }
 
     ur_loader_config_handle_t config;
     if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
@@ -95,79 +115,119 @@ uur::PlatformEnvironment::PlatformEnvironment(int argc, char **argv)
         return;
     }
 
+    selectPlatformFromOptions();
+}
+
+void uur::PlatformEnvironment::selectPlatformFromOptions() {
     uint32_t adapter_count = 0;
     urAdapterGet(0, nullptr, &adapter_count);
     adapters.resize(adapter_count);
     urAdapterGet(adapter_count, adapters.data(), nullptr);
 
-    // Search through the adapters individually so we can store the one we end
-    // up choosing.
+    struct platform_info {
+        ur_adapter_handle_t adapter;
+        ur_platform_handle_t platform;
+        std::string name;
+        ur_platform_backend_t backend;
+    };
+    std::vector<platform_info> platforms;
     for (auto a : adapters) {
         uint32_t count = 0;
-        if (urPlatformGet(&a, 1, 0, nullptr, &count)) {
-            error = "urPlatformGet() failed to get number of platforms.";
-            return;
+        ASSERT_SUCCESS(urPlatformGet(&a, 1, 0, nullptr, &count));
+        std::vector<ur_platform_handle_t> platform_list(count);
+        ASSERT_SUCCESS(
+            urPlatformGet(&a, 1, count, platform_list.data(), nullptr));
+
+        for (auto p : platform_list) {
+            ur_platform_backend_t backend;
+            ASSERT_SUCCESS(urPlatformGetInfo(p, UR_PLATFORM_INFO_BACKEND,
+                                             sizeof(ur_platform_backend_t),
+                                             &backend, nullptr));
+
+            size_t size;
+            ASSERT_SUCCESS(
+                urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, 0, nullptr, &size));
+            std::vector<char> platform_name{};
+            platform_name.reserve(size);
+            ASSERT_SUCCESS(urPlatformGetInfo(p, UR_PLATFORM_INFO_NAME, size,
+                                             platform_name.data(), nullptr));
+
+            platforms.push_back(platform_info{
+                a, p, std::string(platform_name.data()), backend});
         }
+    }
 
-        if (count == 0) {
-            error = "Failed to find any platforms.";
-            return;
-        }
-
-        std::vector<ur_platform_handle_t> platforms(count);
-        if (urPlatformGet(&a, 1, count, platforms.data(), nullptr)) {
-            error = "urPlatformGet failed to get platforms.";
-            return;
-        }
-
-        if (platform_options.platform_name.empty()) {
-
-            if (platforms.size() == 1 ||
-                platform_options.platforms_count == 1) {
-                platform = platforms[0];
-                adapter = a;
-            } else {
-                std::stringstream ss_error;
-                ss_error << "Select a single platform from below using the "
-                            "--platform=NAME "
-                            "command-line option:"
-                         << platforms << std::endl
-                         << "or set --platforms_count=1.";
-                error = ss_error.str();
-                return;
-            }
+    std::string default_name{};
+    std::map<ur_platform_backend_t, std::string> backend_platform_names{};
+    auto stream = std::stringstream{platform_options.platform_name};
+    for (std::string filter; std::getline(stream, filter, ';');) {
+        auto split = filter.find(':');
+        if (split == std::string::npos) {
+            default_name = filter;
+        } else if (split == filter.length() - 1) {
+            // E.g: `OPENCL:`, ignore it
         } else {
-            for (auto candidate : platforms) {
-                size_t size;
-                if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, 0,
-                                      nullptr, &size)) {
-                    error = "urPlatformGetInfoFailed";
-                    return;
-                }
-                std::vector<char> platform_name(size);
-                if (urPlatformGetInfo(candidate, UR_PLATFORM_INFO_NAME, size,
-                                      platform_name.data(), nullptr)) {
-                    error = "urPlatformGetInfo() failed";
-                    return;
-                }
-                if (platform_options.platform_name == platform_name.data()) {
-                    platform = candidate;
-                    adapter = a;
-                    break;
-                }
-            }
-            if (!platform) {
-                std::stringstream ss_error;
-                ss_error << "Platform \"" << platform_options.platform_name
-                         << "\" not found. Select a single platform from below "
-                            "using the "
-                            "--platform=NAME command-line options:"
-                         << platforms << std::endl
-                         << "or set --platforms_count=1.";
-                error = ss_error.str();
-                return;
-            }
+            backend_platform_names.insert(
+                {str_to_backend(filter.substr(0, split)),
+                 filter.substr(split + 1)});
         }
+    }
+
+    std::vector<platform_info> platforms_filtered{};
+    std::copy_if(platforms.begin(), platforms.end(),
+                 std::inserter(platforms_filtered, platforms_filtered.begin()),
+                 [&](platform_info info) {
+                     if (!default_name.empty() && default_name != info.name) {
+                         return false;
+                     }
+                     if (backend_platform_names.count(info.backend) &&
+                         backend_platform_names[info.backend] != info.name) {
+                         return false;
+                     }
+                     if (platform_options.platform_backend &&
+                         platform_options.platform_backend != info.backend) {
+                         return false;
+                     }
+                     return true;
+                 });
+
+    if (platforms_filtered.size() == 0) {
+        std::stringstream errstr;
+        errstr << "No platforms were found with the following filters:";
+        if (platform_options.platform_backend) {
+            errstr << " --backend="
+                   << backend_to_str(*platform_options.platform_backend);
+        }
+        if (!platform_options.platform_name.empty()) {
+            errstr << " --platform=\"" << platform_options.platform_name
+                   << "\"";
+        }
+        if (!platform_options.platform_backend &&
+            platform_options.platform_name.empty()) {
+            errstr << " (none)";
+        }
+        errstr << "\nAvailable platforms:\n";
+        for (auto p : platforms) {
+            errstr << "  --backend=" << backend_to_str(p.backend)
+                   << " --platform=\"" << p.name << "\"\n";
+        }
+        FAIL() << errstr.str();
+    } else if (platforms_filtered.size() == 1 ||
+               platform_options.platforms_count == 1) {
+        auto &selected = platforms_filtered[0];
+        platform = selected.platform;
+        adapter = selected.adapter;
+        std::cerr << "Selected platform: [" << backend_to_str(selected.backend)
+                  << "] " << selected.name << "\n";
+    } else if (platforms_filtered.size() > 1) {
+        std::stringstream errstr;
+        errstr << "Multiple possible platforms found; please select one of the "
+                  "following or set --platforms_count=1:\n";
+        for (auto p : platforms_filtered) {
+            errstr << "  --backend=" << backend_to_str(p.backend)
+                   << " --platform=\"" << p.name << "\"\n";
+        }
+        FAIL() << errstr.str();
     }
 }
 
@@ -196,6 +256,26 @@ void uur::PlatformEnvironment::TearDown() {
 PlatformEnvironment::PlatformOptions
 PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
     PlatformOptions options{};
+    auto parse_backend = [&](std::string backend_string) {
+        options.platform_backend = str_to_backend(backend_string);
+        if (options.platform_backend == UR_PLATFORM_BACKEND_UNKNOWN) {
+            std::stringstream errstr{error};
+            errstr << "--backend not valid; expected one of [";
+            bool first = true;
+            for (auto b : backends) {
+                if (!first) {
+                    errstr << ", ";
+                }
+                errstr << b.first;
+                first = false;
+            }
+            errstr << "], but got `" << backend_string << "`";
+            error = errstr.str();
+            return false;
+        }
+        return true;
+    };
+
     for (int argi = 1; argi < argc; ++argi) {
         const char *arg = argv[argi];
         if (!(std::strcmp(arg, "-h") && std::strcmp(arg, "--help"))) {
@@ -205,6 +285,12 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
                        arg, "--platform=", sizeof("--platform=") - 1) == 0) {
             options.platform_name =
                 std::string(&arg[std::strlen("--platform=")]);
+        } else if (std::strncmp(arg, "--backend=", sizeof("--backend=") - 1) ==
+                   0) {
+            std::string backend_string{&arg[std::strlen("--backend=")]};
+            if (!parse_backend(backend_string)) {
+                return options;
+            }
         } else if (std::strncmp(arg, "--platforms_count=",
                                 sizeof("--platforms_count=") - 1) == 0) {
             options.platforms_count = std::strtoul(
@@ -212,12 +298,20 @@ PlatformEnvironment::parsePlatformOptions(int argc, char **argv) {
         }
     }
 
-    /* If a platform was not provided using the --platform command line option,
+    /* If a platform was not provided using the --platform/--backend command line options,
      * check if environment variable is set to use as a fallback. */
     if (options.platform_name.empty()) {
         auto env_platform = ur_getenv("UR_CTS_ADAPTER_PLATFORM");
         if (env_platform.has_value()) {
             options.platform_name = env_platform.value();
+        }
+    }
+    if (!options.platform_backend) {
+        auto env_backend = ur_getenv("UR_CTS_BACKEND");
+        if (env_backend.has_value()) {
+            if (!parse_backend(env_backend.value())) {
+                return options;
+            }
         }
     }
 
