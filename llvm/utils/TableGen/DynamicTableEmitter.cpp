@@ -45,7 +45,7 @@ struct DynamicTable {
   std::string PreprocessorGuard;
   std::string CppTypeName;
   SmallVector<GenericField, 2> Fields;
-  std::vector<Record *> Entries;
+  std::vector<const Record *> Entries;
 };
 
 class DynamicTableEmitter {
@@ -106,7 +106,7 @@ private:
 
   bool parseFieldType(GenericField &Field, Init *II);
   void collectTableEntries(DynamicTable &Table,
-                           const std::vector<Record *> &Items);
+                           ArrayRef<const Record *> Items);
 };
 
 } // End anonymous namespace.
@@ -125,7 +125,7 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
      << " = {\n";
   // Iterate over the key-value pairs the dynamic table will contain.
   for (unsigned I = 0; I < Table.Entries.size(); ++I) {
-    Record *Entry = Table.Entries[I];
+    const Record *Entry = Table.Entries[I];
     // Open key-value pair
     OS << "  { ";
 
@@ -175,7 +175,7 @@ bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
 }
 
 void DynamicTableEmitter::collectTableEntries(
-    DynamicTable &Table, const std::vector<Record *> &Items) {
+    DynamicTable &Table, ArrayRef<const Record *> Items) {
   for (auto *EntryRec : Items) {
     for (auto &Field : Table.Fields) {
       auto TI = dyn_cast<TypedInit>(EntryRec->getValueInit(Field.Name));
@@ -206,7 +206,7 @@ void DynamicTableEmitter::collectTableEntries(
 void DynamicTableEmitter::run(raw_ostream &OS) {
   // Emit tables in a deterministic order to avoid needless rebuilds.
   SmallVector<std::unique_ptr<DynamicTable>, 4> Tables;
-  DenseMap<Record *, DynamicTable *> TableMap;
+  DenseMap<const Record *, DynamicTable *> TableMap;
 
   // Collect all definitions first.
   for (auto *TableRec : Records.getAllDerivedDefinitions("DynamicTable")) {
