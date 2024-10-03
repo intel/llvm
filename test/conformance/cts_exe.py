@@ -35,12 +35,14 @@ if __name__ == "__main__":
     parser.add_argument("--test_command", help="Ctest test case")
     parser.add_argument("--devices_count", type=str, help="Number of devices on which tests will be run")
     parser.add_argument("--platforms_count", type=str, help="Number of platforms on which tests will be run")
+    parser.add_argument("--backend", type=str, help="Number of platforms on which tests will be run")
     args = parser.parse_args()
     invocation = [
         args.test_command,
         "--gtest_brief=1",
         f"--devices_count={args.devices_count}",
         f"--platforms_count={args.platforms_count}",
+        f"--backend={args.backend}",
     ]
     _print_cmdline(invocation, os.environ, os.getcwd())
 

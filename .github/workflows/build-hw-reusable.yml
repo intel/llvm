@@ -82,6 +82,7 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
+        -DUR_CONFORMANCE_TEST_LOADER=OFF
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}

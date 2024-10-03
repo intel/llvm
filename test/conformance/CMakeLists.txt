@@ -9,45 +9,48 @@ set(UR_CONFORMANCE_DEVICE_BINARIES_DIR
     "${CMAKE_CURRENT_BINARY_DIR}/device_binaries" CACHE INTERNAL
     "Internal cache variable for device binaries directory")
 
-function(add_test_adapter name adapter)
-    if(NOT "${ARGN}" STREQUAL "")
-        set(EXTRA_NAME "-${ARGN}")
-    endif()
+function(add_test_adapter name adapter backend)
     set(TEST_TARGET_NAME test-${name})
-    set(TEST_NAME ${name}-${adapter}${EXTRA_NAME})
+    set(TEST_NAME ${name}-${adapter})
 
     set(TEST_COMMAND
-        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_PLATFORMS_COUNT}"
+        "${PROJECT_BINARY_DIR}/bin/${TEST_TARGET_NAME} --backend=${backend} --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_PLATFORMS_COUNT}"
     )
-    set(MATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}${EXTRA_NAME}.match")
+    set(MATCH_FILE "${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match")
 
-    if(${UR_CONFORMANCE_ENABLE_MATCH_FILES} AND EXISTS ${MATCH_FILE})
-        add_test(NAME ${TEST_NAME}
-            COMMAND ${CMAKE_COMMAND}
-            -D TEST_FILE=${Python3_EXECUTABLE}
-            -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${TEST_COMMAND}"
-            -D MODE=stdout
-            -D MATCH_FILE=${MATCH_FILE}
-            -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-            DEPENDS ${TEST_TARGET_NAME}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
-    else()
-        separate_arguments(TEST_COMMAND)
-        add_test(NAME ${TEST_NAME}
-            COMMAND ${TEST_COMMAND}
-            DEPENDS ${TEST_TARGET_NAME}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        )
-    endif()
+    function(do_add_test tname env)
+        if(${UR_CONFORMANCE_ENABLE_MATCH_FILES} AND EXISTS ${MATCH_FILE})
+            add_test(NAME ${tname}
+                COMMAND ${CMAKE_COMMAND}
+                -D TEST_FILE=${Python3_EXECUTABLE}
+                -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${TEST_COMMAND}"
+                -D MODE=stdout
+                -D MATCH_FILE=${MATCH_FILE}
+                -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
+                DEPENDS ${TEST_TARGET_NAME}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            )
+        else()
+            separate_arguments(TEST_COMMAND)
+            add_test(NAME ${tname}
+                COMMAND ${TEST_COMMAND}
+                DEPENDS ${TEST_TARGET_NAME}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            )
+        endif()
 
-    set(TEST_ENV UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
-    if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
-        list(APPEND TEST_ENV GTEST_COLOR=no)
+        if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
+            list(APPEND env GTEST_COLOR=no)
+        endif()
+        set_tests_properties(${TEST_NAME} PROPERTIES
+            ENVIRONMENT "${env}"
+            LABELS "conformance;${adapter}")
+    endfunction()
+
+    do_add_test(${TEST_NAME} UR_ADAPTERS_FORCE_LOAD="$<TARGET_FILE:ur_${adapter}>")
+    if(UR_CONFORMANCE_TEST_LOADER)
+        do_add_test(${TEST_NAME}-loader "")
     endif()
-    set_tests_properties(${TEST_NAME} PROPERTIES
-        ENVIRONMENT "${TEST_ENV}"
-        LABELS "conformance;${adapter}")
 endfunction()
 
 function(add_conformance_test name)
@@ -66,29 +69,29 @@ function(add_conformance_test name)
         unit_tests_helpers)
 
     if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_cuda)
+        add_test_adapter(${name} adapter_cuda CUDA)
     endif()
     if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_hip)
+        add_test_adapter(${name} adapter_hip HIP)
     endif()
     if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_level_zero)
+        add_test_adapter(${name} adapter_level_zero LEVEL_ZERO)
     endif()
     if(UR_BUILD_ADAPTER_L0_V2)
-        add_test_adapter(${name} adapter_level_zero_v2)
+        add_test_adapter(${name} adapter_level_zero_v2 LEVEL_ZERO)
     endif()
     if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_opencl)
+        add_test_adapter(${name} adapter_opencl OPENCL)
     endif()
     if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
-        add_test_adapter(${name} adapter_native_cpu)
+        add_test_adapter(${name} adapter_native_cpu NATIVE_CPU)
     endif()
 
     if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
             OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
             OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
             OR UR_BUILD_ADAPTER_ALL))
-        add_test_adapter(${name} adapter_mock)
+        add_test_adapter(${name} adapter_mock MOCK)
     endif()
 endfunction()
 
