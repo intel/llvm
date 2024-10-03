@@ -488,6 +488,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
         return Ty;
     }
   }
+
   // RecordTypes are cached and processed specially.
   if (const RecordType *RT = dyn_cast<RecordType>(Ty))
     return ConvertRecordDeclType(RT->getDecl());
