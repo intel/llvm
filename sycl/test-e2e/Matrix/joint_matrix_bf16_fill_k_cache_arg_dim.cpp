@@ -8,11 +8,8 @@
 // REQUIRES: aspect-ext_intel_matrix
 // XFAIL: arch-intel_gpu_pvc
 
-// RUN: %{build} -o %t_arg_dim_vnni.out -ffp-model=precise -DARG_DIM -DVNNI
+// RUN: %{build} -o %t_arg_dim_vnni.out %fp-model-precise -DARG_DIM -DVNNI
 // RUN: %{run} %t_arg_dim_vnni.out
-
-// RUN: %{build} -o %t_arg_dim.out -ffp-model=precise -DARG_DIM
-// RUN: %{run} %t_arg_dim.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 

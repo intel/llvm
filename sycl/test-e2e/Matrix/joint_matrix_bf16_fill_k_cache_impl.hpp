@@ -395,9 +395,8 @@ void test(size_t matrix_size_input) {
   // run testIterations time, aggregate and calculate average run time
   double totalDuration = 0;
   for (unsigned int i = 0; i < testIterations; i++) {
-
-  double duration =
-        joint_matmul<        
+    double duration =
+            joint_matmul<
 #if !defined(ARG_DIM) && !defined(RUNTIME_DIM)
                     matrix_size, matrix_size, matrix_size, matrix_size,
 #endif // ARG_DIM, RUNTIME_DIM
@@ -438,7 +437,6 @@ int main(
 
 size_t matrix_size = -1;
 #ifdef RUNTIME_DIM
-  // Check for command line argument
   if (argc == 2) {
     matrix_size = std::stoul(argv[1]);
   } else {
