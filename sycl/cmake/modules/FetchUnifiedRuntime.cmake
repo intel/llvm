@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a
-  # Merge: 5276c534 bcf2244d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 2 15:04:33 2024 +0100
-  #     Merge pull request #2056 from Seanst98/sean/usm-normalized-fix
-  #
-  #     [CUDA][Bindless] Address USM normalized type image creation failure and functionality
-  set(UNIFIED_RUNTIME_TAG 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a)
+  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
+  # Merge: 1f13d2ce cf5994a1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Oct 3 10:47:01 2024 +0200
+  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
+  #     Fix mixed output of adapter and regular traces
+  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
