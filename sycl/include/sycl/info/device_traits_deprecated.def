@@ -19,3 +19,8 @@ __SYCL_PARAM_TRAITS_DEPRECATED(preferred_interop_user_sync,"deprecated in SYCL 2
 // Deprecated and not part of SYCL 2020 spec
 __SYCL_PARAM_TRAITS_DEPRECATED(image_max_array_size,"support for image arrays has been removed in SYCL 2020")
 __SYCL_PARAM_TRAITS_DEPRECATED(opencl_c_version,"use device::get_backend_info instead")
+
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_1d,"use ext::oneapi::experimental::info::device::max_work_groups<1> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_2d,"use ext::oneapi::experimental::info::device::max_work_groups<2> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_work_groups_3d,"use ext::oneapi::experimental::info::device::max_work_groups<3> instead")
+__SYCL_PARAM_TRAITS_DEPRECATED(ext_oneapi_max_global_work_groups,"use ext::oneapi::experimental::info::device::max_global_work_groups instead")
