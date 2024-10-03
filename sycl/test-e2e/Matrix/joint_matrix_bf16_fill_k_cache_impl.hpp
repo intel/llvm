@@ -362,7 +362,7 @@ void test(size_t matrix_size_input) {
   size_t matrix_size = matrix_size_input;
 #else
   constexpr size_t matrix_size = MATRIX_SIZE;
-#endif
+#endif // RUNTIME_DIM
 
   assert(matrix_size >= TM && matrix_size >= TK && matrix_size >= TN &&
          "invalid matrix size");
