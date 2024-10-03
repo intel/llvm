@@ -117,14 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00f958f375205fd86309f95b925141cf664ff955
-  # Merge: cc2d5909 98a67a2e
+  # commit 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a
+  # Merge: 5276c534 bcf2244d
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 2 09:51:21 2024 +0100
-  #     Merge pull request #2139 from nrspruit/zeHandle_copy_dependencies
-  #     [L0] Pass and track event dependencies required before executing Memory
-  #     Copy buffer inits
-  set(UNIFIED_RUNTIME_TAG 00f958f375205fd86309f95b925141cf664ff955)
+  # Date:   Wed Oct 2 15:04:33 2024 +0100
+  #     Merge pull request #2056 from Seanst98/sean/usm-normalized-fix
+  #
+  #     [CUDA][Bindless] Address USM normalized type image creation failure and functionality
+  set(UNIFIED_RUNTIME_TAG 1f13d2ceb0494d84ce7b32f6b453dbb256fb702a)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
