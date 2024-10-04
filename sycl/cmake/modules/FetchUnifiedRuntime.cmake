@@ -116,13 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/wenju-he/unified-runtime.git")
-  # commit 024a0f2b4b20f7c6ffb6cc81561685f2b1d12d2c (HEAD -> L0-bindless-image-device-query, wenju/L0-bindless-image-device-query)
-  # Author: Wenju He <wenju.he@intel.com>
-  # Date:   Tue Aug 27 18:47:11 2024 -0700
-  #   [L0] Fix device query of bindless image support
-  #   Bindless image support is only supported on intel DG2 or newer GPU.
-  set(UNIFIED_RUNTIME_TAG 024a0f2b4b20f7c6ffb6cc81561685f2b1d12d2c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
+  # Merge: 7b4bc761 fbb6e862
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Oct 4 16:39:59 2024 +0100
+  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
+  #     [L0] Fix device query of bindless image support
+  set(UNIFIED_RUNTIME_TAG b79ebe4e98789144bcdf3832088eb6e6b5ae6967)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
