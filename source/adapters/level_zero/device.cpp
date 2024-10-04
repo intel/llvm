@@ -1051,20 +1051,28 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    // On L0 bindless images are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
+                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
+                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    // On L0 1D bindless image USM are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    // On L0 2D bindless image USM are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
