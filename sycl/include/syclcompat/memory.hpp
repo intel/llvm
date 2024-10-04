@@ -308,11 +308,11 @@ public:
 };
 
 static inline void *malloc(size_t size, sycl::queue q) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   return mem_mgr::instance().mem_alloc(size * sizeof(byte_t));
 #else
   return sycl::malloc_device(size, q.get_device(), q.get_context());
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 }
 
 /// Calculate pitch (padded length of major dimension \p x) by rounding up to
@@ -361,7 +361,7 @@ static inline sycl::event fill(sycl::queue q, void *dev_ptr, const T &pattern,
 // TODO(joe): equivalent API in dpct is templated?
 static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
                                  size_t size) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   auto &mm = mem_mgr::instance();
   assert(mm.is_device_ptr(dev_ptr));
   auto alloc = mm.translate_ptr(dev_ptr);
@@ -379,7 +379,7 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
   });
 #else
   return q.memset(dev_ptr, value, size); //TODO(joe): this is q.fill in dpct
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 }
 
 /// \brief Sets \p value to the 3D memory region pointed by \p data in \p q.
@@ -433,7 +433,7 @@ enum class pointer_access_attribute {
 
 static pointer_access_attribute get_pointer_attribute(sycl::queue q,
                                                       const void *ptr) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   return mem_mgr::instance().is_device_ptr(ptr)
              ? pointer_access_attribute::device_only
              : pointer_access_attribute::host_only;
@@ -447,7 +447,7 @@ static pointer_access_attribute get_pointer_attribute(sycl::queue q,
   case sycl::usm::alloc::host:
     return pointer_access_attribute::host_device;
   }
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 }
 
 static experimental::memcpy_direction
@@ -469,7 +469,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
                           const std::vector<sycl::event> &dep_events = {}) {
   if (!size)
     return sycl::event{};
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   auto &mm = mem_mgr::instance();
   auto real_direction = deduce_memcpy_direction(q, to_ptr, from_ptr, direction);
 
@@ -529,7 +529,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
   }
 #else
   return q.memcpy(to_ptr, from_ptr, size, dep_events);
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 }
 
 // Get actual copy range and make sure it will not exceed range.
@@ -647,7 +647,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     break;
   }
   case device_to_device:
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   {
     auto &mm = mem_mgr::instance();
     auto to_alloc = mm.translate_ptr(to_surface);
@@ -682,7 +682,7 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
             from_surface[get_offset(id, from_slice, from_range.get(0))];
       });
     }));
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
     break;
   default:
     throw std::runtime_error("[SYCLcompat] memcpy: invalid direction value");
@@ -721,7 +721,7 @@ static sycl::event combine_events(std::vector<sycl::event> &events,
 
 } // namespace detail
 
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
 /// Check if the pointer \p ptr represents device pointer or not.
 ///
 /// \param ptr The pointer to be checked.
@@ -873,11 +873,11 @@ namespace detail{
 inline void free(void *ptr,
                       const sycl::queue &q) {
   if (ptr) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
     detail::mem_mgr::instance().mem_free(ptr);
 #else
     sycl::free(ptr, q.get_context());
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
   }
 }
 }  // namespace detail
@@ -902,11 +902,11 @@ static inline void wait_and_free(void *ptr,
 //Need this to handle the wait()
 static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
   if (ptr) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
     detail::mem_mgr::instance().mem_free(ptr);
 #else
     sycl::free(ptr, q);
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
   }
 }
 
@@ -1495,15 +1495,15 @@ public:
   template <size_t Dim = Dimension>
   typename std::enable_if<Dim == 1, T>::type &operator[](size_t index) {
     init();
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
     return dpct::get_buffer<typename std::enable_if<D == 1, T>::type>(ptr)
         .template get_access<sycl::access_mode::read_write>()[index];
 #else
     return _device_ptr[index];
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
   }
 
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   /// Get sycl::accessor for the device memory object when usm is not used.
   accessor_t get_access(sycl::handler &cgh) {
     return get_buffer(_device_ptrs.front())
@@ -1519,7 +1519,7 @@ public:
   get_access(sycl::handler &cgh) {
     return syclcompat_accessor_t((T *)_device_ptr, _range);
   }
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 
 private:
   device_memory(value_t *memory_ptr, size_t size,
@@ -1529,7 +1529,7 @@ private:
 
   void allocate_device(sycl::queue q) {
     //TODO(joe): _q = q; here..., and in dpct this fn returns the ptr
-#ifndef DPCT_USM_LEVEL_NONE
+#ifndef COMPAT_USM_LEVEL_NONE
     if (Memory == memory_region::usm_shared) {
       _device_ptr = (value_t *)sycl::malloc_shared(_size, q.get_device(),
                                                    q.get_context());
@@ -1568,14 +1568,14 @@ public:
 
   /// Default constructor
   device_memory(sycl::queue q = get_default_queue()) : base(1, q) {}
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
   /// Get sycl::accessor for the device memory object when usm is not used.
   accessor_t get_access(sycl::handler &cgh) {
     auto buf = get_buffer(base::get_ptr())
                    .template reinterpret<T, 1>(sycl::range<1>(1));
     return accessor_t(buf, cgh);
   }
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
 };
 
 template <class T, size_t Dimension>
@@ -1588,7 +1588,7 @@ using shared_memory = device_memory<T, memory_region::usm_shared, Dimension>;
 class pointer_attributes {
 public:
   void init(const void *ptr, sycl::queue q = get_default_queue()) {
-#ifdef DPCT_USM_LEVEL_NONE
+#ifdef COMPAT_USM_LEVEL_NONE
     throw std::runtime_error(
           "dpct::pointer_attributes: only works for USM pointer.");
 #else
@@ -1600,7 +1600,7 @@ public:
                        : nullptr;
     sycl::device device_obj = sycl::get_pointer_device(ptr, q.get_context());
     device_id = detail::dev_mgr::instance().get_device_id(device_obj);
-#endif // DPCT_USM_LEVEL_NONE
+#endif // COMPAT_USM_LEVEL_NONE
   }
 
   sycl::usm::alloc get_memory_type() { return memory_type; }
