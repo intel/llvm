@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
-// Verify that compilation works when assert.h/cassert is wrapped by a C linkage
+// Verify that compilation works when assert.h is wrapped by a C linkage
 // specification.
 
 #ifdef __cplusplus
