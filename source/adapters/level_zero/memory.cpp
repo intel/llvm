@@ -2045,19 +2045,30 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
 
   auto &Allocation = Allocations[Device];
 
+  if (this->isFreed) {
+    die("getZeHandle() buffer already released, no valid handles.");
+  }
+
   // Sub-buffers don't maintain own allocations but rely on parent buffer.
   if (SubBuffer) {
-    UR_CALL(SubBuffer->Parent->getZeHandle(ZeHandle, AccessMode, Device,
-                                           phWaitEvents, numWaitEvents));
-    ZeHandle += SubBuffer->Origin;
-    // Still store the allocation info in the PI sub-buffer for
-    // getZeHandlePtr to work. At least zeKernelSetArgumentValue needs to
-    // be given a pointer to the allocation handle rather than its value.
-    //
-    Allocation.ZeHandle = ZeHandle;
-    Allocation.ReleaseAction = allocation_t::keep;
-    LastDeviceWithValidAllocation = Device;
-    return UR_RESULT_SUCCESS;
+    // Verify that the Parent Buffer is still valid or if it has been freed.
+    if (SubBuffer->Parent && !SubBuffer->Parent->isFreed) {
+      UR_CALL(SubBuffer->Parent->getZeHandle(ZeHandle, AccessMode, Device,
+                                             phWaitEvents, numWaitEvents));
+      ZeHandle += SubBuffer->Origin;
+      // Still store the allocation info in the PI sub-buffer for
+      // getZeHandlePtr to work. At least zeKernelSetArgumentValue needs to
+      // be given a pointer to the allocation handle rather than its value.
+      //
+      Allocation.ZeHandle = ZeHandle;
+      Allocation.ReleaseAction = allocation_t::keep;
+      LastDeviceWithValidAllocation = Device;
+      return UR_RESULT_SUCCESS;
+    } else {
+      // Return an error if the parent buffer is already gone.
+      die("getZeHandle() SubBuffer's parent already released, no valid "
+          "handles.");
+    }
   }
 
   // First handle case where the buffer is represented by only
@@ -2320,6 +2331,7 @@ ur_result_t _ur_buffer::free() {
       die("_ur_buffer::free(): Unhandled release action");
     }
     ZeHandle = nullptr; // don't leave hanging pointers
+    this->isFreed = true;
   }
   return UR_RESULT_SUCCESS;
 }
