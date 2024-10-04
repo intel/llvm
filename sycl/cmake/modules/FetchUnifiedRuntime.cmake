@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
-  # Merge: 1f13d2ce cf5994a1
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Oct 3 10:47:01 2024 +0200
-  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
-  #     Fix mixed output of adapter and regular traces
-  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
+  # commit 7907998a442b381a6669d2ae5ab957f8ddda5d03
+  # Merge: 7e9d9d47 ae7f58e3
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 4 11:35:10 2024 +0100
+  #     Merge pull request #2121 from nrspruit/error_after_free_syclos
+  #     [L0] Refcnt Parent Buffer on Sub Buffer Create and die on use of buffer after free
+  set(UNIFIED_RUNTIME_TAG 7907998a442b381a6669d2ae5ab957f8ddda5d03)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
