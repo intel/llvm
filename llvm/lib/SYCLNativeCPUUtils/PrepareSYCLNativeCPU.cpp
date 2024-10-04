@@ -464,13 +464,17 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     F->eraseFromParent();
     ModuleChanged = true;
   }
-  for (auto It = M.begin(); It != M.end();) {
-    auto Curr = It++;
-    Function &F = *Curr;
-    if (F.getNumUses() == 0 && F.isDeclaration() &&
-        F.getName().starts_with("__mux_")) {
-      F.eraseFromParent();
-      ModuleChanged = true;
+
+  // We do these twice because we create abi wrappers for mux which may show up
+  // before we've removed their user
+  for (unsigned int i = 0; i < 2; i++) {
+    for (auto It = M.begin(); It != M.end();) {
+      auto Curr = It++;
+      Function &F = *Curr;
+      if (F.getNumUses() == 0 && F.getName().starts_with("__mux_")) {
+        F.eraseFromParent();
+        ModuleChanged = true;
+      }
     }
   }
 
