@@ -320,3 +320,23 @@ implementation header files is still in progress and the final set of these
 "fine-grained" includes that might be officially documented and suggested for
 customers to use isn't determined yet. **Until then, code outside of this project
 must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
+
+## Marking tests as expected to fail
+
+Every test should be written in a way that it is either passes, or it is skipped
+(in case it is not compatible with an environment it was launched in).
+
+If for any reason you find yourself in need to temporary mark test as expected
+to fail under certain conditions, you need to submin issue to the repo to
+analyze that failure and make test passed or skipped.
+
+Once the issue is created, you can update the test by adding `XFAIL` and
+`XFAIL-TRACKER` directive:
+```
+// GPU driver update caused failure
+// XFAIL: level_zero
+// XFAIL-TRACKER: intel/llvm#DDDDD
+```
+
+If you add `XFAIL` without `XFAIL-TRACKER` directive,
+`no-xfail-without-tracker.cpp` test will fail, notifying you about that.
