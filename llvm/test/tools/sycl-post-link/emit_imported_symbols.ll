@@ -1,12 +1,12 @@
 ; This test checks that the -emit-imported-symbols option generates a list of imported symbols
 ; Function names were chosen so that no function with a 'inside' in their function name is imported
-; Note that -emit-imported-symbols will not emit any imported symbols without -support-dynamic-linking.
+; Note that -emit-imported-symbols will not emit any imported symbols without -allow-device-image-dependencies.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Test with -split=kernel
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
+; RUN: sycl-post-link -properties -symbols -allow-device-image-dependencies -emit-imported-symbols -split=kernel -S < %s -o %t_kernel.table
 
 ; RUN: FileCheck %s -input-file=%t_kernel_0.sym --check-prefixes CHECK-KERNEL-SYM-0
 ; RUN: FileCheck %s -input-file=%t_kernel_1.sym --check-prefixes CHECK-KERNEL-SYM-1
@@ -41,11 +41,11 @@
 ; Test with -split=source
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=source -S < %s -o %t_source.table
+; RUN: sycl-post-link -properties -symbols -allow-device-image-dependencies -emit-imported-symbols -split=source -S < %s -o %t_source.table
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
 ; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0
 
-; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
+; RUN: sycl-post-link -properties -symbols -allow-device-image-dependencies -emit-imported-symbols -split=source -S < %s -o %t_source.table -O0
 ; RUN: FileCheck %s -input-file=%t_source_0.sym --check-prefixes CHECK-SOURCE-SYM-0
 ; RUN: FileCheck %s -input-file=%t_source_0.prop --check-prefixes CHECK-SOURCE-IMPORTED-SYM-0
 

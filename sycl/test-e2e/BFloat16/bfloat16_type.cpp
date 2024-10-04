@@ -3,9 +3,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO currently the feature isn't supported on FPGA.
-// UNSUPPORTED: accelerator
-
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.

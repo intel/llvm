@@ -20,8 +20,9 @@
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
 //
-// CHECK-FALLBACK: ---> urProgramLink
+// CHECK-FALLBACK: <--- urProgramLink
 
+#include "../helpers.hpp"
 #include <array>
 #include <assert.h>
 #include <iostream>
@@ -47,7 +48,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     }
   });
 
-  int shouldCrash = getenv("SHOULD_CRASH") ? 1 : 0;
+  bool shouldCrash = env::isDefined("SHOULD_CRASH");
 
   sycl::range<1> numOfItems{N};
   sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);

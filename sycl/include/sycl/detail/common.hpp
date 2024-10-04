@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <ur_api.h>                           // for ur_code_location_t
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -95,8 +94,6 @@ private:
   unsigned long MLineNo;
   unsigned long MColumnNo;
 };
-
-ur_code_location_t codeLocationCallback(void *);
 
 /// @brief Data type that manages the code_location information in TLS
 /// @details As new SYCL features are added, they all enable the propagation of
@@ -289,12 +286,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
     LinearIndex = LinearIndex * Range[I] + Index[I];
   return LinearIndex;
 }
-
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
 
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with

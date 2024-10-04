@@ -39,8 +39,9 @@ enum class graph_state {
   executable, ///< In executable state, the graph is ready to execute.
 };
 
-// Forward declare Graph class
+// Forward declare ext::oneapi::experimental classes
 template <graph_state State> class command_graph;
+class raw_kernel_arg;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -440,6 +441,11 @@ public:
 
 protected:
   void updateValue(const void *NewValue, size_t Size);
+
+  // Update a sycl_ext_oneapi_raw_kernel_arg parameter. Size parameter is
+  // ignored as it represents sizeof(raw_kernel_arg), which doesn't represent
+  // the number of underlying bytes.
+  void updateValue(const raw_kernel_arg *NewRawValue, size_t Size);
 
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
   std::shared_ptr<dynamic_parameter_impl> impl;

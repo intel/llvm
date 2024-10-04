@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -16,7 +17,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
@@ -27,7 +27,6 @@
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
@@ -143,14 +142,6 @@ public:
             "Queue compute index must be a non-negative number less than "
             "device's number of available compute queue indices.");
     }
-    if (has_property<
-            ext::codeplay::experimental::property::queue::enable_fusion>() &&
-        !MDevice->get_info<
-            ext::codeplay::experimental::info::device::supports_fusion>()) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot enable fusion if device does not support fusion");
-    }
     if (!Context->isDeviceValid(Device)) {
       if (Context->getBackend() == backend::opencl)
         throw sycl::exception(
@@ -194,10 +185,10 @@ private:
     MQueues.push_back(UrQueue);
 
     ur_device_handle_t DeviceUr{};
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_DEVICE,
-                 sizeof(DeviceUr), &DeviceUr, nullptr);
+    Adapter->call<UrApiKind::urQueueGetInfo>(
+        MQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
       throw sycl::exception(
@@ -217,7 +208,7 @@ private:
   }
 
 public:
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -235,7 +226,7 @@ public:
     queue_impl_interop(UrQueue);
   }
 
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -248,7 +239,9 @@ public:
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
-        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()) {
+        MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
+        MQueueID{
+            MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(UrQueue);
   }
 
@@ -261,8 +254,7 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      cleanup_fusion_cmd();
-      getPlugin()->call(urQueueRelease, MQueues[0]);
+      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -271,10 +263,10 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getPlugin()->call(urQueueRetain, MQueues[0]);
+    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urQueueGetNativeHandle, MQueues[0], nullptr,
-                      &nativeHandle);
+    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
+                                                          &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -283,7 +275,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
+  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -321,7 +313,7 @@ public:
                             "recording to a command graph.");
     }
     for (const auto &queue : MQueues) {
-      getPlugin()->call(urQueueFlush, queue);
+      getAdapter()->call<UrApiKind::urQueueFlush>(queue);
     }
   }
 
@@ -441,7 +433,7 @@ public:
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
     }
     if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero plugin to be able to check it from
+      // Pass this flag to the Level Zero adapter to be able to check it from
       // queue property.
       CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
     }
@@ -497,7 +489,7 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice->getHandleRef();
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -513,8 +505,8 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Plugin->call_nocheck(urQueueCreate, Context, Device,
-                                             &Properties, &Queue);
+    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
+        Context, Device, &Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
     // supported (for example, on FPGA), it will return
@@ -524,7 +516,7 @@ public:
       MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      Plugin->checkUrResult(Error);
+      Adapter->checkUrResult(Error);
     }
 
     return Queue;
@@ -556,7 +548,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getPlugin()->call(urQueueFinish, *PIQ);
+      getAdapter()->call<UrApiKind::urQueueFinish>(*PIQ);
 
     return *PIQ;
   }
@@ -650,15 +642,6 @@ public:
 
   bool ext_oneapi_empty() const;
 
-  /// Check whether the queue is in fusion mode.
-  ///
-  /// \return true if the queue is in fusion mode, false otherwise.
-  bool is_in_fusion_mode() {
-    return detail::Scheduler::getInstance().isInFusionMode(
-        std::hash<typename std::shared_ptr<queue_impl>::element_type *>()(
-            this));
-  }
-
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -706,15 +689,9 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. No-op
-  // for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
-
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // tasks and host tasks is applicable for out of order queues only. Not needed
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
@@ -731,15 +708,14 @@ public:
 
 protected:
   event discard_or_return(const event &Event);
-  // Hook to the scheduler to clean up any fusion command held on destruction.
-  void cleanup_fusion_cmd();
 
   template <typename HandlerType = handler>
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
-    getPlugin()->call(urEnqueueEventsWaitWithBarrier,
-                      Handler.MQueue->getHandleRef(), 0, nullptr,
-                      &ResEvent->getHandleRef());
+    ur_event_handle_t UREvent = nullptr;
+    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+        Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
+    ResEvent->setHandle(UREvent);
     return ResEvent;
   }
 
@@ -802,18 +778,19 @@ protected:
       if (Type == CGType::Barrier && !Deps.UnenqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.UnenqueuedCmdEvents);
       }
-      if (Deps.LastBarrier)
+      if (Deps.LastBarrier && (Type == CGType::CodeplayHostTask ||
+                               (!Deps.LastBarrier->isEnqueued())))
         Handler.depends_on(Deps.LastBarrier);
+
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CGType::CodeplayHostTask)
         Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
-      else if (!EventRetImpl->isEnqueued()) {
-        if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
-          Deps.LastBarrier = EventRetImpl;
-          Deps.UnenqueuedCmdEvents.clear();
-        } else
-          Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
+      else if (Type == CGType::Barrier || Type == CGType::BarrierWaitlist) {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.UnenqueuedCmdEvents.clear();
+      } else if (!EventRetImpl->isEnqueued()) {
+        Deps.UnenqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }

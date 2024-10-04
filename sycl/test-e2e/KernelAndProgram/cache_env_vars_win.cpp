@@ -19,12 +19,12 @@
 // RUN: env SYCL_CACHE_PERSISTENT=1 AppData=%t/cache_dir SYCL_UR_TRACE=2 env -u SYCL_CACHE_DIR %t.out | FileCheck %s --check-prefixes=CHECK-BUILD
 // RUN: env SYCL_CACHE_PERSISTENT=1 AppData=%t/cache_dir SYCL_UR_TRACE=2 env -u SYCL_CACHE_DIR %t.out | FileCheck %s --check-prefixes=CHECK-CACHE
 
-// CHECK-BUILD-NOT: urProgramCreateWithBinary(
-// CHECK-BUILD: urProgramCreateWithIL(
-// CHECK-BUILD: urProgramBuild{{(Exp)?}}(
+// CHECK-BUILD-NOT: <--- urProgramCreateWithBinary(
+// CHECK-BUILD: <--- urProgramCreateWithIL(
+// CHECK-BUILD: <--- urProgramBuild{{(Exp)?}}(
 
-// CHECK-CACHE-NOT: urProgramCreateWithIL(
-// CHECK-CACHE: urProgramCreateWithBinary(
-// CHECK-CACHE: urProgramBuild{{(Exp)?}}(
+// CHECK-CACHE-NOT: <--- urProgramCreateWithIL(
+// CHECK-CACHE: <--- urProgramCreateWithBinary(
+// CHECK-CACHE: <--- urProgramBuild{{(Exp)?}}(
 
 #include "cache_env_vars.hpp"

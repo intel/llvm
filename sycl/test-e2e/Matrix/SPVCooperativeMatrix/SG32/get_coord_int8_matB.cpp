@@ -13,7 +13,6 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
 // XFAIL: cpu
-// XFAIL: gpu
 
 #include "../../common.hpp"
 

@@ -238,7 +238,12 @@ public:
 
   // Returns the total number of elements in the image
   size_t get_count() const { return size(); }
-  size_t size() const noexcept { return MRange.size(); }
+  size_t size() const noexcept try {
+    return MRange.size();
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in size", e);
+    std::abort();
+  }
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
                     void *HostPtr, ur_event_handle_t &OutEventToWait) override;

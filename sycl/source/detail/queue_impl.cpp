@@ -49,8 +49,9 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
   std::vector<ur_event_handle_t> RetUrEvents;
   for (const sycl::event &Event : DepEvents) {
     const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
-    if (EventImpl->getHandleRef() != nullptr)
-      RetUrEvents.push_back(EventImpl->getHandleRef());
+    auto Handle = EventImpl->getHandle();
+    if (Handle != nullptr)
+      RetUrEvents.push_back(Handle);
   }
   return RetUrEvents;
 }
@@ -58,8 +59,9 @@ getUrEvents(const std::vector<sycl::event> &DepEvents) {
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
   ur_result_t result = UR_RESULT_SUCCESS;
-  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT,
-                    sizeof(result), &result, nullptr);
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+      nullptr);
   return result;
 }
 
@@ -307,7 +309,7 @@ void queue_impl::addEvent(const event &Event) {
   }
   // As long as the queue supports urQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
-  else if (MEmulateOOO || EImpl->getHandleRef() == nullptr) {
+  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -447,8 +449,10 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       auto EventImpl = detail::getSyclObjImpl(ResEvent);
       {
         NestedCallsTracker tracker;
-        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
-                  &EventImpl->getHandleRef(), EventImpl);
+        ur_event_handle_t UREvent = nullptr;
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
+                  EventImpl);
+        EventImpl->setHandle(UREvent);
       }
 
       if (isInOrder()) {
@@ -603,14 +607,14 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
             EventImplWeakPtrIt->lock()) {
       // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
+      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandle()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }
   }
   if (SupportsPiFinish) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call(urQueueFinish, getHandleRef());
+    const AdapterPtr &Adapter = getAdapter();
+    Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -690,22 +694,17 @@ void queue_impl::destructorNotification() {
 }
 
 ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const PluginPtr &Plugin = getPlugin();
+  const AdapterPtr &Adapter = getAdapter();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call(urQueueRetain, MQueues[0]);
+    Adapter->call<UrApiKind::urQueueRetain>(MQueues[0]);
   ur_native_handle_t Handle{};
   ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
                                       nullptr, nullptr};
   UrNativeDesc.pNativeData = &NativeHandleDesc;
 
-  Plugin->call(urQueueGetNativeHandle, MQueues[0], &UrNativeDesc, &Handle);
+  Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], &UrNativeDesc,
+                                                   &Handle);
   return Handle;
-}
-
-void queue_impl::cleanup_fusion_cmd() {
-  // Clean up only if a scheduler instance exits.
-  if (detail::Scheduler::isInstanceAlive())
-    detail::Scheduler::getInstance().cleanUpCmdFusion(this);
 }
 
 bool queue_impl::ext_oneapi_empty() const {
@@ -728,8 +727,8 @@ bool queue_impl::ext_oneapi_empty() const {
 
   // Check the status of the backend queue if this is not a host queue.
   ur_bool_t IsReady = false;
-  getPlugin()->call(urQueueGetInfo, MQueues[0], UR_QUEUE_INFO_EMPTY,
-                    sizeof(IsReady), &IsReady, nullptr);
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
   if (!IsReady)
     return false;
 

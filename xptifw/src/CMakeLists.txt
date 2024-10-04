@@ -40,7 +40,6 @@ function(add_xpti_library LIB_NAME)
   endif()
 
   target_compile_definitions(${LIB_NAME} PRIVATE -DXPTI_API_EXPORTS)
-
   target_include_directories(${LIB_NAME} PUBLIC
     $<BUILD_INTERFACE:${XPTIFW_DIR}/include>
     $<BUILD_INTERFACE:${XPTIFW_EMHASH_HEADERS}>

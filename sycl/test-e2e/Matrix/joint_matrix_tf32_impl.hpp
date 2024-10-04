@@ -91,6 +91,12 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
 }
 
 int main() {
+  queue q;
+  if (!is_type_supported_by_device(q, matrix_type::tf32)) {
+    std::cout << "Joint Matrix TF32 is not supported by this device.\n";
+    return 0;
+  }
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;

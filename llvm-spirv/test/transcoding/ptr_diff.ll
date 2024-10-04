@@ -35,7 +35,7 @@ entry:
 ; CHECK-LLVM: %[[#Arg1:]] = ptrtoint ptr %[[#]] to i64
 ; CHECK-LLVM: %[[#Arg2:]] = ptrtoint ptr %[[#]] to i64
 ; CHECK-LLVM: %[[#Sub:]] = sub i64 %[[#Arg1]], %[[#Arg2]]
-; CHECK-LLVM: sdiv exact i64 %[[#Sub]], ptrtoint (ptr getelementptr (i32, ptr null, i32 1) to i64)
+; CHECK-LLVM: sdiv exact i64 %[[#Sub]], ptrtoint (ptr getelementptr (float, ptr null, i32 1) to i64)
   %1 = call spir_func noundef i32 @_Z15__spirv_PtrDiff(ptr %0, ptr %0)
   ret void
 }

@@ -96,7 +96,7 @@ public:
     string_id_t StrID;
     {
       // Employ a double-check pattern here
-      std::unique_lock Lock(MMutex);
+      std::unique_lock<std::shared_mutex> Lock(MMutex);
       auto Loc = MStringToID.find(str);
       // String not present in the table
       if (Loc == MStringToID.end()) {
@@ -148,7 +148,7 @@ public:
   //  The reverse query allows one to get the string from the string_id_t that
   //  may have been cached somewhere.
   const char *query(xpti::string_id_t id) {
-    std::shared_lock lock(MMutex);
+    std::shared_lock<std::shared_mutex> lock(MMutex);
     auto Loc = MIDToString.find(id);
     if (Loc != MIDToString.end()) {
 #ifdef XPTI_STATISTICS

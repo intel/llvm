@@ -90,20 +90,21 @@ public:
   };
 
   struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
-    PluginPtr Plugin;
-    ProgramBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
+    AdapterPtr Adapter;
+    ProgramBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
       Val = nullptr;
     }
-    ProgramBuildResult(const PluginPtr &Plugin, BuildState InitialState)
-        : Plugin(Plugin) {
+    ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
+        : Adapter(Adapter) {
       Val = nullptr;
       this->State.store(InitialState);
     }
     ~ProgramBuildResult() {
       try {
         if (Val) {
-          ur_result_t Err = Plugin->call_nocheck(urProgramRelease, Val);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
@@ -133,15 +134,16 @@ public:
   using KernelArgMaskPairT =
       std::pair<ur_kernel_handle_t, const KernelArgMask *>;
   struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
-    PluginPtr Plugin;
-    KernelBuildResult(const PluginPtr &Plugin) : Plugin(Plugin) {
+    AdapterPtr Adapter;
+    KernelBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
       try {
         if (Val.first) {
-          ur_result_t Err = Plugin->call_nocheck(urKernelRelease, Val.first);
-          __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+          ur_result_t Err =
+              Adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
         }
       } catch (std::exception &e) {
         __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
@@ -186,7 +188,7 @@ public:
     auto &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getPlugin());
+      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
@@ -206,7 +208,7 @@ public:
     auto &ProgCache = LockedCache.get();
     auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
     if (DidInsert) {
-      It->second = std::make_shared<ProgramBuildResult>(getPlugin(),
+      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
                                                         BuildState::BS_Done);
       It->second->Val = Program;
       // Save reference between the common key and the full key.
@@ -224,7 +226,7 @@ public:
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
     if (DidInsert)
-      It->second = std::make_shared<KernelBuildResult>(getPlugin());
+      It->second = std::make_shared<KernelBuildResult>(getAdapter());
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -327,7 +329,8 @@ public:
         BuildResult->Error.Code = detail::get_ur_error(Ex);
         if (Ex.code() == errc::memory_allocation ||
             BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
-            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
           reset();
           BuildResult->updateAndNotify(BuildState::BS_Initial);
           continue;
@@ -354,7 +357,7 @@ private:
   KernelFastCacheT MKernelFastCache;
   friend class ::MockKernelProgramCache;
 
-  const PluginPtr &getPlugin();
+  const AdapterPtr &getAdapter();
 };
 } // namespace detail
 } // namespace _V1

@@ -505,6 +505,7 @@ extern __DPCPP_SYCL_EXTERNAL
   macro(__attribute__((opencl_global)), Arg)                                   \
       macro(__attribute__((opencl_local)), Arg) macro(, Arg)
 
+__SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, _Float16)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, float)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_FLOAT, double)
 __SPIRV_ATOMICS(__SPIRV_ATOMIC_SIGNED, int)

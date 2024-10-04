@@ -11,6 +11,11 @@
 // CHECK-NEXT: CL/__spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
+// CHECK-NEXT: atomic.hpp
+// CHECK-NEXT: detail/helpers.hpp
+// CHECK-NEXT: memory_enums.hpp
+// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
+// CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
@@ -18,12 +23,6 @@
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
-// CHECK-NEXT: atomic.hpp
-// CHECK-NEXT: detail/helpers.hpp
-// CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: ur_api.h
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
-// CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/generic_type_lists.hpp
 // CHECK-NEXT: detail/type_list.hpp
@@ -53,17 +52,15 @@
 // CHECK-NEXT: detail/boost/mp11/detail/mp_remove_if.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_map_find.hpp
 // CHECK-NEXT: detail/boost/mp11/detail/mp_with_index.hpp
+// CHECK-NEXT: stl_wrappers/cassert
+// CHECK-NEXT: stl_wrappers/assert.h
 // CHECK-NEXT: detail/boost/mp11/integer_sequence.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
@@ -108,10 +105,10 @@
 // CHECK-NEXT: info/ext_codeplay_device_traits.def
 // CHECK-NEXT: info/ext_intel_device_traits.def
 // CHECK-NEXT: info/ext_oneapi_device_traits.def
+// CHECK-NEXT: info/ext_oneapi_kernel_queue_specific_traits.def
 // CHECK-NEXT: info/sycl_backend_traits.def
 // CHECK-NEXT: platform.hpp
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
-// CHECK-NEXT: sampler.hpp
 // CHECK-EMPTY:
