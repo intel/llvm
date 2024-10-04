@@ -139,6 +139,15 @@ function(add_ur_library name)
     endif()
 endfunction()
 
+function(install_ur_library name)
+    install(TARGETS ${name}
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+    )
+endfunction()
+
 include(FetchContent)
 
 function(FetchSource GIT_REPOSITORY GIT_TAG GIT_DIR DEST)
