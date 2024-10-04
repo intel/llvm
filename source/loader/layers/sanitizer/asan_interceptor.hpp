@@ -15,6 +15,8 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
+#include "asan_options.hpp"
+#include "asan_statistics.hpp"
 #include "common.hpp"
 #include "ur_sanitizer_layer.hpp"
 
@@ -111,6 +113,8 @@ struct ContextInfo {
     std::vector<ur_device_handle_t> DeviceList;
     std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
+    AsanStatsWrapper Stats;
+
     explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
             getContext()->urDdiTable.Context.pfnRetain(Context);
@@ -163,7 +167,7 @@ struct DeviceGlobalInfo {
 
 class SanitizerInterceptor {
   public:
-    explicit SanitizerInterceptor(logger::Logger &logger);
+    explicit SanitizerInterceptor();
 
     ~SanitizerInterceptor();
 
@@ -233,17 +237,19 @@ class SanitizerInterceptor {
         return m_KernelMap[Kernel];
     }
 
+    const AsanOptions &getOptions() { return m_Options; }
+
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
                                    ur_queue_handle_t Queue);
-    ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
+    ur_result_t enqueueAllocInfo(std::shared_ptr<ContextInfo> &ContextInfo,
                                  std::shared_ptr<DeviceInfo> &DeviceInfo,
                                  ur_queue_handle_t Queue,
                                  std::shared_ptr<AllocInfo> &AI);
 
     /// Initialize Global Variables & Kernel Name at first Launch
-    ur_result_t prepareLaunch(ur_context_handle_t Context,
+    ur_result_t prepareLaunch(std::shared_ptr<ContextInfo> &ContextInfo,
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel,
@@ -273,7 +279,8 @@ class SanitizerInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-    logger::Logger &logger;
+
+    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

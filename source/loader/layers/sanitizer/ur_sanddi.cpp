@@ -1384,7 +1384,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
         pArgValue);
 
-    if (Options(getContext()->logger).DetectKernelArguments) {
+    if (getContext()->interceptor->getOptions().DetectKernelArguments) {
         auto KI = getContext()->interceptor->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
@@ -1675,7 +1675,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {
         enabledType = SanitizerType::AddressSanitizer;
-        interceptor = std::make_unique<SanitizerInterceptor>(logger);
+        interceptor = std::make_unique<SanitizerInterceptor>();
     } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
         enabledType = SanitizerType::MemorySanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {

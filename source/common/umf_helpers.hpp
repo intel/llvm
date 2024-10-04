@@ -17,6 +17,8 @@
 #include <umf/memory_provider_ops.h>
 #include <ur_api.h>
 
+#include "logger/ur_logger.hpp"
+
 #include <array>
 #include <functional>
 #include <memory>
@@ -162,11 +164,11 @@ auto memoryProviderMakeUnique(Args &&...args) {
     ops.finalize = [](void *obj) { delete reinterpret_cast<T *>(obj); };
 
     UMF_ASSIGN_OP(ops, T, alloc, UMF_RESULT_ERROR_UNKNOWN);
-    UMF_ASSIGN_OP(ops, T, free, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP_NORETURN(ops, T, get_last_native_error);
     UMF_ASSIGN_OP(ops, T, get_recommended_page_size, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops, T, get_min_page_size, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops, T, get_name, "");
+    UMF_ASSIGN_OP(ops.ext, T, free, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, purge_lazy, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, purge_force, UMF_RESULT_ERROR_UNKNOWN);
     UMF_ASSIGN_OP(ops.ext, T, allocation_merge, UMF_RESULT_ERROR_UNKNOWN);
@@ -220,6 +222,20 @@ static inline auto poolMakeUniqueFromOps(umf_memory_pool_ops_t *ops,
         UMF_RESULT_SUCCESS, pool_unique_handle_t(hPool, umfPoolDestroy)};
 }
 
+static inline auto providerMakeUniqueFromOps(umf_memory_provider_ops_t *ops,
+                                             void *params) {
+    umf_memory_provider_handle_t hProvider;
+    auto ret = umfMemoryProviderCreate(ops, params, &hProvider);
+    if (ret != UMF_RESULT_SUCCESS) {
+        return std::pair<umf_result_t, provider_unique_handle_t>{
+            ret, provider_unique_handle_t(nullptr, nullptr)};
+    }
+
+    return std::pair<umf_result_t, provider_unique_handle_t>{
+        UMF_RESULT_SUCCESS,
+        provider_unique_handle_t(hProvider, umfMemoryProviderDestroy)};
+}
+
 template <typename Type> umf_result_t &getPoolLastStatusRef() {
     static thread_local umf_result_t last_status = UMF_RESULT_SUCCESS;
     return last_status;
@@ -241,8 +257,14 @@ inline ur_result_t umf2urResult(umf_result_t umfResult) {
         }
 
         ur_result_t Err = UR_RESULT_ERROR_UNKNOWN;
-        umfMemoryProviderGetLastNativeError(hProvider, nullptr,
+        const char *Msg = nullptr;
+        umfMemoryProviderGetLastNativeError(hProvider, &Msg,
                                             reinterpret_cast<int32_t *>(&Err));
+
+        if (Msg) {
+            logger::error("UMF failed with: {}", Msg);
+        }
+
         return Err;
     }
     case UMF_RESULT_ERROR_INVALID_ARGUMENT:

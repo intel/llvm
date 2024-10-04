@@ -144,12 +144,16 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_libdevice.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_options.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_options.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_statistics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_statistics.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
