@@ -14,11 +14,6 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert

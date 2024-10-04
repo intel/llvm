@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
-  # Merge: 17aa04d3 6eb5208b
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Sep 25 11:14:47 2024 +0100
-  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
-  #     Add two new properties to ur_kernel_group_info_t
-  set(UNIFIED_RUNTIME_TAG 7ecf64d60c31cd72bd88588498536d067bad59d6)
+  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
+  # Merge: 1f13d2ce cf5994a1
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Oct 3 10:47:01 2024 +0200
+  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
+  #     Fix mixed output of adapter and regular traces
+  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
