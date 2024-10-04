@@ -49,11 +49,11 @@ struct DynamicTable {
 };
 
 class DynamicTableEmitter {
-  RecordKeeper &Records;
+  const RecordKeeper &Records;
   std::set<std::string> PreprocessorGuards;
 
 public:
-  DynamicTableEmitter(RecordKeeper &R) : Records(R) {}
+  DynamicTableEmitter(const RecordKeeper &R) : Records(R) {}
 
   void run(raw_ostream &OS);
 
