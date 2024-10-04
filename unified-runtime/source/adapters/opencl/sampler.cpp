@@ -8,7 +8,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "sampler.hpp"
 #include "common.hpp"
+#include "context.hpp"
 
 namespace {
 
@@ -137,16 +139,23 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
                             ur_sampler_handle_t *phSampler) {
 
   // Initialize properties according to OpenCL 2.1 spec.
-  ur_result_t ErrorCode;
+  cl_int ErrorCode;
   cl_addressing_mode AddressingMode =
       ur2CLAddressingMode(pDesc->addressingMode);
   cl_filter_mode FilterMode = ur2CLFilterMode(pDesc->filterMode);
-
-  // Always call OpenCL 1.0 API
-  *phSampler = cl_adapter::cast<ur_sampler_handle_t>(clCreateSampler(
-      cl_adapter::cast<cl_context>(hContext),
-      static_cast<cl_bool>(pDesc->normalizedCoords), AddressingMode, FilterMode,
-      cl_adapter::cast<cl_int *>(&ErrorCode)));
+  try {
+    // Always call OpenCL 1.0 API
+    cl_sampler Sampler = clCreateSampler(
+        hContext->CLContext, static_cast<cl_bool>(pDesc->normalizedCoords),
+        AddressingMode, FilterMode, &ErrorCode);
+    CL_RETURN_ON_FAILURE(ErrorCode);
+    auto URSampler = std::make_unique<ur_sampler_handle_t_>(Sampler, hContext);
+    *phSampler = URSampler.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
 
   return mapCLErrorToUR(ErrorCode);
 }
@@ -157,16 +166,25 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
   cl_sampler_info SamplerInfo = ur2CLSamplerInfo(propName);
   static_assert(sizeof(cl_addressing_mode) ==
                 sizeof(ur_sampler_addressing_mode_t));
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   ur_result_t Err = UR_RESULT_SUCCESS;
+
+  switch (propName) {
+  case UR_SAMPLER_INFO_CONTEXT: {
+    return ReturnValue(hSampler->Context);
+  }
+  case UR_SAMPLER_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hSampler->getReferenceCount());
+  }
   // ur_bool_t have a size of uint8_t, but cl_bool size have the size of
   // uint32_t so this adjust UR_SAMPLER_INFO_NORMALIZED_COORDS info to map
   // between them.
-  if (propName == UR_SAMPLER_INFO_NORMALIZED_COORDS) {
+  case UR_SAMPLER_INFO_NORMALIZED_COORDS: {
     cl_bool normalized_coords = false;
-    Err = mapCLErrorToUR(
-        clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), SamplerInfo,
-                         sizeof(cl_bool), &normalized_coords, nullptr));
+    Err = mapCLErrorToUR(clGetSamplerInfo(hSampler->CLSampler, SamplerInfo,
+                                          sizeof(cl_bool), &normalized_coords,
+                                          nullptr));
     if (pPropValue && propSize != sizeof(ur_bool_t)) {
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
@@ -178,52 +196,65 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
     if (pPropSizeRet) {
       *pPropSizeRet = sizeof(ur_bool_t);
     }
-  } else {
+    break;
+  }
+  default: {
     size_t CheckPropSize = 0;
-    Err = mapCLErrorToUR(
-        clGetSamplerInfo(cl_adapter::cast<cl_sampler>(hSampler), SamplerInfo,
-                         propSize, pPropValue, &CheckPropSize));
+    ur_result_t Err =
+        mapCLErrorToUR(clGetSamplerInfo(hSampler->CLSampler, SamplerInfo,
+                                        propSize, pPropValue, &CheckPropSize));
     if (pPropValue && CheckPropSize != propSize) {
       return UR_RESULT_ERROR_INVALID_SIZE;
     }
-    UR_RETURN_ON_FAILURE(Err);
+    CL_RETURN_ON_FAILURE(Err);
     if (pPropSizeRet) {
       *pPropSizeRet = CheckPropSize;
     }
-  }
 
-  // Convert OpenCL returns to UR
-  cl2URSamplerInfoValue(SamplerInfo, pPropValue);
+    // Convert OpenCL returns to UR
+    cl2URSamplerInfoValue(SamplerInfo, pPropValue);
+  }
+  }
 
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
-  return mapCLErrorToUR(
-      clRetainSampler(cl_adapter::cast<cl_sampler>(hSampler)));
+  hSampler->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
-  return mapCLErrorToUR(
-      clReleaseSampler(cl_adapter::cast<cl_sampler>(hSampler)));
+  if (hSampler->decrementReferenceCount() == 0) {
+    delete hSampler;
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ur_native_handle_t *phNativeSampler) {
-  *phNativeSampler = reinterpret_cast<ur_native_handle_t>(
-      cl_adapter::cast<cl_sampler>(hSampler));
+  *phNativeSampler = reinterpret_cast<ur_native_handle_t>(hSampler->CLSampler);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler, ur_context_handle_t,
+    ur_native_handle_t hNativeSampler, ur_context_handle_t hContext,
     const ur_sampler_native_properties_t *pProperties,
     ur_sampler_handle_t *phSampler) {
-  *phSampler = reinterpret_cast<ur_sampler_handle_t>(hNativeSampler);
-  if (!pProperties || !pProperties->isNativeHandleOwned) {
-    return urSamplerRetain(*phSampler);
+  cl_sampler NativeHandle = reinterpret_cast<cl_sampler>(hNativeSampler);
+  try {
+    auto URSampler =
+        std::make_unique<ur_sampler_handle_t_>(NativeHandle, hContext);
+    URSampler->IsNativeHandleOwned =
+        pProperties ? pProperties->isNativeHandleOwned : false;
+    *phSampler = URSampler.release();
+  } catch (std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
   }
+
   return UR_RESULT_SUCCESS;
 }
