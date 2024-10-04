@@ -283,10 +283,7 @@ void HIPAMDToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_SYCL) &&
          "Only HIP and SYCL offloading kinds are supported for GPUs.");
 
-  // If we are compiling SYCL kernels for Nvidia GPUs throuh HIP, we do not
-  // support Cuda device code compatability, hence we do not allow Cuda mode.
-  if (getTriple().isNVPTX() && DeviceOffloadingKind != Action::OFK_SYCL)
-    CC1Args.push_back("-fcuda-is-device");
+  CC1Args.push_back("-fcuda-is-device");
 
   if (!DriverArgs.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
                           false))
