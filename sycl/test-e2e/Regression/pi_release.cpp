@@ -12,5 +12,5 @@ int main() {
   return 0;
 }
 
-// CHECK: urQueueRelease
-// CHECK: urContextRelease
+// CHECK: <--- urQueueRelease
+// CHECK: <--- urContextRelease

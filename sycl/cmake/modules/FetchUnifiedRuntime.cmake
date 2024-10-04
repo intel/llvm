@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit 7e38af77174f92bf4025122b1fa8e3fc49f3ba29
-  # Merge: ddafd29b 6c7d7a76
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jul 15 15:14:47 2024 +0100
-  #     Merge pull request #1863 from kbenzie/benie/main-reverts
-  #     Revert "Merge pull request #1849 from ayylol/cl-subgroupsizes"
-  set(UNIFIED_RUNTIME_TAG review/yang/statistics)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4cd2dac7e17d82079bc07099284f2ea6cf8fd034
+  # Author: Yang Zhao <yang2.zhao@intel.com>
+  # Date:   Thu Oct 3 19:30:41 2024 +0800
+  #     [DeviceSanitizer] Memory overhead statistics (#1869)
+  #     Statistic memory overhead (usm redzone + shadow memory) on each context, enabled by exporting asan flag UR_LAYER_ASAN_OPTIONS=print_stats:1.
+  #     Addtionally, move "AsanOptions" under "SanitizerInterceptor".
+  set(UNIFIED_RUNTIME_TAG 4cd2dac7e17d82079bc07099284f2ea6cf8fd034)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

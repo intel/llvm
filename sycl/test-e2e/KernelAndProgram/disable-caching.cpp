@@ -21,66 +21,66 @@ constexpr specialization_id<int> spec_id;
 
 int main() {
   queue q;
-  // CHECK: urProgramCreate
-  // CHECK-NOT: urProgramRetain
-  // CHECK: urKernelCreate
-  // CHECK-NOT: urKernelRetain
-  // CHECK: urEnqueueKernelLaunch
-  // CHECK: urKernelRelease
-  // CHECK: urProgramRelease
-  // CHECK: urEventWait
+  // CHECK: <--- urProgramCreate
+  // CHECK-NOT: <--- urProgramRetain
+  // CHECK: <--- urKernelCreate
+  // CHECK-NOT: <--- urKernelRetain
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urProgramRelease
+  // CHECK: <--- urEventWait
 
-  // CHECK-CACHE: urProgramCreate
-  // CHECK-CACHE: urProgramRetain
-  // CHECK-CACHE-NOT: urProgramRetain
-  // CHECK-CACHE: urKernelCreate
-  // CHECK-CACHE: urKernelRetain
-  // CHECK-CACHE-NOT: urKernelCreate
-  // CHECK-CACHE: urEnqueueKernelLaunch
-  // CHECK-CACHE: urKernelRelease
-  // CHECK-CACHE: urProgramRelease
-  // CHECK-CACHE: urEventWait
+  // CHECK-CACHE: <--- urProgramCreate
+  // CHECK-CACHE: <--- urProgramRetain
+  // CHECK-CACHE-NOT: <--- urProgramRetain
+  // CHECK-CACHE: <--- urKernelCreate
+  // CHECK-CACHE: <--- urKernelRetain
+  // CHECK-CACHE-NOT: <--- urKernelCreate
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urKernelRelease
+  // CHECK-CACHE: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEventWait
   q.single_task([] {}).wait();
 
-  // CHECK: urProgramCreate
-  // CHECK-NOT: urProgramRetain
-  // CHECK: urKernelCreate
-  // CHECK-NOT: urKernelRetain
-  // CHECK: urEnqueueKernelLaunch
-  // CHECK: urKernelRelease
-  // CHECK: urProgramRelease
-  // CHECK: urEventWait
+  // CHECK: <--- urProgramCreate
+  // CHECK-NOT: <--- urProgramRetain
+  // CHECK: <--- urKernelCreate
+  // CHECK-NOT: <--- urKernelRetain
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urProgramRelease
+  // CHECK: <--- urEventWait
 
-  // CHECK-CACHE: urProgramCreate
-  // CHECK-CACHE: urProgramRetain
-  // CHECK-CACHE-NOT: urProgramRetain
-  // CHECK-CACHE: urKernelCreate
-  // CHECK-CACHE: urKernelRetain
-  // CHECK-CACHE-NOT: urKernelCreate
-  // CHECK-CACHE: urEnqueueKernelLaunch
-  // CHECK-CACHE: urKernelRelease
-  // CHECK-CACHE: urProgramRelease
-  // CHECK-CACHE: urEventWait
+  // CHECK-CACHE: <--- urProgramCreate
+  // CHECK-CACHE: <--- urProgramRetain
+  // CHECK-CACHE-NOT: <--- urProgramRetain
+  // CHECK-CACHE: <--- urKernelCreate
+  // CHECK-CACHE: <--- urKernelRetain
+  // CHECK-CACHE-NOT: <--- urKernelCreate
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urKernelRelease
+  // CHECK-CACHE: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEventWait
 
-  // CHECK: urProgramCreate
-  // CHECK-NOT: urProgramRetain
-  // CHECK: urKernelCreate
-  // CHECK-NOT: urKernelRetain
-  // CHECK: urEnqueueKernelLaunch
-  // CHECK: urKernelRelease
-  // CHECK: urProgramRelease
-  // CHECK: urEventWait
+  // CHECK: <--- urProgramCreate
+  // CHECK-NOT: <--- urProgramRetain
+  // CHECK: <--- urKernelCreate
+  // CHECK-NOT: <--- urKernelRetain
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK: <--- urKernelRelease
+  // CHECK: <--- urProgramRelease
+  // CHECK: <--- urEventWait
 
-  // CHECK-CACHE: urProgramCreate
-  // CHECK-CACHE: urProgramRetain
-  // CHECK-CACHE-NOT: urProgramRetain
-  // CHECK-CACHE: urKernelCreate
-  // CHECK-CACHE: urKernelRetain
-  // CHECK-CACHE-NOT: urKernelCreate
-  // CHECK-CACHE: urEnqueueKernelLaunch
-  // CHECK-CACHE: urKernelRelease
-  // CHECK-CACHE: urProgramRelease
-  // CHECK-CACHE: urEventWait
+  // CHECK-CACHE: <--- urProgramCreate
+  // CHECK-CACHE: <--- urProgramRetain
+  // CHECK-CACHE-NOT: <--- urProgramRetain
+  // CHECK-CACHE: <--- urKernelCreate
+  // CHECK-CACHE: <--- urKernelRetain
+  // CHECK-CACHE-NOT: <--- urKernelCreate
+  // CHECK-CACHE: <--- urEnqueueKernelLaunch
+  // CHECK-CACHE: <--- urKernelRelease
+  // CHECK-CACHE: <--- urProgramRelease
+  // CHECK-CACHE: <--- urEventWait
   auto *p = malloc_device<int>(1, q);
   for (int i = 0; i < 2; ++i)
     q.submit([&](handler &cgh) {
@@ -94,9 +94,9 @@ int main() {
 }
 
 // (Program cache releases)
-// CHECK-CACHE: urKernelRelease
-// CHECK-CACHE: urKernelRelease
-// CHECK-CACHE: urKernelRelease
-// CHECK-CACHE: urProgramRelease
-// CHECK-CACHE: urProgramRelease
-// CHECK-CACHE: urProgramRelease
+// CHECK-CACHE: <--- urKernelRelease
+// CHECK-CACHE: <--- urKernelRelease
+// CHECK-CACHE: <--- urKernelRelease
+// CHECK-CACHE: <--- urProgramRelease
+// CHECK-CACHE: <--- urProgramRelease
+// CHECK-CACHE: <--- urProgramRelease
