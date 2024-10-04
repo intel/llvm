@@ -116,8 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG cf3d6a1fb485823980456bc238bc27c3e1f4b400)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 7e9d9d47326d8ff9b9959c47a74a0b948e42c612
+  # Merge: d9608131 cf3d6a1f
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Oct 4 11:10:26 2024 +0200
+  #     Merge pull request #2016 from igchor/usm_rebased
+  #     [L0 v2] implement USM allocation functions using UMF
+  set(UNIFIED_RUNTIME_TAG 7e9d9d47326d8ff9b9959c47a74a0b948e42c612)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
