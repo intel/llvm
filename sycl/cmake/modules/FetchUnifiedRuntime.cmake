@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4cd2dac7e17d82079bc07099284f2ea6cf8fd034
-  # Author: Yang Zhao <yang2.zhao@intel.com>
-  # Date:   Thu Oct 3 19:30:41 2024 +0800
-  #     [DeviceSanitizer] Memory overhead statistics (#1869)
-  #     Statistic memory overhead (usm redzone + shadow memory) on each context, enabled by exporting asan flag UR_LAYER_ASAN_OPTIONS=print_stats:1.
-  #     Addtionally, move "AsanOptions" under "SanitizerInterceptor".
-  set(UNIFIED_RUNTIME_TAG 4cd2dac7e17d82079bc07099284f2ea6cf8fd034)
+  # commit 7907998a442b381a6669d2ae5ab957f8ddda5d03
+  # Merge: 7e9d9d47 ae7f58e3
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 4 11:35:10 2024 +0100
+  #     Merge pull request #2121 from nrspruit/error_after_free_syclos
+  #     [L0] Refcnt Parent Buffer on Sub Buffer Create and die on use of buffer after free
+  set(UNIFIED_RUNTIME_TAG 7907998a442b381a6669d2ae5ab957f8ddda5d03)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
