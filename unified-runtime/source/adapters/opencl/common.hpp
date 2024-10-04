@@ -156,20 +156,6 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 // Utility function for setting a message and warning
 [[maybe_unused]] void setErrorMessage(const char *Message,
                                       ur_result_t ErrorCode);
-
-template <class To, class From> To cast(From Value) {
-
-  if constexpr (std::is_pointer_v<From>) {
-    static_assert(std::is_pointer_v<From> == std::is_pointer_v<To>,
-                  "Cast failed pointer check");
-    return reinterpret_cast<To>(Value);
-  } else {
-    static_assert(sizeof(From) == sizeof(To), "Cast failed size check");
-    static_assert(std::is_signed_v<From> == std::is_signed_v<To>,
-                  "Cast failed sign check");
-    return static_cast<To>(Value);
-  }
-}
 } // namespace cl_adapter
 
 namespace cl_ext {
