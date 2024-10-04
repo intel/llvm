@@ -241,20 +241,6 @@ jobs:
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
-      with:
-        python-version: 3.9
-
-    - name: Install prerequisites
-      run: python3 -m pip install -r third_party/requirements.txt
-
-    - name: Install doxygen
-      run: |
-        $WorkingDir = $PWD.Path
-        Invoke-WebRequest -Uri https://github.com/doxygen/doxygen/releases/download/Release_1_9_8/doxygen-1.9.8.windows.x64.bin.zip -OutFile "$WorkingDir\doxygen.zip"
-        Expand-Archive -Path "$WorkingDir\doxygen.zip"
-        Add-Content $env:GITHUB_PATH "$WorkingDir\doxygen"
-
     - name: Install hwloc
       run: vcpkg install hwloc:x64-windows
 
@@ -272,7 +258,7 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
-        -DUR_FORMAT_CPP_STYLE=ON
+        -DUR_FORMAT_CPP_STYLE=OFF
         ${{matrix.adapter.var}}
 
     - name: Build all
