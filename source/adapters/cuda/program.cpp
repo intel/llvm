@@ -11,6 +11,17 @@
 #include "program.hpp"
 #include "ur_util.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <new>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
                                    unsigned int &Value) {
   using namespace std::string_view_literals;
