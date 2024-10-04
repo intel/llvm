@@ -27,7 +27,8 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                        return std::make_unique<v2::provider_normal>(
                            context, device, v2::EVENT_COUNTER,
                            v2::QUEUE_IMMEDIATE);
-                     }) {}
+                     }),
+      defaultUSMPool(this, nullptr) {}
 
 ur_result_t ur_context_handle_t_::retain() {
   RefCount.increment();
@@ -58,6 +59,10 @@ bool ur_context_handle_t_::isValidDevice(ur_device_handle_t hDevice) const {
     hDevice = hDevice->RootDevice;
   }
   return false;
+}
+
+ur_usm_pool_handle_t ur_context_handle_t_::getDefaultUSMPool() {
+  return &defaultUSMPool;
 }
 
 namespace ur::level_zero {
