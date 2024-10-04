@@ -50,6 +50,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${CMAKE_CURRENT_SOURCE_DIR}/helpers/memory_helpers.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     )
+    install_ur_library(ur_adapter_level_zero)
 
     if(UR_STATIC_ADAPTER_L0)
         target_compile_definitions(ur_adapter_level_zero PUBLIC UR_STATIC_ADAPTER_LEVEL_ZERO)
@@ -57,7 +58,7 @@ if(UR_BUILD_ADAPTER_L0)
         # 'utils' target from 'level-zero-loader' includes path which is prefixed
         # in the source directory, this breaks the installation of 'utils' target.
         set_target_properties(utils PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "")
-        install(TARGETS ur_adapter_level_zero ur_umf LevelZeroLoader LevelZeroLoader-Headers ze_loader utils
+        install(TARGETS ur_umf LevelZeroLoader LevelZeroLoader-Headers ze_loader utils
             EXPORT ${PROJECT_NAME}-targets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -150,6 +151,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/queue_immediate_in_order.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/v2/usm.cpp
     )
+    install_ur_library(ur_adapter_level_zero_v2)
 
     if(NOT WIN32)
         # api.cpp contains NOT_SUPPORTED functions-only
