@@ -232,14 +232,10 @@ find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
   # Install the UR loader.
-  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its separate repo perhaps we should introduce new component,
-  # e.g. unified-runtime-sycl-dev.
-  # See github issue #14598
   install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
 endif()
 
@@ -303,8 +299,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
