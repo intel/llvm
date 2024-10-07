@@ -51,7 +51,7 @@ template <typename T> struct is_khr_group : public std::false_type {};
 template <int Dimensions>
 struct is_khr_group<khr::work_group<Dimensions>> : public std::true_type {};
 
-struct is_khr_group<khr::sub_group> : public std::true_type {};
+template <> struct is_khr_group<khr::sub_group> : public std::true_type {};
 
 } // namespace detail
 
