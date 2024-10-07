@@ -1185,6 +1185,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
+  // StringSet to contain SYCL target triples.
   llvm::StringSet<> SYCLTriples;
   if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
@@ -1299,7 +1300,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   else if (HasValidSYCLRuntime &&
            C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
            !IsCuda) {
-      // SYCL offloading to Intel CPUs and Intel GPUs with ``--offload-arch``
+      // SYCL offloading to AOT Targets with ``--offload-arch``
       // is currently enabled only with ``--offload-new-driver`` option.
       // Emit a diagnostic if ``--offload-arch`` is invoked without
       // ``--offload-new driver`` option.
@@ -1370,8 +1371,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     for (const auto &Val : SYCLTriples) {
       llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
       std::string NormalizedName = SYCLTargetTriple.normalize();
-
-
 
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);

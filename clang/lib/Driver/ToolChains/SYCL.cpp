@@ -28,7 +28,7 @@ using namespace clang;
 using namespace llvm::opt;
 
 // Struct that relates an AOT target value with
-// Intel CPUs and GPUs.
+// Intel CPUs, Intel GPUs, AMD and NVidia GPUs.
 struct StringToOffloadArchSYCLMap {
   const char *ArchName;
   SYCLSupportedOffloadArchs IntelArch;
@@ -151,7 +151,7 @@ static const StringToOffloadArchSYCLMap StringToArchNamesMap[] = {
     {"sm_90a", SYCLSupportedOffloadArchs::SM_90A}};
 
 // Check if the user provided value for --offload-arch is a valid
-// Intel CPU or Intel GPU target.
+// SYCL supported AOT target.
 SYCLSupportedOffloadArchs
 clang::driver::StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString) {
   auto result = std::find_if(
