@@ -22,11 +22,10 @@ inline namespace _V1 {
 
 namespace khr {
 
-// Forward declarations for friend functions and traits.
+// Forward declarations for traits.
 template <int Dimensions> class work_group;
-template class sub_group;
+class sub_group;
 template <typename ParentGroup> class work_item;
-template <typename ParentGroup> work_item<ParentGroup> get_item(ParentGroup);
 
 } // namespace khr
 
@@ -57,6 +56,12 @@ struct is_khr_group<khr::sub_group> : public std::true_type {};
 } // namespace detail
 
 namespace khr {
+
+// Forward declaration for friend function.
+template <typename ParentGroup>
+std::enable_if_t<detail::is_khr_group<ParentGroup>::value,
+                 work_item<ParentGroup>>
+get_item(ParentGroup g);
 
 template <int Dimensions = 1> class work_group {
 public:
