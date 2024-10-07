@@ -1663,6 +1663,21 @@ void clang::InitializePreprocessor(Preprocessor &PP,
     AddImplicitInclude(Builder, Path);
   }
 
+   #if 1
+  // Process -include-internal-header directive.
+  if (!LangOpts.SYCLIsDevice) {
+    if (!InitOpts.IncludeHeader.empty()) {
+      AddImplicitInclude(Builder, InitOpts.IncludeHeader);
+    }
+#if 0
+    // Process -include-internal-footer directive.
+    if (!InitOpts.IncludeFooter.empty()) {
+      AddImplicitInclude(Builder, InitOpts.IncludeFooter);
+    }
+#endif
+  }
+  #endif
+
   // Instruct the preprocessor to skip the preamble.
   PP.setSkipMainFilePreamble(InitOpts.PrecompiledPreambleBytes.first,
                              InitOpts.PrecompiledPreambleBytes.second);
