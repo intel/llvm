@@ -18,7 +18,7 @@ __SYCL_EXPORT void memcpy(queue Q, void *Dest, const void *Src, size_t NumBytes,
   sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   auto QueueImplPtr = sycl::detail::getSyclObjImpl(Q);
   QueueImplPtr->memcpy(QueueImplPtr, Dest, Src, NumBytes, {},
-                       /*CallerNeedsEvent=*/false, CodeLoc);
+                       /*CallerNeedsEvent=*/false, TlsCodeLocCapture.query());
 }
 
 __SYCL_EXPORT void memset(queue Q, void *Ptr, int Value, size_t NumBytes,

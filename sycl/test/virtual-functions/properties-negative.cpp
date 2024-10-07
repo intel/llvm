@@ -19,7 +19,9 @@ int main() {
 
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
   q.single_task(props_empty, [=]() {});
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
+  // When both "props_empty" and "props_void" are in use, we won't see the
+  // static assert firing for the second one, because there will be only one
+  // instantiation of handler::processProperties.
   q.single_task(props_void, [=]() {});
   // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.*}} indirectly_callable property cannot be applied to SYCL kernels}}
   q.single_task(props_int, [=]() {});

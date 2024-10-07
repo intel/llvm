@@ -1,4 +1,3 @@
-// UNSUPPORTED: hip
 // RUN: %{build} -Wno-error=deprecated-declarations -Wno-error=pointer-to-int-cast -fno-builtin -o %t.out
 // RUN: %{run} %t.out
 //
