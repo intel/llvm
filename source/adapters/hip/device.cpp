@@ -548,7 +548,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // postprocessing is NOP. HIP 4.3 docs indicate support for
     // native asserts are in progress
     std::string SupportedExtensions = "";
-    SupportedExtensions += "pi_ext_intel_devicelib_assert ";
+    SupportedExtensions += "cl_intel_devicelib_assert ";
     SupportedExtensions += "ur_exp_usm_p2p ";
 
     int RuntimeVersion = 0;
