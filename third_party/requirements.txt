@@ -23,7 +23,7 @@ pytest>=7.0
 pytz==2019.3
 PyYAML==6.0.1
 requests==2.32.2
-rst2pdf==0.98
+rst2pdf==0.102
 six==1.13.0
 snowballstemmer==2.0.0
 soupsieve==1.9.5
