@@ -6,7 +6,7 @@
 // CHECK: ---> DLL_PROCESS_DETACH syclx.dll
 
 // whatever adapter THIS is
-// CHECK: ---> urAdapterRelease(
+// CHECK: ---> urAdapterRelease
 // CHECK: <LOADER>[INFO]: unloaded adapter
 
-// CHECK: ---> urLoaderTearDown(
+// CHECK: ---> urLoaderTearDown

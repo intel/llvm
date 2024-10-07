@@ -28,6 +28,21 @@ constexpr int DebugModuleProps = 0;
 #endif
 
 namespace llvm::sycl {
+namespace {
+module_split::SyclEsimdSplitStatus
+getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
+  auto *SplitMD = M.getNamedMetadata(module_split::SYCL_ESIMD_SPLIT_MD_NAME);
+  assert(SplitMD && "Unexpected metadata");
+  auto *MDOp = SplitMD->getOperand(0);
+  assert(MDOp && "Unexpected metadata operand");
+  const auto &MDConst = MDOp->getOperand(0);
+  auto *MDVal = mdconst::dyn_extract_or_null<ConstantInt>(MDConst);
+  uint8_t Val = MDVal->getZExtValue();
+  assert(Val < 3 && "Unexpected value for split metadata");
+  auto AsEnum = static_cast<module_split::SyclEsimdSplitStatus>(Val);
+  return AsEnum;
+}
+} // namespace
 
 bool isModuleUsingAsan(const Module &M) {
   for (const auto &F : M) {
@@ -305,16 +320,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
                   GV.getName());
     }
   }
-  bool SeenESIMDFunction = false;
-  bool SeenSYCLFunction = false;
-  for (const auto &F : M) {
-    if (llvm::module_split::isESIMDFunction(F))
-      SeenESIMDFunction = true;
-    else if (utils::isSYCLExternalFunction(&F) &&
-             !F.getName().starts_with("__itt"))
-      SeenSYCLFunction = true;
-  }
-  if (SeenESIMDFunction && !SeenSYCLFunction)
+
+  module_split::SyclEsimdSplitStatus SplitType =
+      getSYCLESIMDSplitStatusFromMetadata(M);
+
+  if (SplitType == module_split::SyclEsimdSplitStatus::ESIMD_ONLY)
     PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "isEsimdImage", true);
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
@@ -359,7 +369,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
   // 'if' below essentially preserves the behavior (presumably mistakenly)
   // implemented in intel/llvm#8763: ignore 'optLevel' property for images which
   // were produced my merge after ESIMD split
-  if (!SeenESIMDFunction || !SeenSYCLFunction) {
+  if (SplitType != module_split::SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
     // Handle sycl-optlevel property
     int OptLevel = -1;
     for (const Function *F : EntryPoints) {
