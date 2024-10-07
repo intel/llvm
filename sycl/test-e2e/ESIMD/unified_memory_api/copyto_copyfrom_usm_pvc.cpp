@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 
 // The test verifies copyto_copyfrom() functions accepting USM pointer
 // and optional compile-time esimd::properties.

@@ -27,17 +27,10 @@ template <class T> void test(queue stream) {
           data[id * 2] = id;
           data[id * 2 + 1] = id + 0.5;
 
-          T addr;
-          if constexpr (std::is_same_v<size_t, T>) {
-            addr = syclcompat::cvta_generic_to_shared(
-                reinterpret_cast<char *>(data) + (id % 8) * 16);
-          } else { // T == uint32_t
-            addr = syclcompat::nvvm_get_smem_pointer(
-                reinterpret_cast<char *>(data) + (id % 8) * 16);
-          }
+          T addr =
+              syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
 
           uint32_t fragment;
-
 #if defined(__NVPTX__)
           asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
                        : "=r"(fragment)

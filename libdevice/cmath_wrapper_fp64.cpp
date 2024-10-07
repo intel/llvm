@@ -26,6 +26,9 @@ DEVICE_EXTERN_C_INLINE
 double copysign(double x, double y) { return __devicelib_copysign(x, y); }
 
 DEVICE_EXTERN_C_INLINE
+double scalbln(double x, long y) { return __devicelib_scalbln(x, y); }
+
+DEVICE_EXTERN_C_INLINE
 double cospi(double x) { return __devicelib_cospi(x); }
 
 extern "C" SYCL_EXTERNAL double __devicelib_fmax(double, double);

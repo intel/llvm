@@ -83,6 +83,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
 
   bool Passed = verify(Out, Size, N);
 
+  sycl::free(In, Q);
   sycl::free(Out, Q);
 
   return Passed;
@@ -205,7 +206,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups, PropertiesT Properties) {
              Vals = gather<T, N>(LocalAcc, ByteOffsets, PropertiesT{});
          } else {
            if (GlobalID % GroupSize)
-             Vals.template copy_from(LocalAcc, LocalElemOffset);
+             Vals.copy_from(LocalAcc, LocalElemOffset);
            else
              Vals = gather<T, N>(LocalAcc, ByteOffsets);
          }

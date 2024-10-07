@@ -31,7 +31,7 @@ queue q;
 [[__sycl_detail__::__uses_aspects__()]] void func3() {}
 
 // CHECK: FunctionDecl {{.*}} used func4 'void ()'
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'

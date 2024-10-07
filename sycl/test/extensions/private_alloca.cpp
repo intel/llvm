@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: %if asserts %{sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -spec-const=native -o %t.txt 2>&1 %}
+// RUN: %if asserts %{sycl-post-link -properties -debug-only=SpecConst %t.bc -spec-const=native -o %t.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -properties -spec-const=native -o %t.txt 2>&1 %}
 // RUN: cat %t_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
 // RUN: llvm-spirv -o %t_0.spv -spirv-max-version=1.1 -spirv-ext=+all %t_0.bc
 // RUN: llvm-spirv -o - --to-text %t_0.spv | FileCheck %s -check-prefixes=CHECK-SPV

@@ -14,7 +14,7 @@ body:
     attributes:
       label: To reproduce
       description: Please describe the steps to reproduce the behavior
-      placeholder: |
+      value: |
         1. Include a code snippet that is as short as possible
         2. Specify the command which should be used to compile the program
         3. Specify the command which should be used to launch the program
@@ -26,7 +26,7 @@ body:
     attributes:
       label: Environment
       description: Please complete the following information
-      placeholder: |
+      value: |
         - OS: [e.g Windows/Linux]
         - Target device and vendor: [e.g. Intel GPU]
         - DPC++ version: [e.g. commit hash or output of `clang++ --version`]

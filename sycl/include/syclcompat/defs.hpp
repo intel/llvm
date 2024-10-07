@@ -55,6 +55,17 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define SYCLCOMPAT_EXPORT
 #endif
 
+#define SYCLCOMPAT_MAJOR_VERSION 0
+#define SYCLCOMPAT_MINOR_VERSION 1
+#define SYCLCOMPAT_PATCH_VERSION 0
+
+#define SYCLCOMPAT_MAKE_VERSION(_major, _minor, _patch)                        \
+  ((1E6 * _major) + (1E3 * _minor) + _patch)
+
+#define SYCLCOMPAT_VERSION                                                     \
+  SYCLCOMPAT_MAKE_VERSION(SYCLCOMPAT_MAJOR_VERSION, SYCLCOMPAT_MINOR_VERSION,  \
+                          SYCLCOMPAT_PATCH_VERSION)
+
 namespace syclcompat {
 enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
 }

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -19,12 +20,10 @@
 #include <vector>
 
 namespace llvm {
-
+class Function;
+class Module;
 class StringRef;
 
-namespace module_split {
-class ModuleDesc;
-}
 namespace util {
 class PropertyValue;
 }
@@ -54,6 +53,7 @@ struct SYCLDeviceRequirements {
 };
 
 SYCLDeviceRequirements
-computeDeviceRequirements(const module_split::ModuleDesc &M);
+computeDeviceRequirements(const Module &M,
+                          const SetVector<Function *> &EntryPoints);
 
 } // namespace llvm

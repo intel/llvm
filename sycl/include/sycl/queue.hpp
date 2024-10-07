@@ -23,7 +23,6 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_mem_advice
 #include <sycl/device.hpp>                    // for device
 #include <sycl/device_selector.hpp>           // for device_selector
 #include <sycl/event.hpp>                     // for event
@@ -40,12 +39,6 @@
 #include <sycl/nd_range.hpp>                            // for nd_range
 #include <sycl/property_list.hpp>                       // for property_list
 #include <sycl/range.hpp>                               // for range
-
-#if __SYCL_USE_FALLBACK_ASSERT
-// TODO: maybe we can move detail::submitAssertCapture into the shared library
-// instead.
-#include <sycl/detail/host_task_impl.hpp>
-#endif
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function
@@ -95,6 +88,12 @@ namespace ext ::oneapi ::experimental {
 // returned by info::queue::state
 enum class queue_state { executing, recording };
 struct image_descriptor;
+
+namespace detail {
+template <typename CommandGroupFunc>
+void submit_impl(queue &Q, CommandGroupFunc &&CGF,
+                 const sycl::detail::code_location &CodeLoc);
+} // namespace detail
 } // namespace ext::oneapi::experimental
 
 /// Encapsulates a single SYCL queue which schedules kernels on a SYCL device.
@@ -312,11 +311,6 @@ public:
       ext::oneapi::experimental::graph_state::modifiable>
   ext_oneapi_get_graph() const;
 
-  /// \return true if this queue is a SYCL host queue.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Queries SYCL queue for information.
   ///
   /// The return type depends on information being queried.
@@ -468,12 +462,16 @@ public:
 
   /// \return true if the queue was constructed with property specified by
   /// PropertyT.
-  template <typename PropertyT> bool has_property() const noexcept;
+  template <typename PropertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<PropertyT>();
+  }
 
   /// \return a copy of the property of type PropertyT that the queue was
   /// constructed with. If the queue was not constructed with the PropertyT
-  /// property, an invalid_object_error SYCL exception.
-  template <typename PropertyT> PropertyT get_property() const;
+  /// property, an SYCL exception with errc::invalid error code is thrown.
+  template <typename PropertyT> PropertyT get_property() const {
+    return getPropList().template get_property<PropertyT>();
+  }
 
   /// Fills the specified memory with the specified pattern.
   ///
@@ -687,18 +685,6 @@ public:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return this->memcpy(Dest, Src, Count * sizeof(T), DepEvents);
   }
-
-  /// Provides additional information to the underlying runtime about how
-  /// different allocations are used.
-  ///
-  /// \param Ptr is a USM pointer to the allocation.
-  /// \param Length is a number of bytes in the allocation.
-  /// \param Advice is a device-defined advice for the specified allocation.
-  /// \return an event representing advice operation.
-  __SYCL2020_DEPRECATED("use the overload with int Advice instead")
-  event mem_advise(
-      const void *Ptr, size_t Length, pi_mem_advice Advice,
-      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
@@ -1394,7 +1380,7 @@ public:
   /// \param DestImgDesc is the image descriptor (format, order, dimensions).
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1418,7 +1404,7 @@ public:
   ///                   measured in pixels as determined by \p DestImgDesc
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1438,7 +1424,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1464,7 +1450,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1485,7 +1471,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1512,7 +1498,7 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DestImgDesc,
@@ -1530,7 +1516,7 @@ public:
   /// \param SrcImgDesc is the source image descriptor.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1556,7 +1542,8 @@ public:
   ///               \p SrcImgDesc )
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent,
@@ -1574,7 +1561,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1602,7 +1589,8 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent, event DepEvent,
@@ -1621,7 +1609,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1650,7 +1638,8 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
       sycl::range<3> DestOffset, sycl::range<3> DestExtent,
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
@@ -1668,7 +1657,7 @@ public:
   /// \param DeviceRowPitch is the DeviceRowPitch of the rows on the device.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1696,7 +1685,7 @@ public:
   ///               \p DeviceImgDesc )
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -1716,7 +1705,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1731,7 +1720,7 @@ public:
   /// \param DepEvent is an events that specifies the kernel dependency.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       event DepEvent,
@@ -1748,7 +1737,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const std::vector<event> &DepEvents,
@@ -1763,7 +1752,7 @@ public:
   /// \param ImageDesc is the source image descriptor
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1792,7 +1781,7 @@ public:
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -1813,7 +1802,7 @@ public:
   /// dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
@@ -1843,7 +1832,7 @@ public:
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      const void *Src, sycl::range<3> SrcOffset, void *Dest,
       sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch, sycl::range<3> HostExtent,
@@ -1851,117 +1840,171 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object.
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+          CGH.ext_oneapi_wait_external_semaphore(extSemaphore);
         },
         CodeLoc);
   }
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to wait upon.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object.
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the wait operation.
   event ext_oneapi_wait_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      uint64_t WaitValue,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      uint64_t WaitValue, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support waiting on an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param WaitValue is the value that this semaphore will wait upon, until it
+  ///                  allows any further commands to execute on the queue.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      uint64_t WaitValue, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \return an event representing the signal operation.
   event ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the signal operation.
   event ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       event DepEvent,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// Instruct the queue to signal the external semaphore once all previous
   /// commands have completed execution.
-  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore requires an explicit value to signal.
   ///
-  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param extSemaphore is an opaque external semaphore object
   /// \param DepEvents is a vector of events that specifies the kernel
   /// dependencies.
   /// \return an event representing the signal operation.
   event ext_oneapi_signal_external_semaphore(
-      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
       const std::vector<event> &DepEvents,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [&](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
-        },
-        CodeLoc);
-  }
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      uint64_t SignalValue,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore extSemaphore,
+      uint64_t SignalValue, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current());
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p extSemaphore is incomplete, or if the
+  /// type of semaphore does not support signalling an explicitly passed value.
+  ///
+  /// \param extSemaphore is an opaque external semaphore object
+  /// \param SignalValue is the value that this semaphore signal, once all
+  ///                    prior opeartions on the queue complete.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::external_semaphore SemaphoreHandle,
+      uint64_t SignalValue, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current());
 
   /// single_task version with a kernel represented as a lambda.
   ///
@@ -2314,10 +2357,7 @@ public:
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
       event>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2350,10 +2390,7 @@ public:
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, event DepEvent, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2375,10 +2412,7 @@ public:
             typename... RestT>
   event parallel_for(nd_range<Dims> Range, const std::vector<event> &DepEvents,
                      RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2533,6 +2567,7 @@ public:
   /// Equivalent to
   /// `has_property<ext::codeplay::experimental::property::queue::enable_fusion>()`.
   ///
+  // TODO(#15184) Remove this function in the next ABI-breaking window.
   bool ext_codeplay_supports_fusion() const;
 
 // Clean KERNELFUNC macros.
@@ -2611,7 +2646,7 @@ public:
   /// completed, otherwise returns false.
   bool ext_oneapi_empty() const;
 
-  pi_native_handle getNative(int32_t &NativeHandleDesc) const;
+  ur_native_handle_t getNative(int32_t &NativeHandleDesc) const;
 
   event ext_oneapi_get_last_event() const;
 
@@ -2622,7 +2657,7 @@ private:
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
@@ -2635,6 +2670,11 @@ private:
                                            const detail::code_location &);
 #endif
 
+  template <typename CommandGroupFunc>
+  friend void ext::oneapi::experimental::detail::submit_impl(
+      queue &Q, CommandGroupFunc &&CGF,
+      const sycl::detail::code_location &CodeLoc);
+
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
@@ -2642,10 +2682,27 @@ private:
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
 
-  /// Checks if the event needs to be discarded and if so, discards it and
-  /// returns a discarded event. Otherwise, it returns input event.
-  /// TODO: move to impl class in the next ABI Breaking window
-  event discard_or_return(const event &Event);
+  /// A template-free version of submit_without_event.
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc);
+
+  /// Submits a command group function object to the queue, in order to be
+  /// scheduled for execution on the device.
+  ///
+  /// \param CGF is a function object containing command group.
+  /// \param CodeLoc is the code location of the submit call (default argument)
+  template <typename T>
+  std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, void>
+  submit_without_event(T CGF, const detail::code_location &CodeLoc) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+#if __SYCL_USE_FALLBACK_ASSERT
+    // If post-processing is needed, fall back to the regular submit.
+    // TODO: Revisit whether we can avoid this.
+    submit(CGF, CodeLoc);
+#else
+    submit_without_event_impl(CGF, CodeLoc);
+#endif // __SYCL_USE_FALLBACK_ASSERT
+  }
 
   // Function to postprocess submitted command
   // Arguments:
@@ -2688,10 +2745,7 @@ private:
       event>
   parallel_for_impl(range<Dims> Range, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2725,10 +2779,7 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, event DepEvent, PropertiesT Properties,
                     RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2765,10 +2816,7 @@ private:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
   parallel_for_impl(range<Dims> Range, const std::vector<event> &DepEvents,
                     PropertiesT Properties, RestT &&...Rest) {
-    using KI = sycl::detail::KernelInfo<KernelName>;
-    constexpr detail::code_location CodeLoc(
-        KI::getFileName(), KI::getFunctionName(), KI::getLineNumber(),
-        KI::getColumnNumber());
+    constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
         [&](handler &CGH) {
@@ -2802,6 +2850,15 @@ private:
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
                                const std::vector<event> &DepEvents);
+  const property_list &getPropList() const;
+
+  template <typename KernelName>
+  static constexpr detail::code_location getCodeLocation() {
+    return {detail::getKernelFileName<KernelName>(),
+            detail::getKernelFunctionName<KernelName>(),
+            detail::getKernelLineNumber<KernelName>(),
+            detail::getKernelColumnNumber<KernelName>()};
+  }
 };
 
 } // namespace _V1

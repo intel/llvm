@@ -52,6 +52,9 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
         MPtr.get_decorated());
 }
 
+template <typename NonUniformGroup>
+inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id);
+
 namespace spirv {
 
 template <typename Group>
@@ -233,8 +236,8 @@ bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
 template <typename T>
 using is_native_broadcast =
     std::bool_constant<detail::is_arithmetic<T>::value &&
-                       !std::is_same<T, half>::value &&
-                       !detail::is_vec<T>::value>;
+                       !std::is_same<T, half>::value && !detail::is_vec_v<T> &&
+                       !detail::is_marray_v<T> && !std::is_pointer_v<T>>;
 
 template <typename T, typename IdT = size_t>
 using EnableIfNativeBroadcast = std::enable_if_t<
@@ -394,9 +397,9 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -446,9 +449,9 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -559,6 +562,17 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, half>, T>
+AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicLoad(Ptr, SPIRVScope, SPIRVOrder);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
@@ -579,6 +593,17 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto SPIRVScope = getScope(Scope);
   I ValueInt = sycl::bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<T, half>>
+AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+            memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  __spirv_AtomicStore(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -609,6 +634,17 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+               memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicExchange(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicIAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
@@ -635,6 +671,17 @@ inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order, T Value) {
   auto *Ptr = GetMultiPtrDecoratedAs<T>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicFAdd(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+           memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicFAddEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
@@ -697,6 +744,17 @@ AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 
 template <typename T, access::address_space AddressSpace,
           access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicMin(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMinEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
 inline typename std::enable_if_t<std::is_integral<T>::value, T>
 AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
           memory_order Order, T Value) {
@@ -715,6 +773,17 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   return __spirv_AtomicMax(Ptr, SPIRVScope, SPIRVOrder, Value);
+}
+
+template <typename T, access::address_space AddressSpace,
+          access::decorated IsDecorated>
+inline typename std::enable_if_t<std::is_same_v<half, T>, T>
+AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
+          memory_order Order, T Value) {
+  auto *Ptr = GetMultiPtrDecoratedAs<_Float16>(MPtr);
+  auto SPIRVOrder = getMemorySemanticsMask(Order);
+  auto SPIRVScope = getScope(Scope);
+  return __spirv_AtomicFMaxEXT(Ptr, SPIRVScope, SPIRVOrder, Value);
 }
 
 // Native shuffles map directly to a shuffle intrinsic:
@@ -744,12 +813,15 @@ struct VecTypeIsProhibitedForShuffleEmulation
 template <typename T>
 using EnableIfNativeShuffle =
     std::enable_if_t<detail::is_arithmetic<T>::value &&
-                         !VecTypeIsProhibitedForShuffleEmulation<T>::value,
+                         !VecTypeIsProhibitedForShuffleEmulation<T>::value &&
+                         !detail::is_marray_v<T>,
                      T>;
 
 template <typename T>
-using EnableIfVectorShuffle =
-    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value, T>;
+using EnableIfNonScalarShuffle =
+    std::enable_if_t<VecTypeIsProhibitedForShuffleEmulation<T>::value ||
+                         detail::is_marray_v<T>,
+                     T>;
 
 #else  // ifndef __NVPTX__
 
@@ -758,8 +830,8 @@ using EnableIfNativeShuffle = std::enable_if_t<
     std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t)), T>;
 
 template <typename T>
-using EnableIfVectorShuffle =
-    std::enable_if_t<detail::is_vector_arithmetic<T>::value, T>;
+using EnableIfNonScalarShuffle =
+    std::enable_if_t<detail::is_nonscalar_arithmetic<T>::value, T>;
 #endif // ifndef __NVPTX__
 
 // Bitcast shuffles can be implemented using a single SubgroupShuffle
@@ -777,7 +849,7 @@ template <typename T>
 using EnableIfBitcastShuffle =
     std::enable_if_t<!(std::is_integral_v<T> &&
                        (sizeof(T) <= sizeof(int32_t))) &&
-                         !detail::is_vector_arithmetic<T>::value &&
+                         !detail::is_nonscalar_arithmetic<T>::value &&
                          (std::is_trivially_copyable_v<T> &&
                           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
                      T>;
@@ -799,7 +871,7 @@ using EnableIfGenericShuffle =
 template <typename T>
 using EnableIfGenericShuffle = std::enable_if_t<
     !(std::is_integral<T>::value && (sizeof(T) <= sizeof(int32_t))) &&
-        !detail::is_vector_arithmetic<T>::value &&
+        !detail::is_nonscalar_arithmetic<T>::value &&
         !(std::is_trivially_copyable_v<T> &&
           (sizeof(T) == 1 || sizeof(T) == 2 || sizeof(T) == 4)),
     T>;
@@ -1021,7 +1093,7 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
+EnableIfNonScalarShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = Shuffle(g, x[s], local_id);
@@ -1030,7 +1102,7 @@ EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
+EnableIfNonScalarShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleXor(g, x[s], local_id);
@@ -1039,7 +1111,7 @@ EnableIfVectorShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
+EnableIfNonScalarShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleDown(g, x[s], delta);
@@ -1048,7 +1120,7 @@ EnableIfVectorShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename GroupT, typename T>
-EnableIfVectorShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
+EnableIfNonScalarShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   T result;
   for (int s = 0; s < x.size(); ++s) {
     result[s] = ShuffleUp(g, x[s], delta);
@@ -1098,9 +1170,9 @@ EnableIfGenericShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = Shuffle(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1113,9 +1185,9 @@ EnableIfGenericShuffle<T> ShuffleXor(GroupT g, T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleXor(g, ShuffleX, local_id);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1128,9 +1200,9 @@ EnableIfGenericShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleDown(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1143,9 +1215,9 @@ EnableIfGenericShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy_no_adl(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = ShuffleUp(g, ShuffleX, delta);
-    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy_no_adl(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1183,7 +1255,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
 }
 
 // TODO: Refactor to avoid duplication after design settles
-#define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction)                          \
+#define __SYCL_GROUP_COLLECTIVE_OVERLOAD(Instruction, GroupExt)                \
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<                                            \
       ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
@@ -1198,8 +1270,8 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
                                std::is_same<ConvertedT, opencl::cl_ushort>(),  \
                            opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
-    OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
-                                          static_cast<unsigned int>(Op), Arg); \
+    OCLT Ret = __spirv_Group##Instruction##GroupExt(                           \
+        group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
     return Ret;                                                                \
   }                                                                            \
                                                                                \
@@ -1283,27 +1355,27 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     return Ret;                                                                \
   }
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMin, )
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMin, )
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMin, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(SMax, )
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(UMax, )
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMax, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IAdd, )
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FAdd, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMulKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMulKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(IMul, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(FMul, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(CMulINTEL, )
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOrKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXorKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAndKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOr, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXor, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAnd, KHR)
 
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAndKHR)
-__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAnd, KHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOr, KHR)
 
 template <access::address_space Space, typename T>
 auto GenericCastToPtr(T *Ptr) ->

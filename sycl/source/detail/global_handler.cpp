@@ -20,8 +20,8 @@
 #include <detail/thread_pool.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/spinlock.hpp>
+#include <sycl/detail/ur.hpp>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -54,14 +54,18 @@ public:
       MCounter++;
   }
   ~ObjectUsageCounter() {
-    if (!MModifyCounter)
-      return;
+    try {
+      if (!MModifyCounter)
+        return;
 
-    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-    MCounter--;
-    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-    if (RTGlobalObjHandler) {
-      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
+      MCounter--;
+      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+      if (RTGlobalObjHandler) {
+        RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
+      }
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ObjectUsageCounter", e);
     }
   }
 
@@ -203,6 +207,7 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
+
 std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
@@ -227,19 +232,24 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
-  // races with the detaching of the DLL object that calls piTearDown.
+  // races with the detaching of the DLL object that calls urLoaderTearDown.
 
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
 
 struct EarlyShutdownHandler {
   ~EarlyShutdownHandler() {
+    try {
 #ifdef _WIN32
-    // on Windows we keep to the existing shutdown procedure
-    GlobalHandler::instance().releaseDefaultContexts();
+      // on Windows we keep to the existing shutdown procedure
+      GlobalHandler::instance().releaseDefaultContexts();
 #else
-    shutdown_early();
+      shutdown_early();
 #endif
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~EarlyShutdownHandler",
+                                        e);
+    }
   }
 };
 
@@ -258,15 +268,17 @@ void GlobalHandler::unloadPlugins() {
   // user application has loaded SYCL runtime, and never called any APIs,
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
-    for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter for Teardown is the boolean tracking if a
-      // given plugin has been teardown successfully.
-      // This tracking prevents usage of this plugin after teardown
-      // has been completed to avoid invalid resource access.
-      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
-      Plugin->unload();
+    for (const auto &Plugin : getPlugins()) {
+      Plugin->release();
     }
   }
+
+  UrFuncInfo<UrApiKind::urLoaderTearDown> loaderTearDownInfo;
+  auto loaderTearDown =
+      loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  loaderTearDown();
+  // urLoaderTearDown();
+
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
 }
@@ -347,29 +359,32 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  bool PrintPiTrace = false;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
-    PrintPiTrace = true;
+  bool PrintUrTrace = false;
+  try {
+    PrintUrTrace =
+        sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
+    return FALSE;
   }
 
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents release.
+                   // TODO: figure out what XPTI is doing that prevents
+                   // release.
 #endif
 
     shutdown_win();
     break;
   case DLL_PROCESS_ATTACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
     break;
   case DLL_THREAD_ATTACH:

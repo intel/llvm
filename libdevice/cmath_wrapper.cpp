@@ -70,6 +70,9 @@ DEVICE_EXTERN_C_INLINE
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
 
 DEVICE_EXTERN_C_INLINE
+float scalblnf(float x, long int n) { return __devicelib_scalblnf(x, n); }
+
+DEVICE_EXTERN_C_INLINE
 float logf(float x) { return __devicelib_logf(x); }
 
 DEVICE_EXTERN_C_INLINE

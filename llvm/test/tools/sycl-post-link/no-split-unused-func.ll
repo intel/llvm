@@ -1,7 +1,7 @@
 ; This test ensures that sycl-post-link will optimize away
 ; unused functions that are safe to remove even if there are no
 ; splits.
-; RUN: sycl-post-link -split-esimd -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties -split-esimd -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --implicit-check-not=foo
 
 ; CHECK: target datalayout

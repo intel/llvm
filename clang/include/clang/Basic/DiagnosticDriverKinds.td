@@ -58,7 +58,7 @@ def warn_drv_avr_stdlib_not_linked: Warning<
 def err_drv_cuda_bad_gpu_arch : Error<"unsupported CUDA gpu architecture: %0">;
 def err_drv_offload_bad_gpu_arch : Error<"unsupported %0 gpu architecture: %1">;
 def err_drv_offload_missing_gpu_arch : Error<
-  "Must pass in an explicit %0 gpu architecture to '%1'">;
+  "must pass in an explicit %0 gpu architecture to '%1'">;
 def err_drv_no_cuda_installation : Error<
   "cannot find CUDA installation; provide its path via '--cuda-path', or pass "
   "'-nocudainc' to build without CUDA includes">;
@@ -94,16 +94,18 @@ def err_drv_no_hipspv_device_lib : Error<
   "'--hip-path' or '--hip-device-lib-path', or pass '-nogpulib' to build "
   "without HIP device library">;
 def err_drv_hipspv_no_hip_path : Error<
-  "'--hip-path' must be specified when offloading to "
-  "SPIR-V%select{| unless %1 is given}0.">;
+  "'--hip-path' must be specified when offloading to SPIR-V unless '-nogpuinc' "
+  "is given">;
 
 // TODO: Remove when COV6 is fully supported by ROCm.
 def warn_drv_amdgpu_cov6: Warning<
   "code object v6 is still in development and not ready for production use yet;"
   " use at your own risk">;
 def err_drv_undetermined_gpu_arch : Error<
-  "cannot determine %0 architecture: %1; consider passing it via "
-  "'%2'">;
+  "cannot determine %0 architecture: %1; consider passing it via '%2'; "
+  "environment variable CLANG_TOOLCHAIN_PROGRAM_TIMEOUT specifies the tool "
+  "timeout (integer secs, <=0 is infinite)">;
+
 def warn_drv_multi_gpu_arch : Warning<
   "multiple %0 architectures are detected: %1; only the first one is used for "
   "'%2'">, InGroup<MultiGPU>;
@@ -148,13 +150,13 @@ def warn_drv_unsupported_option_for_flang : Warning<
   "the argument '%0' is not supported for option '%1'. Mapping to '%1%2'">,
   InGroup<OptionIgnored>;
 def warn_drv_unsupported_diag_option_for_flang : Warning<
-  "The warning option '-%0' is not supported">,
+  "the warning option '-%0' is not supported">,
   InGroup<OptionIgnored>;
 def warn_drv_unsupported_option_for_processor : Warning<
   "ignoring '%0' option as it is not currently supported for processor '%1'">,
   InGroup<OptionIgnored>;
 def warn_drv_unsupported_openmp_library : Warning<
-  "The library '%0=%1' is not supported, openmp is not be enabled">,
+  "the library '%0=%1' is not supported, OpenMP will not be enabled">,
   InGroup<OptionIgnored>;
 
 def err_drv_invalid_thread_model_for_target : Error<
@@ -167,6 +169,8 @@ def err_drv_unsupported_rtlib_for_platform : Error<
   "unsupported runtime library '%0' for platform '%1'">;
 def err_drv_invalid_unwindlib_name : Error<
   "invalid unwind library name in argument '%0'">;
+def err_drv_unsupported_unwind_for_platform : Error<
+  "unsupported unwind library '%0' for platform '%1'">;
 def err_drv_incompatible_unwindlib : Error<
   "--rtlib=libgcc requires --unwindlib=libgcc">;
 def err_drv_incompatible_fp_accuracy_options : Error<
@@ -210,14 +214,13 @@ def err_drv_Xsycl_target_missing_triple : Error<
 def err_drv_invalid_Xsycl_frontend_with_args : Error<
   "invalid -Xsycl-target-frontend argument: '%0', options requiring arguments are unsupported">;
 def err_drv_bad_fpga_device_count : Error<
-  "More than one FPGA specific device binary found in input objects">;
+  "more than one FPGA specific device binary found in input objects">;
 def warn_drv_mismatch_fpga_archive : Warning<
   "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
   InGroup<SyclFPGAMismatch>;
 def warn_drv_sycl_native_cpu_and_targets: Warning<
   "-fsycl-targets=native_cpu overrides SYCL targets option">,
   InGroup<SyclNativeCPUTargets>;
-def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
 def err_drv_opt_unsupported_input_type : Error<
@@ -374,7 +377,7 @@ def err_drv_no_neon_modifier : Error<"[no]neon is not accepted as modifier, plea
 def err_drv_invalid_omp_target : Error<"OpenMP target is invalid: '%0'">;
 def err_drv_invalid_sycl_target : Error<"SYCL target is invalid: '%0'">;
 def err_drv_incompatible_omp_arch : Error<"OpenMP target architecture '%0' pointer size is incompatible with host '%1'">;
-def err_drv_option_conflict : Error<"The option %0 conflicts with %1">;
+def err_drv_option_conflict : Error<"the option %0 conflicts with %1">;
 def err_drv_omp_host_ir_file_not_found : Error<
   "provided host compiler IR file '%0' is required to generate code for OpenMP "
   "target regions but cannot be found">;
@@ -388,13 +391,13 @@ def err_drv_expecting_fsycl_with_sycl_opt : Error<
 def err_drv_fsycl_with_c_type : Error<
   "'%0' must not be used in conjunction with '-fsycl', which expects C++ source">;
 def err_drv_fsycl_with_pch : Error<
-  "Precompiled header generation is not supported with '-fsycl'">;
-def err_drv_fsycl_unsupported_with_opt
-  : Error<"'%0' is not supported with '-fsycl'">;
+  "precompiled header generation is not supported with '-fsycl'">;
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
+def err_drv_sycl_thinlto_split_off: Error<
+  "'%0' is not supported when '%1' is set with '-fsycl'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
@@ -406,7 +409,7 @@ def err_drv_no_rdc_sycl_target_missing : Error<
 def err_drv_fsycl_wrong_optimization_options : Error<
   "-fsycl-optimize-non-user-code option can be used only in conjunction with %0">;
 def warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT : Warning<
-  "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT).">,
+  "-fsycl-add-default-spec-consts-image flag has an effect only in Ahead of Time Compilation mode (AOT)">,
   InGroup<SyclTarget>;
 def warn_drv_ftarget_register_alloc_mode_pvc : Warning<
   "using '%0' to set GRF mode on PVC hardware is deprecated; use '-ftarget-register-alloc-mode=pvc:%1'">,
@@ -415,7 +418,7 @@ def err_drv_multiple_target_with_forced_target : Error<
   "multiple target usage with '%0' is not supported with '%1'">;
 def err_drv_failed_to_deduce_target_from_arch : Error<
   "failed to deduce triple for target architecture '%0'; specify the triple "
-  "using '-fopenmp-targets' and '-Xopenmp-target' instead.">;
+  "using '-fopenmp-targets' and '-Xopenmp-target' instead">;
 def err_drv_omp_offload_target_missingbcruntime : Error<
   "no library '%0' found in the default clang lib directory or in LIBRARY_PATH"
   "; use '--libomptarget-%1-bc-path' to specify %1 bitcode library">;
@@ -434,6 +437,9 @@ def err_drv_negative_columns : Error<
   "invalid value '%1' in '%0', value must be 'none' or a positive integer">;
 def err_drv_small_columns : Error<
   "invalid value '%1' in '%0', value must be '%2' or greater">;
+def warn_drv_fraw_string_literals_in_cxx11 : Warning<
+  "ignoring '-f%select{no-|}0raw-string-literals', which is only valid for C and C++ standards before C++11">,
+  InGroup<UnusedCommandLineArgument>;
 
 def err_drv_invalid_malign_branch_EQ : Error<
   "invalid argument '%0' to -malign-branch=; each element must be one of: %1">;
@@ -500,6 +506,10 @@ def warn_drv_deprecated_arg : Warning<
 def warn_drv_deprecated_arg_no_relaxed_template_template_args : Warning<
   "argument '-fno-relaxed-template-template-args' is deprecated">,
   InGroup<DeprecatedNoRelaxedTemplateTemplateArgs>;
+def warn_drv_deprecated_arg_ofast : Warning<
+  "argument '-Ofast' is deprecated; use '-O3 -ffast-math' for the same behavior,"
+  " or '-O3' to enable only conforming optimizations">,
+  InGroup<DeprecatedOFast>;
 def warn_drv_deprecated_custom : Warning<
   "argument '%0' is deprecated, %1">, InGroup<Deprecated>;
 def warn_drv_assuming_mfloat_abi_is : Warning<
@@ -512,6 +522,9 @@ def warn_drv_no_floating_point_registers: Warning<
   InGroup<UnsupportedABI>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
+def warn_ignoring_value_using_default : Warning<
+  "ignoring invalid '%0' value '%1', using default value '%2'">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;
@@ -586,14 +599,6 @@ def err_analyzer_checker_incompatible_analyzer_option : Error<
 def err_analyzer_not_built_with_z3 : Error<
   "analyzer constraint manager 'z3' is only available if LLVM was built with "
   "-DLLVM_ENABLE_Z3_SOLVER=ON">;
-def warn_analyzer_deprecated_option : Warning<
-  "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
-  "passing this option will be an error.">,
-  InGroup<DeprecatedStaticAnalyzerFlag>;
-def warn_analyzer_deprecated_option_with_alternative : Warning<
-  "analyzer option '%0' is deprecated. This flag will be removed in %1, and "
-  "passing this option will be an error. Use '%2' instead.">,
-  InGroup<DeprecatedStaticAnalyzerFlag>;
 
 def warn_drv_needs_hvx : Warning<
   "%0 requires HVX, use -mhvx/-mhvx= to enable it">,
@@ -626,10 +631,12 @@ def err_drv_extract_api_wrong_kind : Error<
   "in api extraction; use '-x %2' to override">;
 
 def err_drv_missing_symbol_graph_dir: Error<
-  "Must provide a symbol graph output directory using --symbol-graph-dir=<directory>">;
+  "must provide a symbol graph output directory using "
+  "'--symbol-graph-dir=<directory>'">;
 
 def err_drv_unexpected_symbol_graph_output : Error<
-  "Unexpected output symbol graph '%1'; please provide --symbol-graph-dir=<directory> instead">;
+  "unexpected output symbol graph '%1'; please provide "
+  "'--symbol-graph-dir=<directory>' instead">;
 
 def warn_slash_u_filename : Warning<"'/U%0' treated as the '/U' option">,
   InGroup<DiagGroup<"slash-u-filename">>;
@@ -840,19 +847,19 @@ def err_drv_hlsl_16bit_types_unsupported: Error<
   "'%0' option requires target HLSL Version >= 2018%select{| and shader model >= 6.2}1, but HLSL Version is '%2'%select{| and shader model is '%3'}1">;
 def err_drv_hlsl_bad_shader_unsupported : Error<
   "%select{shader model|Vulkan environment|shader stage}0 '%1' in target '%2' is invalid for HLSL code generation">;
-def warn_drv_dxc_missing_dxv : Warning<"dxv not found. "
-    "Resulting DXIL will not be validated or signed for use in release environments.">,
-    InGroup<DXILValidation>;
+def warn_drv_dxc_missing_dxv : Warning<
+  "dxv not found; resulting DXIL will not be validated or signed for use in "
+  "release environment">, InGroup<DXILValidation>;
 
 def err_drv_invalid_range_dxil_validator_version : Error<
-  "invalid validator version : %0\n"
-  "Validator version must be less than or equal to current internal version.">;
+  "invalid validator version : %0; validator version must be less than or "
+  "equal to current internal version">;
 def err_drv_invalid_format_dxil_validator_version : Error<
-  "invalid validator version : %0\n"
-  "Format of validator version is \"<major>.<minor>\" (ex:\"1.4\").">;
+  "invalid validator version : %0; format of validator version is "
+  "\"<major>.<minor>\" (ex:\"1.4\")">;
 def err_drv_invalid_empty_dxil_validator_version : Error<
-  "invalid validator version : %0\n"
-  "If validator major version is 0, minor version must also be 0.">;
+  "invalid validator version : %0; if validator major version is 0, minor "
+  "version must also be 0">;
 
 def warn_drv_sarif_format_unstable : Warning<
   "diagnostic formatting in SARIF mode is currently unstable">,
@@ -866,12 +873,12 @@ def warn_drv_loongarch_conflicting_implied_val : Warning<
   InGroup<OptionIgnored>;
 def err_drv_loongarch_invalid_mfpu_EQ : Error<
   "invalid argument '%0' to -mfpu=; must be one of: 64, 32, none, 0 (alias for none)">;
-def err_drv_loongarch_wrong_fpu_width_for_lsx : Error<
-  "wrong fpu width; LSX depends on 64-bit FPU.">;
-def err_drv_loongarch_wrong_fpu_width_for_lasx : Error<
-  "wrong fpu width; LASX depends on 64-bit FPU.">;
+def err_drv_loongarch_wrong_fpu_width : Error<
+  "wrong fpu width; %select{LSX|LASX}0 depends on 64-bit FPU">;
 def err_drv_loongarch_invalid_simd_option_combination : Error<
-  "invalid option combination; LASX depends on LSX.">;
+  "invalid option combination; LASX depends on LSX">;
+def err_drv_loongarch_invalid_msimd_EQ : Error<
+  "invalid argument '%0' to -msimd=; must be one of: none, lsx, lasx">;
 
 def err_drv_expand_response_file : Error<
   "failed to expand response file: %0">;
@@ -882,12 +889,19 @@ def warn_drv_missing_multilib : Warning<
 def note_drv_available_multilibs : Note<
   "available multilibs are:%0">;
 
+def err_drv_experimental_crel : Error<
+  "-Wa,--allow-experimental-crel must be specified to use -Wa,--crel. "
+  "CREL is experimental and uses a non-standard section type code">;
+
 def warn_android_unversioned_fallback : Warning<
-  "Using unversioned Android target directory %0 for target %1. Unversioned"
-  " directories will not be used in Clang 19. Provide a versioned directory"
-  " for the target version or lower instead.">,
+  "using unversioned Android target directory %0 for target %1; unversioned "
+  "directories will not be used in Clang 19 -- provide a versioned directory "
+  "for the target version or lower instead">,
   InGroup<DiagGroup<"android-unversioned-fallback">>;
 
 def err_drv_triple_version_invalid : Error<
   "version '%0' in target triple '%1' is invalid">;
+
+def warn_missing_include_dirs : Warning<
+  "no such include directory: '%0'">, InGroup<MissingIncludeDirs>, DefaultIgnore;
 }

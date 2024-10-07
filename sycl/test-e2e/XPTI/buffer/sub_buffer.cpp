@@ -33,8 +33,8 @@ int main() {
             Accessor1[WIid] = static_cast<int>(WIid.get(0));
           });
     });
-    // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2018|1024|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:22
-    auto Accessor1 = Buffer1.get_access<sycl::access::mode::read>();
+    // CHECK: {{[0-9]+}}|Construct accessor|[[USERID1]]|[[ACCID2:.*]]|2018|1024|{{.*}}sub_buffer.cpp:[[# @LINE + 1]]:25
+    sycl::host_accessor Accessor1(Buffer1, sycl::read_only);
     for (size_t I = 32; I < 64; ++I) {
       if (Accessor1[I] != I - 32) {
         std::cout << "The result is incorrect for element: " << I

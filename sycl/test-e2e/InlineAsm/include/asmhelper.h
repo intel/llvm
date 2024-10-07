@@ -131,10 +131,8 @@ bool launchInlineASMTest(F &f, const std::vector<int> &RequiredSGSizes = {},
   try {
     result = launchInlineASMTestImpl(f, RequiredSGSizes);
   } catch (sycl::exception &e) {
-    std::string what = e.what();
-    if (exception_expected &&
-        what.find("PI_ERROR_BUILD_PROGRAM_FAILURE") != std::string::npos) {
-      std::cout << "Caught expected exception: " << what << std::endl;
+    if (exception_expected && e.code() == sycl::errc::build) {
+      std::cout << "Caught expected exception." << std::endl;
     } else {
       std::cout << "Caught unexpected exception." << std::endl;
       throw e;

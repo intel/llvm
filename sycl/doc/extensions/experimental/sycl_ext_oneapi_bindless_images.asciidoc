@@ -114,11 +114,13 @@ implementation supports.
 
 [frame="none",options="header"]
 |======================
-|Rev |Description
-|1 |Initial draft of the proposal
-|2 |Second revision of the proposal
-|3 |Third revision of the proposal
-|4 |Fourth revision of the proposal
+|Rev | Description
+|1   | Initial draft of the proposal
+|2   | Second revision of the proposal
+|3   | Third revision of the proposal
+|4   | Fourth revision of the proposal
+|5   | Fifth revision of the proposal
+|6   | Sixth revision of the proposal
 |======================
 
 See the revision history at the bottom of this document for features added in 
@@ -135,8 +137,8 @@ The device aspects for these queries are:
 |======================
 |Device descriptor |Description
 |`aspect::ext_oneapi_bindless_images` | Indicates if the device supports 
-creation of bindless images backed by the `image_mem` and `image_mem_handle` 
-APIs.
+bindless images. This includes creating bindless images backed by the
+`image_mem` and `image_mem_handle` APIs.
 |`aspect::ext_oneapi_bindless_images_shared_usm` | Indicates if the device 
 supports the creation of bindless images backed by shared USM memory.
 |`aspect::ext_oneapi_bindless_images_1d_usm` | Indicates if the device supports 
@@ -714,6 +716,8 @@ represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e.
 `addressing[3]` defines the addressing mode per texture dimension. A 
 `bindless_image_sampler` can be constructed with a singular 
 `sycl::addressing_mode`, where this parameter will define all dimensions.
+Not all devices may support unique addressing per dimension.  We provide device
+aspect queries for this in <<querying_unique_addressing_support>>
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -740,7 +744,7 @@ address mode `clamp_to_edge` will be applied for all dimensions. If the
 performed when sampling along the cube face borders.
 ====
 
-=== Explicit copies
+=== Explicit copies [[explicit_copies]]
 
 ```cpp
 namespace sycl {
@@ -750,13 +754,13 @@ public:
 
   // Simple host to device copy
   void ext_oneapi_copy(
-      void *Src,
+      const void *Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental:image_descriptor &DestImgDesc);
 
   // Host to device copy with offsets and extent
   void ext_oneapi_copy(
-      void *Src,
+      const void *Src,
       sycl::range<3> SrcOffset,
       sycl::range<3> SrcExtent,
       ext::oneapi::experimental::image_mem_handle Dest,
@@ -766,13 +770,13 @@ public:
 
   // Simple device to host copy
   void ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
 
   // Device to host copy with offsets and extent
   void ext_oneapi_copy(
-    ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
     void *Dest,
@@ -781,14 +785,14 @@ public:
     sycl::range<3> CopyExtent);
 
   // Simple HtoD or DtoH copy with USM device memory
-  void ext_oneapi_copy(void *Src,
+  void ext_oneapi_copy(const void *Src,
                        void *Dest,
                        const ext::oneapi::experimental::image_descriptor &Desc,
                        size_t DeviceRowPitch);
 
   // HtoD or DtoH copy with USM device memory, using offsets, extent
   void ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     sycl::range<3> SrcOffset,
     void *Dest,
     sycl::range<3> DestOffset,
@@ -799,7 +803,7 @@ public:
 
   // Simple device to device copy
   void ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc);
 };
@@ -808,21 +812,21 @@ class queue {
 public:
 
   // Simple host to device copy
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc);
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                         event DepEvent);
-  event ext_oneapi_copy(void *Src,
+  event ext_oneapi_copy(const void *Src,
                         ext::oneapi::experimental::image_mem_handle Dest,
                         const ext::oneapi::experimental::image_descriptor &DestImgDesc,
                         const std::vector<event> &DepEvents);
 
   // Host to device copy with offsets and extent
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -830,7 +834,7 @@ public:
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     range<3> CopyExtent);
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -838,7 +842,7 @@ public:
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     range<3> Extent, event DepEvent);
   event ext_oneapi_copy(
-    void *Src,
+    const void *Src,
     range<3> SrcOffset,
     range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest,
@@ -848,23 +852,23 @@ public:
 
   // Simple device to host copy
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc,
       event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
       const ext::oneapi::experimental::image_descriptor &Desc,
       const std::vector<event> &DepEvents);
 
   // Device to host copy with offsets and extent
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest,
@@ -872,7 +876,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest,
@@ -880,7 +884,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent, event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       range<3> SrcOffset,
       const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       void *Dest, 
@@ -890,16 +894,16 @@ public:
 
   // Host to device OR device to host using USM device memory
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch);
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       event DepEvent);
   event ext_oneapi_copy(
-      void *Src, void *Dest,
+      const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       const std::vector<event> &DepEvents);
@@ -907,21 +911,21 @@ public:
   // Host to device OR device to host using USM device memory, 
   // with control over sub-region
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   event ext_oneapi_copy(
-      void *Src, sycl::range<3> SrcOffset,
+      const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
       size_t DeviceRowPitch,
@@ -930,16 +934,16 @@ public:
   
   // Simple device to device copy
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       event DepEvent);
   event ext_oneapi_copy(
-      ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_mem_handle Src,
       ext::oneapi::experimental::image_mem_handle Dest,
       const ext::oneapi::experimental::image_descriptor &ImageDesc,
       const std::vector<event> &DepEvents);
@@ -1069,6 +1073,9 @@ not all devices may support fetching of sampled image data depending on the
 dimension or backing memory type. We provide device aspect queries for this in 
 <<querying_sampled_image_fetch_support>>.
 
+Additionally, not all devices may support sampling of USM images. We provide
+device aspect queries for this in <<querying_usm_sample_support>>
+
 The user is required to pass a `DataT` template parameter, which specifies the
 return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
 not a recognized standard type, as defined in <<recognized_standard_types>>, 
@@ -1171,12 +1178,39 @@ The device aspect descriptors for these queries are:
 |`aspect::ext_oneapi_bindless_sampled_image_fetch_2d` | 
  Indicates if the device is capable of fetching non-USM backed 2D 
  sampled image data.
-|`aspect::ext_oneapi_bindless_sampled_image_fetch_3d_usm` | 
- Indicates if the device is capable of fetching USM backed 3D 
- sampled image data.
 |`aspect::ext_oneapi_bindless_sampled_image_fetch_3d` | 
  Indicates if the device is capable of fetching non-USM backed 3D 
  sampled image data.
+|======================
+
+=== Querying USM sampling support [[querying_usm_sample_support]]
+
+We provide the following device queries to query support for sampling USM
+images.
+
+The device aspect descriptors for these queries are:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor | Description
+|`aspect::ext_oneapi_bindless_images_sample_1d_usm` | Indicates if the device
+supports the sampling of 1D bindless images backed by USM.
+|`aspect::ext_oneapi_bindless_images_sample_2d_usm` | Indicates if the device
+supports the sampling of 2D bindless images backed by USM.
+|======================
+
+=== Querying unique addressing support [[querying_unique_addressing_support]]
+
+We provide the following device queries to query support information for
+unique addressing for each image dimension.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_unique_addressing_per_dim` | Indicates if the device 
+supports unique addressing per dimension when sampling.
 |======================
 
 == Mipmapped images
@@ -1312,6 +1346,20 @@ every index has the same dimensionality, size, and data type.
 Image arrays may also be referred to as layered images, and the array indices 
 may be referred to layers.
 
+=== Querying image array support
+
+We provide the following device aspect to retrieve support information for
+image arrays.
+
+The device aspect descriptor for this query is:
+
+[frame="none",options="header"]
+|======================
+|Device descriptor |Description
+|`aspect::ext_oneapi_image_array` | Indicates if the device supports
+image arrays.
+|======================
+
 === Allocation of image arrays
 
 Image arrays are allocated in a similar manner to standard images.
@@ -1338,45 +1386,67 @@ Currently there is no support for image arrays backed by USM.
 
 === Obtaining a handle to an image array
 
-A handle to an image array is acquired in the same way as 
-`unsampled_image_handle`. We create the handle through the `create_image` 
-functions which take `image_descriptor` that has `image_type::array` and 
-`array_size` greater than `1`.
+A handle to an image array is acquired in the same way as a `standard` image for 
+both an `unsampled_image_handle` and `sampled_image_handle`. We create the 
+handle for an image array through the appropriate `create_image` functions which 
+take the `image_descriptor` and `bindless_image_sampler` for a 
+`sampled_image_handle`, or just the `image_descriptor` for an 
+`unsampled_image_handle`. 
 
-[NOTE]
-====
-Currently there is no support for sampled image arrays.
-====
+As with allocation, the descriptor must be populated appropriately, i.e. 
+`image_type::array`  and `array_size` is greater than `1`. 
 
 === Copying image array data [[copying_image_array_data]]
 
-When copying to or from image arrays, the user should copy to/from the entire 
-array of images in one call to `ext_oneapi_copy` by passing the image arrays'
-`image_mem_handle`.
+When copying to or from image arrays, the user should utilize `ext_oneapi_copy`
+and pass the image arrays' `image_mem_handle`, and any applicable sub-region
+copy parameters, as outlined in <<explicit_copies>>.
+
+In order to copy to specific layers of an image array, the offset and extent
+parameters involved in sub-region copies must be populated such that the 3rd
+dimension of the ranges represent the arrays' layer(s) being copied, regardless
+of whether the copy is performed on a 1D or 2D image array.
 
 === Reading an image array
 
-Inside the kernel, it's possible to fetch data from an unsampled image array 
-via `fetch_image_array`, passing the `unsampled_image_handle`, the coordinates, 
-and the array index.
+Inside the kernel, it's possible to retrieve data from an image array via the 
+following APIs which all take an image handle, the coordinates to retrieve from, 
+as well as the array layer index to retrieve from.
 
-```c++
-// Fetch an unsampled image array
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+// Fetch an unsampled image array.
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image_array(const unsampled_image_handle &ImageHandle,
-                       const CoordT &Coords, const unsigned int ArrayLayer);
+                        const CoordT &Coords, unsigned int arrayLayer);
+
+// Fetch a sampled image array.
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image_array(const sampled_image_handle &ImageHandle,
+                        const CoordT &Coords, unsigned int arrayLayer);
+
+// Sample a sampled image array.
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT sample_image_array(const sampled_image_handle &ImageHandle, 
+                         const CoordT &Coords, unsigned int arrayLayer);
+}
 ```
 
-Fetching an image array follows the same restrictions on what coordinate types 
-may be used as laid out in <<reading_writing_inside_kernel>>.
+These functions follow the same template restrictions as with retrieving data 
+from standard image types, as laid out in <<reading_writing_inside_kernel>>. In
+addition, the provided `arrayLayer` must be a valid zero-indexed value within 
+the bounds of the associated `image_descriptor::array_size`, otherwise behaviour
+is undefined.
 
-Fetching an image array by providing a user-defined return `DataT` type also 
-follows the restrictions as laid out in <<reading_writing_inside_kernel>>.
+When sampling an image array, the sampling is done only within array layers and 
+not across layers.
 
 [NOTE]
 ====
-Attempting to fetch an image array with `fetch_image` or any other defined 
-fetch function will result in undefined behaviour.
+Attempting to fetch or sample from an image array with any other defined 
+functions, including those for standard and cubemapped images, will result in 
+undefined behaviour.
 ====
 
 === Writing an image array
@@ -1390,7 +1460,7 @@ provided that type is trivially copyable.
 // Write to an unsampled image array
 template <typename DataT, typename CoordT>
 DataT write_image_array(unsampled_image_handle ImageHandle,
-                        const CoordT &Coords, const unsigned int ArrayLayer
+                        const CoordT &Coords, unsigned int ArrayLayer
                         const DataT &Color);
 ```
 
@@ -1495,7 +1565,7 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 template <typename DataT, typename HintT = DataT>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
                     const int2 &Coords,
-                    const int Face);
+                    int Face);
 
 // Sampled cubemap read
 template <typename DataT, typename HintT = DataT>
@@ -1506,7 +1576,7 @@ DataT sample_cubemap(const sampled_image_handle &ImageHandle,
 template <typename DataT>
 void write_cubemap(unsampled_image_handle ImageHandle,
                    const int2 &Coords,
-                   const int Face, 
+                   int Face, 
                    const DataT &Color);
 ```
 
@@ -1528,14 +1598,10 @@ The device aspect descriptors for these queries are:
 [frame="none",options="header"]
 |======================
 |Device descriptor |Description
-|`aspect::ext_oneapi_interop_memory_import` | Indicates if the device supports 
+|`aspect::ext_oneapi_external_memory_import` | Indicates if the device supports 
 importing external memory resources.
-|`aspect::ext_oneapi_interop_memory_export` | Indicates if the device supports 
-exporting internal memory resources.
-|`aspect::ext_oneapi_interop_semaphore_import`` | Indicates if the device 
+|`aspect::ext_oneapi_external_semaphore_import`` | Indicates if the device 
 supports importing external semaphore resources.
-|`aspect::ext_oneapi_interop_semaphore_export` | Indicates if the device 
-supports exporting internal event resources.
 |======================
 
 
@@ -1594,10 +1660,18 @@ struct.
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external memory handles
+enum class external_mem_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_resource = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_mem_descriptor {
   ResourceType external_resource;
+  external_mem_handle_type handle_type;
   size_t size_in_bytes;
 };
 
@@ -1609,51 +1683,71 @@ handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe
 a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
 for Windows NT resource handles.
 
-Once the user populates the `external_mem_descriptor` with the appropriate 
-`ResourceType` values, and the size of the external memory in bytes,
-they can then import that memory into SYCL through `import_external_memory`.
+The user must populate the `external_mem_descriptor` with the appropriate 
+`ResourceType` values, a `handle_type`, and the size of the external memory in 
+bytes, before they can then import that memory into SYCL through 
+`import_external_memory`. Note that some handle types can only be used in 
+combination with certain resource types, for example the `opaque_fd` handle type
+is only used on Linux systems and is only compatible with the `resource_fd` 
+resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-struct interop_mem_handle {
+struct external_mem {
   using raw_handle_type = /* Implementation defined */;
   raw_handle_type raw_handle;
 };
 
 template <typename ResourceType>
-interop_mem_handle import_external_memory(
+external_mem import_external_memory(
     external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 
 template <typename ResourceType>
-interop_mem_handle import_external_memory(
+external_mem import_external_memory(
     external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
 image_mem_handle map_external_image_memory(
-    interop_mem_handle interopMemHandle,
+    external_mem externalMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 image_mem_handle map_external_image_memory(
-    interop_mem_handle interopMemHandle,
+    external_mem externalMemHandle,
     const image_descriptor &imageDescriptor,
+    const sycl::queue &syclQueue);
+
+void *map_external_linear_memory(
+    external_mem externalMemHandle,
+    uint64_t size, uint64_t offset,
+    const sycl::device &syclDevice,
+    const sycl::context &syclContext);
+void *map_external_linear_memory(
+    external_mem externalMemHandle,
+    uint64_t size, uint64_t offset,
     const sycl::queue &syclQueue);
 }
 ```
 
-The resulting `interop_mem_handle` can then be mapped, where the resulting type 
-is an `image_mem_handle`. This can be used to construct images in the same way 
-as memory allocated through `alloc_image_mem`. The `ext_oneapi_copy` operations 
-also work with imported memory mapped to `image_mem_handle` types.
+The resulting `external_mem` can then be mapped, where the resulting type 
+is an `image_mem_handle` or a `void *`. This can be used to construct images in
+the same way as memory allocated through `alloc_image_mem`, 
+`pitched_alloc_device`, or another USM allocation method. The `ext_oneapi_copy` 
+operations also work with imported memory mapped to `image_mem_handle` and 
+`void *` types.
 
-When calling `create_image` with an `image_mem_handle` mapped from an external 
-memory object, the user must ensure that the image descriptor they pass to 
-`create_image` has members that match or map to those of the external API. 
-A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `num_channels` members will result in undefined behavior.
+When calling `create_image` with an `image_mem_handle` or `void *` mapped from 
+an external memory object, the user must ensure that the image descriptor they 
+pass to `create_image` has members that match or map to those of the external 
+API. A mismatch between any of the `width`, `height`, `depth`, 
+`image_channel_type`, or `num_channels` members will result in undefined 
+behavior. Likewise, if the image is mapped to a linear USM (`void *`) region, 
+the pitch value passed to `create_image` needs to match the pitch of the image 
+as defined by the external API. Note that when external memory is mapped to a 
+linear USM region, this is device-side USM, and not accessible on the host.
 
 Additionally, the `image_type` describing the image must match to the image of 
 the external API. The current supported importable image types are `standard` 
@@ -1663,16 +1757,16 @@ behaviour.
 Once a user has finished operating on imported memory, they must ensure that 
 they destroy the imported memory handle through `release_external_memory`.
 
-`release_external_memory` can only accept `interop_mem_handles` that were
+`release_external_memory` can only accept `external_mem` objects that were
 created through `import_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void release_external_memory(interop_mem_handle interopMem,
+void release_external_memory(external_mem externalMem,
                              const sycl::device &syclDevice,
                              const sycl::context &syclContext);
-void release_external_memory(interop_mem_handle interopMem,
+void release_external_memory(external_mem externalMem,
                              const sycl::queue &syclQueue);
 }
 ```
@@ -1690,16 +1784,32 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
+It is important to note, that the use of imported external semaphore objects
+within SYCL has the restriction in that imported external semaphores can only
+be used in conjuction with SYCL queues that have been constructed with the
+`property::queue::in_order` property. The semaphore synchronization mechanism
+is not supported for the default SYCL out-of-order queues. Use of the semaphore 
+synchronization mechanism with SYCL queues which were not constructed with the 
+`queue::in_order` property will result in undefined behaviour.
+
 External semaphore import is facilitated through the following proposed 
 descriptor struct.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
+// Types of external semaphore handles
+enum class external_semaphore_handle_type {
+  opaque_fd = 0,
+  win32_nt_handle = 1,
+  win32_nt_dx12_fence = 2,
+};
+
 // Descriptor templated on specific resource type
 template <typename ResourceType>
 struct external_semaphore_descriptor {
   ResourceType external_resource;
+  external_semaphore_handle_type handle_type;
 };
 
 }
@@ -1710,37 +1820,42 @@ appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd`
 to describe a POSIX file descriptor resource on Linux systems, or a 
 `resource_win32_handle` for Windows NT resource handles.
 
-Once the user populates the `external_semaphore_descriptor` with the appropriate 
-`ResourceType` values, they can then import that semaphore into SYCL through 
-`import_external_semaphore`.
+The user must populate the `external_semaphore_descriptor` with the appropriate 
+`ResourceType` values, and `handle_type`, before they can then import that 
+semaphore into SYCL through `import_external_semaphore`. Note that some handle 
+types can only be used in combination with certain resource types, for example 
+the `opaque_fd` handle type is only used on Linux systems and is only 
+compatible with the `resource_fd` resource type.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-struct interop_semaphore_handle {
+struct external_semaphore {
   using raw_handle_type = /* Implementation defined */;
   raw_handle_type raw_handle;
 };
 
 template <typename ResourceType>
-interop_semaphore_handle import_external_semaphore(
+external_semaphore import_external_semaphore(
     external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
-}
 
 template <typename ResourceType>
-interop_semaphore_handle import_external_semaphore(
+external_semaphore import_external_semaphore(
     external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::queue &syclQueue);
 }
 ```
 
-The resulting `interop_semaphore_handle` can then be used in a SYCL command 
-group, to either wait until the semaphore is in the signaled state, or set the 
-semaphore to a signaled state.
+The resulting `external_semaphore` can then be used in a SYCL command 
+group, to either wait until the semaphore signalled, or signal the semaphore.
+
+If the type of semaphore imported supports setting the state of discrete 
+semaphore value (the semaphore type is `win32_nt_dx12_fence`), then the user 
+can specify which value the semaphore operation should wait on, or signal.
 
 We propose to extend the SYCL queue and handler classes with semaphore waiting 
 and signalling operations.
@@ -1751,65 +1866,120 @@ namespace sycl {
 class handler {
 public:
   void ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore);
+
+  void ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t wait_value);
 
   void ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore);
+
+  void ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t signal_value);
 };
 
 class queue {
 public:
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
       event DepEvent);
   event ext_oneapi_wait_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      const std::vector<event> &DepEvents);
+
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t wait_value);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t wait_value, 
+      event DepEvent);
+  event ext_oneapi_wait_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t wait_value, 
       const std::vector<event> &DepEvents);
 
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle);
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
       event DepEvent);
   event ext_oneapi_signal_external_semaphore(
-      ext::oneapi::experimental::interop_semaphore_handle
-          interop_semaphore_handle,
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      const std::vector<event> &DepEvents);
+
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t signal_value);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t signal_value,
+      event DepEvent);
+  event ext_oneapi_signal_external_semaphore(
+      ext::oneapi::experimental::external_semaphore
+          external_semaphore,
+      uint64_t signal_value,
       const std::vector<event> &DepEvents);
 };
 }
 ```
 
-Any operations submitted to the queue after a 
-`ext_oneapi_wait_external_semaphore` call will not begin until the imported 
-semaphore is in a signaled state.
+The behaviour of waiting on a semaphore will depend on the type of the 
+semaphore which was imported.
+
+If the semaphore does not support setting of a discrete state value (the 
+semaphore type is not `win32_nt_dx12_fence`), then any operations submitted to 
+the queue after a `ext_oneapi_wait_external_semaphore` call will not begin 
+until the imported semaphore is in a signalled state. After this, the semaphore 
+will be reset to a non-signalled state.
+
+If the semaphore does support setting of a discrete state value (the semaphore 
+type is `win32_nt_dx12_fence`), then any operations submitted to the queue 
+after a `ext_oneapi_wait_external_semaphore` call will not begin until the 
+imported semaphore is in a state greater than or equal to the `wait_value`. The 
+state of this type of semaphore will not be altered by the call to 
+`ext_oneapi_wait_external_semaphore`.
 
 When `ext_oneapi_signal_external_semaphore` is called, the external semaphore 
-will be set to the signaled state after all commands submitted to the queue 
-prior to the `ext_oneapi_signal_external_semaphore` call complete.
+will either be set to a signalled state, or the state of the semaphore will be 
+set to `signal_value`, depending on the type of semaphore which was imported.
+This singalling will be done after all commands submitted to the queue prior to 
+the `ext_oneapi_signal_external_semaphore` call complete.
 
 `ext_oneapi_wait_external_semaphore` and `ext_oneapi_signal_external_semaphore` 
 are non-blocking, asynchronous operations.
 
-The user must ensure to destroy all external semaphore objects once they are no 
-longer required through `destroy_external_semaphore`.
+The user must ensure to destroy all SYCL external semaphore objects used to 
+access the external semaphore once they are no longer required through 
+`release_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(external_semaphore semaphoreHandle,
                                 const sycl::device &syclDevice,
                                 const sycl::context &syclContext);
 
-void destroy_external_semaphore(interop_semaphore_handle semaphoreHandle,
+void release_external_semaphore(external_semaphore semaphoreHandle,
                                 const sycl::queue &syclQueue);
 
 }
@@ -2366,13 +2536,17 @@ int external_output_image_file_descriptor = /* passed from external API */
 // Extension: populate external memory descriptors
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    input_ext_mem_desc{external_input_image_file_descriptor, 
-                       img_size_in_bytes};
+    input_ext_mem_desc{
+      external_input_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 sycl::ext::oneapi::experimental::external_mem_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    output_ext_mem_desc{external_output_image_file_descriptor,
-                        img_size_in_bytes};
+    output_ext_mem_desc{
+      external_output_image_file_descriptor,
+      sycl::ext::oneapi::experimental::external_mem_handle_type::opaque_fd,
+      img_size_in_bytes};
 
 // An external API semaphore will signal this semaphore before our SYCL commands
 // can begin execution
@@ -2386,42 +2560,44 @@ int done_semaphore_file_descriptor = /* passed from external API */;
 //            We assume POSIX file descriptor resource types
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    wait_external_semaphore_desc{wait_semaphore_file_descriptor};
+    wait_external_semaphore_desc{wait_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
     sycl::ext::oneapi::experimental::resource_fd>
-    done_external_semaphore_desc{done_semaphore_file_descriptor};
+    done_external_semaphore_desc{done_semaphore_file_descriptor,
+    sycl::ext::oneapi::experimental::external_semaphore_handle_type::opaque_fd};
 
 try {
   // Extension: import external semaphores
-  sycl::ext::oneapi::experimental::interop_semaphore_handle
-      wait_interop_semaphore_handle =
+  sycl::ext::oneapi::experimental::external_semaphore
+      wait_external_semaphore =
           sycl::ext::oneapi::experimental::import_external_semaphore(
               wait_external_semaphore_desc, queue);
 
-  sycl::ext::oneapi::experimental::interop_semaphore_handle
-      done_interop_semaphore_handle =
+  sycl::ext::oneapi::experimental::external_semaphore
+      done_external_semaphore =
           sycl::ext::oneapi::experimental::import_external_semaphore(
               done_external_semaphore_desc, queue);
 
   // Extension: import external memory from descriptors
-  sycl::ext::oneapi::experimental::interop_mem_handle
-      input_interop_mem_handle =
+  sycl::ext::oneapi::experimental::external_mem
+      input_external_mem =
           sycl::ext::oneapi::experimental::import_external_memory(
               input_ext_mem_desc, queue);
 
-  sycl::ext::oneapi::experimental::interop_mem_handle
-      output_interop_mem_handle =
+  sycl::ext::oneapi::experimental::external_mem
+      output_external_mem =
           sycl::ext::oneapi::experimental::import_external_memory(
               output_ext_mem_desc, queue);
 
   // Extension: map imported external memory to image memory
   sycl::ext::oneapi::experimental::image_mem_handle input_mapped_mem_handle =
       sycl::ext::oneapi::experimental::map_external_image_memory(
-          input_interop_mem_handle, desc, queue);
+          input_external_mem, desc, queue);
   sycl::ext::oneapi::experimental::image_mem_handle output_mapped_mem_handle =
       sycl::ext::oneapi::experimental::map_external_image_memory(
-          output_interop_mem_handle, desc, queue);
+          output_external_mem, desc, queue);
 
   // Extension: create images from mapped memory and return the handles
   sycl::ext::oneapi::experimental::unsampled_image_handle img_input =
@@ -2432,7 +2608,7 @@ try {
           output_mapped_mem_handle, desc, queue);
 
   // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(wait_interop_semaphore_handle)
+  q.ext_oneapi_wait_external_semaphore(wait_external_semaphore)
 
   // Submit our kernel that depends on imported "wait_semaphore_file_descriptor"
   q.submit([&](sycl::handler &cgh) {
@@ -2457,7 +2633,7 @@ try {
   });
 
   // Extension: signal imported semaphore
-  q.ext_oneapi_signal_external_semaphore(done_interop_semaphore_handle)
+  q.ext_oneapi_signal_external_semaphore(done_external_semaphore)
 
   // The external API can now use the semaphore it exported to 
   // "done_semaphore_file_descriptor" to schedule its own command submissions
@@ -2466,13 +2642,13 @@ try {
 
   // Extension: destroy all external resources
   sycl::ext::oneapi::experimental::release_external_memory(
-      input_interop_mem_handle, queue);
+      input_external_mem, queue);
   sycl::ext::oneapi::experimental::release_external_memory(
-      output_interop_mem_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
-      wait_interop_semaphore_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_semaphore(
-      done_interop_semaphore_handle, queue);
+      output_external_mem, queue);
+  sycl::ext::oneapi::experimental::release_external_semaphore(
+      wait_external_semaphore, queue);
+  sycl::ext::oneapi::experimental::release_external_semaphore(
+      done_external_semaphore, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_input, queue);
   sycl::ext::oneapi::experimental::destroy_image_handle(img_output, queue);
 } catch (sycl::exception e) {
@@ -2682,4 +2858,40 @@ These features still need to be handled:
                     This function is redundant since images don't have a notion
                     of channel order, only the channel size. Use
                     `get_num_channels()` instead.
+|5.11|2024-05-27| - Added `external_mem_handle_type` and 
+                    `external_semaphore_handle_type` enums. These will allow 
+                    multiple handle types to be consumed by the same interop API.
+                  - Added `handle_type` field to the `external_mem_descriptor`
+                    and `external_semaphore_descriptor` structs. This allows
+                    multiple handle types to be consumed by the API, such as 
+                    file descriptors, Windows NT handles, and other handles in 
+                    the future.
+                  - Added semaphore operations which can accept values. These
+                    are only supported for certain semaphore types 
+                    (e.g. `win32_nt_dx12_fence`).
+|5.12|2024-06-19| - Add support for sampled image arrays.
+                  - Sample image arrays with `sample_image_array` API.
+                  - Fetch sampled image arrays with `fetch_image_array` API.
+|5.13|2024-07-10| - Added const-qualifiers to `Src` param in `ext_oneapi_copy`
+                    funcs.
+|5.14|2024-07-17| - Rename `destroy_external_semaphore` to 
+                    `release_external_semaphore`.
+|5.15|2024-07-19| - Add missing device queries for image arrays, sampling USM 
+                   images and unique addressing per dimension.
+                 - Remove aspects for semaphore export, memory export and fetch 
+                   3D USM images as they are not supported on any platform.
+                 - Refine the description of `ext_oneapi_bindless_images` aspect
+                   to indicate support for bindless image APIs.
+|5.16|2024-07-24| - Renamed interop aspect queries, handles, semaphore wait and 
+                    signal functions, by replacing `interop` with `external` for 
+                    consistency with other interop related structs/funcs and 
+                    3rd party interop API naming.
+                  - Removed `handle` keyword from `interop_xxx_handle` to 
+                    clear up possible confusion between 3rd party interop 
+                    handles and the imported `interop_xxx_handle`.
+|5.17|2024-07-30| - Add support for mapping external memory to linear USM using
+                    `map_external_linear_memory`.
+|6 |2024-08-05 | - Collated all changes since revision 5.
+                 - Bumped SYCL_EXT_ONEAPI_BINDLESS_IMAGES to number 6.
+|6.1|2024-09-09| - Update for image-array sub-region copy support.
 |======================

@@ -173,3 +173,11 @@ _CLC_OVERLOAD _CLC_DEF double __spirv_ocl_atan(double x) {
 _CLC_UNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, __spirv_ocl_atan, double);
 
 #endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+
+_CLC_DEFINE_UNARY_BUILTIN(half, __spirv_ocl_atan, __builtin_atan, half)
+
+#endif

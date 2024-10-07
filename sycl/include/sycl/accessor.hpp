@@ -22,7 +22,6 @@
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
 #include <sycl/detail/helpers.hpp>                    // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -38,6 +37,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
 #include <sycl/sampler.hpp>                           // for addressing_mode
+#include <ur_api.h>                                   // for UR_RESULT_ERRO...
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
@@ -518,19 +518,6 @@ protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
 
 public:
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, size_t OffsetInBytes = 0,
@@ -564,7 +551,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -599,7 +586,8 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -857,7 +845,8 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1447,10 +1436,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1491,10 +1479,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1562,10 +1549,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1606,10 +1592,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1959,9 +1944,8 @@ private:
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
-      throw sycl::invalid_object_error(
-          "accessor would cannot be both read_only and no_init",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "accessor cannot be both read_only and no_init");
     }
   }
 
@@ -2254,7 +2238,8 @@ protected:
   }
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2672,7 +2657,7 @@ protected:
                  access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

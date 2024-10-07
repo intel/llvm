@@ -57,7 +57,7 @@ int main() {
     assert(Context == WillContextCopy);
   }
   {
-    auto AsyncHandler = [](const sycl::exception_list &EL) {};
+    auto AsyncHandler = [](const sycl::exception_list) {};
     sycl::context Context1(sycl::property_list{});
     sycl::context Context2(AsyncHandler, sycl::property_list{});
     sycl::context Context3(deviceA, sycl::property_list{});
@@ -67,19 +67,5 @@ int main() {
                            sycl::property_list{});
     sycl::context Context7(std::vector<sycl::device>{deviceA},
                            sycl::property_list{});
-    sycl::context Context8(
-        std::vector<sycl::device>{deviceA}, AsyncHandler,
-        sycl::property_list{
-            sycl::ext::oneapi::cuda::property::context::use_primary_context{}});
-
-    if (!Context8.has_property<sycl::ext::oneapi::cuda::property::context::
-                                   use_primary_context>()) {
-      std::cerr << "Line " << __LINE__ << ": Property was not found"
-                << std::endl;
-      return 1;
-    }
-
-    auto Prop = Context8.get_property<
-        sycl::ext::oneapi::cuda::property::context::use_primary_context>();
   }
 }

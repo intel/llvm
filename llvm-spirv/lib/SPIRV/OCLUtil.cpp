@@ -35,7 +35,6 @@
 // This file implements OCL utility functions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "oclutil"
 
 #include "OCLUtil.h"
 #include "SPIRVEntry.h"
@@ -49,6 +48,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "oclutil"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -780,26 +781,39 @@ decodeOCLVer(unsigned Ver) {
 }
 
 unsigned getOCLVersion(Module *M, bool AllowMulti) {
-  NamedMDNode *NamedMD = M->getNamedMetadata(kSPIR2MD::OCLVer);
-  if (!NamedMD)
+  NamedMDNode *NamedMDOCLVer = M->getNamedMetadata(kSPIR2MD::OCLVer);
+  NamedMDNode *NamedMDOCLCXXVer = M->getNamedMetadata(kSPIR2MD::OCLCXXVer);
+  if (!NamedMDOCLVer && !NamedMDOCLCXXVer)
     return 0;
-  assert(NamedMD->getNumOperands() > 0 && "Invalid SPIR");
-  if (!AllowMulti && NamedMD->getNumOperands() != 1)
-    report_fatal_error(
-        llvm::Twine("Multiple OCL version metadata not allowed"));
 
   // If the module was linked with another module, there may be multiple
   // operands.
-  auto GetVer = [=](unsigned I) {
+  auto GetVerPair = [](unsigned I, NamedMDNode *NamedMD) {
     auto *MD = NamedMD->getOperand(I);
     return std::make_pair(getMDOperandAsInt(MD, 0), getMDOperandAsInt(MD, 1));
   };
-  auto Ver = GetVer(0);
-  for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
-    if (Ver != GetVer(I))
-      report_fatal_error(llvm::Twine("OCL version mismatch"));
-
-  return encodeOCLVer(Ver.first, Ver.second, 0);
+  auto GetVer = [=](NamedMDNode *NamedMD) {
+    assert(NamedMD->getNumOperands() && "Invalid SPIR");
+    if (!AllowMulti && NamedMD->getNumOperands() != 1)
+      report_fatal_error(
+          llvm::Twine("Multiple OCL version metadata not allowed"));
+    auto Ver = GetVerPair(0, NamedMD);
+    for (unsigned I = 1, E = NamedMD->getNumOperands(); I != E; ++I)
+      if (Ver != GetVerPair(I, NamedMD))
+        report_fatal_error(llvm::Twine("OCL version mismatch"));
+    return encodeOCLVer(Ver.first, Ver.second, 0);
+  };
+  unsigned OCLVer = NamedMDOCLVer ? GetVer(NamedMDOCLVer) : 0;
+  unsigned OCLCXXVer = NamedMDOCLCXXVer ? GetVer(NamedMDOCLCXXVer) : 0;
+  // Check if OCLCXXVer is compatible with OCLVer
+  if (OCLVer && OCLCXXVer) {
+    if ((OCLVer == kOCLVer::CL20 && OCLCXXVer == kOCLVer::CLCXX10) ||
+        (OCLVer == kOCLVer::CL30 && OCLCXXVer == kOCLVer::CLCXX2021))
+      return OCLCXXVer;
+    report_fatal_error(llvm::Twine(
+        "opencl cxx version is not compatible with opencl c version!"));
+  }
+  return OCLVer;
 }
 
 SmallVector<unsigned, 3> decodeMDNode(MDNode *N) {

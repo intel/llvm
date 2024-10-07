@@ -14,10 +14,6 @@
 
 int main() {
   queue Queue;
-  if (!core_sg_supported(Queue.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
   check<class KernelName_QTbNYAsEmawQ, int>(Queue);
   check<class KernelName_FQFNSdcVGrCLUbn, unsigned int>(Queue);
   check<class KernelName_kWYnyHJx, long>(Queue);

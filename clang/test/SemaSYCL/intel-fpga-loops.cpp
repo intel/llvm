@@ -311,6 +311,30 @@ void zoo() {
   [[intel::speculated_iterations(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
+  [[intel::speculated_iterations(1)]] // expected-note 2{{previous attribute is here}}
+  [[intel::speculated_iterations(1)]] // OK
+  [[intel::speculated_iterations(2)]] // expected-error {{conflicting loop attribute 'speculated_iterations'}}
+  [[intel::speculated_iterations(4)]] // expected-error {{conflicting loop attribute 'speculated_iterations'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
+  [[intel::max_interleaving(0)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_interleaving(0)]] // OK
+  [[intel::max_interleaving(1)]] // expected-error {{conflicting loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(1)]] // expected-error {{conflicting loop attribute 'max_interleaving'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
+  [[intel::max_concurrency(10)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_concurrency(10)]] // OK
+  [[intel::max_concurrency(20)]] // expected-error {{conflicting loop attribute 'max_concurrency'}}
+  [[intel::max_concurrency(40)]] // expected-error {{conflicting loop attribute 'max_concurrency'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
+  [[intel::initiation_interval(10)]] // expected-note 2{{previous attribute is here}}
+  [[intel::initiation_interval(10)]] // OK
+  [[intel::initiation_interval(20)]] // expected-error {{conflicting loop attribute 'initiation_interval'}}
+  [[intel::initiation_interval(40)]] // expected-error {{conflicting loop attribute 'initiation_interval'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
   [[intel::ivdep]]
   // expected-warning@+2 {{ignoring redundant Intel FPGA loop attribute 'ivdep': safelen INF >= safelen INF}}
   // expected-note@-2 {{previous attribute is here}}
@@ -382,6 +406,12 @@ void zoo() {
   // expected-error@+1 {{conflicting loop attribute 'max_reinvocation_delay'}}
   [[intel::max_reinvocation_delay(20)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::max_reinvocation_delay(10)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_reinvocation_delay(10)]] // OK
+  [[intel::max_reinvocation_delay(20)]] // expected-error {{conflicting loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(40)]] // expected-error {{conflicting loop attribute 'max_reinvocation_delay'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
 
   [[intel::enable_loop_pipelining]]
   // expected-error@+1 {{duplicate Intel FPGA loop attribute 'enable_loop_pipelining'}}
@@ -476,7 +506,7 @@ void ivdep_dependent() {
   };
 }
 
-template <int A, int B, int C>
+template <int A, int B, int C, int D>
 void ii_dependent() {
   int a[10];
   // expected-error@+1 {{'initiation_interval' attribute requires a positive integral compile time constant expression}}
@@ -491,6 +521,13 @@ void ii_dependent() {
   [[intel::initiation_interval(A)]] // expected-note {{previous attribute is here}}
   [[intel::initiation_interval(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::initiation_interval(A)]] // expected-note 2{{previous attribute is here}}
+  [[intel::initiation_interval(A)]] // OK
+  [[intel::initiation_interval(B)]] // expected-error {{conflicting loop attribute 'initiation_interval'}}
+  [[intel::initiation_interval(D)]] // expected-error {{conflicting loop attribute 'initiation_interval'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
 }
 
 template <int A, int B, int C, int D>
@@ -515,6 +552,13 @@ void max_concurrency_dependent() {
   // max_concurrency attribute accepts value 0.
   [[intel::max_concurrency(D)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::max_concurrency(D)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_concurrency(D)]] // OK
+  [[intel::max_concurrency(A)]] // expected-error {{conflicting loop attribute 'max_concurrency'}}
+  [[intel::max_concurrency(B)]] // expected-error {{conflicting loop attribute 'max_concurrency'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
 }
 
 template <int A, int B, int C, int D>
@@ -540,9 +584,16 @@ void max_interleaving_dependent() {
   [[intel::max_interleaving(D)]]
   [[intel::max_interleaving(D)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::max_interleaving(D)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_interleaving(D)]] // OK
+  [[intel::max_interleaving(C)]] // expected-error {{conflicting loop attribute 'max_interleaving'}}
+  [[intel::max_interleaving(C)]] // expected-error {{conflicting loop attribute 'max_interleaving'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
 }
 
-template <int A, int B, int C, int D>
+template <int A, int B, int C, int D, int E>
 void speculated_iterations_dependent() {
   int a[10];
   // expected-error@+1 {{'speculated_iterations' attribute requires a non-negative integral compile time constant expression}}
@@ -561,6 +612,13 @@ void speculated_iterations_dependent() {
   [[intel::speculated_iterations(B)]]
   [[intel::speculated_iterations(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::speculated_iterations(A)]] // expected-note 2{{previous attribute is here}}
+  [[intel::speculated_iterations(A)]] // OK
+  [[intel::speculated_iterations(B)]] // expected-error {{conflicting loop attribute 'speculated_iterations'}}
+  [[intel::speculated_iterations(E)]] // expected-error {{conflicting loop attribute 'speculated_iterations'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
 }
 
 template <int A, int B, int C>
@@ -624,7 +682,7 @@ void loop_count_control_dependent() {
       a[i] = 0;
 }
 
-template <int A, int B, int C>
+template <int A, int B, int C, int D>
 void max_reinvocation_delay_dependent() {
   int a[10];
   // expected-error@+1 {{'max_reinvocation_delay' attribute requires a positive integral compile time constant expression}}
@@ -639,6 +697,13 @@ void max_reinvocation_delay_dependent() {
   [[intel::max_reinvocation_delay(A)]]
   [[intel::max_reinvocation_delay(A)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
+
+  [[intel::max_reinvocation_delay(A)]] // expected-note 2{{previous attribute is here}}
+  [[intel::max_reinvocation_delay(A)]] // OK
+  [[intel::max_reinvocation_delay(B)]] // expected-error {{conflicting loop attribute 'max_reinvocation_delay'}}
+  [[intel::max_reinvocation_delay(D)]] // expected-error {{conflicting loop attribute 'max_reinvocation_delay'}}
+  for (int i = 0; i != 10; ++i) { a[i] = 0; }
+
 }
 
 void check_max_concurrency_expression() {
@@ -815,14 +880,14 @@ int main() {
       //expected-note@-1 +{{in instantiation of function template specialization}}
       ivdep_dependent<2, 4, -1>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
-      ii_dependent<2, 4, -1>();
+      ii_dependent<2, 4, -1, 8>();
       //expected-note@-1 +{{in instantiation of function template specialization}}
       max_concurrency_dependent<1, 4, -2, 0>(); // expected-note{{in instantiation of function template specialization 'max_concurrency_dependent<1, 4, -2, 0>' requested here}}
       max_interleaving_dependent<-1, 4, 0, 1>(); // expected-note{{in instantiation of function template specialization 'max_interleaving_dependent<-1, 4, 0, 1>' requested here}}
-      speculated_iterations_dependent<1, 8, -3, 0>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0>' requested here}}
+      speculated_iterations_dependent<1, 8, -3, 0, 16>(); // expected-note{{in instantiation of function template specialization 'speculated_iterations_dependent<1, 8, -3, 0, 16>' requested here}}
       loop_coalesce_dependent<-1, 4,  0>(); // expected-note{{in instantiation of function template specialization 'loop_coalesce_dependent<-1, 4, 0>' requested here}}
       loop_count_control_dependent<3, 2, -1>(); // expected-note{{in instantiation of function template specialization 'loop_count_control_dependent<3, 2, -1>' requested here}}
-      max_reinvocation_delay_dependent<1, 3, 0>(); // expected-note{{in instantiation of function template specialization 'max_reinvocation_delay_dependent<1, 3, 0>' requested here}}
+      max_reinvocation_delay_dependent<1, 3, 0, 6>(); // expected-note{{in instantiation of function template specialization 'max_reinvocation_delay_dependent<1, 3, 0, 6>' requested here}}
       check_max_concurrency_expression();
       check_max_interleaving_expression();
       check_speculated_iterations_expression();

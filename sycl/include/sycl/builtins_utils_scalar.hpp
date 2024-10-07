@@ -10,7 +10,6 @@
 
 #include <sycl/access/access.hpp>              // for address_space, decorated
 #include <sycl/aliases.hpp>                    // for half
-#include <sycl/detail/boolean.hpp>             // for Boolean
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
 #include <sycl/detail/type_list.hpp>           // for is_contained, type_list

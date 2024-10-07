@@ -4,7 +4,7 @@
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <std/experimental/simd.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
@@ -154,27 +155,28 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
   assert(quo == 0);
 }
 
-// MSVC implements std::ldexp<float>, std::fabs<float> and std::frexp<float> by
-// invoking the 'double' version of corresponding C math functions(ldexp, fabs
-// and frexp). Those functions can only work on Windows with fp64 extension
-// support from underlying device.
+// MSVC implements std::scalbln<float>, std::ldexp<float>, std::fabs<float> and
+// std::frexp<float> by invoking the 'double' version of corresponding C math
+// functions(scalbln, ldexp, fabs and frexp). Those functions can only work on
+// Windows with fp64 extension support from underlying device.
 #ifndef _WIN32
 template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
-  s::range<1> numOfItems{2};
-  T result[2] = {-1};
-  T ref[3] = {0, 2, 1};
+  constexpr int NumOfTestItems = 4;
+  T result[NumOfTestItems] = {-1};
+  T ref[NumOfTestItems] = {6, 0, 2, 1};
   // Variable exponent is an integer value to store the exponent in frexp
   // function
   int exponent = -1;
 
   {
-    s::buffer<T, 1> buffer1(result, numOfItems);
+    s::buffer<T, 1> buffer1(result, NumOfTestItems);
     s::buffer<int, 1> buffer2(&exponent, s::range<1>{1});
     deviceQueue.submit([&](s::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto exp_access = buffer2.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest2>([=]() {
         int i = 0;
+        res_access[i++] = std::scalbln(1.5f, 2);
         res_access[i++] = std::frexp(0.0f, &exp_access[0]);
         res_access[i++] = std::ldexp(1.0f, 1);
         res_access[i++] = std::fabs(-1.0f);
@@ -183,7 +185,7 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
   }
 
   // Compare result with reference
-  for (int i = 0; i < 2; ++i) {
+  for (int i = 0; i < NumOfTestItems; ++i) {
     assert(approx_equal_fp(result[i], ref[i]));
   }
 

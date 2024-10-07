@@ -54,7 +54,8 @@ extern void processInstr(MachineInstr &MI, MachineIRBuilder &MIB,
 } // namespace llvm
 
 static bool isMetaInstrGET(unsigned Opcode) {
-  return Opcode == SPIRV::GET_ID || Opcode == SPIRV::GET_fID ||
+  return Opcode == SPIRV::GET_ID || Opcode == SPIRV::GET_ID64 ||
+         Opcode == SPIRV::GET_fID || Opcode == SPIRV::GET_fID64 ||
          Opcode == SPIRV::GET_pID32 || Opcode == SPIRV::GET_pID64 ||
          Opcode == SPIRV::GET_vID || Opcode == SPIRV::GET_vfID ||
          Opcode == SPIRV::GET_vpID32 || Opcode == SPIRV::GET_vpID64;
@@ -101,7 +102,7 @@ static void processNewInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
           if (!ResType) {
             // There was no "assign type" actions, let's fix this now
             ResType = ScalarType;
-            MRI.setRegClass(ResVReg, &SPIRV::IDRegClass);
+            MRI.setRegClass(ResVReg, &SPIRV::iIDRegClass);
             MRI.setType(ResVReg,
                         LLT::scalar(GR->getScalarOrVectorBitWidth(ResType)));
             GR->assignSPIRVTypeToVReg(ResType, ResVReg, *GR->CurMF);
@@ -123,7 +124,7 @@ static void processNewInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
           if (!ResVType)
             continue;
           // Set type & class
-          MRI.setRegClass(ResVReg, &SPIRV::IDRegClass);
+          MRI.setRegClass(ResVReg, &SPIRV::iIDRegClass);
           MRI.setType(ResVReg,
                       LLT::scalar(GR->getScalarOrVectorBitWidth(ResVType)));
           GR->assignSPIRVTypeToVReg(ResVType, ResVReg, *GR->CurMF);
@@ -138,7 +139,7 @@ static void processNewInstrs(MachineFunction &MF, SPIRVGlobalRegistry *GR,
           // Restore usual instructions pattern for the newly inserted
           // instruction
           MRI.setRegClass(ResVReg, MRI.getType(ResVReg).isVector()
-                                       ? &SPIRV::IDRegClass
+                                       ? &SPIRV::iIDRegClass
                                        : &SPIRV::ANYIDRegClass);
           MRI.setType(ResVReg, LLT::scalar(32));
           insertAssignInstr(ResVReg, nullptr, ResVType, GR, MIB, MRI);

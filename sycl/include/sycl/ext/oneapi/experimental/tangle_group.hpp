@@ -9,9 +9,9 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
-#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
 #include <sycl/id.hpp>                        // for id
@@ -47,8 +47,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<id_type>(0);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -56,8 +56,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::CallerPositionInMask(Mask);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -65,8 +65,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return 1;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -74,8 +74,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return Mask.count();
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -83,8 +83,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -92,8 +92,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -101,8 +101,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -110,8 +110,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -120,8 +120,8 @@ public:
     uint32_t Lowest = static_cast<uint32_t>(Mask.find_low()[0]);
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -157,8 +157,8 @@ get_tangle_group(Group group) {
   return tangle_group<sycl::sub_group>(0);
 #endif
 #else
-  throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Non-uniform groups are not supported on host.");
 #endif
 
 } // namespace this_kernel

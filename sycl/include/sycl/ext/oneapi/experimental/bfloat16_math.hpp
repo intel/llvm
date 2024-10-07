@@ -26,7 +26,7 @@ namespace detail {
 template <size_t N>
 uint32_t to_uint32_t(sycl::marray<bfloat16, N> x, size_t start) {
   uint32_t res;
-  sycl::detail::memcpy(&res, &x[start], sizeof(uint32_t));
+  sycl::detail::memcpy_no_adl(&res, &x[start], sizeof(uint32_t));
   return res;
 }
 } // namespace detail
@@ -62,6 +62,18 @@ template <size_t N> sycl::marray<bool, N> isnan(sycl::marray<bfloat16, N> x) {
 template <typename T, int N = num_elements_v<T>>
 std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<int16_t, N>>
 isnan(T x) {
+
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Convert BFloat16 vector to float vec and call isnan().
+  sycl::vec<float, N> FVec =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  auto Res = isnan(FVec);
+
+  // For vec<float>, the return type of isnan is vec<int32_t> so,
+  // an explicit conversion is required to vec<int16_t>.
+  return Res.template convert<int16_t>();
+#else
+
   sycl::vec<int16_t, N> res;
   for (size_t i = 0; i < N; i++) {
     // The result of isnan is 0 or 1 but SPEC requires
@@ -69,6 +81,7 @@ isnan(T x) {
     res[i] = isnan(x[i]) ? -1 : 0;
   }
   return res;
+#endif
 }
 
 /******************* fabs ********************/
@@ -99,7 +112,7 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
     (__SYCL_CUDA_ARCH__ >= 800)
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fabs(detail::to_uint32_t(x, i * 2));
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -120,11 +133,19 @@ sycl::marray<bfloat16, N> fabs(sycl::marray<bfloat16, N> x) {
 template <typename T, int N = num_elements_v<T>>
 std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>>
 fabs(T x) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Convert BFloat16 vector to float vec.
+  sycl::vec<float, N> FVec =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  auto Res = fabs(FVec);
+  return Res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N> res;
   for (size_t i = 0; i < N; i++) {
     res[i] = fabs(x[i]);
   }
   return res;
+#endif
 }
 
 /******************* fmin ********************/
@@ -167,7 +188,7 @@ sycl::marray<bfloat16, N> fmin(sycl::marray<bfloat16, N> x,
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmin(detail::to_uint32_t(x, i * 2),
                                   detail::to_uint32_t(y, i * 2));
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -193,11 +214,21 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      N1 == N2,
                  sycl::vec<bfloat16, N1>>
 fmin(T1 x, T2 y) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
+  auto Res = fmin(FVecX, FVecY);
+  return Res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fmin(x[i], y[i]);
   }
   return res;
+#endif
 }
 
 /******************* fmax ********************/
@@ -239,7 +270,7 @@ sycl::marray<bfloat16, N> fmax(sycl::marray<bfloat16, N> x,
   for (size_t i = 0; i < N / 2; i++) {
     auto partial_res = __clc_fmax(detail::to_uint32_t(x, i * 2),
                                   detail::to_uint32_t(y, i * 2));
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -265,11 +296,21 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      N1 == N2,
                  sycl::vec<bfloat16, N1>>
 fmax(T1 x, T2 y) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
+  auto Res = fmax(FVecX, FVecY);
+  return Res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fmax(x[i], y[i]);
   }
   return res;
+#endif
 }
 
 /******************* fma *********************/
@@ -299,7 +340,7 @@ sycl::marray<bfloat16, N> fma(sycl::marray<bfloat16, N> x,
     auto partial_res =
         __clc_fma(detail::to_uint32_t(x, i * 2), detail::to_uint32_t(y, i * 2),
                   detail::to_uint32_t(z, i * 2));
-    sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(uint32_t));
+    sycl::detail::memcpy_no_adl(&res[i * 2], &partial_res, sizeof(uint32_t));
   }
 
   if (N % 2) {
@@ -327,11 +368,24 @@ std::enable_if_t<is_vec_or_swizzle_bf16_v<T1> && is_vec_or_swizzle_bf16_v<T2> &&
                      is_vec_or_swizzle_bf16_v<T3> && N1 == N2 && N2 == N3,
                  sycl::vec<bfloat16, N1>>
 fma(T1 x, T2 y, T3 z) {
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+  // Convert BFloat16 vectors to float vecs.
+  sycl::vec<float, N1> FVecX =
+      x.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecY =
+      y.template convert<float, sycl::rounding_mode::automatic>();
+  sycl::vec<float, N1> FVecZ =
+      z.template convert<float, sycl::rounding_mode::automatic>();
+
+  auto Res = fma(FVecX, FVecY, FVecZ);
+  return Res.template convert<bfloat16>();
+#else
   sycl::vec<bfloat16, N1> res;
   for (size_t i = 0; i < N1; i++) {
     res[i] = fma(x[i], y[i], z[i]);
   }
   return res;
+#endif
 }
 
 /******************* unary math operations ********************/
@@ -352,6 +406,18 @@ fma(T1 x, T2 y, T3 z) {
     return res;                                                                \
   }
 
+#if defined(__SYCL_DEVICE_ONLY__) && (defined(__SPIR__) || defined(__SPIRV__))
+#define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
+  /* Overload for BF16 vec and swizzles. */                                    \
+  template <typename T, int N = num_elements_v<T>>                             \
+  std::enable_if_t<is_vec_or_swizzle_bf16_v<T>, sycl::vec<bfloat16, N>> op(    \
+      T x) {                                                                   \
+    sycl::vec<float, N> FVec =                                                 \
+        x.template convert<float, sycl::rounding_mode::automatic>();           \
+    auto Res = op(FVec);                                                       \
+    return Res.template convert<bfloat16>();                                   \
+  }
+#else
 #define BFLOAT16_MATH_FP32_WRAPPERS_VEC(op)                                    \
   /* Overload for BF16 vec and swizzles. */                                    \
   template <typename T, int N = num_elements_v<T>>                             \
@@ -363,6 +429,7 @@ fma(T1 x, T2 y, T3 z) {
     }                                                                          \
     return res;                                                                \
   }
+#endif
 
 BFLOAT16_MATH_FP32_WRAPPERS(ceil)
 BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(ceil)

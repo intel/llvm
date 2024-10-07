@@ -401,9 +401,14 @@ of the link:sycl_ext_intel_matrix.asciidoc[sycl_ext_intel_matrix]
 
 Besides the `Group` and the `joint_matrix` arguments,
 `joint_matrix_apply` takes a C++ Callable object which is invoked once
-for each element of the matrix. This callable object must be invocable
-with a single parameter of type `T&`. Commonly, applications pass a
-lambda expression.
+for each element of the matrix. There are two cases: (1) one matrix is
+passed, (2) two matrices are passed.
+
+===== Unary Operation
+In this case, `joint_matrix_apply` takes one `joint_matrix`
+argument. The callable object must be invocable with a single
+parameter of type `T&`. Commonly, applications pass a lambda
+expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -424,6 +429,39 @@ example, is applied on each of the elements of `C`.
 joint_matrix_apply(sg, C, [=](T &x) {
     x *= alpha;
     relu(x);
+});
+```
+
+===== Binary Operation
+In this case, `joint_matrix_apply` takes two `joint_matrix` arguments:
+`jm0` and `jm1` that have the same `use`, number of rows, number of
+columns, and `layout`. `jm0` and `jm1` can be read-only, write-only,
+or read and write arguments. The callable object must be invocable
+with two parameters `x` and `y` of types `T0&` amd `T1&`, where `x` is
+an element from `jm0` and `y` is an element from `jm1`. Moreover, `x`
+and `y` are guaranteed to have identical coordinates in their
+respective matrices. Commonly, applications pass a lambda expression.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template<typename Group, typename T0, typename T1, use Use,
+  size_t Rows, size_t Cols, layout Layout, typename F>
+void joint_matrix_apply(Group g,
+          joint_matrix<Group, T0, Use, Rows, Cols, Layout>& jm0,
+          joint_matrix<Group, T1, Use, Rows, Cols, Layout>& jm1,
+	  F&& func);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+In the following example, every element `x` of the matrix `C` is
+multiplied by `alpha`. The result is returned into the element `y` of
+the matrix `D`.
+
+```c++
+joint_matrix_apply(sg, C, D, [=](const T &x, T &y) {
+    y = x * alpha;
 });
 ```
 
@@ -1015,12 +1053,13 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 `architecture::intel_gpu_pvc`
 |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.5+|  `matrix_type::bf16`       .5+|  `matrix_type::bf16`   .5+|
+.6+|  `matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::fp32`  | 16 | 16 | 16 .4+|`architecture::intel_gpu_pvc`
 | 1 | 64 | 16 | 32 | 64 | 16
 .2+|  +<=+ 8 |  16   .2+|  16
-|8 | `architecture::intel_gpu_dg2_g10,
+|8 .2+| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+.1+| 32 .1+| 32 .1+| 16
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
 `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
 `architecture::intel_gpu_pvc`
@@ -1085,6 +1124,13 @@ multiple of 4 when `T` is `float`; where `T` is the type of the
 `joint_matrix` elements. When `T` is not `half` or `float` there are
 no restrictions to `stride`.
 
+IMPORTANT: For some devices it is important to use the sm version
+(Compute Capability) corresponding to the device that will run the
+program when specifying e.g. `-fsycl-targets=nvidia_gpu_sm_xx` during
+compilation. This particularly affects matrix operations using `half`.
+For more information on this issue consult
+https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
+
 ==== AMD Matrix Cores Supported Combinations
 The complete set of matrix data types and dimensions that are supported by
 the `ext_oneapi_hip` backend are represented in the following
@@ -1139,4 +1185,5 @@ supported combinations
 load/store overloads
 |11  |2024-04-29 |Yury Plyakhin | Add 1x64x16 supported combination for
 Intel XMX (intel_gpu_pvc)
+|12  |2024-06-14 |Jack Kirk | Add note on sm version device matching issue.
 |======================

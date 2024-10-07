@@ -3,9 +3,9 @@
 ///
 
 // REQUIRES: opencl-aot, ocloc, gpu-intel-gen9
-// UNSUPPORTED: cuda
+
 // CUDA is not compatible with SPIR.
-// UNSUPPORTED: accelerator
+// UNSUPPORTED: cuda
 
 // RUN: %clangxx -fsycl %s -o %t.out
 // RUN: %{run} %t.out

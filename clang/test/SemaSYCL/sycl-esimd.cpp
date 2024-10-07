@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -sycl-std=2017 -Wno-sycl-2017-compat -verify %s
+// RUN: %clang_cc1 -fsycl-is-device -fsyntax-only -verify %s
 
 // This test checks specifics of semantic analysis of ESIMD kernels.
 
@@ -19,14 +19,6 @@ void kernel0(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
-// expected-note@+1{{conflicting attribute is here}}
-[[intel::reqd_sub_group_size(2)]] void g0() {}
-
-void test0() {
-  // expected-error@+2{{conflicting attributes applied to a SYCL kernel}}
-  // expected-note@+1{{conflicting attribute is here}}
-  kernel0<class Kernel0>([=]() __attribute__((sycl_explicit_simd)) { g0(); });
-}
 
 // -- Usual kernel can't call ESIMD function
 template <typename ID, typename F>
@@ -34,13 +26,6 @@ void kernel1(const F &f) __attribute__((sycl_kernel)) {
   f();
 }
 
-// expected-note@+1{{attribute is here}}
-__attribute__((sycl_explicit_simd)) void g1() {}
-
-void test1() {
-  // expected-error@+1{{SYCL kernel without 'sycl_explicit_simd' attribute can't call a function with this attribute}}
-  kernel1<class Kernel1>([=]() { g1(); });
-}
 
 // ----------- Positive tests
 

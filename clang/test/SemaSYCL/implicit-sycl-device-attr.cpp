@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -fsycl-is-device -fcxx-exceptions -triple spir64 \
 // RUN:  -aux-triple x86_64-unknown-linux-gnu -Wno-return-type -verify     \
-// RUN:  -Wno-sycl-2017-compat -fsyntax-only -std=c++17 %s
+// RUN:  -fsyntax-only -std=c++17 %s
 
 // add_ir_attributes_function attribute used to represent compile-time SYCL
 // properties and some of those properties are intended to be turned into

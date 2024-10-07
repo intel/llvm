@@ -9,21 +9,18 @@
 #ifndef LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 #define LLVM_ANALYSIS_TARGETLIBRARYINFO_H
 
-#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Pass.h"
 #include "llvm/TargetParser/Triple.h"
+#include <bitset>
 #include <optional>
 
 namespace llvm {
 
 template <typename T> class ArrayRef;
-class Function;
-class Module;
-class Triple;
 
 /// Describes a possible implementation of a floating point builtin operation.
 struct AltMathDesc {
@@ -328,12 +325,12 @@ class TargetLibraryInfo {
 
   /// Support for -fno-builtin* options as function attributes, overrides
   /// information in global TargetLibraryInfoImpl.
-  BitVector OverrideAsUnavailable;
+  std::bitset<NumLibFuncs> OverrideAsUnavailable;
 
 public:
   explicit TargetLibraryInfo(const TargetLibraryInfoImpl &Impl,
                              std::optional<const Function *> F = std::nullopt)
-      : Impl(&Impl), OverrideAsUnavailable(NumLibFuncs) {
+      : Impl(&Impl) {
     if (!F)
       return;
     if ((*F)->hasFnAttribute("no-builtins"))
@@ -356,14 +353,9 @@ public:
 
   // Provide value semantics.
   TargetLibraryInfo(const TargetLibraryInfo &TLI) = default;
-  TargetLibraryInfo(TargetLibraryInfo &&TLI)
-      : Impl(TLI.Impl), OverrideAsUnavailable(TLI.OverrideAsUnavailable) {}
+  TargetLibraryInfo(TargetLibraryInfo &&TLI) = default;
   TargetLibraryInfo &operator=(const TargetLibraryInfo &TLI) = default;
-  TargetLibraryInfo &operator=(TargetLibraryInfo &&TLI) {
-    Impl = TLI.Impl;
-    OverrideAsUnavailable = TLI.OverrideAsUnavailable;
-    return *this;
-  }
+  TargetLibraryInfo &operator=(TargetLibraryInfo &&TLI) = default;
 
   /// Determine whether a callee with the given TLI can be inlined into
   /// caller with this TLI, based on 'nobuiltin' attributes. When requested,
@@ -373,11 +365,9 @@ public:
                            bool AllowCallerSuperset) const {
     if (!AllowCallerSuperset)
       return OverrideAsUnavailable == CalleeTLI.OverrideAsUnavailable;
-    BitVector B = OverrideAsUnavailable;
-    B |= CalleeTLI.OverrideAsUnavailable;
-    // We can inline if the union of the caller and callee's nobuiltin
-    // attributes is no stricter than the caller's nobuiltin attributes.
-    return B == OverrideAsUnavailable;
+    // We can inline if the callee's nobuiltin attributes are no stricter than
+    // the caller's.
+    return (CalleeTLI.OverrideAsUnavailable & ~OverrideAsUnavailable).none();
   }
 
   /// Return true if the function type FTy is valid for the library function
@@ -421,10 +411,12 @@ public:
 
   /// Forces a function to be marked as unavailable.
   void setUnavailable(LibFunc F) LLVM_ATTRIBUTE_UNUSED {
+    assert(F < OverrideAsUnavailable.size() && "out-of-bounds LibFunc");
     OverrideAsUnavailable.set(F);
   }
 
   TargetLibraryInfoImpl::AvailabilityState getState(LibFunc F) const {
+    assert(F < OverrideAsUnavailable.size() && "out-of-bounds LibFunc");
     if (OverrideAsUnavailable[F])
       return TargetLibraryInfoImpl::Unavailable;
     return Impl->getState(F);
@@ -459,10 +451,12 @@ public:
       return false;
     switch (F) {
     default: break;
+      // clang-format off
     case LibFunc_copysign:     case LibFunc_copysignf:  case LibFunc_copysignl:
     case LibFunc_fabs:         case LibFunc_fabsf:      case LibFunc_fabsl:
     case LibFunc_sin:          case LibFunc_sinf:       case LibFunc_sinl:
     case LibFunc_cos:          case LibFunc_cosf:       case LibFunc_cosl:
+    case LibFunc_tan:          case LibFunc_tanf:       case LibFunc_tanl:
     case LibFunc_sqrt:         case LibFunc_sqrtf:      case LibFunc_sqrtl:
     case LibFunc_sqrt_finite:  case LibFunc_sqrtf_finite:
                                                    case LibFunc_sqrtl_finite:
@@ -481,6 +475,7 @@ public:
     case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
     case LibFunc_strcpy:       case LibFunc_stpcpy:     case LibFunc_strlen:
     case LibFunc_strnlen:      case LibFunc_memchr:     case LibFunc_mempcpy:
+      // clang-format on
       return true;
     }
     return false;

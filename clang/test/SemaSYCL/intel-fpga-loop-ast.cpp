@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // Add AST tests for Loop attributes: [[intel::enable_loop_pipelining]],
 // [[intel::max_interleaving()]], [[intel::loop_coalesce]],

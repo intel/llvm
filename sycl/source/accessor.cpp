@@ -15,38 +15,12 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 device getDeviceFromHandler(handler &cgh) {
-  assert((cgh.MQueue || cgh.MGraph) &&
+  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
          "One of MQueue or MGraph should be nonnull!");
   if (cgh.MQueue)
     return cgh.MQueue->get_device();
 
-  return cgh.MGraph->getDevice();
-}
-
-// TODO: the following function to be removed during next ABI break window
-AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
-                                   range<3> MemoryRange,
-                                   access::mode AccessMode, void *SYCLMemObject,
-                                   int Dims, int ElemSize, int OffsetInBytes,
-                                   bool IsSubBuffer,
-                                   const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           false, OffsetInBytes, IsSubBuffer, PropertyList));
-}
-
-// TODO: the following function to be removed during next ABI break window
-AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
-                                   range<3> MemoryRange,
-                                   access::mode AccessMode, void *SYCLMemObject,
-                                   int Dims, int ElemSize, bool IsPlaceH,
-                                   int OffsetInBytes, bool IsSubBuffer,
-                                   const property_list &PropertyList) {
-  impl = std::shared_ptr<AccessorImplHost>(
-      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
-                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
-                           IsPlaceH, OffsetInBytes, IsSubBuffer, PropertyList));
+  return getSyclObjImpl(cgh)->MGraph->getDevice();
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,

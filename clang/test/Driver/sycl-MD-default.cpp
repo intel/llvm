@@ -20,4 +20,4 @@
 // RUN:   | FileCheck -check-prefix=CHK-ERROR %s
 // RUN: not %clang_cl -### -MTd -fsycl -c %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-ERROR %s
-// CHK-ERROR: option 'MT{{d*}}' unsupported with DPC++
+// CHK-ERROR: invalid argument 'MT{{d*}}' not allowed with '-fsycl'

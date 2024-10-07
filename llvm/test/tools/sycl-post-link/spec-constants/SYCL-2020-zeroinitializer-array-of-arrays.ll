@@ -1,7 +1,7 @@
-; RUN: sycl-post-link --spec-const=native -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
-; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as arrays
@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 @_ZL9coeff_id3 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
 
 ; Function Attrs: convergent mustprogress norecurse
-define weak_odr spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
+define weak_odr spir_kernel void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
   %3 = alloca %"class.cl::sycl::kernel_handler" addrspace(4)*, align 8
   %4 = alloca i8 addrspace(4)*, align 8
   %5 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*

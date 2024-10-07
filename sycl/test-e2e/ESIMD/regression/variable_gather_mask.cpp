@@ -8,7 +8,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: opencl && gpu-intel-pvc
+// UNSUPPORTED: opencl && arch-intel_gpu_pvc
 //
 // This is a regression test for the VC BE bug which generates incorrect code in
 // some cases in presence of variable (not compile-time constant) mask

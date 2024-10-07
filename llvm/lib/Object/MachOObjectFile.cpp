@@ -2341,7 +2341,7 @@ void MachOObjectFile::getRelocationTypeName(
         "ARM64_RELOC_PAGEOFF12",          "ARM64_RELOC_GOT_LOAD_PAGE21",
         "ARM64_RELOC_GOT_LOAD_PAGEOFF12", "ARM64_RELOC_POINTER_TO_GOT",
         "ARM64_RELOC_TLVP_LOAD_PAGE21",   "ARM64_RELOC_TLVP_LOAD_PAGEOFF12",
-        "ARM64_RELOC_ADDEND"
+        "ARM64_RELOC_ADDEND",             "ARM64_RELOC_AUTHENTICATED_POINTER"
       };
 
       if (RType >= std::size(Table))
@@ -3104,7 +3104,7 @@ void ExportEntry::pushNode(uint64_t offset) {
         }
       }
     }
-    if(ExportStart + ExportInfoSize != State.Current) {
+    if (ExportStart + ExportInfoSize < State.Current) {
       *E = malformedError(
           "inconsistent export info size: 0x" +
           Twine::utohexstr(ExportInfoSize) + " where actual size was: 0x" +
@@ -3501,15 +3501,17 @@ void MachORebaseEntry::moveNext() {
     --RemainingLoopCount;
     return;
   }
-  // REBASE_OPCODE_DONE is only used for padding if we are not aligned to
-  // pointer size. Therefore it is possible to reach the end without ever having
-  // seen REBASE_OPCODE_DONE.
-  if (Ptr == Opcodes.end()) {
-    Done = true;
-    return;
-  }
+
   bool More = true;
   while (More) {
+    // REBASE_OPCODE_DONE is only used for padding if we are not aligned to
+    // pointer size. Therefore it is possible to reach the end without ever
+    // having seen REBASE_OPCODE_DONE.
+    if (Ptr == Opcodes.end()) {
+      Done = true;
+      return;
+    }
+
     // Parse next opcode and set up next loop.
     const uint8_t *OpcodeStart = Ptr;
     uint8_t Byte = *Ptr++;
@@ -3838,15 +3840,17 @@ void MachOBindEntry::moveNext() {
     --RemainingLoopCount;
     return;
   }
-  // BIND_OPCODE_DONE is only used for padding if we are not aligned to
-  // pointer size. Therefore it is possible to reach the end without ever having
-  // seen BIND_OPCODE_DONE.
-  if (Ptr == Opcodes.end()) {
-    Done = true;
-    return;
-  }
+
   bool More = true;
   while (More) {
+    // BIND_OPCODE_DONE is only used for padding if we are not aligned to
+    // pointer size. Therefore it is possible to reach the end without ever
+    // having seen BIND_OPCODE_DONE.
+    if (Ptr == Opcodes.end()) {
+      Done = true;
+      return;
+    }
+
     // Parse next opcode and set up next loop.
     const uint8_t *OpcodeStart = Ptr;
     uint8_t Byte = *Ptr++;
@@ -5188,11 +5192,6 @@ MachOObjectFile::getDyldChainedFixupTargets() const {
   const char *ImportsEnd = Contents + ImportsEndOffset;
   const char *Symbols = Contents + Header.symbols_offset;
   const char *SymbolsEnd = Contents + DyldChainedFixups.datasize;
-
-  if (ImportsEnd > Symbols)
-    return malformedError("bad chained fixups: imports end " +
-                          Twine(ImportsEndOffset) + " extends past end " +
-                          Twine(DyldChainedFixups.datasize));
 
   if (ImportsEnd > Symbols)
     return malformedError("bad chained fixups: imports end " +

@@ -16,6 +16,8 @@ add_llvm_tool(llvm-spirv
   NO_INSTALL_RPATH
 )
 
+setup_host_tool(llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target)
+
 if (LLVM_SPIRV_BUILD_EXTERNAL OR LLVM_LINK_LLVM_DYLIB)
   target_link_libraries(llvm-spirv PRIVATE LLVMSPIRVLib)
 endif()

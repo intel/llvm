@@ -8,24 +8,23 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_s...
-#include <sycl/accessor.hpp>                   // for local_acc...
-#include <sycl/aspects.hpp>                    // for aspect
-#include <sycl/atomic.hpp>                     // for IsValidAt...
-#include <sycl/atomic_ref.hpp>                 // for atomic_ref
-#include <sycl/buffer.hpp>                     // for buffer
-#include <sycl/builtins.hpp>                   // for min
-#include <sycl/detail/export.hpp>              // for __SYCL_EX...
-#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
-#include <sycl/detail/impl_utils.hpp>          // for createSyc...
-#include <sycl/detail/item_base.hpp>           // for id
-#include <sycl/detail/reduction_forward.hpp>   // for strategy
-#include <sycl/detail/tuple.hpp>               // for make_tuple
-#include <sycl/device.hpp>                     // for device
-#include <sycl/event.hpp>                      // for event
-#include <sycl/exception.hpp>                  // for make_erro...
-#include <sycl/exception_list.hpp>             // for queue_impl
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/access/access.hpp>                   // for address_s...
+#include <sycl/accessor.hpp>                        // for local_acc...
+#include <sycl/aspects.hpp>                         // for aspect
+#include <sycl/atomic.hpp>                          // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                      // for atomic_ref
+#include <sycl/buffer.hpp>                          // for buffer
+#include <sycl/builtins.hpp>                        // for min
+#include <sycl/detail/export.hpp>                   // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp>      // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>               // for createSyc...
+#include <sycl/detail/item_base.hpp>                // for id
+#include <sycl/detail/reduction_forward.hpp>        // for strategy
+#include <sycl/detail/tuple.hpp>                    // for make_tuple
+#include <sycl/device.hpp>                          // for device
+#include <sycl/event.hpp>                           // for event
+#include <sycl/exception.hpp>                       // for make_erro...
+#include <sycl/exception_list.hpp>                  // for queue_impl
 #include <sycl/group.hpp>                           // for workGroup...
 #include <sycl/group_algorithm.hpp>                 // for reduce_ov...
 #include <sycl/handler.hpp>                         // for handler
@@ -44,14 +43,6 @@
 #include <sycl/range.hpp>                           // for range
 #include <sycl/sycl_span.hpp>                       // for dynamic_e...
 #include <sycl/usm.hpp>                             // for malloc_de...
-
-// reduction::withAuxHandler calls handler::~handler() and that, in turn, needs
-// all the dtors from std::unique_pointer handler's data members, including the
-// host_task-related stuff. That's not the case for <sycl/detail/core.hpp>
-// because handler object is only ctor/dtor'ed inside SYCL shared library but
-// not in the current translation unit. It would be nice to find a better way
-// than this include in future.
-#include <sycl/detail/host_task_impl.hpp>
 
 #include <algorithm>   // for min
 #include <array>       // for array
@@ -1178,8 +1169,9 @@ namespace reduction {
 inline void finalizeHandler(handler &CGH) { CGH.finalize(); }
 template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   event E = CGH.finalize();
-  handler AuxHandler(CGH.MQueue, CGH.MIsHost);
-  AuxHandler.depends_on(E);
+  handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
+  if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
+    AuxHandler.depends_on(E);
   AuxHandler.saveCodeLoc(CGH.MCodeLoc);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
@@ -1277,7 +1269,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           for (size_t E = 0; E < NElements; ++E) {
             *getReducerAccess(Reducer).getElement(E) = GroupSum[E];
           }
-          Reducer.template atomic_combine(&Out[0]);
+          Reducer.atomic_combine(&Out[0]);
         }
       });
     });

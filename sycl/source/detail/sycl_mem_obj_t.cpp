@@ -17,14 +17,16 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-                         const size_t, event AvailableEvent,
+SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
+                         const context &SyclContext, const size_t,
+                         event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : SYCLMemObjT(MemObject, SyclContext, true, AvailableEvent,
                   std::move(Allocator)) {}
 
-SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-                         bool OwnNativeHandle, event AvailableEvent,
+SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
+                         const context &SyclContext, bool OwnNativeHandle,
+                         event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
@@ -33,50 +35,45 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
-  if (MInteropContext->is_host())
-    throw sycl::invalid_parameter_error(
-        "Creation of interoperability memory object using host context is "
-        "not allowed",
-        PI_ERROR_INVALID_CONTEXT);
-
-  sycl::detail::pi::PiContext Context = nullptr;
+  ur_context_handle_t Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
-  Plugin->call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
-      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle,
+  ur_mem_native_properties_t MemProperties = {
+      UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
+  Plugin->call<UrApiKind::urMemBufferCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &MemProperties,
       &MInteropMemObject);
 
   // Get the size of the buffer in bytes
-  Plugin->call<detail::PiApiKind::piMemGetInfo>(
-      MInteropMemObject, PI_MEM_SIZE, sizeof(size_t), &MSizeInBytes, nullptr);
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
+                                        sizeof(size_t), &MSizeInBytes, nullptr);
 
-  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
                                         sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_mem",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piMemRetain>(MInteropMemObject);
+    Plugin->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
-sycl::detail::pi::PiMemObjectType getImageType(int Dimensions) {
+ur_mem_type_t getImageType(int Dimensions) {
   if (Dimensions == 1)
-    return PI_MEM_TYPE_IMAGE1D;
+    return UR_MEM_TYPE_IMAGE1D;
   if (Dimensions == 2)
-    return PI_MEM_TYPE_IMAGE2D;
-  return PI_MEM_TYPE_IMAGE3D;
+    return UR_MEM_TYPE_IMAGE2D;
+  return UR_MEM_TYPE_IMAGE3D;
 }
 
-SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
-                         bool OwnNativeHandle, event AvailableEvent,
+SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
+                         const context &SyclContext, bool OwnNativeHandle,
+                         event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
-                         sycl::detail::pi::PiMemImageChannelOrder Order,
-                         sycl::detail::pi::PiMemImageChannelType Type,
-                         range<3> Range3WithOnes, unsigned Dimensions,
-                         size_t ElementSize)
+                         ur_image_format_t Format, range<3> Range3WithOnes,
+                         unsigned Dimensions, size_t ElementSize)
     : MAllocator(std::move(Allocator)), MProps(),
       MInteropEvent(detail::getSyclObjImpl(std::move(AvailableEvent))),
       MInteropContext(detail::getSyclObjImpl(SyclContext)),
@@ -84,42 +81,38 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
       MUserPtr(nullptr), MShadowCopy(nullptr), MUploadDataFunctor(nullptr),
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
-  if (MInteropContext->is_host())
-    throw sycl::invalid_parameter_error(
-        "Creation of interoperability memory object using host context is "
-        "not allowed",
-        PI_ERROR_INVALID_CONTEXT);
-
-  sycl::detail::pi::PiContext Context = nullptr;
+  ur_context_handle_t Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
-  sycl::detail::pi::PiMemImageFormat Format{Order, Type};
-  sycl::detail::pi::PiMemImageDesc Desc;
-  Desc.image_type = getImageType(Dimensions);
-  Desc.image_width = Range3WithOnes[0];
-  Desc.image_height = Range3WithOnes[1];
-  Desc.image_depth = Range3WithOnes[2];
-  Desc.image_array_size = 0;
-  Desc.image_row_pitch = ElementSize * Desc.image_width;
-  Desc.image_slice_pitch = Desc.image_row_pitch * Desc.image_height;
-  Desc.num_mip_levels = 0;
-  Desc.num_samples = 0;
-  Desc.buffer = nullptr;
+  ur_image_desc_t Desc = {};
+  Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
+  Desc.type = getImageType(Dimensions);
+  Desc.width = Range3WithOnes[0];
+  Desc.height = Range3WithOnes[1];
+  Desc.depth = Range3WithOnes[2];
+  Desc.arraySize = 0;
+  Desc.rowPitch = ElementSize * Desc.width;
+  Desc.slicePitch = Desc.rowPitch * Desc.height;
+  Desc.numMipLevel = 0;
+  Desc.numSamples = 0;
 
-  Plugin->call<detail::PiApiKind::piextMemImageCreateWithNativeHandle>(
-      MemObject, MInteropContext->getHandleRef(), OwnNativeHandle, &Format,
-      &Desc, &MInteropMemObject);
+  ur_mem_native_properties_t NativeProperties = {
+      UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
-  Plugin->call<PiApiKind::piMemGetInfo>(MInteropMemObject, PI_MEM_CONTEXT,
+  Plugin->call<UrApiKind::urMemImageCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &Format, &Desc,
+      &NativeProperties, &MInteropMemObject);
+
+  Plugin->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
                                         sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::invalid_parameter_error(
-        "Input context must be the same as the context of cl_mem",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piMemRetain>(MInteropMemObject);
+    Plugin->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -162,8 +155,7 @@ void SYCLMemObjT::updateHostMemory() {
 
   if (MOpenCLInterop) {
     const PluginPtr &Plugin = getPlugin();
-    Plugin->call<PiApiKind::piMemRelease>(
-        pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
+    Plugin->call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
 const PluginPtr &SYCLMemObjT::getPlugin() const {
@@ -173,12 +165,12 @@ const PluginPtr &SYCLMemObjT::getPlugin() const {
 }
 
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
-                                         pi_native_handle MemObject) {
+                                         ur_native_handle_t MemObject) {
   size_t BufSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin->call<detail::PiApiKind::piMemGetInfo>(
-      detail::pi::cast<sycl::detail::pi::PiMem>(MemObject), PI_MEM_SIZE,
+  Plugin->call<UrApiKind::urMemGetInfo>(
+      detail::ur::cast<ur_mem_handle_t>(MemObject), UR_MEM_INFO_SIZE,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
@@ -191,18 +183,13 @@ void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
   // HostPtr. We can have one of these scenarios:
-  // 1. The allocation is the first one and on host. InitFromUserData == true.
-  // 2. The allocation is the first one and isn't on host. InitFromUserData
+  // 1. The allocation is the first one and isn't on host. InitFromUserData
   // varies based on unified host memory support and whether or not the data can
   // be discarded.
-  // 3. The allocation is not the first one and is on host. InitFromUserData ==
-  // false, HostPtr == nullptr. This can only happen if the allocation command
-  // is not linked since it would be a no-op otherwise. Attempt to reuse the
-  // user pointer if it's read-write, but do not copy its contents if it's not.
-  // 4. The allocation is not the first one and not on host. InitFromUserData ==
+  // 2. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
-  if (Context->is_host() && !MOpenCLInterop && !MHostPtrReadOnly)
+  if (!Context && !MOpenCLInterop && !MHostPtrReadOnly)
     InitFromUserData = true;
 
   if (InitFromUserData) {
@@ -224,11 +211,15 @@ void SYCLMemObjT::detachMemoryObject(
   // For L0 context could be created with two ownership strategies - keep and
   // transfer. If user keeps ownership - we could not enable deferred buffer
   // release due to resource release conflict.
+  // MRecord->MCurContext == nullptr means that last submission to buffer is on
+  // host (host task), this execution doesn't depend on device context and fully
+  // controlled by RT. In this case deferred buffer destruction is allowed.
   bool InteropObjectsUsed =
       !MOwnNativeHandle ||
       (MInteropContext && !MInteropContext->isOwnedByRuntime());
 
-  if (MRecord && MRecord->MCurContext->isOwnedByRuntime() &&
+  if (MRecord &&
+      (!MRecord->MCurContext || MRecord->MCurContext->isOwnedByRuntime()) &&
       !InteropObjectsUsed && (!MHostPtrProvided || MIsInternal)) {
     bool okToDefer = GlobalHandler::instance().isOkToDefer();
     if (okToDefer)
@@ -238,8 +229,11 @@ void SYCLMemObjT::detachMemoryObject(
 
 void SYCLMemObjT::handleWriteAccessorCreation() {
   const auto InitialUserPtr = MUserPtr;
-  MCreateShadowCopy();
-  MCreateShadowCopy = []() -> void {};
+  {
+    std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+    MCreateShadowCopy();
+    MCreateShadowCopy = []() -> void {};
+  }
   if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
     for (auto &it : MRecord->MAllocaCommands) {
       if (it->MMemAllocation == InitialUserPtr) {

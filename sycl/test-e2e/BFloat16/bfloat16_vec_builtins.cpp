@@ -1,4 +1,5 @@
-// RUN: %{build} -fno-fast-math -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 // Test new, ABI-breaking for all platforms.
@@ -31,12 +32,11 @@ bool check(bool a, bool b) { return (a != b); }
     for (int i = 0; i < SZ; i++) {                                             \
       arg[i] = INPVAL;                                                         \
     }                                                                          \
-    /* Perform the operation. */                                               \              
-    vec<RETTY, SZ>                                                             \
-        res = sycl::ext::oneapi::experimental::NAME(arg);                      \
+    /* Perform the operation. */                                               \
+    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg);           \
     vec<RETTY, 2> res2 =                                                       \
         sycl::ext::oneapi::experimental::NAME(arg.template swizzle<0, 0>());   \
-    /* Check the result. */                                                    \                   
+    /* Check the result. */                                                    \
     if (res2[0] != res[0] || res2[1] != res[0]) {                              \
       ERR[0] += 1;                                                             \
     }                                                                          \
@@ -56,9 +56,8 @@ bool check(bool a, bool b) { return (a != b); }
       arg[i] = INPVAL;                                                         \
       arg2[i] = inpVal2;                                                       \
     }                                                                          \
-    /* Perform the operation. */                                               \              
-    vec<RETTY, SZ>                                                             \
-        res = sycl::ext::oneapi::experimental::NAME(arg, arg2);                \
+    /* Perform the operation. */                                               \
+    vec<RETTY, SZ> res = sycl::ext::oneapi::experimental::NAME(arg, arg2);     \
     /* Swizzle and vec different combination. */                               \
     vec<RETTY, 2> res2 = sycl::ext::oneapi::experimental::NAME(                \
         arg.template swizzle<0, 0>(), arg2.template swizzle<0, 0>());          \

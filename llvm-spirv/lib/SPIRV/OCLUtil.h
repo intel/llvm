@@ -162,9 +162,7 @@ struct OCLBuiltinTransInfo {
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
   Type *RetTy;      // Return type of the translated function
-  bool IsRetSigned; // When RetTy is int, determines if extensions
-                    // on it should be a sext or zet.
-  OCLBuiltinTransInfo() : RetTy(nullptr), IsRetSigned(false) {
+  OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
 };
@@ -237,6 +235,7 @@ const static char AtomicInit[] = "atomic_init";
 const static char AtomicWorkItemFence[] = "atomic_work_item_fence";
 const static char Barrier[] = "barrier";
 const static char Clamp[] = "clamp";
+const static char ClockReadPrefix[] = "clock_read_";
 const static char ConvertPrefix[] = "convert_";
 const static char Dot[] = "dot";
 const static char DotAccSat[] = "dot_acc_sat";
@@ -352,8 +351,9 @@ const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
-const unsigned CL21 = 201000;
 const unsigned CL30 = 300000;
+const unsigned CLCXX10 = 100000;
+const unsigned CLCXX2021 = 202100000;
 } // namespace kOCLVer
 
 namespace OclExt {

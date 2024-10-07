@@ -906,6 +906,19 @@ public:
   /// Get the file ID for the precompiled preamble if there is one.
   FileID getPreambleFileID() const { return PreambleFileID; }
 
+  ///  Get the file ID for the integration footer.
+  FileID ComputeValidFooterFileID(StringRef Footer) {
+    FileID FooterFileID;
+    llvm::Expected<FileEntryRef> ExpectedFileRef =
+        getFileManager().getFileRef(Footer);
+    if (ExpectedFileRef) {
+      FooterFileID = getOrCreateFileID(ExpectedFileRef.get(),
+                                       SrcMgr::CharacteristicKind::C_User);
+    }
+    assert(FooterFileID.isValid() && "expecting a valid footer FileID");
+    return FooterFileID;
+  }
+
   //===--------------------------------------------------------------------===//
   // Methods to create new FileID's and macro expansions.
   //===--------------------------------------------------------------------===//
@@ -1676,6 +1689,11 @@ public:
   isInTheSameTranslationUnit(std::pair<FileID, unsigned> &LOffs,
                              std::pair<FileID, unsigned> &ROffs) const;
 
+  /// \param Loc a source location in a loaded AST (of a PCH/Module file).
+  /// \returns a FileID uniquely identifies the AST of a loaded
+  /// module/PCH where `Loc` is at.
+  FileID getUniqueLoadedASTFileID(SourceLocation Loc) const;
+
   /// Determines whether the two decomposed source location is in the same TU.
   bool isInTheSameTranslationUnitImpl(
       const std::pair<FileID, unsigned> &LOffs,
@@ -1976,6 +1994,7 @@ private:
                                          SourceLocation SpellLoc,
                                          SourceLocation ExpansionLoc,
                                          unsigned ExpansionLength) const;
+  void updateSlocUsageStats() const;
 };
 
 /// Comparison function object.

@@ -25,13 +25,7 @@ _CLC_DEFINE_BINARY_BUILTIN(double, __spirv_ocl_copysign, __builtin_copysign,
 
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 
-_CLC_DEF _CLC_OVERLOAD half __spirv_ocl_copysign(half x, half y) {
-  ushort sign_x = as_ushort(x) & 0x8000u;
-  ushort unsigned_y = as_ushort(y) & 0x7ffffu;
-
-  return as_half((ushort)(sign_x | unsigned_y));
-}
-_CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_copysign, half,
-                      half)
+_CLC_DEFINE_BINARY_BUILTIN(half, __spirv_ocl_copysign, __builtin_copysign, half,
+                           half)
 
 #endif

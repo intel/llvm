@@ -1,9 +1,10 @@
-// REQUIRES: cuda
+// REQUIRES: linux
+// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
 
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
-#include "../bindless_helpers.hpp"
+#include "../helpers/common.hpp"
 #include <iostream>
 #include <random>
 #include <sycl/detail/core.hpp>
@@ -11,12 +12,12 @@
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <type_traits>
 
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 static sycl::device dev;
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
-
-namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Helpers and utilities.
 struct util {

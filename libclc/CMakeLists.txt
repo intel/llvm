@@ -1,11 +1,14 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-project( libclc VERSION 0.2.0 LANGUAGES CXX C)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  project(libclc VERSION 0.2.0 LANGUAGES CXX C)
+endif()
+set(LLVM_SUBPROJECT_TITLE "libclc")
 
 set(CMAKE_CXX_STANDARD 17)
 
 # Add path for custom modules
-list( INSERT CMAKE_MODULE_PATH 0 "${PROJECT_SOURCE_DIR}/cmake/modules" )
+list( INSERT CMAKE_MODULE_PATH 0 "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules" )
 
 set( LIBCLC_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
 set( LIBCLC_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} )
@@ -42,6 +45,9 @@ set( LIBCLC_TARGETS_TO_BUILD "all"
 
 option( ENABLE_RUNTIME_SUBNORMAL "Enable runtime linking of subnormal support." OFF )
 
+set( LIBCLC_NATIVECPU_FLAGS_X86_64 ""
+  CACHE STRING "Semicolon-separated list of compiler flags for x86_64 libclc target.")
+
 if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR )
   # Out-of-tree configuration
   set( LIBCLC_STANDALONE_BUILD TRUE )
@@ -55,12 +61,12 @@ if( LIBCLC_STANDALONE_BUILD OR CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DI
     message( FATAL_ERROR "libclc needs at least LLVM ${LIBCLC_MIN_LLVM}" )
   endif()
 
-  # Import required tools as targets
+  # Import required tools
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
     foreach( tool IN ITEMS clang llvm-as llvm-link opt )
       find_program( LLVM_TOOL_${tool} ${tool} PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-      add_executable( libclc::${tool} IMPORTED GLOBAL )
-      set_target_properties( libclc::${tool} PROPERTIES IMPORTED_LOCATION ${LLVM_TOOL_${tool}} )
+      set( ${tool}_exe ${LLVM_TOOL_${tool}} )
+      set( ${tool}_target )
     endforeach()
   endif()
 else()
@@ -77,9 +83,10 @@ else()
   endif()
 
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
-    foreach( tool IN ITEMS clang llvm-as llvm-link opt )
-      add_executable(libclc::${tool} ALIAS ${tool})
-    endforeach()
+    setup_host_tool( clang CLANG clang_exe clang_target )
+    setup_host_tool( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
+    setup_host_tool( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
+    setup_host_tool( opt OPT opt_exe opt_target )
   endif()
 endif()
 
@@ -94,9 +101,8 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
   foreach( tool IN ITEMS clang llvm-as llvm-link opt llvm-spirv libclc-remangler )
     find_program( LLVM_CUSTOM_TOOL_${tool} ${tool}
       PATHS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-    add_executable( libclc::${tool} IMPORTED GLOBAL )
-    set_target_properties( libclc::${tool} PROPERTIES
-      IMPORTED_LOCATION ${LLVM_CUSTOM_TOOL_${tool}} )
+    set( ${tool}_exe ${LLVM_CUSTOM_TOOL_${tool}} )
+    set( ${tool}_target )
   endforeach()
 
   # If we've requested a custom binary directory, there are some otherwise
@@ -107,7 +113,7 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 endif()
 
 foreach( tool IN ITEMS clang opt llvm-as llvm-link )
-  if( NOT TARGET libclc::${tool} )
+  if( NOT EXISTS "${${tool}_exe}" AND NOT TARGET "${${tool}_target}" )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
@@ -215,7 +221,7 @@ set( tahiti_aliases pitcairn verde oland hainan bonaire kabini kaveri hawaii
   gfx1010 gfx1011 gfx1012 gfx1013
   gfx1030 gfx1031 gfx1032 gfx1033 gfx1034 gfx1035 gfx1036
   gfx1100 gfx1101 gfx1102 gfx1103
-  gfx1150 gfx1151
+  gfx1150 gfx1151 gfx1152
   gfx1200 gfx1201
 )
 
@@ -228,7 +234,8 @@ if( ENABLE_RUNTIME_SUBNORMAL )
   foreach( file subnormal_use_default subnormal_disable )
     link_bc(
        TARGET ${file}
-       INPUTS ${PROJECT_SOURCE_DIR}/generic/lib/${file}.ll
+       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
+       INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/${file}.ll
     )
     install( FILES $<TARGET_PROPERTY:${file},TARGET_FILE> ARCHIVE
       DESTINATION "${CMAKE_INSTALL_DATADIR}/clc" )
@@ -236,15 +243,16 @@ if( ENABLE_RUNTIME_SUBNORMAL )
 endif()
 
 find_package( Python3 REQUIRED COMPONENTS Interpreter )
-file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
-file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
-file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
-file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
 add_custom_command(
   OUTPUT convert.cl
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
+set_target_properties( "generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
   OUTPUT convert-core.cl
@@ -269,6 +277,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+set_target_properties( "clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 enable_testing()
 
@@ -356,9 +365,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       elseif( IS_NATIVE_CPU_ARCH )
         list( APPEND flags -Xclang -fsycl-is-native-cpu )
         if( ARCH  STREQUAL x86_64 )
-          # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
-          list( APPEND flags -Xclang -target-feature -Xclang +avx
-              -Xclang -target-feature -Xclang +avx512f)
+          list( APPEND flags ${LIBCLC_NATIVECPU_FLAGS_X86_64})
         endif()
       endif()
     endif()
@@ -402,7 +409,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # Enable SPIR-V builtin function declarations, so they don't
     # have to be explicity declared in the soruce.
     list( APPEND flags -Xclang -fdeclare-spirv-builtins)
-
     set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 

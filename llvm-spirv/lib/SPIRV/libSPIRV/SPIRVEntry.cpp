@@ -386,6 +386,16 @@ void SPIRVEntry::takeAnnotations(SPIRVForward *E) {
     static_cast<SPIRVFunction *>(this)->takeExecutionModes(E);
 }
 
+void SPIRVEntry::replaceTargetIdInDecorates(SPIRVId Id) {
+  for (auto It = Decorates.begin(), E = Decorates.end(); It != E; ++It)
+    const_cast<SPIRVDecorate *>(It->second)->setTargetId(Id);
+  for (auto It = DecorateIds.begin(), E = DecorateIds.end(); It != E; ++It)
+    const_cast<SPIRVDecorateId *>(It->second)->setTargetId(Id);
+  for (auto It = MemberDecorates.begin(), E = MemberDecorates.end(); It != E;
+       ++It)
+    const_cast<SPIRVMemberDecorate *>(It->second)->setTargetId(Id);
+}
+
 // Check if an entry has Kind of decoration and get the literal of the
 // first decoration of such kind at Index.
 bool SPIRVEntry::hasDecorate(Decoration Kind, size_t Index,

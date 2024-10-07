@@ -46,9 +46,9 @@ void test(queue q, InputContainer input, OutputContainer output,
       cgh.parallel_for(
           nd_range<1>(workgroup_size, workgroup_size), [=](nd_item<1> it) {
             const InputT *segment_begin =
-                in.template get_multi_ptr<access::decorated::no>();
+                in.template get_multi_ptr<access::decorated::no>().get();
             const InputT *segment_end =
-                in.template get_multi_ptr<access::decorated::no>() +
+                in.template get_multi_ptr<access::decorated::no>().get() +
                 segment_size;
             auto handle =
                 sycl::ext::oneapi::experimental::group_with_scratchpad(

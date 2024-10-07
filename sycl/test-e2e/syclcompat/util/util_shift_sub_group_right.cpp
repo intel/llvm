@@ -31,7 +31,7 @@
 // ===----------------------------------------------------------------------===//
 
 // REQUIRES: sg-32
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -140,7 +140,8 @@ void test_shift_sub_group_right() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int)).wait();
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+      .wait();
   verify_data<unsigned int>(host_dev_data_u, expect2, DATA_NUM);
 
   sycl::free(dev_data, *q_ct1);

@@ -17,6 +17,8 @@
 #include <sycl/half_type.hpp>                 // for BIsRepresentationT
 #include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16 storage type.
+
 #include <cstddef>     // for byte
 #include <cstdint>     // for uint8_t
 #include <limits>      // for numeric_limits
@@ -25,8 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <int N> struct Boolean;
-
 template <typename T>
 inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
@@ -342,33 +342,9 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
-    // we use the "else" version only. I suspect that's an issues with
-    // non-uniform groups implementation.
-    if constexpr (std::is_same_v<MatchingVec, no_ref>)
-      return static_cast<typename MatchingVec::vector_t>(x);
-    else
-      return static_cast<typename MatchingVec::vector_t>(
-          x.template as<MatchingVec>());
-#else  // __INTEL_PREVIEW_BREAKING_CHANGES
     return sycl::bit_cast<typename MatchingVec::vector_t>(x);
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
 #else
     return x.template as<MatchingVec>();
-#endif
-  } else if constexpr (is_boolean_v<no_ref>) {
-#ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (std::is_same_v<Boolean<1>, no_ref>) {
-      // Or should it be "int"?
-      return std::forward<T>(x);
-    } else {
-      return static_cast<typename no_ref::vector_t>(x);
-    }
-#else
-    return std::forward<T>(x);
 #endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   } else if constexpr (std::is_same_v<no_ref, std::byte>) {
@@ -386,7 +362,13 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (is_bfloat16_v<no_ref>) {
+    // On host, don't interpret BF16 as uint16.
+#ifdef __SYCL_DEVICE_ONLY__
+    using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
+    return sycl::bit_cast<OpenCLType>(x);
+#else
     return std::forward<T>(x);
+#endif
   } else if constexpr (std::is_floating_point_v<no_ref>) {
     static_assert(std::is_same_v<no_ref, float> ||
                       std::is_same_v<no_ref, double>,
@@ -441,9 +423,6 @@ template <typename T> struct GetNumElements {
 template <typename Type, int NumElements>
 struct GetNumElements<typename sycl::vec<Type, NumElements>> {
   static constexpr int value = NumElements;
-};
-template <int N> struct GetNumElements<typename sycl::detail::Boolean<N>> {
-  static constexpr int value = N;
 };
 
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those

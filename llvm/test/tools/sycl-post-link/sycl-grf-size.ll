@@ -1,6 +1,6 @@
 ; This test checks handling of sycl-grf-size in SYCL post link
 
-; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
 ; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR --implicit-check-not='__ESIMD_kernel()'
 ; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP

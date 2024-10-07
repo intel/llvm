@@ -86,8 +86,7 @@ template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group
-    : std::integral_constant<bool,
-                             is_group<T>::value || is_sub_group<T>::value> {};
+    : std::bool_constant<is_group<T>::value || is_sub_group<T>::value> {};
 template <typename T>
 inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
@@ -156,25 +155,29 @@ template <class T> using marray_element_t = typename T::value_type;
 // get_elem_type
 // Get the element type of T. If T is a scalar, the element type is considered
 // the type of the scalar.
-template <typename T, typename = void> struct get_elem_type {
+template <typename T, typename = void> struct get_elem_type_unqual {
   using type = T;
 };
-template <typename T, size_t N> struct get_elem_type<marray<T, N>> {
+template <typename T, size_t N> struct get_elem_type_unqual<marray<T, N>> {
   using type = T;
 };
-template <typename T, int N> struct get_elem_type<vec<T, N>> {
+template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
   using type = T;
 };
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
-struct get_elem_type<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
                                OperationCurrentT, Indexes...>> {
-  using type = typename get_elem_type<std::remove_cv_t<VecT>>::type;
+  using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
-struct get_elem_type<multi_ptr<ElementType, Space, DecorateAddress>> {
+struct get_elem_type_unqual<multi_ptr<ElementType, Space, DecorateAddress>> {
+  using type = ElementType;
+};
+
+template <typename ElementType> struct get_elem_type_unqual<ElementType *> {
   using type = ElementType;
 };
 
@@ -190,9 +193,12 @@ template <typename T>
 inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
 
 template <typename T>
-struct get_elem_type<T, std::enable_if_t<is_ext_vector_v<T>>> {
+struct get_elem_type_unqual<T, std::enable_if_t<is_ext_vector_v<T>>> {
   using type = decltype(__builtin_reduce_max(std::declval<T>()));
 };
+
+template <typename T>
+struct get_elem_type : get_elem_type_unqual<std::remove_cv_t<T>> {};
 
 template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 
@@ -291,6 +297,20 @@ template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
 
+// is_swizzle
+template <typename> struct is_swizzle : std::false_type {};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                            OperationCurrentT, Indexes...>> : std::true_type {};
+
+template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
+
+// is_swizzle_or_vec_v
+
+template <typename T>
+constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
+
 // is_marray
 template <typename> struct is_marray : std::false_type {};
 template <typename T, size_t N>
@@ -300,7 +320,7 @@ template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
-struct is_integral : std::is_integral<vector_element_t<T>> {};
+struct is_integral : std::is_integral<get_elem_type_t<T>> {};
 
 // is_floating_point
 template <typename T>
@@ -310,7 +330,10 @@ template <> struct is_floating_point_impl<half> : std::true_type {};
 
 template <typename T>
 struct is_floating_point
-    : is_floating_point_impl<std::remove_cv_t<vector_element_t<T>>> {};
+    : is_floating_point_impl<std::remove_cv_t<get_elem_type_t<T>>> {};
+
+template <typename T>
+constexpr bool is_floating_point_v = is_floating_point<T>::value;
 
 // is_arithmetic
 template <typename T>
@@ -320,14 +343,17 @@ struct is_arithmetic
 
 template <typename T>
 struct is_scalar_arithmetic
-    : std::bool_constant<!is_vec<T>::value && is_arithmetic<T>::value> {};
+    : std::bool_constant<!is_vec_or_swizzle_v<T> && !is_ext_vector_v<T> &&
+                         !is_marray_v<T> && is_arithmetic<T>::value> {};
 
 template <typename T>
 inline constexpr bool is_scalar_arithmetic_v = is_scalar_arithmetic<T>::value;
 
 template <typename T>
-struct is_vector_arithmetic
-    : std::bool_constant<is_vec<T>::value && is_arithmetic<T>::value> {};
+struct is_nonscalar_arithmetic
+    : std::bool_constant<(is_vec_or_swizzle_v<T> || is_ext_vector_v<T> ||
+                          is_marray_v<T>) &&
+                         is_arithmetic<T>::value> {};
 
 // is_bool
 template <typename T>
@@ -342,12 +368,6 @@ struct is_vector_bool
 template <typename T>
 struct is_bool
     : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
-
-// is_boolean
-template <int N> struct Boolean;
-template <typename T> struct is_boolean : std::false_type {};
-template <int N> struct is_boolean<Boolean<N>> : std::true_type {};
-template <typename T> inline constexpr bool is_boolean_v = is_boolean<T>::value;
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};

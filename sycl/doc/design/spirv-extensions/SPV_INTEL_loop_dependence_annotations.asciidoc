@@ -1,0 +1,274 @@
+:extension_name: SPV_INTEL_loop_dependence_annotations
+:llvm_capability_name: AccessGroupAnnotationINTEL
+:sycl_capability_name: DependencyAnnotationINTEL
+:instruction_name: OpAccessGroupDeclINTEL
+:aggregator_name: OpAccessGroupListINTEL
+:decoration_name: AccessGroupINTEL
+:mem_op_name: AccessGroupMaskINTEL
+:da_loop_control: DependencyAccessesINTEL
+:pa_loop_control: ParallelAccessesINTEL
+
+= {extension_name}
+
+== Name Strings
+
+{extension_name}
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Registry
+
+== Contributors
+
+* Adel Ejjeh, Intel
+* Joe Garvey, Intel
+* Mark P Mendell, Intel
+
+== Notice
+
+Copyright (c) 2024 Intel Corporation.  All rights reserved.
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
+
+Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products. If you are interested in using this feature in your software product, please let us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | 2
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision
+3.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds the ability to specify an access group for memory operations
+and function calls, and then use these access groups to identify which memory
+operations have no loop-carried dependencies. The extension was added to
+incorporate support for the community LLVM metadata: `llvm.access.group` and
+`llvm.loop.parallel_accesses`, as well as Intel-specific metadata:
+`llvm.loop.no_depends` and `llvm.loop.no_depends_safelen`. The extension tracks
+access groups using literals, and introduces a new instruction for aggregating
+access groups into a list (*{aggregator_name}*), a decoration
+(*{decoration_name}*) and memory operand (*{mem_op_name}*) to assign access
+groups to operations, and two loop controls that indicate that operations with
+the specified access groups don't have loop-carried data dependencies
+(*{da_loop_control}*) and don't have loop-carried data and memory ordering
+dependencies (*{pa_loop_control}*). We split the new additions into two
+capabilities, one that is sufficient to support community LLVM
+(*{llvm_capability_name}*), and one that adds the support for the Intel-specific
+LLVM-extensions (*{sycl_capability_name}*).
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following
+*OpExtension* must be present in the module:
+
+[subs="attributes"]
+----
+OpExtension "{extension_name}"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== Capabilities
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[cols="^.^2,16,15",options="header"]
+|====
+2+^.^| Capability | Implicitly Declares
+| 6200 | *{llvm_capability_name}* +
+Enables specifying access groups on operations and identifying which operations
+don't have loop-carried data and memory-ordering dependences.
+|
+| 6201 | *{sycl_capability_name}* +
+Enables identifying which operations
+don't have loop-carried data (only) dependences.
+|*{llvm_capability_name}*
+|====
+--
+
+=== Instructions
+
+Add to Section 3.49.3, "Annotation Instructions":
+
+// [cols="1,2,2",width="100%"]
+// |=====
+// 2+|*{instruction_name}* +
+//  +
+// This instruction declares an access group. +
+
+// _Result_ is used by *{aggregator_name}*, *{decoration_name}*, and
+// *{mem_op_name}*.
+
+// 1+|Capability: +
+// *{llvm_capability_name}*
+// 1+| 2 | 6450
+// | _Result <id>_
+// |=====
+
+[cols="1,2,3,3",width="100%"]
+|=====
+3+|*{aggregator_name}* +
+ +
+This instruction declares an access group list. +
+
+_Result_ is used by *{da_loop_control}* and *{pa_loop_control}*. +
+
+Operands are one or more access groups (literals).
+1+|Capability: +
+*{llvm_capability_name}*
+1+| 3+variable | 6202
+| _Result <id>_ 
+| _literal_, _literal_, ... +
+_Access Group 1_, _Access Group 2_, ...
+|=====
+
+Add to Section 3.49.18, Atomic Instructions:
+
+[cols="1,1,2,2,2,3,2",width="100%"]
+|=====
+5+|*OpAtomicStoreRetINTEL* +
+ +
+A variant of *OpAtomicStore* that returns a _Result_ to allow decorations. This
+is needed to be able to decorate an atomic store with *{decoration_name}*. +
+
+The _Result_ can only be used in decoration instructions and nothing else.
+
+2+|Capability: +
+*{llvm_capability_name}*
+1+| 6 | 6203
+| _Result <id>_
+| _<id>_ +
+_Pointer_
+| _Scope <id>_ +
+_Memory_
+| _Memory Semantics <id>_ +
+_Semantics_
+|_<id>_ +
+_Value_
+|=====
+
+[cols="1,1,2,2,2,3",width="100%"]
+|=====
+5+|*OpAtomicFlagClearRetINTEL* +
+ +
+A variant of *OpAtomicFlagClear* that returns a _Result_ to allow decorations. This
+is needed to be able to decorate an atomic flag clear with *{decoration_name}*. +
+
+The _Result_ can only be used in decoration instructions and nothing else.
+
+1+|Capability: +
+*{llvm_capability_name}*
+1+| 5 | 6204
+| _Result <id>_
+| _<id>_ +
+_Pointer_
+| _Scope <id>_ +
+_Memory_
+| _Memory Semantics <id>_ +
+_Semantics_
+|=====
+
+
+
+=== Validation Rules
+
+Add a validation rule to section 2.16.1, "Universal Validation Rules":
+
+* The _Result_ of *OpAtomicStoreRetINTEL* and *OpAtomicFlagClearRetINTEL* can only be used
+in decoration instructions.
+
+Additionally, we need to verify whether any changes to the existing validation
+rules will be necessary to accommodate the modified instructions, and if adding
+instructions whose returned ID cannot be used as operands to other instructions
+may break any fundamental assumptions in the validator.
+
+=== Decorations
+
+Modify Section 3.20, Decoration, adding these rows to the Decoration table:
+
+--
+[cols="^4,20,10,10",options="header",subs="attributes"]
+|====
+2+^.^| Decoration | Extra Operands	| Enabling Capabilities
+| 6205 | *{decoration_name}* +
+Can only be applied to *OpFunctionCall* and _Atomic_ instructions. Indicates the
+list of access groups that the decorated instruction belongs to. Operand is one
+or more literals that correspond to the access groups.
+| _literal_, _literal_, ... +
+_Access Group 1_, _Access Group 2_, ... | *{llvm_capability_name}*
+|====
+--
+
+
+
+=== Memory Operands
+
+Modify Section 3.26, "Memory Operands", adding these rows to the Memory Operand table:
+
+--
+[cols="^.^2,16,5",options="header"]
+|====
+2+^.^| Memory Operands | Enabling Capabilities
+| 0x40000 | *{mem_op_name}* +
+Followed by a number _N_ that indicates how many access groups this operation
+belongs to, and _N_ literals that correspond to the access groups. Indicates
+that this memory operation belongs to the specified access group(s).
+| *{llvm_capability_name}*
+|====
+--
+
+=== Loop Control
+
+Modify Section 3.23, "Loop Control", adding these rows to the Loop Control table:
+
+--
+[cols="^.^2,16,5",options="header"]
+|====
+2+^.^| Loop Control | Enabling Capabilities
+| 0x4000000 | *{pa_loop_control}* +
+Followed by a number _N_ >= 1 that indicates how many operands will follow, and
+_N_ _<id>_'s that are the result of *{aggregator_name}*. Indicates that for each
+list of access groups pointed to by an _<id>_, all operations with those access
+groups do not have any loop-carried data or memory-ordering dependencies carried by this loop.
+| *{llvm_capability_name}*
+| 0x8000000 | *{da_loop_control}* +
+Followed by a number _N_ >= 1 that indicates how many operands will follow, and
+_N_ pairs {_<id>_, _S_}. _<id>_ is a list of access groups coming from
+*{aggregator_name}*. _S_ is a literal >=0 indicating that the loop-carried
+dependence distance between any operations that belong to the specified access
+group(s) in _<id>_ is guaranteed to be greater than _S_. This means that there
+is no dependence with distance < _S_, but there could be a dependence with
+distance >= _S_. _S_=0 means that there are no loop-carried data dependencies
+carried by this loop between the operations.
+| *{sycl_capability_name}*
+|====
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2024-02-28|Adel Ejjeh|*Initial revision*
+|2|2024-03-04|Adel Ejjeh|*Make AGs literals, update tokens*
+|3|2024-05-14|Adel Ejjeh|*Update instruction names and Validation section*
+|========================================

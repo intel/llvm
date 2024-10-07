@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for pi_int32
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -159,21 +158,13 @@ private:
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_PI_ERROR_REPORT                                                 \
+#define __SYCL_UR_ERROR_REPORT                                                 \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
 #include <sycl/exception.hpp>
-
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -367,6 +358,17 @@ template <size_t N, typename T>
 static constexpr std::array<T, N> RepeatValue(const T &Arg) {
   return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
+
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#endif
 
 } // namespace detail
 } // namespace _V1
