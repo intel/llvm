@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
   # commit 7907998a442b381a6669d2ae5ab957f8ddda5d03
   # Merge: 7e9d9d47 ae7f58e3
   # Author: aarongreig <aaron.greig@codeplay.com>
   # Date:   Fri Oct 4 11:35:10 2024 +0100
   #     Merge pull request #2121 from nrspruit/error_after_free_syclos
   #     [L0] Refcnt Parent Buffer on Sub Buffer Create and die on use of buffer after free
-  set(UNIFIED_RUNTIME_TAG 7907998a442b381a6669d2ae5ab957f8ddda5d03)
+  set(UNIFIED_RUNTIME_TAG pietro/comp_link)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
