@@ -15,12 +15,27 @@ import tarfile
 class Benchmark:
     def __init__(self, directory):
         self.directory = directory
-        self.adapter_path = os.path.join(options.ur_dir, 'build', 'lib', f"libur_adapter_{options.ur_adapter_name}.so")
+
+    @staticmethod
+    def get_adapter_full_path():
+        for libs_dir_name in ['lib', 'lib64']:
+            adapter_path = os.path.join(
+                options.ur_dir, libs_dir_name, f"libur_adapter_{options.ur_adapter_name}.so")
+            if os.path.isfile(adapter_path):
+                return adapter_path
+        assert False, \
+            f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
     def run_bench(self, command, env_vars):
         env_vars_with_forced_adapter = env_vars.copy()
-        env_vars_with_forced_adapter.update({'UR_ADAPTERS_FORCE_LOAD': self.adapter_path})
-        return run(command=command, env_vars=env_vars_with_forced_adapter, add_sycl=True, cwd=options.benchmark_cwd).stdout.decode()
+        env_vars_with_forced_adapter.update(
+            {'UR_ADAPTERS_FORCE_LOAD': Benchmark.get_adapter_full_path()})
+        return run(
+            command=command,
+            env_vars=env_vars_with_forced_adapter,
+            add_sycl=True,
+            cwd=options.benchmark_cwd
+        ).stdout.decode()
 
     def create_data_path(self, name):
         data_path = os.path.join(self.directory, "data", name)

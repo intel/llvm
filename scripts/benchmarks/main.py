@@ -177,7 +177,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Unified Runtime Benchmark Runner')
     parser.add_argument('benchmark_directory', type=str, help='Working directory to setup benchmarks.')
     parser.add_argument('sycl', type=str, help='Root directory of the SYCL compiler.')
-    parser.add_argument('ur_dir', type=str, help='Root directory of the UR.')
+    parser.add_argument('ur_dir', type=str, help='UR install prefix path')
     parser.add_argument('ur_adapter_name', type=str, help='Options to build the Unified Runtime as part of the benchmark')
     parser.add_argument("--no-rebuild", help='Rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
