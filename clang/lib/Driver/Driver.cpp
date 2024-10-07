@@ -1371,8 +1371,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
       std::string NormalizedName = SYCLTargetTriple.normalize();
 
-
-
       // Make sure we don't have a duplicate triple.
       auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
       if (Duplicate != FoundNormalizedTriples.end()) {

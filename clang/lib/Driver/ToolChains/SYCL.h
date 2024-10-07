@@ -147,20 +147,20 @@ IsSYCLSupportedNVidiaGPUArch(SYCLSupportedOffloadArchs Arch) {
          Arch <= SYCLSupportedOffloadArchs::SM_90A;
 }
 
-// Check if the given Arch value is a valid Intel CPU.
+// Check if the given Arch value is a valid SYCL supported Intel CPU.
 static inline bool IsSYCLSupportedIntelCPUArch(SYCLSupportedOffloadArchs Arch) {
   return Arch >= SYCLSupportedOffloadArchs::SKYLAKEAVX512 &&
          Arch < SYCLSupportedOffloadArchs::BDW;
 }
 
-// Check if the given Arch value is a valid Intel GPU.
+// Check if the given Arch value is a valid SYCL supported Intel GPU.
 static inline bool IsSYCLSupportedIntelGPUArch(SYCLSupportedOffloadArchs Arch) {
   return Arch >= SYCLSupportedOffloadArchs::BDW &&
          Arch <= SYCLSupportedOffloadArchs::LNL_M;
 }
 
 // Check if the user provided value for --offload-arch is a valid
-// Intel CPU or Intel GPU target.
+// SYCL supported AOT target.
 SYCLSupportedOffloadArchs
 StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString);
 
