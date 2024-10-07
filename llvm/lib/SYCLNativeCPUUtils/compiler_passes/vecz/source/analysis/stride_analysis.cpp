@@ -102,13 +102,16 @@ PreservedAnalyses StrideAnalysisPrinterPass::run(Function &F,
           continue;
         }
         if (const OffsetInfo *Info = SAR.getInfo(Ptr)) {
-          OS << "* Stride for " << *Ptr << "\n";
-          OS << "  - "
-             << (Info->mayDiverge()
-                     ? "divergent"
-                     : (Info->hasStride()
-                            ? "linear"
-                            : (Info->isUniform() ? "uniform" : "unknown")));
+          OS << "* Stride for " << *Ptr << "\n  - ";
+          if (Info->mayDiverge()) {
+            OS << "divergent";
+          } else if (Info->hasStride()) {
+            OS << "linear";
+          } else if (Info->isUniform()) {
+            OS << "uniform";
+          } else {
+            OS << "unknown";
+          }
           if (Info->isStrideConstantInt()) {
             OS << " stride of " << Info->getStrideAsConstantInt();
           }

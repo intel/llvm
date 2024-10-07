@@ -2952,7 +2952,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
     PHINode *PHI = PHINode::Create(T, numPreds, opDef->getName() + ".merge");
     multi_llvm::insertBefore(PHI, B->begin());
 
-    auto const *const LTag = DR->getTag(B).loop;
+    const auto *const LTag = DR->getTag(B).loop;
     bool hasVisitedPred = false;
     for (BasicBlock *pred : predecessors(B)) {
       Value *incomingV = nullptr;

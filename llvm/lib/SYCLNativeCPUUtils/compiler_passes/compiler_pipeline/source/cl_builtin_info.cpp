@@ -1541,10 +1541,13 @@ Value *CLBuiltinInfo::emitBuiltinInline(Function *F, IRBuilder<> &B,
           return nullptr;
         }
         const bool IsSigned = *IsParamSignedOrNone;
-        const Intrinsic::ID IntrinsicOpc =
-            BuiltinID == eCLBuiltinSubSat
-                ? (IsSigned ? Intrinsic::ssub_sat : Intrinsic::usub_sat)
-                : (IsSigned ? Intrinsic::sadd_sat : Intrinsic::uadd_sat);
+        const Intrinsic::ID IntrinsicOpc = [=] {
+          if (BuiltinID == eCLBuiltinSubSat) {
+            return IsSigned ? Intrinsic::ssub_sat : Intrinsic::usub_sat;
+          } else {
+            return IsSigned ? Intrinsic::sadd_sat : Intrinsic::uadd_sat;
+          }
+        }();
         return emitBuiltinInlineAsLLVMBinaryIntrinsic(B, Args[0], Args[1],
                                                       IntrinsicOpc);
       }
@@ -2621,7 +2624,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineShuffle(BuiltinID BuiltinID,
   assert(Width != 3 && "Invalid vector width of 3!");
   const int N = (Width == 3 ? 4 : Width);
   const int SignificantBits =
-      stdcompat::ilogb(2 * N - 1) + (isShuffle2 ? 1 : 0);
+      stdcompat::ilogb((2 * N) - 1) + (isShuffle2 ? 1 : 0);
   const unsigned BitMask = ~((~0u) << SignificantBits);
   Value *BitMaskV = ConstantVector::getSplat(ElementCount::getFixed(MaskWidth),
                                              ConstantInt::get(MaskTy, BitMask));
@@ -3171,8 +3174,7 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
     SmallVector<Type *, 4> ArgumentTypes;
     SmallVector<compiler::utils::TypeQualifiers, 4> Qualifiers;
 
-    const auto DemangledName = std::string(
-        Mangler.demangleName(F->getName(), ArgumentTypes, Qualifiers));
+    Mangler.demangleName(F->getName(), ArgumentTypes, Qualifiers);
 
     assert(Qualifiers.size() == 1 && ArgumentTypes.size() == 1 &&
            "Unknown collective builtin");
@@ -3188,116 +3190,124 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
       default:
         llvm_unreachable("unknown group operation for which to check the type");
       case eMuxBuiltinSubgroupReduceAdd:
-        MuxBuiltinID = IsFP ? eMuxBuiltinSubgroupReduceFAdd : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupReduceFAdd;
         break;
       case eMuxBuiltinSubgroupReduceMul:
-        MuxBuiltinID = IsFP ? eMuxBuiltinSubgroupReduceFMul : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupReduceFMul;
         break;
       case eMuxBuiltinSubgroupReduceUMin:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupReduceFMin
-                 : (IsSignedInt ? eMuxBuiltinSubgroupReduceSMin : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupReduceFMin;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupReduceSMin;
+        }
         break;
       case eMuxBuiltinSubgroupReduceUMax:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupReduceFMax
-                 : (IsSignedInt ? eMuxBuiltinSubgroupReduceSMax : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupReduceFMax;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupReduceSMax;
+        }
         break;
       case eMuxBuiltinSubgroupScanAddInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupScanFAddInclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFAddInclusive;
         break;
       case eMuxBuiltinSubgroupScanAddExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupScanFAddExclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFAddExclusive;
         break;
       case eMuxBuiltinSubgroupScanMulInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupScanFMulInclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFMulInclusive;
         break;
       case eMuxBuiltinSubgroupScanMulExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinSubgroupScanFMulExclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinSubgroupScanFMulExclusive;
         break;
       case eMuxBuiltinSubgroupScanUMinInclusive:
-        MuxBuiltinID = IsFP
-                           ? eMuxBuiltinSubgroupScanFMinInclusive
-                           : (IsSignedInt ? eMuxBuiltinSubgroupScanSMinInclusive
-                                          : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanFMinInclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanSMinInclusive;
+        }
         break;
       case eMuxBuiltinSubgroupScanUMinExclusive:
-        MuxBuiltinID = IsFP
-                           ? eMuxBuiltinSubgroupScanFMinExclusive
-                           : (IsSignedInt ? eMuxBuiltinSubgroupScanSMinExclusive
-                                          : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanFMinExclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanSMinExclusive;
+        }
         break;
       case eMuxBuiltinSubgroupScanUMaxInclusive:
-        MuxBuiltinID = IsFP
-                           ? eMuxBuiltinSubgroupScanFMaxInclusive
-                           : (IsSignedInt ? eMuxBuiltinSubgroupScanSMaxInclusive
-                                          : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxInclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxInclusive;
+        }
         break;
       case eMuxBuiltinSubgroupScanUMaxExclusive:
-        MuxBuiltinID = IsFP
-                           ? eMuxBuiltinSubgroupScanFMaxExclusive
-                           : (IsSignedInt ? eMuxBuiltinSubgroupScanSMaxExclusive
-                                          : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanFMaxExclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinSubgroupScanSMaxExclusive;
+        }
         break;
       case eMuxBuiltinWorkgroupReduceAdd:
-        MuxBuiltinID = IsFP ? eMuxBuiltinWorkgroupReduceFAdd : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupReduceFAdd;
         break;
       case eMuxBuiltinWorkgroupReduceMul:
-        MuxBuiltinID = IsFP ? eMuxBuiltinWorkgroupReduceFMul : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMul;
         break;
       case eMuxBuiltinWorkgroupReduceUMin:
-        MuxBuiltinID = IsFP ? eMuxBuiltinWorkgroupReduceFMin
-                            : (IsSignedInt ? eMuxBuiltinWorkgroupReduceSMin
-                                           : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMin;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMin;
+        }
         break;
       case eMuxBuiltinWorkgroupReduceUMax:
-        MuxBuiltinID = IsFP ? eMuxBuiltinWorkgroupReduceFMax
-                            : (IsSignedInt ? eMuxBuiltinWorkgroupReduceSMax
-                                           : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupReduceFMax;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupReduceSMax;
+        }
         break;
       case eMuxBuiltinWorkgroupScanAddInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFAddInclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddInclusive;
         break;
       case eMuxBuiltinWorkgroupScanAddExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFAddExclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFAddExclusive;
         break;
       case eMuxBuiltinWorkgroupScanMulInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMulInclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulInclusive;
         break;
       case eMuxBuiltinWorkgroupScanMulExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMulExclusive : MuxBuiltinID;
+        if (IsFP) MuxBuiltinID = eMuxBuiltinWorkgroupScanFMulExclusive;
         break;
       case eMuxBuiltinWorkgroupScanUMinInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMinInclusive
-                 : (IsSignedInt ? eMuxBuiltinWorkgroupScanSMinInclusive
-                                : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinInclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinInclusive;
+        }
         break;
       case eMuxBuiltinWorkgroupScanUMinExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMinExclusive
-                 : (IsSignedInt ? eMuxBuiltinWorkgroupScanSMinExclusive
-                                : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMinExclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMinExclusive;
+        }
         break;
       case eMuxBuiltinWorkgroupScanUMaxInclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMaxInclusive
-                 : (IsSignedInt ? eMuxBuiltinWorkgroupScanSMaxInclusive
-                                : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxInclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxInclusive;
+        }
         break;
       case eMuxBuiltinWorkgroupScanUMaxExclusive:
-        MuxBuiltinID =
-            IsFP ? eMuxBuiltinWorkgroupScanFMaxExclusive
-                 : (IsSignedInt ? eMuxBuiltinWorkgroupScanSMaxExclusive
-                                : MuxBuiltinID);
+        if (IsFP) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanFMaxExclusive;
+        } else if (IsSignedInt) {
+          MuxBuiltinID = eMuxBuiltinWorkgroupScanSMaxExclusive;
+        }
         break;
     }
   }
@@ -3416,9 +3426,13 @@ Instruction *CLBuiltinInfo::lowerAsyncBuiltinToMuxBuiltin(
           IsStrided ? ElementSize
                     : B.CreateMul(ElementSize, NumElements, "width.bytes");
 
-      const BuiltinID MuxBuiltinID =
-          IsRead ? (IsStrided ? eMuxBuiltinDMARead2D : eMuxBuiltinDMARead1D)
-                 : (IsStrided ? eMuxBuiltinDMAWrite2D : eMuxBuiltinDMAWrite1D);
+      const BuiltinID MuxBuiltinID = [&] {
+        if (IsRead) {
+          return IsStrided ? eMuxBuiltinDMARead2D : eMuxBuiltinDMARead1D;
+        } else {
+          return IsStrided ? eMuxBuiltinDMAWrite2D : eMuxBuiltinDMAWrite1D;
+        }
+      }();
 
       auto *const MuxDMA =
           BIMuxImpl.getOrDeclareMuxBuiltin(MuxBuiltinID, M, EventIn->getType());

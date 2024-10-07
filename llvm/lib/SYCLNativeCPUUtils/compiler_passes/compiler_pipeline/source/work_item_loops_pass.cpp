@@ -1405,7 +1405,7 @@ Function *compiler::utils::WorkItemLoopsPass::makeWrapperFunction(
   // An inlinable function call in a function with debug info *must* be given
   // a debug location.
   DILocation *wrapperDbgLoc = nullptr;
-  if (auto *const SP = new_wrapper->getSubprogram()) {
+  if (new_wrapper->getSubprogram()) {
     wrapperDbgLoc = DILocation::get(context, /*line*/ 0, /*col*/ 0,
                                     new_wrapper->getSubprogram());
   }

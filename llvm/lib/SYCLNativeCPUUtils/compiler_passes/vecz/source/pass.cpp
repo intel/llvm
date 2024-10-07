@@ -49,7 +49,7 @@ using namespace llvm;
 /// @brief Provide debug logging for Vecz's PassManager
 ///
 /// This flag is intended for testing and debugging purposes.
-cl::opt<bool> DebugVeczPipeline(
+static cl::opt<bool> DebugVeczPipeline(
     "debug-vecz-pipeline",
     cl::desc("Enable debug logging of the vecz PassManager"));
 
@@ -57,7 +57,7 @@ cl::opt<bool> DebugVeczPipeline(
 ///
 /// This flag specifies a textual description of the optimization pass pipeline
 /// to run over the kernel.
-cl::opt<std::string> VeczPassPipeline(
+static cl::opt<std::string> VeczPassPipeline(
     "vecz-passes",
     cl::desc(
         "A textual description of the pass pipeline. To have analysis passes "

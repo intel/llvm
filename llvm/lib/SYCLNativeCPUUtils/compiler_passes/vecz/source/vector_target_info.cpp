@@ -1331,14 +1331,6 @@ bool TargetInfo::canPacketize(const llvm::Value *, ElementCount) const {
   return true;
 }
 
-namespace vecz {
-std::unique_ptr<TargetInfo> createTargetInfoArm(TargetMachine *tm);
-
-std::unique_ptr<TargetInfo> createTargetInfoAArch64(TargetMachine *tm);
-
-std::unique_ptr<TargetInfo> createTargetInfoRISCV(TargetMachine *tm);
-}  // namespace vecz
-
 std::unique_ptr<TargetInfo> vecz::createTargetInfoFromTargetMachine(
     TargetMachine *tm) {
   // The TargetMachine is allowed to be null

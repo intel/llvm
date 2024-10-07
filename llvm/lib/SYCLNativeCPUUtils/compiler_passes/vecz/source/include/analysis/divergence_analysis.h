@@ -105,7 +105,7 @@ struct BlockQueue {
   index_list indices;
 
   /// @brief Constructs an empty BlockQueue
-  BlockQueue(const DivergenceResult &dr) : DR(dr){};
+  BlockQueue(const DivergenceResult &dr) : DR(dr) {};
 
   /// @brief Constructs a BlockQueue from a set of blocks.
   BlockQueue(const DivergenceResult &dr,

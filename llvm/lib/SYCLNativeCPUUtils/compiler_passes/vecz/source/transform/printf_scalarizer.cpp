@@ -75,7 +75,7 @@ std::string GetFormatStringAsString(Value *op) {
   return array_string->getAsString().str();
 }
 
-bool IncrementPtr(const char **fmt) {
+static bool IncrementPtr(const char **fmt) {
   if (*(++(*fmt)) == '\0') {
     return true;
   }

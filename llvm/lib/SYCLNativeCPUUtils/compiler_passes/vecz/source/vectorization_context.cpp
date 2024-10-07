@@ -502,7 +502,7 @@ VectorizationContext::isMaskedAtomicFunction(const Function &F) const {
 
   if (IsCmpXchg) {
     if (auto Ordering = demangleOrdering()) {
-      AtomicInfo.CmpXchgFailureOrdering = *Ordering;
+      AtomicInfo.CmpXchgFailureOrdering = Ordering;
     } else {
       return std::nullopt;
     }
@@ -1115,10 +1115,14 @@ bool VectorizationContext::emitMaskedAtomicBody(
 
   Value *const IdxStart = B.getInt32(0);
   ConstantInt *const KnownMin = B.getInt32(MA.VF.getKnownMinValue());
-  Value *IdxEnd =
-      MA.IsVectorPredicated
-          ? F.getArg(3 + IsCmpXchg)
-          : (!MA.VF.isScalable() ? KnownMin : B.CreateVScale(KnownMin));
+  Value *IdxEnd;
+  if (MA.IsVectorPredicated) {
+    IdxEnd = F.getArg(3 + IsCmpXchg);
+  } else if (MA.VF.isScalable()) {
+    IdxEnd = B.CreateVScale(KnownMin);
+  } else {
+    IdxEnd = KnownMin;
+  }
 
   Value *RetVal = nullptr;
   Value *RetSuccessVal = nullptr;
