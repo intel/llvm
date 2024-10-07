@@ -28,13 +28,13 @@ generateImageWithCompileTarget(std::string KernelName,
                                    SYCL_PROPERTY_TYPE_BYTE_ARRAY);
   UrPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
-                 {CompileTargetProperty});
+                 std::move(CompileTargetProperty));
 
   std::vector<unsigned char> Bin(CompileTarget.begin(), CompileTarget.end());
   // Null terminate the data so it can be interpreted as c string.
   Bin.push_back(0);
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   auto DeviceTargetSpec = CompileTarget == "spir64_x86_64"
                               ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64

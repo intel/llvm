@@ -339,9 +339,9 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
-  // for Nvidia.
-  NeedLibs =
-      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
+  // for Nvidia and AMD.
+  NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
+             !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
   if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       C.hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -386,9 +386,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
-  // For NVPTX we only use one single bitcode library and ignore
+  // For NVPTX and AMDGCN we only use one single bitcode library and ignore
   // manually specified SYCL device libraries.
-  bool IgnoreSingleLibs = TargetTriple.isNVPTX();
+  bool IgnoreSingleLibs = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN();
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -451,6 +451,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
     LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+
+  if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
+    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
 
   if (IgnoreSingleLibs)
     return LibraryList;
@@ -750,6 +753,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
@@ -768,6 +772,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)
       if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
+        return true;
+      // AMDGCN links against our libdevice (devicelib)
+      if (IsAMDGCN && InputFilename.starts_with("devicelib-"))
         return true;
       // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
       // and the CUDA libdevice
@@ -1986,21 +1993,17 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
                                        const ArgList &DriverArgs,
                                        ArgStringList &CC1Args) {
   // Add the SYCL header search locations in the specified order.
-  //   ../include/sycl
   //   ../include/sycl/stl_wrappers
   //   ../include
   SmallString<128> IncludePath(Driver.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");
-  SmallString<128> SYCLPath(IncludePath);
-  llvm::sys::path::append(SYCLPath, "sycl");
   // This is used to provide our wrappers around STL headers that provide
   // additional functions/template specializations when the user includes those
   // STL headers in their programs (e.g., <complex>).
-  SmallString<128> STLWrappersPath(SYCLPath);
+  SmallString<128> STLWrappersPath(IncludePath);
+  llvm::sys::path::append(STLWrappersPath, "sycl");
   llvm::sys::path::append(STLWrappersPath, "stl_wrappers");
-  CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(SYCLPath));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
   CC1Args.push_back("-internal-isystem");
