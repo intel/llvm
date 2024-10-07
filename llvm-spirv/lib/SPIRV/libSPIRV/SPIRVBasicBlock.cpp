@@ -94,7 +94,7 @@ SPIRVInstruction *SPIRVBasicBlock::getVariableInsertionPoint() const {
                  isa<OpNoLine>(Inst) ||
                  // Note: OpVariable and OpPhi instructions do not belong to the
                  // same block in a valid SPIR-V module.
-                 isa<OpPhi>(Inst));
+                 isa<OpPhi>(Inst) || isa<OpUntypedVariableKHR>(Inst));
       });
   if (IP == InstVec.end())
     return nullptr;

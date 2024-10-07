@@ -522,6 +522,9 @@ def warn_drv_no_floating_point_registers: Warning<
   InGroup<UnsupportedABI>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
+def warn_ignoring_value_using_default : Warning<
+  "ignoring invalid '%0' value '%1', using default value '%2'">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;
@@ -674,9 +677,6 @@ def warn_drv_unsupported_gpopt : Warning<
   "ignoring '-mgpopt' option as it cannot be used with %select{|the implicit"
   " usage of }0-mabicalls">,
   InGroup<UnsupportedGPOpt>;
-def warn_drv_unsupported_sdata : Warning<
-  "ignoring '-msmall-data-limit=' with -mcmodel=large for -fpic or RV64">,
-  InGroup<OptionIgnored>;
 def warn_drv_unsupported_longcalls : Warning<
   "ignoring '-mlong-calls' option as it is not currently supported with "
   "%select{|the implicit usage of }0-mabicalls">,

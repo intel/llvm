@@ -154,6 +154,8 @@ static std::atomic<bool> LTOError;
 
 static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
+static bool UseSYCLPostLinkTool;
+
 SmallString<128> SPIRVDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
@@ -1138,7 +1140,7 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   if (Args.hasArg(OPT_print_wrapped_module))
     errs() << "Wrapped Module\n" << M;
 
-  // TODO: Once "llc tool->runCompile" migration is finished we need to remove
+  // TODO: Once "clang tool->runCompile" migration is finished we need to remove
   // this scope and use community flow.
   int FD = -1;
   if (std::error_code EC = sys::fs::openFileForWrite(OutputFilePath, FD))
@@ -1149,46 +1151,54 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
   return OutputFilePath;
 }
 
-/// Run llc tool for SYCL offloading.
+/// Run clang tool for SYCL offloading.
 /// 'InputFile' is the wrapped input file.
 /// 'Args' encompasses all arguments required for linking and wrapping device
 /// code and will be parsed to generate options required to be passed into the
-/// llc tool.
+/// clang tool.
 static Expected<StringRef> runCompile(StringRef &InputFile,
                                       const ArgList &Args) {
-  // Create a new file to write the output of llc to.
+  // Create a new file to write the output of clang to.
   auto OutputFileOrErr =
       createOutputFile(sys::path::filename(ExecutableName), "o");
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
 
-  Expected<std::string> LLCPath =
-      findProgram("llc", {getMainExecutable("llc")});
-  if (!LLCPath)
-    return LLCPath.takeError();
+  Expected<std::string> ClangPath =
+      findProgram("clang", {getMainExecutable("clang")});
+  if (!ClangPath)
+    return ClangPath.takeError();
+
+  const llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
 
   SmallVector<StringRef, 8> CmdArgs;
-  CmdArgs.push_back(*LLCPath);
+  CmdArgs.push_back(*ClangPath);
+
+  const std::string TargetStr = "--target=" + HostTriple.getTriple();
+  CmdArgs.push_back(TargetStr);
+
   // Checking for '-shared' linker option
-  if (Args.hasArg(OPT_shared))
-    CmdArgs.push_back("-relocation-model=pic");
-  CmdArgs.push_back("-filetype=obj");
+  if (Args.hasArg(OPT_shared)) {
+    if (!HostTriple.isOSWindows())
+      CmdArgs.push_back("-fPIC");
+  }
+  CmdArgs.push_back("-c");
   CmdArgs.push_back("-o");
   CmdArgs.push_back(*OutputFileOrErr);
   CmdArgs.push_back(InputFile);
-  if (Error Err = executeCommands(*LLCPath, CmdArgs))
+  if (Error Err = executeCommands(*ClangPath, CmdArgs))
     return std::move(Err);
   return *OutputFileOrErr;
 }
 
-// Run wrapping library and llc
+// Run wrapping library and clang
 static Expected<StringRef>
 runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
   auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
   if (!OutputFile)
     return OutputFile.takeError();
-  // call to llc
+  // call to clang
   auto OutputFileOrErr = sycl::runCompile(*OutputFile, Args);
   if (!OutputFileOrErr)
     return OutputFileOrErr.takeError();
@@ -1461,8 +1471,12 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
           llvm::MemoryBuffer::getFileOrSTDIN(*UnbundledFile, /*isText=*/true);
       if (std::error_code EC = ObjList.getError())
         return createFileError(*UnbundledFile, EC);
-      (*ObjList)->getBuffer().split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
-                                    /*KeepEmpty=*/false);
+      // Create a copy of the list we can reference even after we close
+      // the file.
+      StringRef UnbundledArchiveList =
+          Args.MakeArgString((*ObjList)->getBuffer());
+      UnbundledArchiveList.split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
+                                 /*KeepEmpty=*/false);
     } else {
       ObjectFilePaths.push_back(*UnbundledFile);
     }
@@ -2384,10 +2398,10 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
       auto SplitModulesOrErr =
-          SYCLModuleSplitMode
-              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode)
-              : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
+          UseSYCLPostLinkTool
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
+              : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
+                                          *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)
         return SplitModulesOrErr.takeError();
 
@@ -2953,7 +2967,19 @@ int main(int Argc, char **Argv) {
     timeTraceProfilerInitialize(Granularity, Argv[0]);
   }
 
+  UseSYCLPostLinkTool = Args.hasFlag(OPT_use_sycl_post_link_tool,
+                                     OPT_no_use_sycl_post_link_tool, true);
+  if (!UseSYCLPostLinkTool && Args.hasArg(OPT_use_sycl_post_link_tool))
+    reportError(createStringError("-use-sycl-post-link-tool and "
+                                  "-no-use-sycl-post-link-tool options can't "
+                                  "be used together."));
+
   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
+    if (UseSYCLPostLinkTool)
+      reportError(createStringError(
+          "-sycl-module-split-mode should be used with "
+          "the -no-use-sycl-post-link-tool command line option."));
+
     StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
     SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
     if (!SYCLModuleSplitMode)

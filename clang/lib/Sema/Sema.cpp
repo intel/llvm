@@ -1829,7 +1829,7 @@ public:
   }
 
   void VisitDeclStmt(DeclStmt *DS) {
-    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr) {
+    if (S.getLangOpts().SYCLIsDevice) {
       if (DS->isSingleDecl()) {
         Decl *D = DS->getSingleDecl();
         if (auto *VD = dyn_cast<VarDecl>(D))
@@ -1850,7 +1850,7 @@ public:
   }
 
   void VisitConstantExpr(ConstantExpr *E) {
-    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
+    if (S.getLangOpts().SYCLIsDevice)
       return;
     this->VisitStmt(E);
   }
@@ -1909,6 +1909,10 @@ public:
   void checkFunc(SourceLocation Loc, FunctionDecl *FD) {
     auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
+
+    if (!Caller && S.LangOpts.SYCLIsDevice)
+      S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
+
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
       return;
@@ -2260,7 +2264,7 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
 
   CheckType(Ty);
   if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
-    if (LangOpts.SYCLAllowAllFeaturesInConstexpr && FD->isConsteval())
+    if (LangOpts.SYCLIsDevice && FD->isConsteval())
       return;
     if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
       for (const auto &ParamTy : FPTy->param_types())
