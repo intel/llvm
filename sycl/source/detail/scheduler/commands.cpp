@@ -1923,10 +1923,12 @@ static std::string_view cgTypeToString(detail::CGType Type) {
 ExecCGCommand::ExecCGCommand(
     std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies)
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    const std::vector<detail::CGExecKernel *> &AlternativeKernels)
     : Command(CommandType::RUN_CG, std::move(Queue), CommandBuffer,
               Dependencies),
-      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)) {
+      MEventNeeded(EventNeeded), MCommandGroup(std::move(CommandGroup)),
+      MAlternativeKernels(AlternativeKernels) {
   if (MCommandGroup->getType() == detail::CGType::CodeplayHostTask) {
     MEvent->setSubmittedQueue(
         static_cast<detail::CGHostTask *>(MCommandGroup.get())->MQueue);
@@ -2479,16 +2481,25 @@ ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
+    const std::vector<sycl::detail::CGExecKernel *> &AlternativeKernels,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+
+  // UR kernel and program for 'CommandGroup'
   ur_kernel_handle_t UrKernel = nullptr;
   ur_program_handle_t UrProgram = nullptr;
+
+  // Impl objects created when 'CommandGroup' is from a kernel bundle
   std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+
+  // List of ur objects to be released after UR call
+  std::vector<ur_kernel_handle_t> UrKernelsToRelease;
+  std::vector<ur_program_handle_t> UrProgramsToRelease;
 
   auto Kernel = CommandGroup.MSyclKernel;
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
@@ -2518,6 +2529,39 @@ ur_result_t enqueueImpCommandBufferKernel(
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+    UrKernelsToRelease.push_back(UrKernel);
+    UrProgramsToRelease.push_back(UrProgram);
+  }
+
+  // Build up the list of UR kernel handles that the UR command could be
+  // updated to use.
+  std::vector<ur_kernel_handle_t> AltUrKernels;
+  for (const auto &AltCGKernel : AlternativeKernels) {
+    ur_kernel_handle_t AltUrKernel = nullptr;
+    if (auto KernelBundleImplPtr = AltCGKernel->MKernelBundle;
+        KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+      auto KernelName = AltCGKernel->MKernelName;
+      kernel_id KernelID =
+          detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+      kernel SyclKernel =
+          KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+      AltUrKernel = detail::getSyclObjImpl(SyclKernel)->getHandleRef();
+    } else if (AltCGKernel->MSyclKernel != nullptr) {
+      AltUrKernel = Kernel->getHandleRef();
+    } else {
+      ur_program_handle_t UrProgram = nullptr;
+      std::tie(AltUrKernel, std::ignore, std::ignore, UrProgram) =
+          sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+              ContextImpl, DeviceImpl, AltCGKernel->MKernelName);
+      UrKernelsToRelease.push_back(AltUrKernel);
+      UrProgramsToRelease.push_back(UrProgram);
+    }
+
+    if (AltUrKernel != UrKernel) {
+      // Don't include command-group 'CommandGroup' in the list to pass to UR,
+      // as this will be used for the primary ur kernel parameter.
+      AltUrKernels.push_back(AltUrKernel);
+    }
   }
 
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &Ctx,
@@ -2561,13 +2605,16 @@ ur_result_t enqueueImpCommandBufferKernel(
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-          &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
-          OutSyncPoint, nullptr, OutCommand);
+          &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
+          AltUrKernels.size() ? AltUrKernels.data() : nullptr,
+          SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
+          nullptr, OutSyncPoint, nullptr, OutCommand);
 
-  if (!SyclKernelImpl && !Kernel) {
-    Adapter->call<UrApiKind::urKernelRelease>(UrKernel);
-    Adapter->call<UrApiKind::urProgramRelease>(UrProgram);
+  for (auto &Kernel : UrKernelsToRelease) {
+    Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+  }
+  for (auto &Program : UrProgramsToRelease) {
+    Adapter->call<UrApiKind::urProgramRelease>(Program);
   }
 
   if (Res != UR_RESULT_SUCCESS) {
@@ -2779,8 +2826,8 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
 
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
-        *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
-        getMemAllocationFunc);
+        *ExecKernel, MAlternativeKernels, MSyncPointDeps, &OutSyncPoint,
+        &OutCommand, getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
     MEvent->setCommandBufferCommand(OutCommand);
     return result;
