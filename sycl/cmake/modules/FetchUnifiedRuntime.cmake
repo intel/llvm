@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 00f958f375205fd86309f95b925141cf664ff955
-  # Merge: cc2d5909 98a67a2e
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 2 09:51:21 2024 +0100
-  #     Merge pull request #2139 from nrspruit/zeHandle_copy_dependencies
-  #     [L0] Pass and track event dependencies required before executing Memory
-  #     Copy buffer inits
-  set(UNIFIED_RUNTIME_TAG 00f958f375205fd86309f95b925141cf664ff955)
+  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
+  # Merge: 7b4bc761 fbb6e862
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Oct 4 16:39:59 2024 +0100
+  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
+  #     [L0] Fix device query of bindless image support
+  set(UNIFIED_RUNTIME_TAG b79ebe4e98789144bcdf3832088eb6e6b5ae6967)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
