@@ -213,54 +213,20 @@ These translate any kernel dimensions from one convention to the other. An
 example of an equivalent SYCL call for a 3D kernel using `compat` is
 `syclcompat::global_id::x() == get_global_id(2)`.
 
-### Local Memory
+### ptr_to_int
 
-When using `compat` functions, there are two distinct interfaces to allocate
-device local memory. The first interface uses the _sycl_ext_oneapi_local_memory_
-extension to leverage local memory defined at compile time.
-_sycl_ext_oneapi_local_memory_ is accessed through the following wrapper:
-
-``` c++
-namespace syclcompat {
-
-template <typename AllocT> auto *local_mem();
-
-} // syclcompat
-```
-
-`syclcompat::local_mem<AllocT>()` can be used as illustrated in the example
-below.
-
-```c++
-// Sample kernel
-using namespace syclcompat;
-template <int BLOCK_SIZE>
-void local_mem_2d(int *d_A) {
-  // Local memory extension wrapper, size defined at compile-time
-  auto As = local_mem<int[BLOCK_SIZE][BLOCK_SIZE]>();
-  int id_x = local_id::x();
-  int id_y = local_id::y();
-  As[id_y][id_x] = id_x * BLOCK_SIZE + id_y;
-  wg_barrier();
-  int val = As[BLOCK_SIZE - id_y - 1][BLOCK_SIZE - id_x - 1];
-  d_A[global_id::y() * BLOCK_SIZE + global_id::x()] = val;
-}
-```
-
-The second interface allows users to allocate device local memory at runtime.
-SYCLcompat provides this functionality through its kernel launch interface,
-`launch<function>`, defined in the following section.
-
-The following cuda backend specific functions are introduced in order
+The following cuda backend specific function is introduced in order
 to translate from the local memory pointers introduced above to `uint32_t` or
 `size_t` variables that contain a byte address to the local
 (local refers to`.shared` in nvptx) memory state space.
 
 ``` c++
 namespace syclcompat {
-__syclcompat_inline__ uint32_t nvvm_get_smem_pointer(void *ptr);
-
-__syclcompat_inline__ size_t cvta_generic_to_shared(void *ptr);
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr)
 } // syclcompat
 ```
 
@@ -272,14 +238,8 @@ A simplified example usage of the above functions is as follows:
   half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
   // ...
   // ...
-  T addr;
-  if constexpr (std::is_same_v<size_t, T>) {
-    addr = syclcompat::cvta_generic_to_shared(
-        reinterpret_cast<char *>(data) + (id % 8) * 16);
-  } else { // T == uint32_t
-    addr = syclcompat::nvvm_get_smem_pointer(
-        reinterpret_cast<char *>(data) + (id % 8) * 16);
-  }
+  T addr =
+              syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
 
 uint32_t fragment;
 #if defined(__NVPTX__)
