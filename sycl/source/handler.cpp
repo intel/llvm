@@ -554,11 +554,9 @@ event handler::finalize() {
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
       auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
-
-      NodeImpl = DependentNode
-                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
-                                      {DependentNode})
-                     : GraphImpl->add(NodeType, std::move(CommandGroup));
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps = {DependentNode};
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -566,12 +564,9 @@ event handler::finalize() {
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
       auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
-      if (LastBarrierRecordedFromQueue) {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
-                                  {LastBarrierRecordedFromQueue});
-      } else {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
-      }
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps = {LastBarrierRecordedFromQueue};
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(MQueue, NodeImpl);

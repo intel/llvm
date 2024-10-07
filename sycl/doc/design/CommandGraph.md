@@ -282,6 +282,23 @@ requirements for these new accessors to correctly trigger allocations before
 updating. This is similar to how individual graph commands are enqueued when
 accessors are used in a graph node.
 
+### Dynamic Command-Group
+
+To implement the `dynamic_command_group` class for updating the command-groups (CG)
+associated with nodes, the CG member of the node implementation class changes
+from a `std::unique_ptr` to a `std::shared_ptr` so that multiple nodes and the
+`dynamic_command_group_impl` object can share the same CG object. This avoids
+the overhead of having to allocate and free copies of the CG when a new active
+CG is selected.
+
+The `dynamic_command_group_impl` class contains weak pointers to the nodes which
+have been created with it, so that when a new active CG is selected it can
+propagate the change to those nodes. The `node_impl` class also contains a
+reference to the dynamic command-group that created it, so that when the graph
+is finalized each node can use the list of kernels in its dynamic command-group
+as part of the `urCommandBufferAppendKernelLaunchExp` call to pass the possible
+alternative kernels.
+
 ## Optimizations
 ### Interactions with Profiling
 

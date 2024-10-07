@@ -637,7 +637,8 @@ public:
   ExecCGCommand(
       std::unique_ptr<detail::CG> CommandGroup, QueueImplPtr Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      const std::vector<detail::CGExecKernel *> &AlternativeKernels = {});
 
   std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const;
 
@@ -674,6 +675,7 @@ private:
   AllocaCommandBase *getAllocaForReq(Requirement *Req);
 
   std::unique_ptr<detail::CG> MCommandGroup;
+  std::vector<detail::CGExecKernel *> MAlternativeKernels;
 
   friend class Command;
 };
@@ -733,6 +735,7 @@ ur_result_t enqueueImpCommandBufferKernel(
     context Ctx, DeviceImplPtr DeviceImpl,
     ur_exp_command_buffer_handle_t CommandBuffer,
     const CGExecKernel &CommandGroup,
+    const std::vector<sycl::detail::CGExecKernel *> &AlternativeKernels,
     std::vector<ur_exp_command_buffer_sync_point_t> &SyncPoints,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint,
     ur_exp_command_buffer_command_handle_t *OutCommand,
