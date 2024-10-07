@@ -856,6 +856,8 @@ struct get_device_info_impl<
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 1, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 1, 64, 32, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 32, 64, 32, matrix_type::bf16, matrix_type::bf16,
