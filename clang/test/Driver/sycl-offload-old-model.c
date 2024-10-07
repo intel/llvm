@@ -180,7 +180,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]" {{.*}} "-o" "[[OUTPUT2:.+\.o]]"
 // CHK-INT-HEADER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown,host-x86_64-unknown-linux-gnu" {{.*}} "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// ###########################################################################
@@ -748,7 +748,7 @@
 // RUN: %clang_cl -fsycl --no-offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"{{.*}} "-o" "[[OUTPUT1:.+\.bc]]"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "[[OUTPUT2:.+\.obj]]"
 // FO-CHECK: clang-offload-bundler{{.*}} "-output=somefile.obj" "-input=[[OUTPUT1]]" "-input=[[OUTPUT2]]"
 
 /// passing of a library should not trigger the unbundler
