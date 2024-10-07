@@ -4070,7 +4070,7 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
   constexpr lsc_data_order Transpose =
       Transposed ? lsc_data_order::transpose : lsc_data_order::nontranspose;
-  simd<RawT, ActualN> Raw =
+  simd<T, ActualN> Raw =
       __esimd_lsc_load2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
                                    BlockWidth, BlockHeight, Transformed,
                                    ActualN>(Mask.data(), Addr, SurfaceWidth,
@@ -4096,17 +4096,16 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
     // +----+----+----+----+----+----+-----+-----+
     // * signifies the padded element.
 
-    simd<RawT, DstElements> Dst;
+    simd<T, DstElements> Dst;
 
     for (auto i = 0; i < NBlocks; i++) {
       auto DstBlock =
           Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
 
       auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
-      DstBlock =
-          RawBlock.template bit_cast_view<RawT, GRFColSize, GRFRowPitch>()
-              .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
-              .template bit_cast_view<RawT>();
+      DstBlock = RawBlock.template bit_cast_view<T, GRFColSize, GRFRowPitch>()
+                     .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+                     .template bit_cast_view<T>();
     }
 
     return Dst;

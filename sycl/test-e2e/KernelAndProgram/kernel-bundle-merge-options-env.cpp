@@ -9,8 +9,8 @@
 
 #include "kernel-bundle-merge-options.hpp"
 
-// CHECK: urProgramBuild{{.*}}{{[^bar]*}}-DENV_COMPILE_OPTS -DENV_APPEND_COMPILE_OPTS{{[^bar]*}}-DENV_LINK_OPTS -DENV_APPEND_LINK_OPTS{{[^bar]*}}
+// CHECK: <--- urProgramBuild{{.*}}{{[^bar]*}}-DENV_COMPILE_OPTS -DENV_APPEND_COMPILE_OPTS{{[^bar]*}}-DENV_LINK_OPTS -DENV_APPEND_LINK_OPTS{{[^bar]*}}
 
-// CHECK: urProgramCompile{{.*}}{{[^bar]*}}-DENV_COMPILE_OPTS -DENV_APPEND_COMPILE_OPTS{{[^bar]*}}
+// CHECK: <--- urProgramCompile{{.*}}{{[^bar]*}}-DENV_COMPILE_OPTS -DENV_APPEND_COMPILE_OPTS{{[^bar]*}}
 
-// CHECK: urProgramLink{{.*}}{{[^bar]*}}-DENV_LINK_OPTS -DENV_APPEND_LINK_OPTS{{[^bar]*}}
+// CHECK: <--- urProgramLink{{.*}}{{[^bar]*}}-DENV_LINK_OPTS -DENV_APPEND_LINK_OPTS{{[^bar]*}}

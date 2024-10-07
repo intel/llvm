@@ -83,14 +83,14 @@ jobs:
           - name: Intel
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
@@ -98,7 +98,7 @@ jobs:
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
@@ -116,8 +116,16 @@ jobs:
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
 
-      install_igc_driver: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
-      install_dev_igc_driver: ${{ matrix.use_igc_dev && contains(needs.detect_changes.outputs.filters, 'devigccfg') || 'false' }}
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
+        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
+      install_dev_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
+        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        matrix.use_igc_dev && contains(needs.detect_changes.outputs.filters, 'devigccfg') ||
+        'false' }}
       # Run only if the PR does not have the 'ci-no-devigc' label.
       skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 

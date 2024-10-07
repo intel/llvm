@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL -DVNNI
+// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t_gpu.out -DINIT_LIST -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t_gpu.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,

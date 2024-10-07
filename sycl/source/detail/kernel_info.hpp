@@ -9,6 +9,7 @@
 #pragma once
 
 #include <detail/error_handling/error_handling.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/ur.hpp>
