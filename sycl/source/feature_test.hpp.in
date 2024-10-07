@@ -110,7 +110,6 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_ENQUEUE_NATIVE_COMMAND 1
 // In progress yet
 #define SYCL_EXT_ONEAPI_ATOMIC16 0
-#define SYCL_EXT_ONEAPI_VIRTUAL_FUNCTIONS 0
 
 #ifndef __has_include
 #define __has_include(x) 0

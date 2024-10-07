@@ -1,5 +1,3 @@
-// REQUIRES: aspect-ext_oneapi_virtual_functions
-//
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 
