@@ -64,13 +64,6 @@ ur_result_t urMemImageCreateWithNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
-                         size_t propSize, void *pPropValue,
-                         size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urMemImageGetInfo(ur_mem_handle_t hMemory, ur_image_info_t propName,
                               size_t propSize, void *pPropValue,
                               size_t *pPropSizeRet) {
