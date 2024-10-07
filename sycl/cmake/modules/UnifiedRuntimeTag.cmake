@@ -1,5 +1,1 @@
-# commit 66ba7970a6badf781226b75a98c9585ef30ea93a
-# Author: Maosu Zhao <maosu.zhao@intel.com>
-# Date:   Mon Oct 28 18:39:57 2024 +0800
-#     [DeviceSanitizer] Add a report flag to LaunchInfo (#2069)
-set(UNIFIED_RUNTIME_TAG 66ba7970a6badf781226b75a98c9585ef30ea93a)
+set(UNIFIED_RUNTIME_TAG 65d6b824058e904ac03f5c7d4dfaa1f845905769)
