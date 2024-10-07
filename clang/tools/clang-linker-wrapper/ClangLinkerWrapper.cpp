@@ -154,6 +154,8 @@ static std::atomic<bool> LTOError;
 
 static std::optional<llvm::module_split::IRSplitMode> SYCLModuleSplitMode;
 
+static bool UseSYCLPostLinkTool;
+
 SmallString<128> SPIRVDumpDir;
 
 using OffloadingImage = OffloadBinary::OffloadingImage;
@@ -1469,8 +1471,12 @@ Error extractBundledObjects(StringRef Filename, const ArgList &Args,
           llvm::MemoryBuffer::getFileOrSTDIN(*UnbundledFile, /*isText=*/true);
       if (std::error_code EC = ObjList.getError())
         return createFileError(*UnbundledFile, EC);
-      (*ObjList)->getBuffer().split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
-                                    /*KeepEmpty=*/false);
+      // Create a copy of the list we can reference even after we close
+      // the file.
+      StringRef UnbundledArchiveList =
+          Args.MakeArgString((*ObjList)->getBuffer());
+      UnbundledArchiveList.split(ObjectFilePaths, '\n', /*MaxSplit=*/-1,
+                                 /*KeepEmpty=*/false);
     } else {
       ObjectFilePaths.push_back(*UnbundledFile);
     }
@@ -2392,10 +2398,10 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       SmallVector<StringRef> InputFilesSYCL;
       InputFilesSYCL.emplace_back(*TmpOutputOrErr);
       auto SplitModulesOrErr =
-          SYCLModuleSplitMode
-              ? sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
-                                          *SYCLModuleSplitMode)
-              : sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs);
+          UseSYCLPostLinkTool
+              ? sycl::runSYCLPostLinkTool(InputFilesSYCL, LinkerArgs)
+              : sycl::runSYCLSplitLibrary(InputFilesSYCL, LinkerArgs,
+                                          *SYCLModuleSplitMode);
       if (!SplitModulesOrErr)
         return SplitModulesOrErr.takeError();
 
@@ -2961,7 +2967,19 @@ int main(int Argc, char **Argv) {
     timeTraceProfilerInitialize(Granularity, Argv[0]);
   }
 
+  UseSYCLPostLinkTool = Args.hasFlag(OPT_use_sycl_post_link_tool,
+                                     OPT_no_use_sycl_post_link_tool, true);
+  if (!UseSYCLPostLinkTool && Args.hasArg(OPT_use_sycl_post_link_tool))
+    reportError(createStringError("-use-sycl-post-link-tool and "
+                                  "-no-use-sycl-post-link-tool options can't "
+                                  "be used together."));
+
   if (Args.hasArg(OPT_sycl_module_split_mode_EQ)) {
+    if (UseSYCLPostLinkTool)
+      reportError(createStringError(
+          "-sycl-module-split-mode should be used with "
+          "the -no-use-sycl-post-link-tool command line option."));
+
     StringRef StrMode = Args.getLastArgValue(OPT_sycl_module_split_mode_EQ);
     SYCLModuleSplitMode = module_split::convertStringToSplitMode(StrMode);
     if (!SYCLModuleSplitMode)

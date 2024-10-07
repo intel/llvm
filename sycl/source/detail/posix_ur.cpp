@@ -19,7 +19,7 @@ namespace detail::ur {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
-  // RTLD_DEEPBIND option when there are multiple plugins.
+  // RTLD_DEEPBIND option when there are multiple adapters.
   void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
   if (!so && trace(TraceLevel::TRACE_ALL)) {
     char *Error = dlerror();

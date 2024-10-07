@@ -4035,7 +4035,6 @@
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platform@device@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
-?get_unsupported_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
 ?get_pointer_device@_V1@sycl@@YA?AVdevice@12@PEBXAEBVcontext@12@@Z
 ?get_pointer_type@_V1@sycl@@YA?AW4alloc@usm@12@PEBXAEBVcontext@12@@Z
 ?get_precision@stream@_V1@sycl@@QEBA_KXZ

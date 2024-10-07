@@ -1,3 +1,5 @@
+// REQUIRES: aspect-usm_shared_allocations,aspect-usm_device_allocations,aspect-usm_host_allocations
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

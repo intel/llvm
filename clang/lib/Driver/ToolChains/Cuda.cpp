@@ -938,8 +938,17 @@ void CudaToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_Cuda) &&
          "Only OpenMP, SYCL or CUDA offloading kinds are supported for NVIDIA GPUs.");
 
-  CC1Args.append(
-      {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
+  // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
+  // device code compatability, hence we do not set Cuda mode in that instance.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
+                                                  CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
+      CC1Args.push_back("-fcuda-prec-sqrt");
+  } else {
+    CC1Args.append(
+        {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
 
     // Unsized function arguments used for variadics were introduced in CUDA-9.0
     // We still do not support generating code that actually uses variadic
@@ -948,18 +957,10 @@ void CudaToolChain::addClangTargetOptions(
     if (CudaInstallation.version() >= CudaVersion::CUDA_90)
       CC1Args.push_back("-fcuda-allow-variadic-functions");
 
-    if (DriverArgs.hasArg(options::OPT_fsycl)) {
-      // Add these flags for .cu SYCL compilation.
+    // Add these flags for .cu SYCL compilation.
+    if (DeviceOffloadingKind == Action::OFK_Cuda &&
+        DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-    }
-
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
-
-    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
-      CC1Args.push_back("-fcuda-prec-sqrt");
-    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||

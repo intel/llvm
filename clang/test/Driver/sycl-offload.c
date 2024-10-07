@@ -394,6 +394,31 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:     -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
+// RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
+// RUN:     -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 2: compiler, {1}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {6}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {11}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: assembler, {15}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: clang-linker-wrapper, {16}, image, (host-sycl)
+
 /// ###########################################################################
 
 // Check if valid bound arch behaviour occurs when compiling for spir-v,nvidia-gpu, and amd-gpu
@@ -497,14 +522,10 @@
 // RUN: %clang -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // RUN: %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
