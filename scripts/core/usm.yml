@@ -229,7 +229,6 @@ class: $xUSM
 name: HostAlloc
 ordinal: "0"
 details:
-  - "This function must support memory pooling."
   - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
@@ -273,7 +272,6 @@ class: $xUSM
 name: DeviceAlloc
 ordinal: "0"
 details:
-  - "This function must support memory pooling."
   - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
@@ -320,7 +318,6 @@ class: $xUSM
 name: SharedAlloc
 ordinal: "0"
 details:
-  - "This function must support memory pooling."
   - "If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation will be served from a specified memory pool."
   - "Otherwise, the behavior is implementation-defined."
   - "Allocations served from different memory pools must be isolated and must not reside on the same page."
