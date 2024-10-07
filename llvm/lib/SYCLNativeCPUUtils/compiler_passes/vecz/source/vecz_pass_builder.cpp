@@ -140,7 +140,7 @@ void VeczPassMachinery::addClassToPassNames() {
     // FIXME: This is repeating the job of the VectorizationUnitAnalysis.
     // We should track 'failure' more directly in the
     // Function/VectorizationContext?
-    auto const *const VU = Ctx.getActiveVU(F);
+    const auto *const VU = Ctx.getActiveVU(F);
     if (!VU) {
       // Don't run on anything without a VU since it's not currently being
       // vectorized.

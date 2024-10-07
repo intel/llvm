@@ -1050,8 +1050,7 @@ Function *compiler::utils::Barrier::GenerateNewKernel(BarrierRegion &region) {
   BasicBlock *entry_point = region.entry;
   LLVMContext &context = module_.getContext();
 
-  LLVM_DEBUG(dbgs() << "\n"; unsigned i = 0; for (auto *d
-                                                  : region.blocks) {
+  LLVM_DEBUG(dbgs() << "\n"; unsigned i = 0; for (auto *d : region.blocks) {
     dbgs() << "entry block: " << entry_point->getName() << "\n";
     dbgs() << "region visited path [" << i++ << "] = " << d->getName()
            << "\n\n";

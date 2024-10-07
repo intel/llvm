@@ -36,7 +36,7 @@ llvm::AnalysisKey VectorizableFunctionAnalysis::Key;
 ///
 /// This flag is for testing and debugging purposes and it should not be used
 /// for normal code as instantiating undefined functions is not always valid.
-cl::opt<bool> HandleDeclOnlyCalls(
+static cl::opt<bool> HandleDeclOnlyCalls(
     "vecz-handle-declaration-only-calls",
     cl::desc("Go ahead and handle calls to declaration-only functions"));
 

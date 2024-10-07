@@ -122,7 +122,7 @@ bool funcContainsDebugMetadata(const llvm::Function &func,
 
   for (auto &BB : func) {
     for (auto &Inst : BB) {
-      if (auto DL = Inst.getDebugLoc()) {
+      if (const auto &DL = Inst.getDebugLoc()) {
         llvm::DILocation *loc = DL.get();
         vmap.MD()[loc].reset(loc);
         foundDI = true;
@@ -689,7 +689,7 @@ llvm::Value *createBinOpForRecurKind(llvm::IRBuilderBase &B, llvm::Value *LHS,
                                      llvm::Value *RHS, llvm::RecurKind Kind) {
   switch (Kind) {
     default:
-      break;
+      llvm_unreachable("Unexpected Kind");
     case llvm::RecurKind::None:
       return nullptr;
     case llvm::RecurKind::Add:
@@ -702,29 +702,23 @@ llvm::Value *createBinOpForRecurKind(llvm::IRBuilderBase &B, llvm::Value *LHS,
       return B.CreateAnd(LHS, RHS);
     case llvm::RecurKind::Xor:
       return B.CreateXor(LHS, RHS);
+    case llvm::RecurKind::SMin:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::smin, LHS, RHS);
+    case llvm::RecurKind::UMin:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::umin, LHS, RHS);
+    case llvm::RecurKind::SMax:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::smax, LHS, RHS);
+    case llvm::RecurKind::UMax:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::umax, LHS, RHS);
     case llvm::RecurKind::FAdd:
       return B.CreateFAdd(LHS, RHS);
     case llvm::RecurKind::FMul:
       return B.CreateFMul(LHS, RHS);
+    case llvm::RecurKind::FMin:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::minnum, LHS, RHS);
+    case llvm::RecurKind::FMax:
+      return B.CreateBinaryIntrinsic(llvm::Intrinsic::maxnum, LHS, RHS);
   }
-  assert((Kind == llvm::RecurKind::FMin || Kind == llvm::RecurKind::FMax ||
-          Kind == llvm::RecurKind::SMin || Kind == llvm::RecurKind::SMax ||
-          Kind == llvm::RecurKind::UMin || Kind == llvm::RecurKind::UMax) &&
-         "Unexpected min/max Kind");
-  if (Kind == llvm::RecurKind::FMin || Kind == llvm::RecurKind::FMax) {
-    return B.CreateBinaryIntrinsic(Kind == llvm::RecurKind::FMin
-                                       ? llvm::Intrinsic::minnum
-                                       : llvm::Intrinsic::maxnum,
-                                   LHS, RHS);
-  }
-  const bool isMin =
-      Kind == llvm::RecurKind::SMin || Kind == llvm::RecurKind::UMin;
-  const bool isSigned =
-      Kind == llvm::RecurKind::SMin || Kind == llvm::RecurKind::SMax;
-  const llvm::Intrinsic::ID intrOpc =
-      isMin ? (isSigned ? llvm::Intrinsic::smin : llvm::Intrinsic::umin)
-            : (isSigned ? llvm::Intrinsic::smax : llvm::Intrinsic::umax);
-  return B.CreateBinaryIntrinsic(intrOpc, LHS, RHS);
 }
 
 }  // namespace utils

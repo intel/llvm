@@ -123,7 +123,7 @@ IRBuilder<> buildAfter(Value *V, Function &F, bool IsPhi) {
   return {&F.getEntryBlock(), it};
 }
 
-Constant *getShuffleMask(ShuffleVectorInst *shuffle) {
+static Constant *getShuffleMask(ShuffleVectorInst *shuffle) {
   // The mask value seems not to be a proper operand for LLVM 11.
   // NOTE this is marked as "temporary" in the docs!
   return shuffle->getShuffleMaskForBitcode();
@@ -520,7 +520,8 @@ void Packetizer::Result::getPacketValues(SmallVectorImpl<Value *> &vals) const {
   assert(info && "No packet info for this packetization result");
   const auto width = info->numInstances;
   if (width != 0) {
-    return getPacketValues(width, vals);
+    getPacketValues(width, vals);
+    return;
   }
 }
 

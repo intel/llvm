@@ -31,6 +31,8 @@
 #include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
+#include <algorithm>
+
 #include "debugging.h"
 #include "llvm_helpers.h"
 #include "memory_operations.h"
@@ -834,9 +836,7 @@ SimdPacket *Scalarizer::scalarizeLoad(LoadInst *Load, PacketMask PM) {
   // whole vector.
   const unsigned Alignment = Load->getAlign().value();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
-  if (Alignment < EleAlign) {
-    EleAlign = Alignment;
-  }
+  EleAlign = std::min(Alignment, EleAlign);
 
   // Emit scalarized loads.
   for (unsigned i = 0; i < SimdWidth; i++) {
@@ -919,9 +919,7 @@ SimdPacket *Scalarizer::scalarizeStore(StoreInst *Store, PacketMask PM) {
   // See comment at equivalent part of scalarizeLoad()
   const unsigned Alignment = Store->getAlign().value();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
-  if (Alignment < EleAlign) {
-    EleAlign = Alignment;
-  }
+  EleAlign = std::min(Alignment, EleAlign);
 
   // Emit scalarized stores.
   for (unsigned i = 0; i < SimdWidth; i++) {
@@ -1133,9 +1131,9 @@ SimdPacket *Scalarizer::scalarizeBitCast(BitCastInst *BC, PacketMask PM) {
           SrcPart = B.CreateZExt(SrcPart, DstEleIntTy);
         }
         if (i * DstEleSize > j * SrcEleSize) {
-          SrcPart = B.CreateLShr(SrcPart, i * DstEleSize - j * SrcEleSize);
+          SrcPart = B.CreateLShr(SrcPart, (i * DstEleSize) - (j * SrcEleSize));
         } else if (j * SrcEleSize > i * DstEleSize) {
-          SrcPart = B.CreateShl(SrcPart, j * SrcEleSize - i * DstEleSize);
+          SrcPart = B.CreateShl(SrcPart, (j * SrcEleSize) - (i * DstEleSize));
         }
         if (SrcEleIntTy->getIntegerBitWidth() >
             DstEleIntTy->getIntegerBitWidth()) {
@@ -1311,9 +1309,7 @@ SimdPacket *Scalarizer::scalarizeMaskedMemOp(CallInst *CI, PacketMask PM,
 
   const unsigned Alignment = MaskedOp.getAlignment();
   unsigned EleAlign = ScalarEleTy->getPrimitiveSizeInBits() / 8;
-  if (Alignment < EleAlign) {
-    EleAlign = Alignment;
-  }
+  EleAlign = std::min(Alignment, EleAlign);
 
   for (unsigned i = 0; i < SimdWidth; i++) {
     if (!PM.isEnabled(i) || P->at(i)) {

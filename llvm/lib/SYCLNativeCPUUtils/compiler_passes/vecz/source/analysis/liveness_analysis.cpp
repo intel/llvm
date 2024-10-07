@@ -89,7 +89,7 @@ class LivenessResult::Impl {
   void calculateMaxRegistersInBlock(const llvm::BasicBlock *BB);
 
   // private utility method for code conciseness
-  inline BlockLivenessInfo &info(const BasicBlock *BB) const {
+  BlockLivenessInfo &info(const BasicBlock *BB) const {
     auto BIi = LR.BlockInfos.find(BB);
     assert(BIi != LR.BlockInfos.end() && "Block Liveness Info does not exist!");
     return BIi->second;

@@ -684,6 +684,12 @@ class TargetInfoAnalysis : public llvm::AnalysisInfoMixin<TargetInfoAnalysis> {
   CallbackFn TICallback;
 };
 
+std::unique_ptr<TargetInfo> createTargetInfoArm(llvm::TargetMachine *tm);
+
+std::unique_ptr<TargetInfo> createTargetInfoAArch64(llvm::TargetMachine *tm);
+
+std::unique_ptr<TargetInfo> createTargetInfoRISCV(llvm::TargetMachine *tm);
+
 /// @brief Create a new vector target info instance.
 /// @param[in] tm LLVM target machine that will be used for compilation, can
 /// be NULL if no target data is available.

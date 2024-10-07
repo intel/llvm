@@ -131,8 +131,7 @@ void IRCleanup::deleteInstructions() {
   }
 
   // Remove remaining instructions from the list.
-  LLVM_DEBUG(for (Instruction *I
-                  : InstructionsToDelete) {
+  LLVM_DEBUG(for (Instruction *I : InstructionsToDelete) {
     dbgs() << "vecz: could not delete " << *I << "\n";
   });
   InstructionsToDelete.clear();

@@ -25,6 +25,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <multi_llvm/vector_type_helper.h>
 
+#include <algorithm>
 #include <memory>
 #include <unordered_set>
 
@@ -166,9 +167,8 @@ void collectStatistics(VectorizationUnit &VU, Function *Scalar,
       ScalarVectorInsts += isVectorInst(I);
       // Find out how wide is the widest vector used in the scalar kernel
       if (auto *VecTy = dyn_cast<FixedVectorType>(I.getType())) {
-        if (VecTy->getNumElements() > MaxScalarVectorWidth) {
-          MaxScalarVectorWidth = VecTy->getNumElements();
-        }
+        MaxScalarVectorWidth =
+            std::max(VecTy->getNumElements(), MaxScalarVectorWidth);
       }
     }
   }

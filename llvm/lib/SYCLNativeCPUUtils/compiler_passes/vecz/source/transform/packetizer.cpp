@@ -1124,7 +1124,7 @@ unsigned Packetizer::Impl::getPacketWidthForType(Type *ty,
   // Note that we don't really expect huge values here, over 16 is still
   // currently not officially supported, over 256 would be astonishing,
   // and over 65536 would be inconcievable, so we don't bother to >> 16.
-  unsigned width = fullWidth / maxWidth - 1;
+  unsigned width = (fullWidth / maxWidth) - 1;
   width |= width >> 1;
   width |= width >> 2;
   width |= width >> 4;
@@ -3997,7 +3997,7 @@ ValuePacket Packetizer::Impl::packetizeShuffleVector(
   const auto adjust =
       isa<UndefValue>(srcB) ? -scalarWidth : (width - 1) * scalarWidth;
   for (auto &idx : mask) {
-    if (idx != int(-1) && idx >= int(scalarWidth)) {
+    if (idx != -1 && idx >= int(scalarWidth)) {
       idx += adjust;
     }
   }
@@ -4008,7 +4008,7 @@ ValuePacket Packetizer::Impl::packetizeShuffleVector(
   for (unsigned i = 1, k = 0; i < width; ++i, k += size) {
     for (unsigned j = 0; j < size; ++j) {
       auto maskElem = mask[k + j];
-      if (maskElem != int(-1)) {
+      if (maskElem != -1) {
         maskElem += scalarWidth;
       }
       mask.push_back(maskElem);
