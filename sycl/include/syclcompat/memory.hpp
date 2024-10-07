@@ -210,7 +210,8 @@ public:
       return nullptr;
     std::lock_guard<std::mutex> lock(m_mutex);
     if (next_free + size > mapped_address_space + mapped_region_size) {
-      throw std::runtime_error("dpct_malloc: out of memory for virtual memory pool");
+      throw std::runtime_error(
+          "syclcompat malloc: out of memory for virtual memory pool");
     }
     // Allocation
     sycl::range<1> r(size);
@@ -378,7 +379,7 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
     cgh.fill(acc, value);
   });
 #else
-  return q.memset(dev_ptr, value, size); //TODO(joe): this is q.fill in dpct
+  return q.memset(dev_ptr, value, size); // TODO(joe): this is q.fill in dpct
 #endif // COMPAT_USM_LEVEL_NONE
 }
 
@@ -487,7 +488,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
       auto r = sycl::range<1>(size);
       auto o = sycl::id<1>(offset);
       sycl::accessor<byte_t, 1, sycl::access_mode::write,
-                          sycl::access::target::device>
+                     sycl::access::target::device>
           acc(alloc.buffer, cgh, r, o);
       cgh.copy(from_ptr, acc);
     });
@@ -500,7 +501,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
       auto r = sycl::range<1>(size);
       auto o = sycl::id<1>(offset);
       sycl::accessor<byte_t, 1, sycl::access_mode::read,
-                          sycl::access::target::device>
+                     sycl::access::target::device>
           acc(alloc.buffer, cgh, r, o);
       cgh.copy(acc, to_ptr);
     });
@@ -516,16 +517,16 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
       auto to_o = sycl::id<1>(to_offset);
       auto from_o = sycl::id<1>(from_offset);
       sycl::accessor<byte_t, 1, sycl::access_mode::write,
-                          sycl::access::target::device>
+                     sycl::access::target::device>
           to_acc(to_alloc.buffer, cgh, r, to_o);
       sycl::accessor<byte_t, 1, sycl::access_mode::read,
-                          sycl::access::target::device>
+                     sycl::access::target::device>
           from_acc(from_alloc.buffer, cgh, r, from_o);
       cgh.copy(from_acc, to_acc);
     });
   }
   default:
-    throw std::runtime_error("dpct_memcpy: invalid direction value");
+    throw std::runtime_error("syclcompat memcpy: invalid direction value");
   }
 #else
   return q.memcpy(to_ptr, from_ptr, size, dep_events);
@@ -659,16 +660,15 @@ memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
       auto to_o = sycl::id<1>(to_offset);
       auto from_o = sycl::id<1>(from_offset);
       sycl::accessor<byte_t, 1, sycl::access_mode::write,
-                         sycl::access::target::device>
+                     sycl::access::target::device>
           to_acc(to_alloc.buffer, cgh,
                  get_copy_range(size, to_slice, to_range.get(0)), to_o);
       sycl::accessor<byte_t, 1, sycl::access_mode::read,
-                         sycl::access::target::device>
+                     sycl::access::target::device>
           from_acc(from_alloc.buffer, cgh,
                    get_copy_range(size, from_slice, from_range.get(0)), from_o);
-      cgh.parallel_for<class dpct_memcpy_3d_detail_usmnone>(
-          size,
-          [=](sycl::id<3> id) {
+      cgh.parallel_for<class compat_memcpy_3d_detail_usmnone>(
+          size, [=](sycl::id<3> id) {
             to_acc[get_offset(id, to_slice, to_range.get(0))] =
                 from_acc[get_offset(id, from_slice, from_range.get(0))];
           });
@@ -726,8 +726,7 @@ static sycl::event combine_events(std::vector<sycl::event> &events,
 ///
 /// \param ptr The pointer to be checked.
 /// \returns true if \p ptr is a device pointer.
-template<class T>
-static inline bool is_device_ptr(T ptr) {
+template <class T> static inline bool is_device_ptr(T ptr) {
   if constexpr (std::is_pointer<T>::value) {
     return detail::mem_mgr::instance().is_device_ptr(ptr);
   }
@@ -868,10 +867,9 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y,
   return detail::malloc(pitch, x, y, 1, q);
 }
 
-namespace detail{
+namespace detail {
 
-inline void free(void *ptr,
-                      const sycl::queue &q) {
+inline void free(void *ptr, const sycl::queue &q) {
   if (ptr) {
 #ifdef COMPAT_USM_LEVEL_NONE
     detail::mem_mgr::instance().mem_free(ptr);
@@ -880,7 +878,7 @@ inline void free(void *ptr,
 #endif // COMPAT_USM_LEVEL_NONE
   }
 }
-}  // namespace detail
+} // namespace detail
 
 /// Wait on the queue \p q and free the memory \p ptr.
 /// \param ptr Point to free.
@@ -898,8 +896,8 @@ static inline void wait_and_free(void *ptr,
 /// Free the memory \p ptr on the default queue without synchronizing
 /// \param ptr Point to free.
 /// \returns no return value.
-//TODO(joe) in dpct this defers to detail::dpct_free
-//Need this to handle the wait()
+// TODO(joe) in dpct this defers to detail::dpct_free
+// Need this to handle the wait()
 static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
   if (ptr) {
 #ifdef COMPAT_USM_LEVEL_NONE
@@ -919,7 +917,7 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 /// \param events The events to be waited on.
 /// \param q The sycl::queue the memory relates to.
 // Can't be static due to the friend declaration in the memory header.
-//TODO(joe): implement this in terms of detail::dpct_free...
+// TODO(joe): implement this in terms of detail::dpct_free...
 inline sycl::event enqueue_free(const std::vector<void *> &pointers,
                                 const std::vector<sycl::event> &events,
                                 sycl::queue q = get_default_queue()) {
@@ -1528,7 +1526,7 @@ private:
         _device_ptr(memory_ptr), _q(q) {}
 
   void allocate_device(sycl::queue q) {
-    //TODO(joe): _q = q; here..., and in dpct this fn returns the ptr
+    // TODO(joe): _q = q; here..., and in dpct this fn returns the ptr
 #ifndef COMPAT_USM_LEVEL_NONE
     if (Memory == memory_region::usm_shared) {
       _device_ptr = (value_t *)sycl::malloc_shared(_size, q.get_device(),
@@ -1551,7 +1549,7 @@ private:
   sycl::range<Dimension> _range;
   bool _reference;
   value_t *_host_ptr;
-  value_t *_device_ptr; //TODO(joe) in dpct this is a vector<value_t*>
+  value_t *_device_ptr; // TODO(joe) in dpct this is a vector<value_t*>
   sycl::queue _q;
 };
 template <class T, memory_region Memory>
@@ -1590,7 +1588,7 @@ public:
   void init(const void *ptr, sycl::queue q = get_default_queue()) {
 #ifdef COMPAT_USM_LEVEL_NONE
     throw std::runtime_error(
-          "dpct::pointer_attributes: only works for USM pointer.");
+        "syclcompat::pointer_attributes: only works for USM pointer.");
 #else
     memory_type = sycl::get_pointer_type(ptr, q.get_context());
     device_pointer = (memory_type != sycl::usm::alloc::unknown) ? ptr : nullptr;
