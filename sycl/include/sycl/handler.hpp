@@ -717,8 +717,7 @@ private:
       int ArgIndex,
       const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
           &Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg,
-           0,
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, 0,
            ArgIndex);
   }
 
