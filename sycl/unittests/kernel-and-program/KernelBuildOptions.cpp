@@ -78,7 +78,7 @@ static sycl::unittest::UrImage generateDefaultImage() {
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
