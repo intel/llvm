@@ -191,6 +191,28 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
+                         size_t propSize, void *pPropValue,
+                         size_t *pPropSizeRet) {
+  std::shared_lock<ur_shared_mutex> Lock(hMemory->Mutex);
+  UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_MEM_INFO_CONTEXT: {
+    return returnValue(hMemory->getContext());
+  }
+  case UR_MEM_INFO_SIZE: {
+    // Get size of the allocation
+    return returnValue(size_t{hMemory->getSize()});
+  }
+  default: {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urMemRetain(ur_mem_handle_t hMem) {
   hMem->RefCount.increment();
   return UR_RESULT_SUCCESS;

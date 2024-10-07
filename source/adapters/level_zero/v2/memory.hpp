@@ -22,6 +22,7 @@ struct ur_mem_handle_t_ : _ur_object {
   virtual void *getPtr(ur_device_handle_t) = 0;
 
   inline size_t getSize() { return size; }
+  inline ur_context_handle_t getContext() { return hContext; }
 
 protected:
   const ur_context_handle_t hContext;
