@@ -1251,16 +1251,15 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImageDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImageDesc,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  SrcImageDesc.verify();
-  DestImageDesc.verify();
+  SrcImgDesc.verify();
+  DestImgDesc.verify();
 
   auto isOutOfRange = [](const sycl::range<3> &range,
                          const sycl::range<3> &offset,
@@ -1271,10 +1270,10 @@ void handler::ext_oneapi_copy(
             static_cast<bool>(result[2]));
   };
 
-  sycl::range<3> SrcImageSize = {SrcImageDesc.width, SrcImageDesc.height,
-                                 SrcImageDesc.depth};
-  sycl::range<3> DestImageSize = {DestImageDesc.width, DestImageDesc.height,
-                                  DestImageDesc.depth};
+  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
+                                 SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
+                                  DestImgDesc.depth};
 
   if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
       isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
@@ -1287,16 +1286,16 @@ void handler::ext_oneapi_copy(
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
   ur_image_desc_t UrSrcDesc = {};
-  UrSrcDesc.width = SrcImageDesc.width;
-  UrSrcDesc.height = SrcImageDesc.height;
-  UrSrcDesc.depth = SrcImageDesc.depth;
-  UrSrcDesc.arraySize = SrcImageDesc.array_size;
+  UrSrcDesc.width = SrcImgDesc.width;
+  UrSrcDesc.height = SrcImgDesc.height;
+  UrSrcDesc.depth = SrcImgDesc.depth;
+  UrSrcDesc.arraySize = SrcImgDesc.array_size;
 
   ur_image_desc_t UrDestDesc = {};
-  UrDestDesc.width = DestImageDesc.width;
-  UrDestDesc.height = DestImageDesc.height;
-  UrDestDesc.depth = DestImageDesc.depth;
-  UrDestDesc.arraySize = DestImageDesc.array_size;
+  UrDestDesc.width = DestImgDesc.width;
+  UrDestDesc.height = DestImgDesc.height;
+  UrDestDesc.depth = DestImgDesc.depth;
+  UrDestDesc.arraySize = DestImgDesc.array_size;
 
   auto fill_image_type =
       [](const ext::oneapi::experimental::image_descriptor &Desc,
@@ -1319,8 +1318,8 @@ void handler::ext_oneapi_copy(
         }
       };
 
-  fill_image_type(SrcImageDesc, UrSrcDesc);
-  fill_image_type(DestImageDesc, UrDestDesc);
+  fill_image_type(SrcImgDesc, UrSrcDesc);
+  fill_image_type(DestImgDesc, UrDestDesc);
 
   auto fill_format = [](const ext::oneapi::experimental::image_descriptor &Desc,
                         ur_image_format_t &UrFormat) {
@@ -1334,8 +1333,8 @@ void handler::ext_oneapi_copy(
   ur_image_format_t UrSrcFormat;
   ur_image_format_t UrDestFormat;
 
-  fill_format(SrcImageDesc, UrSrcFormat);
-  fill_format(DestImageDesc, UrDestFormat);
+  fill_format(SrcImgDesc, UrSrcFormat);
+  fill_format(DestImgDesc, UrDestFormat);
 
   impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
   impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};

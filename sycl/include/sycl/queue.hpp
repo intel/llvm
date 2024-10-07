@@ -1765,23 +1765,23 @@ public:
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImageDesc )
-  /// \param SrcImageDesc is the source image descriptor
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImageDesc )
-  /// \param DestImageDesc is the destination image descriptor
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
   /// \param CopyExtent is the width, height, and depth of the region to copy
   ///               measured in pixels (pixel size determined by
-  ///               \p SrcImageDesc )
+  ///               \p SrcImgDesc )
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImageDesc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       sycl::range<3> CopyExtent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1793,24 +1793,24 @@ public:
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImageDesc )
-  /// \param SrcImageDesc is the source image descriptor
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImageDesc )
-  /// \param DestImageDesc is the destination image descriptor
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
   /// \param CopyExtent is the width, height, and depth of the region to copy
   ///               measured in pixels (pixel size determined by
-  ///               \p SrcImageDesc )
+  ///               \p SrcImgDesc )
   /// \param DepEvent is an event that specifies the kernel dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImageDesc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       sycl::range<3> CopyExtent, event DepEvent,
       const detail::code_location &CodeLoc = detail::code_location::current());
 
@@ -1822,25 +1822,25 @@ public:
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
-  ///                   (pixel size determined by \p SrcImageDesc )
-  /// \param SrcImageDesc is the source image descriptor
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param srcImgDesc is the source image descriptor
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the origin of destination measured in
-  ///                   pixels (pixel size determined by \p DestImageDesc )
-  /// \param DestImageDesc is the destination image descriptor
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
   /// \param CopyExtent is the width, height, and depth of the region to copy
   ///               measured in pixels (pixel size determined by
-  ///               \p SrcImageDesc )
+  ///               \p SrcImgDesc )
   /// \param DepEvents is a vector of events that specifies the kernel
   ///                  dependencies.
   /// \return an event representing the copy operation.
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImageDesc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
       const detail::code_location &CodeLoc = detail::code_location::current());
 

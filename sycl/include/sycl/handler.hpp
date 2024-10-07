@@ -3197,22 +3197,22 @@ public:
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the source origin measured in pixels
-  ///                   (pixel size determined by \p SrcImageDesc )
-  /// \param SrcImageDesc is the source image descriptor
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
   /// \param Dest is an opaque image memory handle to the destination memory.
   /// \param DestOffset is an offset from the destination origin measured in
-  ///                   pixels (pixel size determined by \p DestImageDesc )
-  /// \param DestImageDesc is the destination image descriptor
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
   /// \param CopyExtent is the width, height, and depth of the region to copy
   ///               measured in pixels (pixel size determined by
-  ///               \p SrcImageDesc )
+  ///               \p SrcImgDesc )
   void ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       sycl::range<3> SrcOffset,
-      const ext::oneapi::experimental::image_descriptor &SrcImageDesc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
       sycl::range<3> DestOffset,
-      const ext::oneapi::experimental::image_descriptor &DestImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       sycl::range<3> CopyExtent);
 
   /// Copies data from one memory region to another, where \p Src and \p Dest
