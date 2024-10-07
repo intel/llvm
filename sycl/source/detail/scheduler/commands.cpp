@@ -2487,10 +2487,21 @@ ur_result_t enqueueImpCommandBufferKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+
+  const std::vector<std::weak_ptr<sycl::detail::CGExecKernel>>
+      &AlternativeKernels = CommandGroup.MAlternativeKernels;
+
+  // UR kernel and program for 'CommandGroup'
   ur_kernel_handle_t UrKernel = nullptr;
   ur_program_handle_t UrProgram = nullptr;
+
+  // Impl objects created when 'CommandGroup' is from a kernel bundle
   std::shared_ptr<kernel_impl> SyclKernelImpl = nullptr;
   std::shared_ptr<device_image_impl> DeviceImageImpl = nullptr;
+
+  // List of ur objects to be released after UR call
+  std::vector<ur_kernel_handle_t> UrKernelsToRelease;
+  std::vector<ur_program_handle_t> UrProgramsToRelease;
 
   auto Kernel = CommandGroup.MSyclKernel;
   auto KernelBundleImplPtr = CommandGroup.MKernelBundle;
@@ -2520,6 +2531,42 @@ ur_result_t enqueueImpCommandBufferKernel(
     std::tie(UrKernel, std::ignore, EliminatedArgMask, UrProgram) =
         sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
             ContextImpl, DeviceImpl, CommandGroup.MKernelName);
+    UrKernelsToRelease.push_back(UrKernel);
+    UrProgramsToRelease.push_back(UrProgram);
+  }
+
+  // Build up the list of UR kernel handles that the UR command could be
+  // updated to use.
+  std::vector<ur_kernel_handle_t> AltUrKernels;
+  for (const auto &AltCGKernelWP : AlternativeKernels) {
+    auto AltCGKernel = AltCGKernelWP.lock();
+    assert(AltCGKernel != nullptr);
+
+    ur_kernel_handle_t AltUrKernel = nullptr;
+    if (auto KernelBundleImplPtr = AltCGKernel->MKernelBundle;
+        KernelBundleImplPtr && !KernelBundleImplPtr->isInterop()) {
+      auto KernelName = AltCGKernel->MKernelName;
+      kernel_id KernelID =
+          detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+      kernel SyclKernel =
+          KernelBundleImplPtr->get_kernel(KernelID, KernelBundleImplPtr);
+      AltUrKernel = detail::getSyclObjImpl(SyclKernel)->getHandleRef();
+    } else if (AltCGKernel->MSyclKernel != nullptr) {
+      AltUrKernel = Kernel->getHandleRef();
+    } else {
+      ur_program_handle_t UrProgram = nullptr;
+      std::tie(AltUrKernel, std::ignore, std::ignore, UrProgram) =
+          sycl::detail::ProgramManager::getInstance().getOrCreateKernel(
+              ContextImpl, DeviceImpl, AltCGKernel->MKernelName);
+      UrKernelsToRelease.push_back(AltUrKernel);
+      UrProgramsToRelease.push_back(UrProgram);
+    }
+
+    if (AltUrKernel != UrKernel) {
+      // Don't include command-group 'CommandGroup' in the list to pass to UR,
+      // as this will be used for the primary ur kernel parameter.
+      AltUrKernels.push_back(AltUrKernel);
+    }
   }
 
   auto SetFunc = [&Adapter, &UrKernel, &DeviceImageImpl, &Ctx,
@@ -2572,14 +2619,17 @@ ur_result_t enqueueImpCommandBufferKernel(
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-          &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
-          OutSyncPoint, nullptr,
+          &NDRDesc.GlobalSize[0], LocalSize, AltUrKernels.size(),
+          AltUrKernels.size() ? AltUrKernels.data() : nullptr,
+          SyncPoints.size(), SyncPoints.size() ? SyncPoints.data() : nullptr, 0,
+          nullptr, OutSyncPoint, nullptr,
           CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
-  if (!SyclKernelImpl && !Kernel) {
-    Adapter->call<UrApiKind::urKernelRelease>(UrKernel);
-    Adapter->call<UrApiKind::urProgramRelease>(UrProgram);
+  for (auto &Kernel : UrKernelsToRelease) {
+    Adapter->call<UrApiKind::urKernelRelease>(Kernel);
+  }
+  for (auto &Program : UrProgramsToRelease) {
+    Adapter->call<UrApiKind::urProgramRelease>(Program);
   }
 
   if (Res != UR_RESULT_SUCCESS) {

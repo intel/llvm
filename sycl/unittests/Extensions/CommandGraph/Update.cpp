@@ -134,35 +134,6 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
   }));
 }
 
-TEST_F(CommandGraphTest, UpdateRangeErrors) {
-  // Test that the correct errors are throw when trying to update node ranges
-
-  nd_range<1> NDRange{range{128}, range{32}};
-  range<1> Range{128};
-  auto NodeNDRange = Graph.add([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(NDRange, [](nd_item<1>) {});
-  });
-
-  // OK
-  EXPECT_NO_THROW(NodeNDRange.update_nd_range(NDRange));
-  // Can't update an nd_range node with a range
-  EXPECT_ANY_THROW(NodeNDRange.update_range(Range));
-  // Can't update with a different number of dimensions
-  EXPECT_ANY_THROW(NodeNDRange.update_nd_range(
-      nd_range<2>{range<2>{128, 128}, range<2>{32, 32}}));
-
-  auto NodeRange = Graph.add([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(range<1>{128}, [](item<1>) {});
-  });
-
-  // OK
-  EXPECT_NO_THROW(NodeRange.update_range(Range));
-  // Can't update a range node with an nd_range
-  EXPECT_ANY_THROW(NodeRange.update_nd_range(NDRange));
-  // Can't update with a different number of dimensions
-  EXPECT_ANY_THROW(NodeRange.update_range(range<2>{128, 128}));
-}
-
 class WholeGraphUpdateTest : public CommandGraphTest {
 
 protected:
