@@ -14,6 +14,7 @@
 #include "ur.hpp"
 
 #include "../helpers/kernel_helpers.hpp"
+#include "../helpers/memory_helpers.hpp"
 #include "../program.hpp"
 
 #include "../common/latency_tracker.hpp"
@@ -310,26 +311,55 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWrite(
                           numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueRegionCopy(
+    void *srcPtr, void *dstPtr, bool blocking, ur_rect_offset_t srcOrigin,
+    ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
+    size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCopy();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  auto zeParams = ur2zeRegionParams(srcOrigin, dstOrigin, region, srcRowPitch,
+                                    dstRowPitch, srcSlicePitch, dstSlicePitch);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
+             (handler->commandList.get(), dstPtr, &zeParams.dstRegion,
+              zeParams.dstPitch, zeParams.dstSlicePitch, srcPtr,
+              &zeParams.srcRegion, zeParams.srcPitch, zeParams.srcSlicePitch,
+              signalEvent, numWaitEvents, pWaitEvents));
+
+  if (blocking) {
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+               (handler->commandList.get(), UINT64_MAX));
+    lastHandler = nullptr;
+  } else {
+    lastHandler = handler;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferReadRect(
     ur_mem_handle_t hBuffer, bool blockingRead, ur_rect_offset_t bufferOrigin,
     ur_rect_offset_t hostOrigin, ur_rect_region_t region, size_t bufferRowPitch,
     size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
     void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBuffer;
-  std::ignore = blockingRead;
-  std::ignore = bufferOrigin;
-  std::ignore = hostOrigin;
-  std::ignore = region;
-  std::ignore = bufferRowPitch;
-  std::ignore = bufferSlicePitch;
-  std::ignore = hostRowPitch;
-  std::ignore = hostSlicePitch;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  auto srcPtr = ur_cast<char *>(hBuffer->getPtr(hDevice));
+
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueMemBufferReadRect");
+
+  return enqueueRegionCopy(srcPtr, pDst, blockingRead, bufferOrigin, hostOrigin,
+                           region, bufferRowPitch, bufferSlicePitch,
+                           hostRowPitch, hostSlicePitch, numEventsInWaitList,
+                           phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect(
@@ -338,20 +368,15 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect(
     size_t bufferSlicePitch, size_t hostRowPitch, size_t hostSlicePitch,
     void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBuffer;
-  std::ignore = blockingWrite;
-  std::ignore = bufferOrigin;
-  std::ignore = hostOrigin;
-  std::ignore = region;
-  std::ignore = bufferRowPitch;
-  std::ignore = bufferSlicePitch;
-  std::ignore = hostRowPitch;
-  std::ignore = hostSlicePitch;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  auto dstPtr = ur_cast<char *>(hBuffer->getPtr(hDevice));
+
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect");
+
+  return enqueueRegionCopy(pSrc, dstPtr, blockingWrite, hostOrigin,
+                           bufferOrigin, region, hostRowPitch, hostSlicePitch,
+                           bufferRowPitch, bufferSlicePitch,
+                           numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopy(
@@ -378,19 +403,17 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect(
     ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
     size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hBufferSrc;
-  std::ignore = hBufferDst;
-  std::ignore = srcOrigin;
-  std::ignore = dstOrigin;
-  std::ignore = region;
-  std::ignore = srcRowPitch;
-  std::ignore = srcSlicePitch;
-  std::ignore = dstRowPitch;
-  std::ignore = dstSlicePitch;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto srcPtr = ur_cast<char *>(hBufferSrc->getPtr(hDevice));
+  auto dstPtr = ur_cast<char *>(hBufferDst->getPtr(hDevice));
+
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect");
+
+  return enqueueRegionCopy(srcPtr, dstPtr, false, srcOrigin, dstOrigin, region,
+                           srcRowPitch, srcSlicePitch, dstRowPitch,
+                           dstSlicePitch, numEventsInWaitList, phEventWaitList,
+                           phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferFill(

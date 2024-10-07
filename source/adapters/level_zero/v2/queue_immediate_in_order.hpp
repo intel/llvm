@@ -63,6 +63,13 @@ private:
   ze_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
                                    ur_event_handle_t *hUserEvent);
 
+  ur_result_t enqueueRegionCopy(
+      void *srcPtr, void *dstPtr, bool blocking, ur_rect_offset_t srcOrigin,
+      ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
+      size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent);
+
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 const ur_queue_properties_t *);
