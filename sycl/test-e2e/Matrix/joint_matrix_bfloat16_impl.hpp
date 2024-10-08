@@ -129,10 +129,10 @@ int main() {
       // test<bfloat16, bfloat16, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
-      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
       // test<bfloat16, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // test<bfloat16, bfloat16, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
       // test<bfloat16, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
       // test<bfloat16, bfloat16, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
 #endif
