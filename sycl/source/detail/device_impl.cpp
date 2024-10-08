@@ -769,6 +769,7 @@ bool device_impl::has(aspect Aspect) const {
     return has_extension("cl_ext_float_atomics");
   }
   case aspect::ext_oneapi_virtual_functions: {
+    // TODO: move to UR like e.g. aspect::ext_oneapi_virtual_mem
     backend BE = getBackend();
     bool isCompatibleBE = BE == sycl::backend::ext_oneapi_level_zero ||
                           BE == sycl::backend::opencl;
