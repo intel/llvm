@@ -150,7 +150,7 @@ int main() {
   sycl::multi_ptr<int, sycl::access::address_space::global_space,
                   sycl::access::decorated::yes>
       a(nullptr);
-  // expected-warning@+1 {{'atomic<int, sycl::access::address_space::global_space>' is deprecated: sycl::atomic is deprecated since SYCL 2020}}
+  // expected-warning@+1 {{'atomic' is deprecated: use sycl::atomic_ref instead}}
   sycl::atomic<int> b(a);
 
   sycl::group<1> group = sycl::detail::Builder::createGroup<1>({8}, {4}, {1});
@@ -250,6 +250,7 @@ int main() {
     // expected-warning@+1{{'local' is deprecated: use `local_accessor` instead}}
     sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::target::local>
         LocalAcc(sycl::range<1>(1), CGH);
+    // expected-warning@sycl/pointers.hpp:33 {{'multi_ptr<int, sycl::access::address_space::local_space, sycl::access::decorated::legacy>' is deprecated: decorated::legacy multi_ptr specialization is deprecated since SYCL 2020}}
     // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
     sycl::multi_ptr<int, sycl::access::address_space::local_space,
                     sycl::access::decorated::no>
@@ -261,6 +262,7 @@ int main() {
     // expected-warning@+1{{'local' is deprecated: use `local_accessor` instead}}
     sycl::accessor<const int, 1, sycl::access::mode::read, sycl::target::local>
         LocalConstAcc(sycl::range<1>(1), CGH);
+    // expected-warning@sycl/pointers.hpp:33 {{'multi_ptr<const int, sycl::access::address_space::local_space, sycl::access::decorated::legacy>' is deprecated: decorated::legacy multi_ptr specialization is deprecated since SYCL 2020}}
     // expected-warning@+3{{'multi_ptr' is deprecated: multi_ptr construction using target::local specialized accessor is deprecated since SYCL 2020}}
     sycl::multi_ptr<const int, sycl::access::address_space::local_space,
                     sycl::access::decorated::no>
