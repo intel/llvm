@@ -8628,11 +8628,6 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Visibility<[CC1Option]>,
   MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
-defm sycl_allow_all_features_in_constexpr
-    : BoolFOption<
-          "sycl-allow-all-features-in-constexpr", LangOpts<"SYCLAllowAllFeaturesInConstexpr">,
-          DefaultFalse,
-          PosFlag<SetTrue, [], [CC1Option], "Allow all C++ features in SYCL device code in manifestly constant-evaluated expressions">, NegFlag<SetFalse>>;
 
 } // let Visibility = [CC1Option]
 
