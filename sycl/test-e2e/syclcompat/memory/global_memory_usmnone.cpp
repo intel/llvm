@@ -8,7 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #define DPCT_NAMED_LAMBDA
-#define DPCT_USM_LEVEL_NONE
+#define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
 #include <dpct/dpct.hpp>
 
@@ -68,19 +68,19 @@ bool verify() {
   auto size_bytes = 15 * sizeof(int);
 
   int h_result[15];
-  dpct::dpct_memcpy(h_result, c_2d_a.get_ptr(), size_bytes);
+  syclcompat::memcpy(h_result, c_2d_a.get_ptr(), size_bytes);
   if (!verify_init(h_result))
     return false;
-  dpct::dpct_memcpy(h_result, c_2d_b.get_ptr(), size_bytes);
+  syclcompat::memcpy(h_result, c_2d_b.get_ptr(), size_bytes);
   if (!verify_init(h_result))
     return false;
-  dpct::dpct_memcpy(h_result, c_2d_c.get_ptr(), size_bytes);
+  syclcompat::memcpy(h_result, c_2d_c.get_ptr(), size_bytes);
   if (!verify_init(h_result))
     return false;
-  dpct::dpct_memcpy(h_result, c_3d.get_ptr(), size_bytes);
+  syclcompat::memcpy(h_result, c_3d.get_ptr(), size_bytes);
   if (!verify_init(h_result))
     return false;
-  dpct::dpct_memcpy(h_result, c_1d.get_ptr(), size_bytes);
+  syclcompat::memcpy(h_result, c_1d.get_ptr(), size_bytes);
   if (!verify_init(h_result))
     return false;
   return true;

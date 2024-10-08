@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#define DPCT_USM_LEVEL_NONE
+#define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
 #include <dpct/dpct.hpp>
 

@@ -7,19 +7,19 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#define DPCT_USM_LEVEL_NONE
+#define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
 #include <dpct/dpct.hpp>
 
 int main() {
-  float* f = (float*)dpct::dpct_malloc(sizeof(float));
+  float* f = (float*)syclcompat::malloc(sizeof(float));
   bool pass = false;
 
   if (dpct::is_device_ptr(f)) {
     pass = true;
   }
 
-  dpct::dpct_free(f);
+  syclcompat::free(f);
 
   return (pass ? 0 : 1);
 }

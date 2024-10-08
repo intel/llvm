@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#define DPCT_USM_LEVEL_NONE
+#define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
 #include <cstdio>
 #include <ctime>
@@ -252,7 +252,7 @@ int main(int argc, char **argv) {
 
   int *atom_arr;
 
-  atom_arr = (int *)dpct::dpct_malloc(sizeof(int) * numData);
+  atom_arr = (int *)syclcompat::malloc(sizeof(int) * numData);
 
   for (unsigned int i = 0; i < numData; i++) {
     *dpct::get_host_ptr<unsigned int>(atom_arr + i) = 0;
@@ -312,7 +312,7 @@ int main(int argc, char **argv) {
   int testResult =
       verify(dpct::get_host_ptr<int>(atom_arr), 2 * numThreads * numBlocks);
 
-  dpct::dpct_free(atom_arr);
+  syclcompat::free(atom_arr);
 
   printf("Atomics test completed, returned %s \n",
          testResult ? "OK" : "ERROR!");
