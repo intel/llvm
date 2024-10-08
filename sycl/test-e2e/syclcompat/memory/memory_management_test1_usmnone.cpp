@@ -12,7 +12,7 @@
 
 #define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
-#include <dpct/memory.hpp>
+#include <syclcompat/memory.hpp>
 
 void test1() {
 

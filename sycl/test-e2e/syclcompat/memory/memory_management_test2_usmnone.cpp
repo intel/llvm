@@ -11,7 +11,7 @@
 
 #define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
-#include <dpct/memory.hpp>
+#include <syclcompat/memory.hpp>
 
 void check(float *h_data, float *h_ref, size_t width, size_t height,
            size_t depth) {
@@ -44,7 +44,6 @@ void test1() {
   // alloc device memory.
   size_t d_pitch;
   float *d_data;
-  //test_feature:dpct_malloc
   d_data = (float *)syclcompat::malloc(d_pitch, sizeof(float) * width, height);
 
   // copy to Device.
@@ -100,11 +99,8 @@ void test2() {
   syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
 
   {
-    //test_feature:get_buffer
     syclcompat::buffer_t buffer_A = syclcompat::get_buffer(d_A);
-    //test_feature:get_buffer
     syclcompat::buffer_t buffer_B = syclcompat::get_buffer(d_B);
-    //test_feature:get_buffer
     syclcompat::buffer_t buffer_C = syclcompat::get_buffer(d_C);
 
     syclcompat::get_default_queue().submit(
@@ -170,11 +166,8 @@ void test3() {
   syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
 
   {
-    //test_feature:get_buffer
     auto buffer_A = syclcompat::get_buffer<float>(d_A);
-    //test_feature:get_buffer
     auto buffer_B = syclcompat::get_buffer<float>(d_B);
-    //test_feature:get_buffer
     auto buffer_C = syclcompat::get_buffer<float>(d_C);
 
     syclcompat::get_default_queue().submit(
@@ -250,11 +243,8 @@ void test4() {
   {
     syclcompat::get_default_queue().submit(
       [&](sycl::handler &cgh) {
-      //test_feature:access_wrapper
       syclcompat::access_wrapper<float *> d_A_acc(d_A, cgh);
-      //test_feature:access_wrapper
       syclcompat::access_wrapper<float *> d_B_acc(d_B, cgh);
-      //test_feature:access_wrapper
       syclcompat::access_wrapper<float *> d_C_acc(d_C, cgh);
 
         cgh.parallel_for(
@@ -326,14 +316,8 @@ void test5() {
         cgh.parallel_for(
           sycl::range<2>(DataW, DataH),
           [=](sycl::id<2> id) {
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::constant, 2> A(c_A_acc);
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::constant, 2> B(c_B_acc);
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::constant, 2> C(c_C_acc);
             int i = id[0], j = id[1];
             C[i][j] = A[i][j] + B[i][j];
@@ -388,14 +372,8 @@ void test6() {
         cgh.parallel_for(
           sycl::range<2>(DataW, DataH),
           [=](sycl::id<2> id) {
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::global, 2> A(g_A_acc);
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::global, 2> B(g_B_acc);
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::global, 2> C(g_C_acc);
             int i = id[0], j = id[1];
             C[i][j] = A[i][j] + B[i][j];
@@ -435,11 +413,8 @@ void test7() {
   {
     syclcompat::get_default_queue().submit(
       [&](sycl::handler &cgh) {
-        //test_feature:access_wrapper
         syclcompat::access_wrapper<float *> A_acc(s_A.get_ptr(), cgh);
-        //test_feature:access_wrapper
         syclcompat::access_wrapper<float *> B_acc(s_B.get_ptr(), cgh);
-        //test_feature:access_wrapper
         syclcompat::access_wrapper<float *> C_acc(s_C.get_ptr(), cgh);
         cgh.parallel_for(
           sycl::range<1>(DataW),
@@ -483,7 +458,6 @@ void test9() {
   d_A = (float *)syclcompat::malloc(Num * Num * sizeof(float));
 
   {
-    //test_feature:get_buffer
     auto buffer_A = syclcompat::get_buffer<float>(d_A);
 
     syclcompat::get_default_queue().submit(
@@ -495,8 +469,6 @@ void test9() {
         cgh.parallel_for(
           sycl::nd_range<2>(sycl::range<2>(Num, Num), sycl::range<2>(Num, Num)),
           [=](sycl::nd_item<2> id) {
-            //test_feature:accessor
-            //test_feature:memory_region
             syclcompat::accessor<float, syclcompat::local, 2> C_local(C_local_acc, acc_range);
             int i = id.get_local_id(0), j = id.get_local_id(1);
             C_local[i][j] = 1;
@@ -541,7 +513,6 @@ void test1(sycl::queue &q) {
   // alloc device memory.
   size_t d_pitch;
   float *d_data;
-  //test_feature:dpct_malloc
   d_data = (float *)syclcompat::malloc(d_pitch, sizeof(float) * width, height, q);
 
   // copy to Device.
