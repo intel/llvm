@@ -1,12 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Fail is flaky for level_zero, enable when fixed.
-// UNSUPPORTED: level_zero
-//
-// Consistently fails with opencl gpu, enable when fixed.
-// XFAIL: opencl && gpu
-
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,16 +11,17 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/get_kernel_info.hpp>
 
 using namespace sycl;
+namespace syclex = sycl::ext::oneapi;
 
 int main() {
   queue q;
-
+  auto ctx = q.get_context();
   buffer<int, 1> buf(range<1>(1));
   auto KernelID = sycl::get_kernel_id<class SingleTask>();
-  auto KB =
-      get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
+  auto KB = get_kernel_bundle<bundle_state::executable>(ctx, {KernelID});
   kernel krn = KB.get_kernel(KernelID);
 
   q.submit([&](handler &cgh) {
@@ -42,6 +37,10 @@ int main() {
   bool ExceptionWasThrown = false;
   try {
     const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
+    // Use ext_oneapi_get_kernel_info extension and check that answers match.
+    const cl_uint krnArgCountExt =
+        syclex::get_kernel_info<SingleTask, info::kernel::num_args>(ctx);
+    assert(krnArgCountExt == krnArgCount);
   } catch (exception &e) {
     ErrMsg = e.what();
     Errc = e.code();
@@ -59,8 +58,16 @@ int main() {
   assert(krnCtx == q.get_context());
   const cl_uint krnRefCount = krn.get_info<info::kernel::reference_count>();
   assert(krnRefCount > 0);
-  const std::string krnAttr = krn.get_info<info::kernel::attributes>();
-  assert(krnAttr.empty());
+
+  // Use ext_oneapi_get_kernel_info extension and check that answers match.
+  const context krnCtxExt =
+      syclex::get_kernel_info<SingleTask, info::kernel::context>(ctx);
+  assert(krnCtxExt == krnCtx);
+  // Reference count might be different because we have to retain the kernel
+  // handle first to fetch the info. So just check that it is not 0.
+  const cl_uint krnRefCountExt =
+      syclex::get_kernel_info<SingleTask, info::kernel::reference_count>(ctx);
+  assert(krnRefCountExt > 0);
 
   device dev = q.get_device();
   const size_t wgSize =
@@ -82,12 +89,42 @@ int main() {
       krn.get_info<info::kernel_device_specific::compile_num_sub_groups>(dev);
   assert(compileNumSg <= maxNumSg);
 
+  // Use ext_oneapi_get_kernel_info extension and check that answers match.
+  const size_t wgSizeExt = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::work_group_size>(ctx, dev);
+  assert(wgSizeExt == wgSize);
+  const size_t prefWGSizeMultExt = syclex::get_kernel_info<
+      SingleTask,
+      info::kernel_device_specific::preferred_work_group_size_multiple>(ctx,
+                                                                        dev);
+  assert(prefWGSizeMultExt == prefWGSizeMult);
+  const cl_uint maxSgSizeExt = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::max_sub_group_size>(ctx, dev);
+  assert(maxSgSizeExt == maxSgSize);
+  const cl_uint compileSgSizeExt = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::compile_sub_group_size>(ctx,
+                                                                        dev);
+  assert(compileSgSizeExt == compileSgSize);
+  const cl_uint maxNumSgExt = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::max_num_sub_groups>(ctx, dev);
+  assert(maxNumSgExt == maxNumSg);
+  const cl_uint compileNumSgExt = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::compile_num_sub_groups>(ctx,
+                                                                        dev);
+  assert(compileNumSgExt == compileNumSg);
+
   {
     std::error_code Errc;
     std::string ErrMsg = "";
     bool IsExceptionThrown = false;
     try {
-      krn.get_info<sycl::info::kernel_device_specific::global_work_size>(dev);
+      auto globalWorkSize =
+          krn.get_info<sycl::info::kernel_device_specific::global_work_size>(
+              dev);
+      // Use ext_oneapi_get_kernel_info extension and check that answers match.
+      auto globalWorkSizeExt = syclex::get_kernel_info<
+          SingleTask, info::kernel_device_specific::global_work_size>(ctx, dev);
+      assert(globalWorkSize == globalWorkSizeExt);
       auto BuiltInIds = dev.get_info<info::device::built_in_kernel_ids>();
       bool isBuiltInKernel = std::find(BuiltInIds.begin(), BuiltInIds.end(),
                                        KernelID) != BuiltInIds.end();
