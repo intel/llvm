@@ -9,8 +9,8 @@
 #include <detail/backend_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/kernel.hpp>
 
 namespace sycl {
