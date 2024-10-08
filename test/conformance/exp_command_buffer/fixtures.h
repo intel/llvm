@@ -403,7 +403,8 @@ struct urCommandEventSyncUpdateTest : urCommandEventSyncTest {
 
         // Create a command-buffer with update enabled.
         ur_exp_command_buffer_desc_t desc{
-            UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, true};
+            UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, true, false,
+            false};
 
         ASSERT_SUCCESS(urCommandBufferCreateExp(context, device, &desc,
                                                 &updatable_cmd_buf_handle));
