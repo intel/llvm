@@ -87,10 +87,10 @@ int32_t dot_acc(vec<int8_t,4>  a, vec<uint8_t,4> b, int32_t c);
 int32_t dot_acc(vec<uint8_t,4> a, vec<int8_t,4>  b, int32_t c);
 uint32_t dot_acc(vec<uint8_t,4> a, vec<uint8_t,4> b, uint32_t c);
 
-int32_t doc_acc_4x8packed_ss(uint32_t a, uint32_t b, int32_t c);
-int32_t doc_acc_4x8packed_su(uint32_t a, uint32_t b, int32_t c);
-int32_t doc_acc_4x8packed_us(uint32_t a, uint32_t b, int32_t c);
-uint32_t doc_acc_4x8packed_uu(uint32_t a, uint32_t b, uint32_t c);
+int32_t dot_acc_4x8packed_ss(uint32_t a, uint32_t b, int32_t c);
+int32_t dot_acc_4x8packed_su(uint32_t a, uint32_t b, int32_t c);
+int32_t dot_acc_4x8packed_us(uint32_t a, uint32_t b, int32_t c);
+uint32_t dot_acc_4x8packed_uu(uint32_t a, uint32_t b, uint32_t c);
 
 } // namespace sycl::ext::oneapi
 ----
@@ -122,7 +122,7 @@ dot product of two vectors.
 
 |[source,c]
 ----
-int32_t doc_acc_4x8packed_ss(uint32_t a,
+int32_t dot_acc_4x8packed_ss(uint32_t a,
                              uint32_t b,
                              int32_t c)
 ----
@@ -132,7 +132,7 @@ int32_t doc_acc_4x8packed_ss(uint32_t a,
 
 |[source,c]
 ----
-int32_t doc_acc_4x8packed_su(uint32_t a,
+int32_t dot_acc_4x8packed_su(uint32_t a,
                              uint32_t b,
                              int32_t c)
 ----
@@ -143,7 +143,7 @@ int32_t doc_acc_4x8packed_su(uint32_t a,
 
 |[source,c]
 ----
-int32_t doc_acc_4x8packed_us(uint32_t a,
+int32_t dot_acc_4x8packed_us(uint32_t a,
                              uint32_t b,
                              int32_t c)
 ----
@@ -154,7 +154,7 @@ int32_t doc_acc_4x8packed_us(uint32_t a,
 
 |[source,c]
 ----
-uint32_t doc_acc_4x8packed_uu(uint32_t a,
+uint32_t dot_acc_4x8packed_uu(uint32_t a,
                               uint32_t b,
                               uint32_t c);
 ----
@@ -209,7 +209,7 @@ int32_t dot_acc(int32_t a,
 
 |Performs a four-component integer dot product accumulate operation, where
 `a` and `b` are both interpreted as `vec<int8_t,4>`.  Use
-`doc_acc_4x8packed_ss` instead.
+`dot_acc_4x8packed_ss` instead.
 
 |[source,c]
 ----
@@ -220,7 +220,7 @@ int32_t dot_acc(int32_t a,
 
 |Performs a four-component integer dot product accumulate operation, where
 `a` is interpreted as `vec<int8_t,4>` and `b` is interpreted as
-`vec<uint8_t,4>`.  Use `doc_acc_4x8packed_su` instead.
+`vec<uint8_t,4>`.  Use `dot_acc_4x8packed_su` instead.
 
 |[source,c]
 ----
@@ -231,7 +231,7 @@ int32_t dot_acc(uint32_t a,
 
 |Performs a four-component integer dot product accumulate operation, where
 `a` is interpreted as `vec<uint8_t,4>` and `b` is interpreted as
-`vec<int8_t,4>`.  Use `doc_acc_4x8packed_us` instead.
+`vec<int8_t,4>`.  Use `dot_acc_4x8packed_us` instead.
 
 |[source,c]
 ----
@@ -242,5 +242,5 @@ int32_t dot_acc(uint32_t a,
 
 |Performs a four-component integer dot product accumulate operation, where
 `a` and `b` are both interpreted as `vec<uint8_t,4>`.  Use
-`doc_acc_4x8packed_uu` instead.
+`dot_acc_4x8packed_uu` instead.
 |====
