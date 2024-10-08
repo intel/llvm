@@ -1861,13 +1861,13 @@ std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
 handler::getCommandGraph() const {
   if (impl->MGraph) {
     return impl->MGraph;
-  } else if (this->MQueue) {
-    return MQueue->getCommandGraph();
   }
+
+  if (this->MQueue)
+    return MQueue->getCommandGraph();
   // We should never reach here. MGraph and MQueue can not be null
   // simultaneously.
-  else
-    return nullptr;
+  return nullptr;
 }
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
