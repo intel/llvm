@@ -279,5 +279,4 @@ urEnqueueWriteHostPipeTest.InvalidNullHandleProgram/Intel_R__oneAPI_Unified_Runt
 urEnqueueWriteHostPipeTest.InvalidNullPointerPipeSymbol/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueWriteHostPipeTest.InvalidNullPointerBuffer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueWriteHostPipeTest.InvalidEventWaitList/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEnqueueTimestampRecordingExpTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEnqueueTimestampRecordingExpTest.SuccessBlocking/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urEnqueueTimestampRecordingExpTest.SuccessBlocking/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
