@@ -946,7 +946,7 @@ CallInst *mutateCallInst(
     CI->setName(InstName + ".old");
   }
   auto *NewCI = addCallInst(M, NewName, CI->getType(), Args, Attrs, CI, Mangle,
-                           InstName, TakeFuncName);
+                            InstName, TakeFuncName);
   NewCI->setDebugLoc(CI->getDebugLoc());
   LLVM_DEBUG(dbgs() << " => " << *NewCI << '\n');
   CI->replaceAllUsesWith(NewCI);
@@ -966,8 +966,8 @@ Instruction *mutateCallInst(
   Type *RetTy = CI->getType();
   auto NewName = ArgMutate(CI, Args, RetTy);
   StringRef InstName = CI->getName();
-  auto *NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle, InstName,
-                           TakeFuncName);
+  auto *NewCI = addCallInst(M, NewName, RetTy, Args, Attrs, CI, Mangle,
+                            InstName, TakeFuncName);
   auto *NewI = RetMutate(NewCI);
   NewI->takeName(CI);
   NewI->setDebugLoc(CI->getDebugLoc());
@@ -1012,7 +1012,7 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
                       StringRef InstName, bool TakeFuncName) {
 
   auto *F = getOrCreateFunction(M, RetTy, getTypes(Args), FuncName, Mangle,
-                               Attrs, TakeFuncName);
+                                Attrs, TakeFuncName);
   InsertPosition InsertPos(nullptr);
   if (Pos)
     InsertPos = Pos->getIterator();
@@ -1898,8 +1898,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     if ((!Ty->isFloatTy() && !Ty->isDoubleTy() && !Ty->isHalfTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
-      BM->SPIRVCK(
-          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
+      BM->SPIRVCK(false, InvalidFunctionCall,
+                  II->getCalledOperand()->getName().str());
       return false;
     }
     break;
@@ -1914,8 +1914,8 @@ bool checkTypeForSPIRVExtendedInstLowering(IntrinsicInst *II, SPIRVModule *BM) {
     if ((!Ty->isIntegerTy()) ||
         (!BM->hasCapability(CapabilityVectorAnyINTEL) &&
          ((NumElems > 4) && (NumElems != 8) && (NumElems != 16)))) {
-      BM->SPIRVCK(
-          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
+      BM->SPIRVCK(false, InvalidFunctionCall,
+                  II->getCalledOperand()->getName().str());
     }
     break;
   }

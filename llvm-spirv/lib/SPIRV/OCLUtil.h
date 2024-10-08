@@ -161,7 +161,7 @@ struct OCLBuiltinTransInfo {
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
-  Type *RetTy;      // Return type of the translated function
+  Type *RetTy; // Return type of the translated function
   OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }

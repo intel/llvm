@@ -486,12 +486,14 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
-      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *
+  getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
+                                   llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
+                                                      llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *
+  getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
+                                      llvm::MDNode *MD) = 0;
   virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                  SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
@@ -602,7 +604,6 @@ protected:
 private:
   bool IsValid;
 };
-
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 

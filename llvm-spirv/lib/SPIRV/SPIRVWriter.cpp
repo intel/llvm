@@ -1975,7 +1975,7 @@ void transAliasingMemAccess(SPIRVModule *BM, MDNode *AliasingListMD,
                             std::vector<uint32_t> &MemoryAccess,
                             SPIRVWord MemAccessMask) {
   if (!BM->isAllowedToUseExtension(
-        ExtensionID::SPV_INTEL_memory_access_aliasing))
+          ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
   auto *MemAliasList = addMemAliasingINTELInstructions(BM, AliasingListMD);
   if (!MemAliasList)
@@ -3126,20 +3126,17 @@ bool LLVMToSPIRVBase::transAlign(Value *V, SPIRVValue *BV) {
 void LLVMToSPIRVBase::transMemAliasingINTELDecorations(Instruction *Inst,
                                                        SPIRVValue *BV) {
   if (!BM->isAllowedToUseExtension(
-         ExtensionID::SPV_INTEL_memory_access_aliasing))
+          ExtensionID::SPV_INTEL_memory_access_aliasing))
     return;
-  if (MDNode *AliasingListMD =
-          Inst->getMetadata(LLVMContext::MD_alias_scope)) {
-    auto *MemAliasList =
-        addMemAliasingINTELInstructions(BM, AliasingListMD);
+  if (MDNode *AliasingListMD = Inst->getMetadata(LLVMContext::MD_alias_scope)) {
+    auto *MemAliasList = addMemAliasingINTELInstructions(BM, AliasingListMD);
     if (!MemAliasList)
       return;
     BV->addDecorate(new SPIRVDecorateId(DecorationAliasScopeINTEL, BV,
                                         MemAliasList->getId()));
   }
   if (MDNode *AliasingListMD = Inst->getMetadata(LLVMContext::MD_noalias)) {
-    auto *MemAliasList =
-        addMemAliasingINTELInstructions(BM, AliasingListMD);
+    auto *MemAliasList = addMemAliasingINTELInstructions(BM, AliasingListMD);
     if (!MemAliasList)
       return;
     BV->addDecorate(
@@ -4300,32 +4297,32 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
   case Intrinsic::experimental_constrained_fadd: {
     auto *BI = BM->addBinaryInst(OpFAdd, transType(II->getType()),
-                                transValue(II->getArgOperand(0), BB),
-                                transValue(II->getArgOperand(1), BB), BB);
+                                 transValue(II->getArgOperand(0), BB),
+                                 transValue(II->getArgOperand(1), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(2), BI);
   }
   case Intrinsic::experimental_constrained_fsub: {
     auto *BI = BM->addBinaryInst(OpFSub, transType(II->getType()),
-                                transValue(II->getArgOperand(0), BB),
-                                transValue(II->getArgOperand(1), BB), BB);
+                                 transValue(II->getArgOperand(0), BB),
+                                 transValue(II->getArgOperand(1), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(2), BI);
   }
   case Intrinsic::experimental_constrained_fmul: {
     auto *BI = BM->addBinaryInst(OpFMul, transType(II->getType()),
-                                transValue(II->getArgOperand(0), BB),
-                                transValue(II->getArgOperand(1), BB), BB);
+                                 transValue(II->getArgOperand(0), BB),
+                                 transValue(II->getArgOperand(1), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(2), BI);
   }
   case Intrinsic::experimental_constrained_fdiv: {
     auto *BI = BM->addBinaryInst(OpFDiv, transType(II->getType()),
-                                transValue(II->getArgOperand(0), BB),
-                                transValue(II->getArgOperand(1), BB), BB);
+                                 transValue(II->getArgOperand(0), BB),
+                                 transValue(II->getArgOperand(1), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(2), BI);
   }
   case Intrinsic::experimental_constrained_frem: {
     auto *BI = BM->addBinaryInst(OpFRem, transType(II->getType()),
-                                transValue(II->getArgOperand(0), BB),
-                                transValue(II->getArgOperand(1), BB), BB);
+                                 transValue(II->getArgOperand(0), BB),
+                                 transValue(II->getArgOperand(1), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(2), BI);
   }
   case Intrinsic::experimental_constrained_fma: {
@@ -4333,8 +4330,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
                                    transValue(II->getArgOperand(1), BB),
                                    transValue(II->getArgOperand(2), BB)};
     auto *BI = BM->addExtInst(transType(II->getType()),
-                             BM->getExtInstSetId(SPIRVEIS_OpenCL),
-                             OpenCLLIB::Fma, Args, BB);
+                              BM->getExtInstSetId(SPIRVEIS_OpenCL),
+                              OpenCLLIB::Fma, Args, BB);
     return applyRoundingModeConstraint(II->getOperand(3), BI);
   }
   case Intrinsic::experimental_constrained_fptoui: {
@@ -4347,12 +4344,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
   case Intrinsic::experimental_constrained_uitofp: {
     auto *BI = BM->addUnaryInst(OpConvertUToF, transType(II->getType()),
-                               transValue(II->getArgOperand(0), BB), BB);
+                                transValue(II->getArgOperand(0), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(1), BI);
   }
   case Intrinsic::experimental_constrained_sitofp: {
     auto *BI = BM->addUnaryInst(OpConvertSToF, transType(II->getType()),
-                               transValue(II->getArgOperand(0), BB), BB);
+                                transValue(II->getArgOperand(0), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(1), BI);
   }
   case Intrinsic::experimental_constrained_fpext: {
@@ -4361,7 +4358,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
   }
   case Intrinsic::experimental_constrained_fptrunc: {
     auto *BI = BM->addUnaryInst(OpFConvert, transType(II->getType()),
-                               transValue(II->getArgOperand(0), BB), BB);
+                                transValue(II->getArgOperand(0), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(1), BI);
   }
   case Intrinsic::experimental_constrained_fcmp:
@@ -4394,7 +4391,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
         BM->addBinaryInst(OpFMul, Ty, transValue(II->getArgOperand(0), BB),
                           transValue(II->getArgOperand(1), BB), BB);
     auto *BI = BM->addBinaryInst(OpFAdd, Ty, Mul,
-                                transValue(II->getArgOperand(2), BB), BB);
+                                 transValue(II->getArgOperand(2), BB), BB);
     return applyRoundingModeConstraint(II->getOperand(3), BI);
   }
   case Intrinsic::fmuladd: {
@@ -5103,8 +5100,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     else
       // Other LLVM intrinsics shouldn't get to SPIRV, because they
       // can't be represented in SPIRV or aren't implemented yet.
-      BM->SPIRVCK(
-          false, InvalidFunctionCall, II->getCalledOperand()->getName().str());
+      BM->SPIRVCK(false, InvalidFunctionCall,
+                  II->getCalledOperand()->getName().str());
   }
   return nullptr;
 }

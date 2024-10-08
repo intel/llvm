@@ -61,7 +61,7 @@ using namespace llvm;
 namespace llvm {
 class IntrinsicInst;
 class IRBuilderBase;
-}
+} // namespace llvm
 
 namespace SPIRV {
 
