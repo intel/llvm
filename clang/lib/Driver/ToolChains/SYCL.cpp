@@ -48,7 +48,7 @@ void SYCLInstallationDetector::AddSYCLIncludeArgs(
   // Add the SYCL header search locations in the specified order.
   //   ../include/sycl/stl_wrappers
   //   ../include
-  SmallString<128> IncludePath(Driver.Dir);
+  SmallString<128> IncludePath(D.Dir);
   llvm::sys::path::append(IncludePath, "..");
   llvm::sys::path::append(IncludePath, "include");
   // This is used to provide our wrappers around STL headers that provide
@@ -61,7 +61,6 @@ void SYCLInstallationDetector::AddSYCLIncludeArgs(
   CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
-  SmallString<128> IncludePath(D.Dir);
 }
 
 void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
@@ -1401,8 +1400,8 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
 
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
-    : ToolChain(D, Triple, Args), HostTC(HostTC), SYCLInstallation(D),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()) {
+    : ToolChain(D, Triple, Args), HostTC(HostTC),
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
